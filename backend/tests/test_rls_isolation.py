@@ -20,6 +20,7 @@ def test_rls_statements_cover_devices():
     assert "current_setting('app.current_tenant'" in sql
     assert "WITH CHECK" in sql
     assert "tenant_id" in sql
+    assert "NULLIF" in sql
 
 
 def test_disable_rls_statements_tear_down_policy():
@@ -73,3 +74,29 @@ async def test_no_tenant_context_sees_nothing(db_engine, two_tenants):
         await s.execute(text(f"SET ROLE {APP_ROLE}"))
         rows = (await s.execute(text("SELECT name FROM devices"))).scalars().all()
         assert rows == []
+
+
+async def test_app_role_connection_enforces_rls(db_engine, two_tenants):
+    """Connessione REALE come ruolo non-superuser opngms_app: la RLS deve valere
+    senza SET ROLE, esattamente come in produzione."""
+    import os
+
+    from app.core.db import make_engine
+    from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
+
+    tenant_a, _ = two_tenants
+    test_url = os.environ["TEST_DATABASE_URL"]
+    app_url = test_url.replace("opngms:opngms@", f"{APP_ROLE}:{APP_ROLE_PASSWORD}@")
+    engine = make_engine(app_url)
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            await set_tenant_context(s, tenant_a)
+            rows = (await s.execute(text("SELECT name FROM devices"))).scalars().all()
+            assert rows == ["fw-a"]
+        async with factory() as s2:
+            # nessun contesto -> nessuna riga (fail-closed) anche per il ruolo reale
+            rows = (await s2.execute(text("SELECT name FROM devices"))).scalars().all()
+            assert rows == []
+    finally:
+        await engine.dispose()

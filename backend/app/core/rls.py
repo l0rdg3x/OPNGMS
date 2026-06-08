@@ -1,34 +1,50 @@
 """Statement RLS per le tabelle di dati-tenant.
 
-Fonte unica usata sia dalla migrazione 0002 sia dalla conftest dei test, così
+Fonte unica usata sia dalle migrazioni sia dalla conftest dei test, cosi' le
 policy applicate in produzione e in test non possono divergere.
 """
 
-# Tabelle soggette a isolamento per tenant (le tabelle di control-plane NON sono qui).
 TENANT_TABLES: list[str] = ["devices"]
+
+POLICY_NAME = "tenant_isolation"
+
+
+def _policy_predicate() -> str:
+    # NULLIF: contesto assente o '' -> NULL -> nessuna riga (fail-closed).
+    return "tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid"
+
+
+def policy_create_statement(table: str) -> str:
+    predicate = _policy_predicate()
+    return (
+        f"CREATE POLICY {POLICY_NAME} ON {table} "
+        f"USING ({predicate}) WITH CHECK ({predicate})"
+    )
 
 
 def enable_rls_statements() -> list[str]:
     stmts: list[str] = []
     for table in TENANT_TABLES:
         stmts.append(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
-        # FORCE: la RLS si applica anche al proprietario della tabella (e quindi nei test).
+        # FORCE: la RLS si applica anche al proprietario della tabella.
         stmts.append(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
-        stmts.append(
-            f"DO $$ BEGIN "
-            f"IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='{table}' AND policyname='tenant_isolation') THEN "
-            f"CREATE POLICY tenant_isolation ON {table} "
-            f"USING (tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid) "
-            f"WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid); "
-            f"END IF; END $$"
-        )
+        stmts.append(policy_create_statement(table))
+    return stmts
+
+
+def recreate_policy_statements() -> list[str]:
+    """DROP + CREATE per aggiornare la policy su DB gia' migrati (migrazione 0003)."""
+    stmts: list[str] = []
+    for table in TENANT_TABLES:
+        stmts.append(f"DROP POLICY IF EXISTS {POLICY_NAME} ON {table}")
+        stmts.append(policy_create_statement(table))
     return stmts
 
 
 def disable_rls_statements() -> list[str]:
     stmts: list[str] = []
     for table in TENANT_TABLES:
-        stmts.append(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
+        stmts.append(f"DROP POLICY IF EXISTS {POLICY_NAME} ON {table}")
         stmts.append(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
         stmts.append(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
     return stmts

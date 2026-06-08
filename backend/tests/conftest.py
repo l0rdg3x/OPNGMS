@@ -7,6 +7,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.db import make_engine, set_tenant_context
+from app.core.db_roles import (
+    create_app_role_statements,
+    grant_app_role_statements,
+)
 from app.core.rls import enable_rls_statements
 from app.main import app
 from app.models import Base
@@ -21,9 +25,6 @@ async def client():
         yield c
 
 
-APP_ROLE = "opngms_app"
-
-
 @pytest.fixture
 async def db_engine():
     """Create a fresh test DB schema with RLS enabled for each test function.
@@ -33,9 +34,11 @@ async def db_engine():
     Rebuilding the schema for 3 tests is acceptable overhead.
 
     The opngms user is a superuser, which PostgreSQL exempts from RLS even with
-    FORCE ROW LEVEL SECURITY.  We therefore create a non-superuser role
-    (opngms_app) and grant it the necessary privileges.  Tests that need genuine
-    RLS enforcement issue SET ROLE opngms_app before querying.
+    FORCE ROW LEVEL SECURITY.  We therefore create the non-superuser role
+    opngms_app and grant it the necessary privileges, reusing the same statements
+    as migration 0003 (db_roles) so test and production cannot diverge.  Tests
+    that need genuine RLS enforcement either SET ROLE opngms_app or connect as the
+    real opngms_app login role before querying.
     """
     if not TEST_DB_URL:
         pytest.skip("TEST_DATABASE_URL non impostata")
@@ -45,12 +48,13 @@ async def db_engine():
         await conn.run_sync(Base.metadata.create_all)
         for stmt in enable_rls_statements():
             await conn.execute(text(stmt))
-        # Create a non-superuser app role that RLS applies to
-        await conn.execute(
-            text(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{APP_ROLE}') THEN CREATE ROLE {APP_ROLE} LOGIN PASSWORD 'opngms_app'; END IF; END $$")
-        )
-        await conn.execute(text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {APP_ROLE}"))
-        await conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {APP_ROLE}"))
+        # Create the non-superuser app role and grant it data-table privileges,
+        # using the same statements as migration 0003 (DRY: test and prod cannot
+        # diverge). RLS applies to this role exactly as in production.
+        for stmt in create_app_role_statements():
+            await conn.execute(text(stmt))
+        for stmt in grant_app_role_statements():
+            await conn.execute(text(stmt))
     yield engine
     await engine.dispose()
 
