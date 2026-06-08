@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, func
+from sqlalchemy import DateTime, ForeignKey, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,4 +24,6 @@ class AuditLog(UUIDPKMixin, Base):
     target_type: Mapped[str | None] = mapped_column(default=None)
     target_id: Mapped[str | None] = mapped_column(default=None)
     ip: Mapped[str | None] = mapped_column(default=None)
-    details: Mapped[dict] = mapped_column(JSONB, default=dict)
+    details: Mapped[dict] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
