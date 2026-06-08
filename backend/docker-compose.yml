@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: opngms
+      POSTGRES_PASSWORD: opngms
+      POSTGRES_DB: opngms
+    ports:
+      - "5432:5432"
+    volumes:
+      - opngms_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opngms"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  opngms_pg:
