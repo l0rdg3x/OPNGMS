@@ -1192,3 +1192,29 @@ Per rendere la "rete di sicurezza" RLS realmente attiva, l'app deve connettersi 
 **Definizione di fatto:** sul DB, `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE
 rolname='opngms_app'` → `f, f`; la policy `tenant_isolation` usa `NULLIF`; una connessione reale
 come `opngms_app` vede solo i device del tenant in contesto; suite verde.
+
+---
+
+## Debito tecnico da affrontare nella Milestone B (dalla review finale)
+
+Nessuno bloccante per la Milestone A; da tracciare:
+
+1. **Wiring del request-context:** `set_tenant_context` + `get_session` esistono ma non sono
+   ancora collegati (il middleware è Milestone B). ⚠️ Se un handler usa `get_session` **senza**
+   impostare il contesto, ogni query tenant ritorna *vuoto* (fail-closed, sicuro) invece di
+   errore: il middleware della Milestone B deve impostare il contesto a **ogni** richiesta.
+2. **Indici audit_log:** solo PK. Aggiungere indici su `tenant_id`, `actor_user_id`, `ts` quando
+   l'audit verrà interrogato.
+3. **Indici + cleanup sessioni:** `sessions` senza indice su `user_id`/`expires_at`; manca un job
+   di pulizia delle sessioni scadute (`session_ttl_hours` è definito ma inutilizzato).
+4. **Indice membership per tenant:** esiste solo l'unique composito `(user_id, tenant_id)`;
+   aggiungere un indice su `tenant_id` quando si elencheranno i membri di un tenant.
+5. **`updated_at`:** presente solo `created_at`/`ts`. Aggiungere `updated_at`
+   (`onupdate=func.now()`) quando arriveranno gli endpoint di modifica.
+6. **RLS solo su `devices`:** corretto per ora. `audit_log.tenant_id` è nullable e non protetto da
+   RLS — decidere se serve quando l'audit diventerà tenant-scoped (per ora basta lo scoping
+   applicativo).
+7. **Server-default per i NOT NULL dei device** (`tags`, `verify_tls`, `status`): oggi solo
+   default Python — gli INSERT via SQL grezzo devono fornirli (la conftest già lo fa).
+8. **Floor delle versioni in `pyproject.toml`:** girato su Python 3.14 / pytest 9 / pytest-asyncio
+   1.4; valutare un range testato prima della Milestone B.
