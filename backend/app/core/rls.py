@@ -18,8 +18,8 @@ def enable_rls_statements() -> list[str]:
             f"DO $$ BEGIN "
             f"IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='{table}' AND policyname='tenant_isolation') THEN "
             f"CREATE POLICY tenant_isolation ON {table} "
-            f"USING (tenant_id = current_setting('app.current_tenant', true)::uuid) "
-            f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid); "
+            f"USING (tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid) "
+            f"WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid); "
             f"END IF; END $$"
         )
     return stmts
