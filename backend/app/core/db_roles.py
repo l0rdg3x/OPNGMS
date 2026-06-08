@@ -7,7 +7,8 @@ dalla conftest dei test.
 """
 
 APP_ROLE = "opngms_app"
-# MVP/locale: in produzione cambiare con `ALTER ROLE opngms_app PASSWORD '...'`.
+# MVP/locale: in produzione cambiare con `ALTER ROLE opngms_app PASSWORD '...'`
+# E AGGIORNARE di conseguenza DATABASE_URL (l'app si connette con queste credenziali).
 APP_ROLE_PASSWORD = "opngms_app"
 
 

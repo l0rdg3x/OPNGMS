@@ -1,9 +1,11 @@
 import uuid
 
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.core.db import set_tenant_context
+from app.core.db import make_engine, set_tenant_context
+from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
 from app.core.rls import (
     TENANT_TABLES,
     disable_rls_statements,
@@ -27,9 +29,6 @@ def test_disable_rls_statements_tear_down_policy():
     sql = "\n".join(disable_rls_statements())
     assert "DROP POLICY IF EXISTS" in sql
     assert "DISABLE ROW LEVEL SECURITY" in sql
-
-
-APP_ROLE = "opngms_app"
 
 
 async def test_repository_returns_only_active_tenant(db_engine, two_tenants):
@@ -81,13 +80,11 @@ async def test_app_role_connection_enforces_rls(db_engine, two_tenants):
     senza SET ROLE, esattamente come in produzione."""
     import os
 
-    from app.core.db import make_engine
-    from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
-
     tenant_a, _ = two_tenants
-    test_url = os.environ["TEST_DATABASE_URL"]
-    app_url = test_url.replace("opngms:opngms@", f"{APP_ROLE}:{APP_ROLE_PASSWORD}@")
-    engine = make_engine(app_url)
+    base_url = make_url(os.environ["TEST_DATABASE_URL"])
+    app_url = base_url.set(username=APP_ROLE, password=APP_ROLE_PASSWORD)
+    assert app_url.username == APP_ROLE  # fail loudly if the role didn't take
+    engine = make_engine(app_url.render_as_string(hide_password=False))
     try:
         factory = async_sessionmaker(engine, expire_on_commit=False)
         async with factory() as s:

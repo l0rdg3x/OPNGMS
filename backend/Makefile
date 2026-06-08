@@ -15,7 +15,7 @@ migrate:
 	ALEMBIC_DATABASE_URL=$(ADMIN_DATABASE_URL) alembic upgrade head
 
 revision:
-	alembic revision --autogenerate -m "$(m)"
+	ALEMBIC_DATABASE_URL=$(ADMIN_DATABASE_URL) alembic revision --autogenerate -m "$(m)"
 
 test:
 	python -m pytest -v
