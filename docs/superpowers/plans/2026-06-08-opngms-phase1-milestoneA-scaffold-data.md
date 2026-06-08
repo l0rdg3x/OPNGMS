@@ -1160,3 +1160,35 @@ spec (la RLS come rete di sicurezza sui dati dei clienti).
 **Type consistency:** `set_tenant_context(session, tenant_id)`, `DeviceRepository(session,
 tenant_id)`, `enable_rls_statements()`, `TENANT_TABLES`, `Device.api_key_enc/api_secret_enc`,
 `Device.status` usati in modo coerente tra Task 4-9.
+
+---
+
+## Task 11: Wiring RLS in produzione (ruolo app non-superuser) — aggiunto dopo il Task 9
+
+**Motivazione (scoperta durante il Task 9):** i superuser PostgreSQL bypassano *sempre* la
+RLS, anche con `FORCE`. L'utente `opngms` (POSTGRES_USER) è superuser, quindi finché l'app si
+connette con lui la RLS non protegge in produzione. I test la esercitano solo via `SET ROLE`.
+Per rendere la "rete di sicurezza" RLS realmente attiva, l'app deve connettersi con un ruolo
+**non-superuser, NOBYPASSRLS**.
+
+**Deliverable:**
+- `app/core/db_roles.py` — fonte DRY: `APP_ROLE="opngms_app"`, `create_app_role_statements()`
+  (`CREATE ROLE ... LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`, guarded),
+  `grant_app_role_statements()` (USAGE schema + CRUD su tutte le tabelle + ALTER DEFAULT
+  PRIVILEGES per le tabelle future), `drop_app_role_statements()` (revoke + DROP OWNED BY +
+  DROP ROLE, guarded).
+- `app/core/rls.py` — rimosso il blocco `DO` idempotente (impediva l'update della policy su DB
+  esistenti); fattorizzato `policy_create_statement(table)` (con `NULLIF(current_setting(...),'')`);
+  `enable_rls_statements()` usa il `CREATE POLICY` semplice; aggiunto `recreate_policy_statements()`
+  (DROP+CREATE) per aggiornare la policy sui DB già migrati.
+- `migrations/versions/0003_app_role_and_policy.py` (`revision="0003"`, `down_revision="0002"`):
+  upgrade = crea ruolo + ricrea policy (NULLIF) + grant; downgrade = drop ruolo/grant (la policy
+  migliorata resta).
+- `.env.example` — `DATABASE_URL` usa `opngms_app`; aggiunto `ADMIN_DATABASE_URL` (owner) per le
+  migrazioni. `Makefile` `migrate` usa l'URL admin.
+- `tests/conftest.py` — il ruolo + grant nel `db_engine` arrivano da `db_roles` (DRY); aggiunto
+  un test che si connette *davvero* come `opngms_app` (non `SET ROLE`) e verifica l'isolamento.
+
+**Definizione di fatto:** sul DB, `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE
+rolname='opngms_app'` → `f, f`; la policy `tenant_isolation` usa `NULLIF`; una connessione reale
+come `opngms_app` vede solo i device del tenant in contesto; suite verde.
