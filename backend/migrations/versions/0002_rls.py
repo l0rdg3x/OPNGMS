@@ -1,3 +1,5 @@
+"""row-level security policies on tenant-scoped tables"""
+
 from alembic import op
 
 from app.core.rls import disable_rls_statements, enable_rls_statements
