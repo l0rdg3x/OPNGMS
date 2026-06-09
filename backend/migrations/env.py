@@ -15,6 +15,20 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _include_object(obj, name, type_, reflected, compare_to):
+    """Esclude dall'autogenerate gli oggetti interni di TimescaleDB.
+
+    `create_hypertable` crea automaticamente un indice `<table>_<timecol>_idx` (es.
+    `metrics_time_idx`) che non è nel modello; e gli oggetti vivono in `_timescaledb_internal`.
+    Senza questo filtro alembic check segnalerebbe drift spurio.
+    """
+    if type_ == "index" and name and name.endswith("_time_idx"):
+        return False
+    if getattr(obj, "schema", None) == "_timescaledb_internal":
+        return False
+    return True
+
+
 def _db_url() -> str:
     return os.getenv("ALEMBIC_DATABASE_URL") or get_settings().database_url
 
@@ -25,6 +39,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         compare_type=True,
+        include_object=_include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -35,6 +50,7 @@ def _do_run(connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        include_object=_include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
