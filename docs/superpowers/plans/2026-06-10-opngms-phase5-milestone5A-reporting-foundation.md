@@ -1001,7 +1001,8 @@ git commit -m "feat(reporting): on-demand generate API (REPORT_GENERATE+CSRF+aud
   (5C) are stubs/absent; the template frame is ready.
 - **White-label**: branding uses placeholders (tenant name, owner=None); 5D adds the per-tenant config.
 - **No persistence**: 5A returns the PDF inline; storage + history + scheduled cron is 5E.
-- **Range cap** `MAX_RANGE_DAYS=92` defined but enforcement (reject/clamp) is light — tighten in 5B.
+- **Range cap** `MAX_RANGE_DAYS=92` is enforced (oversized/inverted ranges → HTTP 400); a future nicety is
+  to clamp-and-warn instead of reject, and to make the cap configurable per tenant.
 
 ---
 

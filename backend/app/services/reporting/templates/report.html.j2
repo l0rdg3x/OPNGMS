@@ -28,7 +28,8 @@
     <div class="chart">{{ Markup(section.attacks.timeline_svg) }}</div>
     {% for tbl in section.attacks.tables %}
     <table class="ranked">
-      <thead><tr><th>{{ tbl.title }}</th><th>{{ tbl.columns[1] }}</th></tr></thead>
+      <caption>{{ tbl.title }}</caption>
+      <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th></tr></thead>
       <tbody>
         {% for value, count in tbl.rows %}<tr><td>{{ value }}</td><td>{{ count }}</td></tr>{% endfor %}
         {% if not tbl.rows %}<tr><td colspan="2">No data</td></tr>{% endif %}
