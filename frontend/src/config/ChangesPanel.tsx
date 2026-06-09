@@ -5,6 +5,7 @@ import {
   Card,
   Code,
   Group,
+  Loader,
   Modal,
   Popover,
   Stack,
@@ -64,7 +65,7 @@ function ChangeRowActions({
   }
 
   async function handleSchedule() {
-    const iso = scheduleDate ? new Date(scheduleDate).toISOString() : null;
+    const iso = scheduleDate ? new Date(scheduleDate.replace(" ", "T")).toISOString() : null;
     try {
       await schedule.mutateAsync({ id: c.id, scheduled_at: iso });
       setScheduleOpen(false);
@@ -155,8 +156,11 @@ function PreviewModal({
 
   return (
     <Modal opened={!!previewId} onClose={onClose} title={t.config.changes.preview}>
-      {preview.isLoading && <Text>{t.config.changes.preview}…</Text>}
-      {preview.data && (
+      {preview.isLoading && <Loader size="sm" />}
+      {preview.isError && (
+        <Text c="red">{t.errors.configChangeAction}</Text>
+      )}
+      {preview.data != null && (
         <Code block>{JSON.stringify(preview.data, null, 2)}</Code>
       )}
     </Modal>

@@ -160,6 +160,25 @@ describe("ChangesPanel actions", () => {
     expect(screen.queryByRole("button", { name: /cancel/i })).not.toBeInTheDocument();
   });
 
+  it("Preview 403: modal shows error text and no secret content", async () => {
+    server.use(
+      http.get(CHANGES_URL, () => HttpResponse.json([draftChange])),
+      http.get(PREVIEW_URL, () =>
+        HttpResponse.json({ detail: "forbidden" }, { status: 403 }),
+      ),
+    );
+
+    renderWithProviders(withTenant(<ChangesPanel deviceId="d1" />));
+
+    const previewBtn = await screen.findByRole("button", { name: /preview/i });
+    await userEvent.click(previewBtn);
+
+    // Modal opens and shows the error message from t.errors.configChangeAction.
+    await screen.findByText("Action failed (you may lack permission)");
+    // No stale/secret JSON content is visible.
+    expect(screen.queryByText(/forbidden/i)).not.toBeInTheDocument();
+  });
+
   /*
    * NOTE: The full DateTimePicker calendar interaction (picking a date via jsdom)
    * is skipped because driving the Mantine date calendar through jsdom is flaky
