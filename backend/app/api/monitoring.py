@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.deps import TenantContext, require_tenant
 from app.core.rbac import Action
+from app.repositories.alert import AlertRepository
 from app.repositories.metric import MAX_POINTS, MetricRepository
+from app.schemas.alert import AlertOut
 from app.schemas.metric import MetricSeriesOut
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["monitoring"])
@@ -42,3 +44,14 @@ async def get_device_metrics(
     points = await repo.series(device_id, metric, frm, end, bucket)
     last = await repo.last(device_id, metric)
     return MetricSeriesOut(metric=metric, points=points, last=last)
+
+
+@router.get("/alerts", response_model=list[AlertOut])
+async def list_alerts(
+    tenant_id: uuid.UUID,
+    active: bool = Query(True, description="Solo alert attivi (resolved_at IS NULL)"),
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> list[AlertOut]:
+    alerts = await AlertRepository(session, tenant_id).list(active_only=active)
+    return [AlertOut.model_validate(a) for a in alerts]
