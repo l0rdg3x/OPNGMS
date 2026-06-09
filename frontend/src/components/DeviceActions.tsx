@@ -11,26 +11,34 @@ export function DeviceActions({ tenantId, deviceId }: { tenantId: string; device
 
   const test = useMutation({
     mutationFn: async () => {
-      const { data } = await api.POST(
+      const { data, error } = await api.POST(
         "/api/tenants/{tenant_id}/devices/{device_id}/test-connection",
         pathParams,
       );
-      return data;
+      if (error || !data) throw new Error("test failed");
+      return data; // narrowed: non-undefined
     },
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: ["device", tenantId, deviceId] });
-      notifications.show({ message: `Test: ${(d as { status: string }).status}` });
+      qc.invalidateQueries({ queryKey: ["devices", tenantId] }); // Fix 3: aggiorna anche la lista
+      notifications.show({ message: `Test: ${d.status}` }); // no cast needed now
     },
+    onError: () => notifications.show({ color: "red", message: "Test connessione fallito" }), // Fix 2
   });
 
   const remove = useMutation({
     mutationFn: async () => {
-      await api.DELETE("/api/tenants/{tenant_id}/devices/{device_id}", pathParams);
+      const { error } = await api.DELETE(
+        "/api/tenants/{tenant_id}/devices/{device_id}",
+        pathParams,
+      );
+      if (error) throw new Error("delete failed");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["devices", tenantId] });
       navigate("/");
     },
+    onError: () => notifications.show({ color: "red", message: "Eliminazione fallita" }),
   });
 
   return (
@@ -41,7 +49,7 @@ export function DeviceActions({ tenantId, deviceId }: { tenantId: string; device
       </Group>
       {test.data && (
         <Text data-testid="test-result">
-          Risultato test: {(test.data as { status: string }).status}
+          Risultato test: {test.data.status}
         </Text>
       )}
     </>

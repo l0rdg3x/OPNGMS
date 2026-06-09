@@ -50,4 +50,27 @@ describe("DeviceDetailPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /testa connessione/i }));
     await waitFor(() => expect(screen.getByText(/reachable/i)).toBeInTheDocument());
   });
+
+  it("deletes the device", async () => {
+    let deleted = false;
+    server.use(
+      http.get("/api/tenants/t1/devices/d1", () => HttpResponse.json(device)),
+      http.delete("/api/tenants/t1/devices/d1", () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderWithProviders(
+      withTenant(
+        <Routes>
+          <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
+          <Route path="/" element={<div>home</div>} />
+        </Routes>,
+      ),
+      { route: "/devices/d1" },
+    );
+    await screen.findByRole("heading", { name: "fw1" });
+    await userEvent.click(screen.getByRole("button", { name: /elimina/i }));
+    await waitFor(() => expect(deleted).toBe(true));
+  });
 });
