@@ -17,6 +17,6 @@ class Membership(UUIDPKMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE")
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True
     )
     role: Mapped[str]  # tenant_admin | operator | read_only
