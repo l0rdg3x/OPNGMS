@@ -1193,3 +1193,26 @@ Expected: full suite green.
 firmware_version,error)`, `get_prober`/`Prober`, `DeviceRepository(session,tenant_id)`
 .get/.add/.delete, `require_tenant(Action.DEVICE_*)`, `DeviceOut` (no segreti) coerenti tra i
 Task 1-10.
+
+---
+
+## Debito tecnico (dalla review olistica finale — READY TO MERGE)
+
+Zero issue Critical/Important. Gestione segreti write-only verificata end-to-end, RLS device
+esercitata via connessione `opngms_app` non-superuser, RBAC corretto. Da tracciare:
+
+1. ⚠️ **TLS fingerprint pinning non applicato** (priorità più alta). `verify_tls=False` (caso
+   comune per i cert self-signed di OPNsense) = nessuna verifica del certificato → rischio MITM.
+   Il campo `tls_fingerprint` è memorizzato ma ignorato dal connector. Implementare il pinning
+   reale (SSL context custom su httpx) prima della produzione.
+2. **Endpoint OPNsense da verificare** contro un device reale (`core/firmware/status`, campo
+   `product_version`) — oggi mockati.
+3. **Nessun re-probe al cambio di `base_url`** (PATCH): `status`/`firmware_version`/`last_seen`
+   restano stale finché non si lancia test-connection.
+4. **Connector senza retry/backoff** né sessione HTTP condivisa / limiti di concorrenza per-device
+   (spec §13, serviranno al polling della Fase 2). Oggi un nuovo `AsyncClient` per richiesta.
+5. **Nessuna paginazione** su `GET /devices`.
+6. **Nessuna rotazione della MASTER_KEY / key versioning**: ruotare la chiave renderebbe i
+   ciphertext esistenti non decifrabili (manca una colonna key-id + percorso di re-cifratura).
+7. **Password del ruolo app hardcoded** (`opngms_app/opngms_app`, default MVP) — da cambiare e
+   aggiornare `DATABASE_URL` in produzione.
