@@ -40,9 +40,21 @@ so later milestones can reason version-by-version.
 
 The "UI allows everything, version-by-version" goal lives in 4C/4D. The per-version feature catalog
 (knowing what each OPNsense version supports) is the heaviest research/data piece — opened in 4B.
+
 **Scheduled push (4D)** is feasible with the existing stack: ARQ supports deferred jobs
 (`enqueue_job(..., _defer_until=<datetime>)`), so a scheduled push is a deferred job persisted in
 Redis.
+
+> **Deferred-push staleness guard (4D — mandatory).** A push scheduled for a future time is computed
+> against the config state *at scheduling time*. If the device's config changes in between (someone
+> edits it directly, or another push runs), firing the deferred push blindly would **clobber** those
+> intervening changes — unacceptable. **Optimistic concurrency control is required:** when a push is
+> scheduled, persist the **baseline `canonical_hash`** (from 4A) of the config it was built against.
+> When the deferred job fires, **re-fetch the current config and re-compute its hash**; only apply if
+> it still equals the baseline. If it differs, **do NOT apply** — mark the scheduled push as
+> `conflict / needs review`, surface it to the operator (with a fresh diff), and require
+> re-confirmation. Also serialize pushes per device (no two concurrent pushes to the same firewall).
+> 4A's `canonical_hash` and snapshot history are exactly what this guard reuses.
 
 ## 4. Security: the config contains secrets
 
