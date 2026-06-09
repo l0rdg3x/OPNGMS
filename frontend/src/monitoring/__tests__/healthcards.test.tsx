@@ -4,7 +4,7 @@ import { MantineProvider } from "@mantine/core";
 import { HealthSummaryCards } from "../HealthSummaryCards";
 
 describe("HealthSummaryCards", () => {
-  it("mostra totale device, conteggi per stato e alert attivi", () => {
+  it("shows total devices, per-status counts and active alerts", () => {
     render(
       <MantineProvider>
         <HealthSummaryCards
@@ -12,8 +12,8 @@ describe("HealthSummaryCards", () => {
         />
       </MantineProvider>,
     );
-    expect(screen.getByText("3")).toBeInTheDocument(); // totale
+    expect(screen.getByText("3")).toBeInTheDocument(); // total
     expect(screen.getByText(/reachable/i)).toBeInTheDocument();
-    expect(screen.getByText("4")).toBeInTheDocument(); // alert attivi
+    expect(screen.getByText("4")).toBeInTheDocument(); // active alerts
   });
 });

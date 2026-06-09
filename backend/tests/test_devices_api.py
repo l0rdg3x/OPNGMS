@@ -100,4 +100,4 @@ async def test_create_device_rejects_non_https_base_url(api_client, db_engine):
         json={"name": "x", "base_url": "http://127.0.0.1", "api_key": "k", "api_secret": "s"},
         headers=CSRF,
     )
-    assert resp.status_code == 422  # rifiutato dal validatore di schema (non-https)
+    assert resp.status_code == 422  # rejected by the schema validator (non-https)

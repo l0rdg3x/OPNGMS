@@ -1,7 +1,7 @@
-"""Statement RLS per le tabelle di dati-tenant.
+"""RLS statements for the tenant-data tables.
 
-Fonte unica usata sia dalle migrazioni sia dalla conftest dei test, cosi' le
-policy applicate in produzione e in test non possono divergere.
+Single source used both by the migrations and by the tests' conftest, so the
+policies applied in production and in tests cannot diverge.
 """
 
 TENANT_TABLES: list[str] = ["devices", "metrics", "alerts", "events"]
@@ -10,7 +10,7 @@ POLICY_NAME = "tenant_isolation"
 
 
 def _policy_predicate() -> str:
-    # NULLIF: contesto assente o '' -> NULL -> nessuna riga (fail-closed).
+    # NULLIF: missing context or '' -> NULL -> no rows (fail-closed).
     return "tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid"
 
 
@@ -23,22 +23,22 @@ def policy_create_statement(table: str) -> str:
 
 
 def enable_rls_statements(tables: list[str] | None = None) -> list[str]:
-    # `tables` permette alle migrazioni storiche di fissare il sottoinsieme di
-    # tabelle esistente al loro punto della cronologia (la 0002 copre solo
-    # `devices`; metrics/alerts arrivano dopo, abilitate dalla 0007). Senza
-    # argomento usa tutte le TENANT_TABLES correnti (conftest dei test).
+    # `tables` lets historical migrations pin the subset of tables that existed
+    # at their point in history (0002 covers only `devices`; metrics/alerts come
+    # later, enabled by 0007). Without an argument it uses all the current
+    # TENANT_TABLES (tests' conftest).
     target = TENANT_TABLES if tables is None else tables
     stmts: list[str] = []
     for table in target:
         stmts.append(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
-        # FORCE: la RLS si applica anche al proprietario della tabella.
+        # FORCE: RLS also applies to the table owner.
         stmts.append(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
         stmts.append(policy_create_statement(table))
     return stmts
 
 
 def recreate_policy_statements(tables: list[str] | None = None) -> list[str]:
-    """DROP + CREATE per aggiornare la policy su DB gia' migrati (migrazione 0003)."""
+    """DROP + CREATE to update the policy on already-migrated DBs (migration 0003)."""
     target = TENANT_TABLES if tables is None else tables
     stmts: list[str] = []
     for table in target:

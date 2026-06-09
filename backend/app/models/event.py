@@ -17,12 +17,12 @@ class Event(Base):
         ),
     )
 
-    # PK composita che include `time` (richiesto da Timescale) ed è anche la chiave
-    # di deduplica: stesso (time, device, source, event_key) -> stesso evento.
+    # Composite PK that includes `time` (required by Timescale) and is also the
+    # dedup key: same (time, device, source, event_key) -> same event.
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     source: Mapped[str] = mapped_column(String, primary_key=True)         # 'ids' | 'dns'
-    event_key: Mapped[str] = mapped_column(String, primary_key=True)      # id sorgente o hash contenuto
+    event_key: Mapped[str] = mapped_column(String, primary_key=True)      # source id or content hash
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     category: Mapped[str] = mapped_column(String, default="", server_default="")
     src_ip: Mapped[str] = mapped_column(String, default="", server_default="")

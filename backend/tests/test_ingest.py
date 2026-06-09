@@ -75,14 +75,14 @@ async def test_ingest_idempotent(db_engine, two_tenants):
     did = await _device(db_engine, tenant_a)
     now = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    for _ in range(2):  # due run con gli stessi eventi
+    for _ in range(2):  # two runs with the same events
         async with factory() as s:
             device = await s.get(Device, did)
             await ingest_events(s, device, FakeClient([_alert(now, "k1")]), now)
             await s.commit()
     async with factory() as s:
         cnt = (await s.execute(text("SELECT count(*) FROM events"))).scalar_one()
-    assert cnt == 1  # nessun duplicato
+    assert cnt == 1  # no duplicate
 
 
 async def test_ingest_resilient_to_source_error(db_engine, two_tenants):
@@ -92,9 +92,9 @@ async def test_ingest_resilient_to_source_error(db_engine, two_tenants):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         device = await s.get(Device, did)
-        n = await ingest_events(s, device, FakeClient(fail_ids=True), now)  # source solleva
+        n = await ingest_events(s, device, FakeClient(fail_ids=True), now)  # source raises
         await s.commit()
-    assert n == 0  # nessun crash, zero eventi
+    assert n == 0  # no crash, zero events
 
 
 def _dns(ts, key, client="10.0.0.20", domain="example.com", action="allowed"):
@@ -141,7 +141,7 @@ async def test_ingest_dns_fails_ids_succeeds(db_engine, two_tenants):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         device = await s.get(Device, did)
-        # DNS solleva, IDS riesce: la resilienza per-source garantisce che IDS venga comunque ingerito
+        # DNS raises, IDS succeeds: per-source resilience guarantees IDS is still ingested
         n = await ingest_events(s, device, FakeClient(alerts=[_alert(now, "k1")], fail_dns=True), now)
         await s.commit()
     assert n == 1

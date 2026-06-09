@@ -28,10 +28,10 @@ def _metric(now: datetime, device: Device, name: str, value, label: str = "") ->
 async def collect_and_store(
     session: AsyncSession, device: Device, client, now: datetime
 ) -> PollState:
-    """Pollla un device, scrive le metriche di salute, aggiorna lo stato.
+    """Poll a device, write the health metrics, update the status.
 
-    Non solleva sugli errori del connector: marca il device 'unverified' (rete
-    irraggiungibile non deve far fallire il ciclo). `client` è iniettabile (test/poller).
+    Does not raise on connector errors: marks the device 'unverified' (an unreachable
+    network must not fail the cycle). `client` is injectable (test/poller).
     """
     try:
         info = await client.get_system_info()

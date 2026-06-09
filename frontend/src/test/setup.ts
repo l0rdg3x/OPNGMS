@@ -17,9 +17,8 @@ Object.defineProperty(window, "matchMedia", {
   }),
 });
 
-// Recharts ResponsiveContainer (usato da @mantine/charts) osserva le dimensioni via
-// ResizeObserver, assente in jsdom. Mock no-op: i test dei grafici asseriscono dati/strutture,
-// non dimensioni.
+// Recharts ResponsiveContainer (used by @mantine/charts) observes size via ResizeObserver,
+// which is missing in jsdom. No-op mock: chart tests assert on data/structure, not dimensions.
 class ResizeObserverMock {
   observe() {}
   unobserve() {}

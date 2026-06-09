@@ -62,12 +62,12 @@ async def test_metrics_endpoint_returns_series(api_client, db_engine):
 
 
 async def test_metrics_naive_from_does_not_500(api_client, db_engine):
-    """Un `from` naive (senza Z/offset) non deve provocare 500.
+    """A naive `from` (without Z/offset) must not cause a 500.
 
-    Pydantic v2 produce un datetime naive; il confronto con `now` (tz-aware)
-    solleverebbe TypeError -> HTTP 500. Il fix normalizza i naive a UTC.
-    Atteso 200; con un `from` naive che precede la metrica seminata (recente),
-    la serie deve includere il punto.
+    Pydantic v2 produces a naive datetime; comparing it with `now` (tz-aware)
+    would raise TypeError -> HTTP 500. The fix normalizes naive values to UTC.
+    Expected 200; with a naive `from` that precedes the (recent) seeded metric,
+    the series must include the point.
     """
     tid = await _login_superadmin(api_client, db_engine)
     did = await _insert_device(db_engine, tid)
@@ -88,7 +88,7 @@ async def test_metrics_naive_from_does_not_500(api_client, db_engine):
     assert r.status_code == 200
     body = r.json()
     assert body["metric"] == "cpu.load"
-    # `from` naive (2026-01-01, ben prima della metrica recente) -> punto incluso.
+    # naive `from` (2026-01-01, well before the recent metric) -> point included.
     assert body["points"][0]["value"] == 42.0
 
 
@@ -105,14 +105,14 @@ async def test_health_endpoint_counts(api_client, db_engine):
 
 
 async def test_alerts_endpoint_active_filter(api_client, db_engine):
-    """Il filtro `active` discrimina davvero: due alert (uno attivo, uno risolto)
-    sullo stesso device. active=true -> solo l'attivo; active=false -> storico completo.
+    """The `active` filter really discriminates: two alerts (one active, one resolved)
+    on the same device. active=true -> only the active one; active=false -> full history.
     """
     tid = await _login_superadmin(api_client, db_engine)
     did = await _insert_device(db_engine, tid)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        # Alert ATTIVO: resolved_at NULL.
+        # ACTIVE alert: resolved_at NULL.
         await s.execute(
             text(
                 "INSERT INTO alerts (id, tenant_id, device_id, type, label, severity, details) "
@@ -120,8 +120,8 @@ async def test_alerts_endpoint_active_filter(api_client, db_engine):
             ),
             {"id": uuid.uuid4(), "tid": tid, "did": did},
         )
-        # Alert RISOLTO: resolved_at valorizzato. type/label diversi per stare fuori
-        # dal vincolo unico parziale uq_alerts_active (che vale solo per resolved_at NULL).
+        # RESOLVED alert: resolved_at set. Different type/label to stay outside
+        # the partial unique constraint uq_alerts_active (which applies only to resolved_at NULL).
         await s.execute(
             text(
                 "INSERT INTO alerts "
@@ -137,17 +137,17 @@ async def test_alerts_endpoint_active_filter(api_client, db_engine):
         )
         await s.commit()
 
-    # active=true -> SOLO l'alert attivo (il risolto e' escluso).
+    # active=true -> ONLY the active alert (the resolved one is excluded).
     r = await api_client.get(f"/api/tenants/{tid}/alerts", params={"active": "true"})
     assert r.status_code == 200
     assert [a["type"] for a in r.json()] == ["device.down"]
 
-    # active=false -> ENTRAMBI (storico completo: attivo + risolto).
+    # active=false -> BOTH (full history: active + resolved).
     r = await api_client.get(f"/api/tenants/{tid}/alerts", params={"active": "false"})
     assert r.status_code == 200
     assert {a["type"] for a in r.json()} == {"device.down", "gateway.down"}
 
-    # default (senza parametro) -> active=true -> solo l'attivo.
+    # default (no parameter) -> active=true -> only the active one.
     r = await api_client.get(f"/api/tenants/{tid}/alerts")
     assert r.status_code == 200
     assert [a["type"] for a in r.json()] == ["device.down"]
@@ -156,7 +156,7 @@ async def test_alerts_endpoint_active_filter(api_client, db_engine):
 async def test_metrics_requires_auth(api_client, db_engine):
     tid = await _login_superadmin(api_client, db_engine)
     did = await _insert_device(db_engine, tid)
-    # nuovo client senza cookie di sessione
+    # new client without a session cookie
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="https://test") as anon:
         r = await anon.get(
@@ -165,11 +165,11 @@ async def test_metrics_requires_auth(api_client, db_engine):
     assert r.status_code == 401
 
 
-# --- Guardie DoS dell'endpoint metriche (Task 2) ---
+# --- DoS guards of the metrics endpoint (Task 2) ---
 
 
 async def test_metrics_rejects_inverted_range(api_client, db_engine):
-    """from >= to deve essere rifiutato con 400 (intervallo non valido)."""
+    """from >= to must be rejected with 400 (invalid interval)."""
     tid = await _login_superadmin(api_client, db_engine)
     did = await _insert_device(db_engine, tid)
     r = await api_client.get(
@@ -184,10 +184,10 @@ async def test_metrics_rejects_inverted_range(api_client, db_engine):
 
 
 async def test_metrics_rejects_too_many_points(api_client, db_engine):
-    """Un range molto ampio con bucket=1s supera MAX_POINTS -> 400."""
+    """A very wide range with bucket=1s exceeds MAX_POINTS -> 400."""
     tid = await _login_superadmin(api_client, db_engine)
     did = await _insert_device(db_engine, tid)
-    # 30 giorni con bucket 1s => (to-from)/bucket ~= 2.6M punti, ben oltre MAX_POINTS (5000).
+    # 30 days with bucket 1s => (to-from)/bucket ~= 2.6M points, well beyond MAX_POINTS (5000).
     r = await api_client.get(
         f"/api/tenants/{tid}/devices/{did}/metrics",
         params={
@@ -200,24 +200,24 @@ async def test_metrics_rejects_too_many_points(api_client, db_engine):
     assert r.status_code == 400
 
 
-# --- RBAC negativo: utente senza membership sul tenant -> 403 ---
+# --- Negative RBAC: user without membership on the tenant -> 403 ---
 
 
 async def test_monitoring_forbidden_without_membership(api_client, db_engine):
-    """Un utente non-superadmin senza membership sul tenant riceve 403.
+    """A non-superadmin user without a membership on the tenant gets a 403.
 
-    Tutti i ruoli tenant hanno DEVICE_VIEW, quindi l'unico 403 realistico e'
-    l'assenza di membership: tenant_context fallisce con "Accesso al tenant negato".
+    All tenant roles have DEVICE_VIEW, so the only realistic 403 is the
+    absence of a membership: tenant_context fails with "Tenant access denied".
     """
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug="acme")
-        # primo utente (superadmin) creato direttamente cosi' /api/setup e' bloccato;
-        # l'utente sotto test e' non-superadmin e senza membership su questo tenant.
+        # first user (superadmin) created directly so /api/setup is blocked;
+        # the user under test is non-superadmin and without a membership on this tenant.
         await make_user(s, email="other@x.io", password="pw12345", is_superadmin=False)
         await s.commit()
         tid = t.id
-    # nuovo client per non riusare eventuali cookie
+    # new client to avoid reusing any cookies
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="https://test") as c:
         login = await c.post(

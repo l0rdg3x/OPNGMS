@@ -6,14 +6,14 @@ from pydantic import BaseModel, Field, field_validator
 
 
 def _validate_base_url_syntax(v: str) -> str:
-    # Controllo SINTATTICO (NO DNS): https-only, niente userinfo, host presente.
+    # SYNTACTIC check (NO DNS): https-only, no userinfo, host present.
     parts = urlsplit(v)
     if parts.scheme != "https":
-        raise ValueError("base_url deve usare https")
+        raise ValueError("base_url must use https")
     if parts.username or parts.password:
-        raise ValueError("base_url non deve contenere credenziali")
+        raise ValueError("base_url must not contain credentials")
     if not parts.hostname:
-        raise ValueError("base_url deve avere un host")
+        raise ValueError("base_url must have a host")
     return v
 
 
@@ -55,7 +55,7 @@ class RotateSecretIn(BaseModel):
 
 
 class DeviceOut(BaseModel):
-    # NB: NESSUN campo segreto (api_key_enc/api_secret_enc) — write-only.
+    # NB: NO secret fields (api_key_enc/api_secret_enc) — write-only.
     id: uuid.UUID
     tenant_id: uuid.UUID
     name: str

@@ -25,13 +25,13 @@ async def probe_device(
         version = await client.test_connection()
         return ProbeResult(reachable=True, firmware_version=version, error=None)
     except OpnsenseError as exc:
-        # SANITIZZATO: solo il nome del tipo, niente contenuto upstream/URL.
+        # SANITIZED: only the type name, no upstream content/URL.
         return ProbeResult(
             reachable=False, firmware_version=None, error=type(exc).__name__
         )
 
 
-# Tipo del "prober" iniettabile (override-abile nei test degli endpoint).
+# Type of the injectable "prober" (overridable in the endpoint tests).
 Prober = Callable[..., Coroutine[Any, Any, ProbeResult]]
 
 

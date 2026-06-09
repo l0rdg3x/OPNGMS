@@ -16,7 +16,7 @@ CSRF = {"X-OPNGMS-CSRF": "1"}
 async def test_superadmin_can_create_and_list_tenants(api_client):
     await _login_superadmin(api_client)
     created = await api_client.post(
-        "/api/tenants", json={"name": "Cliente A", "slug": "cliente-a"}, headers=CSRF
+        "/api/tenants", json={"name": "Customer A", "slug": "cliente-a"}, headers=CSRF
     )
     assert created.status_code == 201
     assert created.json()["slug"] == "cliente-a"

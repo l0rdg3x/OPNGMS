@@ -15,7 +15,7 @@ async def _setup_two_tenants(app_role_api_client, db_engine):
         b = await make_tenant(s, slug="b")
         await s.commit()
         ta, tb = a.id, b.id
-    # superadmin via /api/setup (può accedere a tutti i tenant)
+    # superadmin via /api/setup (can access all tenants)
     await app_role_api_client.post(
         "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
     )

@@ -35,7 +35,7 @@ async def get_device(
 ) -> Device:
     device = await DeviceRepository(session, tenant_id).get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     return device
 
 
@@ -99,7 +99,7 @@ async def update_device(
     repo = DeviceRepository(session, tenant_id)
     device = await repo.get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     changes = payload.model_dump(exclude_unset=True)
     for field, value in changes.items():
         setattr(device, field, value)
@@ -133,7 +133,7 @@ async def delete_device(
     repo = DeviceRepository(session, tenant_id)
     device = await repo.get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     await repo.delete(device)
     await AuditService(session).record(
         actor_user_id=ctx.user.id,
@@ -163,7 +163,7 @@ async def test_device_connection(
     repo = DeviceRepository(session, tenant_id)
     device = await repo.get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     result = await prober(
         device.base_url,
         crypto.decrypt(device.api_key_enc),
@@ -207,11 +207,11 @@ async def rotate_secret(
     repo = DeviceRepository(session, tenant_id)
     device = await repo.get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     device.api_key_enc = crypto.encrypt(payload.api_key)
     device.api_secret_enc = crypto.encrypt(payload.api_secret)
     await session.flush()
-    await session.refresh(device)  # ricarica updated_at server-side (evita MissingGreenlet alla serializzazione DeviceOut)
+    await session.refresh(device)  # reload server-side updated_at (avoids MissingGreenlet during DeviceOut serialization)
     await AuditService(session).record(
         actor_user_id=ctx.user.id,
         tenant_id=tenant_id,
@@ -219,7 +219,7 @@ async def rotate_secret(
         target_type="device",
         target_id=str(device.id),
         ip=request.client.host if request.client else None,
-        details={},  # MAI loggare i segreti
+        details={},  # NEVER log the secrets
     )
     await session.commit()
     return device

@@ -1,64 +1,64 @@
-# OPNGMS — Fase 3 / Milestone 3A: Storage + Framework Ingest + Suricata — Piano di Implementazione
+# OPNGMS — Phase 3 / Milestone 3A: Storage + Ingest Framework + Suricata — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ingest incrementale e idempotente degli alert Suricata (IDS/IPS) dalla flotta OPNsense in una hypertable `events` isolata per tenant, con cursore per-device e deduplica.
+**Goal:** Incremental and idempotent ingestion of Suricata IDS/IPS alerts from the OPNsense fleet into a tenant-isolated `events` hypertable, with a per-device cursor and deduplication.
 
-**Architecture:** Estende il worker ARQ con un secondo cron (`enqueue_event_ingests`, ~5 min) che accoda `ingest_device_events(device_id)`. Il job legge un cursore per `(device, source)`, interroga l'API OPNsense via `OpnsenseClient` (SSRF-guarded), normalizza gli alert IDS e li inserisce in `events` con `ON CONFLICT DO NOTHING` (dedup), avanzando il cursore. Owner DB (bypassa RLS) per le scritture; la RLS proteggerà `events` per le letture API (3C).
+**Architecture:** Extends the ARQ worker with a second cron (`enqueue_event_ingests`, ~5 min) that enqueues `ingest_device_events(device_id)`. The job reads a cursor for `(device, source)`, queries the OPNsense API via `OpnsenseClient` (SSRF-guarded), normalizes IDS alerts, and inserts them into `events` with `ON CONFLICT DO NOTHING` (dedup), advancing the cursor. DB owner (bypasses RLS) for writes; RLS will protect `events` for API reads (3C).
 
 **Tech Stack:** Python 3.12+, FastAPI/SQLAlchemy 2.0 async, TimescaleDB (hypertable `events`), ARQ + Redis, Alembic, pytest + respx.
 
 ---
 
-## Contesto per l'implementatore (leggere prima di iniziare)
+## Context for the implementer (read before starting)
 
-Codebase backend in `/home/l0rdg3x/coding/OPNGMS/backend`. **Segui i pattern di Fase 2.**
+Backend codebase at `/home/l0rdg3x/coding/OPNGMS/backend`. **Follow Phase 2 patterns.**
 
-- **Modello hypertable**: `app/models/metric.py` — `Metric` con PK composita che INCLUDE `time` (richiesto da Timescale), `__table_args__` con un `Index`. Replica per `events`.
-- **Migrazione hypertable**: `migrations/versions/0005_timescale_metrics.py` — `create_table` + `create_hypertable('metrics','time')` + index + `add_retention_policy`. Replica per `events`.
-- **Migrazione RLS**: `migrations/versions/0007_rls_metrics_alerts.py` — enable/force/policy + grant a `opngms_app` (con `GRANT SELECT ON <hypertable>` esplicito per la propagazione ai chunk Timescale). Replica per `events`.
-- **RLS — fonte unica**: `app/core/rls.py` — `TENANT_TABLES` (oggi `["devices","metrics","alerts"]`). Le migrazioni storiche 0002/0003 sono PINNATE a `["devices"]` e 0007 a `["metrics","alerts"]`: aggiungendo `"events"` a `TENANT_TABLES` NON si rompe nulla, e la conftest dei test abilita la RLS su tutte le `TENANT_TABLES`.
-- **conftest**: `tests/conftest.py` — la fixture `db_engine` crea l'estensione, fa `create_all`, `create_hypertable('metrics', ...)`, abilita la RLS (`enable_rls_statements()`), crea il ruolo `opngms_app` + grant. **Va aggiunto `create_hypertable('events', ...)`** (Task 1). Fixture utili: `two_tenants` (due tenant + un device ciascuno: `fw-a`/`fw-b`).
-- **Worker**: `app/worker.py` — `enqueue_device_polls` (cron) + `poll_device` (job) + `WorkerSettings`. Replica il pattern per gli eventi.
-- **Servizio di raccolta**: `app/services/monitoring.py` — `collect_and_store(session, device, client, now)`: try/except `OpnsenseError` resiliente, costruisce righe ORM, `session.add_all`, `flush`. Replica lo spirito per `ingest`.
-- **Connettore**: `app/connectors/opnsense/client.py` — `OpnsenseClient`, metodo privato `_get(path)` (unico confine HTTP, SSRF-guarded, normalizzazione errori → `OpnsenseError` e sottoclassi). I metodi pubblici (`get_interfaces`, ecc.) ritornano dict normalizzati. Replica per `get_ids_alerts`.
-- **Test connettore**: `tests/test_connector_network.py` / `test_connector_system_info.py` — usano `respx` per mockare le risposte HTTP.
+- **Hypertable model**: `app/models/metric.py` — `Metric` with a composite PK that INCLUDES `time` (required by Timescale), `__table_args__` with an `Index`. Replicate for `events`.
+- **Hypertable migration**: `migrations/versions/0005_timescale_metrics.py` — `create_table` + `create_hypertable('metrics','time')` + index + `add_retention_policy`. Replicate for `events`.
+- **RLS migration**: `migrations/versions/0007_rls_metrics_alerts.py` — enable/force/policy + grant to `opngms_app` (with explicit `GRANT SELECT ON <hypertable>` for propagation to Timescale chunks). Replicate for `events`.
+- **RLS — single source of truth**: `app/core/rls.py` — `TENANT_TABLES` (currently `["devices","metrics","alerts"]`). Historical migrations 0002/0003 are PINNED to `["devices"]` and 0007 to `["metrics","alerts"]`: adding `"events"` to `TENANT_TABLES` breaks nothing, and the test conftest enables RLS on all `TENANT_TABLES`.
+- **conftest**: `tests/conftest.py` — the `db_engine` fixture creates the extension, runs `create_all`, `create_hypertable('metrics', ...)`, enables RLS (`enable_rls_statements()`), creates the `opngms_app` role + grants. **`create_hypertable('events', ...)` must be added** (Task 1). Useful fixtures: `two_tenants` (two tenants + one device each: `fw-a`/`fw-b`).
+- **Worker**: `app/worker.py` — `enqueue_device_polls` (cron) + `poll_device` (job) + `WorkerSettings`. Replicate the pattern for events.
+- **Collection service**: `app/services/monitoring.py` — `collect_and_store(session, device, client, now)`: resilient try/except `OpnsenseError`, builds ORM rows, `session.add_all`, `flush`. Replicate the spirit for `ingest`.
+- **Connector**: `app/connectors/opnsense/client.py` — `OpnsenseClient`, private method `_get(path)` (single HTTP boundary, SSRF-guarded, error normalisation → `OpnsenseError` and subclasses). Public methods (`get_interfaces`, etc.) return normalised dicts. Replicate for `get_ids_alerts`.
+- **Connector tests**: `tests/test_connector_network.py` / `test_connector_system_info.py` — use `respx` to mock HTTP responses.
 
-**Comando test** (dir `backend/`):
+**Test command** (from `backend/`):
 ```
 TEST_DATABASE_URL="postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test" \
 ADMIN_DATABASE_URL="postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test" \
 .venv/bin/python -m pytest -q
 ```
-DB di test in Docker (`docker compose ps` → `db`). Suite attuale: **127 test verdi**.
+Test DB in Docker (`docker compose ps` → `db`). Current suite: **127 green tests**.
 
-**`alembic check` su DB pulito** (procedura usata in Fase 2): crea DB `opngms_check` + extension timescaledb, `alembic upgrade head`, `alembic check` (atteso "No new upgrade operations detected"), drop. Le env `SESSION_SECRET`/`MASTER_KEY` sono richieste (vedi i piani 2C/2D).
+**`alembic check` on a clean DB** (procedure used in Phase 2): create DB `opngms_check` + timescaledb extension, `alembic upgrade head`, `alembic check` (expected "No new upgrade operations detected"), drop. The `SESSION_SECRET`/`MASTER_KEY` env vars are required (see plans 2C/2D).
 
-⚠️ **Endpoint OPNsense IDS DA VERIFICARE**: il vero endpoint (presumibilmente `ids/service/queryAlerts`) e il formato del payload non sono confermati. Il connettore `get_ids_alerts` è scritto contro un payload *plausibile* e testato con respx; il mapping si conferma su un device reale. **NON** è un blocco: l'astrazione e i test reggono comunque.
+⚠️ **OPNsense IDS endpoint TO BE VERIFIED**: the actual endpoint (presumably `ids/service/queryAlerts`) and the payload format are not confirmed. The `get_ids_alerts` connector is written against a *plausible* payload and tested with respx; the mapping should be confirmed on a real device. **NOT** a blocker: the abstraction and tests hold regardless.
 
 ---
 
 ## File Structure
 
-| File | Responsabilità | Azione |
+| File | Responsibility | Action |
 |------|----------------|--------|
 | `app/models/event.py` | `Event` (hypertable) | Create |
-| `app/models/ingest_cursor.py` | `IngestCursor` (stato worker) | Create |
-| `app/models/__init__.py` | Esporta i nuovi modelli | Modify |
+| `app/models/ingest_cursor.py` | `IngestCursor` (worker state) | Create |
+| `app/models/__init__.py` | Export the new models | Modify |
 | `app/core/rls.py` | `"events"` in `TENANT_TABLES` | Modify |
 | `migrations/versions/0008_events_ingest.py` | events hypertable + ingest_cursors + RLS + grant | Create |
 | `tests/conftest.py` | `create_hypertable('events', ...)` | Modify |
 | `app/connectors/opnsense/client.py` | `get_ids_alerts(since)` | Modify |
-| `app/services/ingest.py` | `ingest_events(...)` (cursore, dedup, IDS) | Create |
+| `app/services/ingest.py` | `ingest_events(...)` (cursor, dedup, IDS) | Create |
 | `app/worker.py` | cron `enqueue_event_ingests` + `ingest_device_events` | Modify |
-| `tests/test_event_model.py`, `tests/test_rls_isolation.py` | modello + isolamento RLS events | Create/Modify |
-| `tests/test_connector_ids.py` | respx per `get_ids_alerts` | Create |
-| `tests/test_ingest.py` | scrittura/cursore/idempotenza/resilienza | Create |
-| `tests/test_worker_config.py` | wiring cron/job | Modify |
+| `tests/test_event_model.py`, `tests/test_rls_isolation.py` | model + RLS isolation for events | Create/Modify |
+| `tests/test_connector_ids.py` | respx for `get_ids_alerts` | Create |
+| `tests/test_ingest.py` | write/cursor/idempotency/resilience | Create |
+| `tests/test_worker_config.py` | cron/job wiring | Modify |
 
 ---
 
-## Task 1: Modelli `events` + `ingest_cursors`, migrazione 0008, RLS
+## Task 1: `events` + `ingest_cursors` models, migration 0008, RLS
 
 **Files:**
 - Create: `app/models/event.py`, `app/models/ingest_cursor.py`
@@ -66,9 +66,9 @@ DB di test in Docker (`docker compose ps` → `db`). Suite attuale: **127 test v
 - Create: `migrations/versions/0008_events_ingest.py`
 - Create: `tests/test_event_model.py`; Modify: `tests/test_rls_isolation.py`
 
-- [ ] **Step 1: Scrivere il modello `Event`**
+- [ ] **Step 1: Write the `Event` model**
 
-Crea `app/models/event.py` (mirror di `metric.py`; PK composita = chiave di dedup, include `time`):
+Create `app/models/event.py` (mirror of `metric.py`; composite PK = dedup key, includes `time`):
 ```python
 import uuid
 from datetime import datetime
@@ -89,12 +89,12 @@ class Event(Base):
         ),
     )
 
-    # PK composita che include `time` (richiesto da Timescale) ed è anche la chiave
-    # di deduplica: stesso (time, device, source, event_key) -> stesso evento.
+    # Composite PK that includes `time` (required by Timescale) and is also the
+    # dedup key: same (time, device, source, event_key) -> same event.
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     source: Mapped[str] = mapped_column(String, primary_key=True)         # 'ids' | 'dns'
-    event_key: Mapped[str] = mapped_column(String, primary_key=True)      # id sorgente o hash contenuto
+    event_key: Mapped[str] = mapped_column(String, primary_key=True)      # source id or content hash
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     category: Mapped[str] = mapped_column(String, default="", server_default="")
     src_ip: Mapped[str] = mapped_column(String, default="", server_default="")
@@ -107,9 +107,9 @@ class Event(Base):
     )
 ```
 
-- [ ] **Step 2: Scrivere il modello `IngestCursor`**
+- [ ] **Step 2: Write the `IngestCursor` model**
 
-Crea `app/models/ingest_cursor.py`:
+Create `app/models/ingest_cursor.py`:
 ```python
 import uuid
 from datetime import datetime
@@ -122,8 +122,8 @@ from app.models.base import Base
 
 
 class IngestCursor(Base):
-    """Watermark per-(device, source) dell'ingest. Stato interno del worker, NON user-facing
-    (niente RLS): mai esposto via API."""
+    """Per-(device, source) ingest watermark. Internal worker state, NOT user-facing
+    (no RLS): never exposed via API."""
 
     __tablename__ = "ingest_cursors"
 
@@ -136,33 +136,33 @@ class IngestCursor(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 ```
 
-- [ ] **Step 3: Esportare i modelli**
+- [ ] **Step 3: Export the models**
 
-In `app/models/__init__.py`, aggiungi gli import dei nuovi modelli accanto agli esistenti (così `Base.metadata` li include per `create_all`/autogenerate). Segui lo stile del file (es. `from app.models.event import Event` e `from app.models.ingest_cursor import IngestCursor`, e aggiungili a `__all__` se presente).
+In `app/models/__init__.py`, add imports for the new models alongside existing ones (so that `Base.metadata` includes them for `create_all`/autogenerate). Follow the file style (e.g. `from app.models.event import Event` and `from app.models.ingest_cursor import IngestCursor`, and add them to `__all__` if present).
 
-- [ ] **Step 4: Aggiungere `events` alla RLS**
+- [ ] **Step 4: Add `events` to RLS**
 
-In `app/core/rls.py`, riga `TENANT_TABLES`:
+In `app/core/rls.py`, update the `TENANT_TABLES` line:
 ```python
 TENANT_TABLES: list[str] = ["devices", "metrics", "alerts", "events"]
 ```
-(`ingest_cursors` NON va aggiunta: è stato interno del worker, non esposto via API.)
+(`ingest_cursors` must NOT be added: it is internal worker state, not exposed via API.)
 
-- [ ] **Step 5: Aggiornare la conftest (hypertable events)**
+- [ ] **Step 5: Update conftest (events hypertable)**
 
-In `tests/conftest.py`, nella fixture `db_engine`, subito dopo la riga
+In `tests/conftest.py`, in the `db_engine` fixture, immediately after the line
 `await conn.execute(text("SELECT create_hypertable('metrics', 'time', if_not_exists => true)"))`
-aggiungi:
+add:
 ```python
 await conn.execute(text("SELECT create_hypertable('events', 'time', if_not_exists => true)"))
 ```
-(L'ordine: `create_all` → create_hypertable metrics → create_hypertable events → `enable_rls_statements()` → ruolo+grant. `enable_rls_statements()` ora copre anche `events`.)
+(Order: `create_all` → create_hypertable metrics → create_hypertable events → `enable_rls_statements()` → role+grant. `enable_rls_statements()` now covers `events` as well.)
 
-- [ ] **Step 6: Scrivere la migrazione 0008**
+- [ ] **Step 6: Write migration 0008**
 
-Crea `migrations/versions/0008_events_ingest.py`:
+Create `migrations/versions/0008_events_ingest.py`:
 ```python
-"""events hypertable + ingest_cursors + RLS su events"""
+"""events hypertable + ingest_cursors + RLS on events"""
 
 import sqlalchemy as sa
 from alembic import op
@@ -203,7 +203,7 @@ def upgrade() -> None:
     )
     op.execute("SELECT add_retention_policy('events', INTERVAL '90 days')")
 
-    # ingest_cursors (stato worker, no RLS)
+    # ingest_cursors (worker state, no RLS)
     op.create_table(
         "ingest_cursors",
         sa.Column("device_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -215,14 +215,14 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("device_id", "source"),
     )
 
-    # RLS su events + grant a opngms_app (con propagazione ai chunk Timescale)
+    # RLS on events + grant to opngms_app (with propagation to Timescale chunks)
     op.execute("ALTER TABLE events ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE events FORCE ROW LEVEL SECURITY")
     op.execute(policy_create_statement("events"))
     for stmt in grant_app_role_statements():
         op.execute(stmt)
-    op.execute(f"GRANT SELECT ON events TO {APP_ROLE}")  # propaga ai chunk dell'hypertable
-    # ingest_cursors non è user-facing: nessuna RLS.
+    op.execute(f"GRANT SELECT ON events TO {APP_ROLE}")  # propagates to hypertable chunks
+    # ingest_cursors is not user-facing: no RLS.
 
 
 def downgrade() -> None:
@@ -235,9 +235,9 @@ def downgrade() -> None:
     op.drop_table("events")
 ```
 
-- [ ] **Step 7: Scrivere il test del modello + isolamento RLS**
+- [ ] **Step 7: Write the model test + RLS isolation**
 
-Crea `tests/test_event_model.py` (insert + lettura come owner):
+Create `tests/test_event_model.py` (insert + read as owner):
 ```python
 import uuid
 from datetime import datetime, timezone
@@ -253,8 +253,8 @@ async def test_event_insert_and_dedup(db_engine, two_tenants):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     now = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
     did = uuid.uuid4()
-    async with factory() as s:  # owner -> bypassa RLS
-        for _ in range(2):  # due insert identici -> dedup via PK
+    async with factory() as s:  # owner -> bypasses RLS
+        for _ in range(2):  # two identical inserts -> dedup via PK
             await s.execute(
                 text(
                     "INSERT INTO events (time, device_id, source, event_key, tenant_id, name, src_ip) "
@@ -265,10 +265,10 @@ async def test_event_insert_and_dedup(db_engine, two_tenants):
             )
         await s.commit()
         n = (await s.execute(text("SELECT count(*) FROM events"))).scalar_one()
-    assert n == 1  # il secondo insert è stato deduplicato
+    assert n == 1  # the second insert was deduplicated
 ```
 
-In `tests/test_rls_isolation.py`, estendi `test_rls_statements_cover_metrics_and_alerts` (o aggiungi un test) per includere `events`:
+In `tests/test_rls_isolation.py`, extend `test_rls_statements_cover_metrics_and_alerts` (or add a test) to include `events`:
 ```python
 def test_rls_statements_cover_events():
     assert "events" in TENANT_TABLES
@@ -276,7 +276,7 @@ def test_rls_statements_cover_events():
     assert "ALTER TABLE events ENABLE ROW LEVEL SECURITY" in sql
     assert "ALTER TABLE events FORCE ROW LEVEL SECURITY" in sql
 ```
-E un test di isolamento raw (mirror di `test_metrics_alerts_isolated_cross_tenant`):
+And a raw isolation test (mirror of `test_metrics_alerts_isolated_cross_tenant`):
 ```python
 async def test_events_isolated_cross_tenant(db_engine, two_tenants):
     import os
@@ -285,7 +285,7 @@ async def test_events_isolated_cross_tenant(db_engine, two_tenants):
 
     tenant_a, tenant_b = two_tenants
     owner = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with owner() as s:  # owner bypassa RLS, inserisce per entrambi
+    async with owner() as s:  # owner bypasses RLS, inserts for both tenants
         for tid, key in ((tenant_a, "a"), (tenant_b, "b")):
             await s.execute(
                 text(
@@ -304,38 +304,38 @@ async def test_events_isolated_cross_tenant(db_engine, two_tenants):
         async with factory() as s:
             await set_tenant_context(s, tenant_a)
             keys = (await s.execute(text("SELECT event_key FROM events"))).scalars().all()
-            assert keys == ["a"]  # solo il tenant A; la RLS esclude B (query raw senza filtro tenant)
+            assert keys == ["a"]  # tenant A only; RLS excludes B (raw query without tenant filter)
         async with factory() as s2:
             assert (await s2.execute(text("SELECT event_key FROM events"))).scalars().all() == []
     finally:
         await engine.dispose()
 ```
-(`make_url`/`make_engine`/`APP_ROLE`/`APP_ROLE_PASSWORD`/`set_tenant_context` sono già importati nel file.)
+(`make_url`/`make_engine`/`APP_ROLE`/`APP_ROLE_PASSWORD`/`set_tenant_context` are already imported in the file.)
 
-- [ ] **Step 8: Eseguire i test + alembic check**
+- [ ] **Step 8: Run tests + alembic check**
 
-Run: `... pytest tests/test_event_model.py tests/test_rls_isolation.py -v` → tutti PASS.
-Run: l'INTERA suite `... pytest -q` → verde (127 + i nuovi).
-Run: la procedura `alembic check` su DB pulito (upgrade head → check) → "No new upgrade operations detected." Verifica anche il round-trip downgrade/upgrade della 0008.
+Run: `... pytest tests/test_event_model.py tests/test_rls_isolation.py -v` → all PASS.
+Run: full suite `... pytest -q` → green (127 + new tests).
+Run: `alembic check` procedure on a clean DB (upgrade head → check) → "No new upgrade operations detected." Also verify the 0008 downgrade/upgrade round-trip.
 
 - [ ] **Step 9: Commit**
 ```bash
 git add app/models/event.py app/models/ingest_cursor.py app/models/__init__.py app/core/rls.py \
         migrations/versions/0008_events_ingest.py tests/conftest.py tests/test_event_model.py tests/test_rls_isolation.py
-git commit -m "feat(backend): hypertable events + ingest_cursors + RLS (migrazione 0008)"
+git commit -m "feat(backend): events hypertable + ingest_cursors + RLS (migration 0008)"
 ```
 
 ---
 
-## Task 2: Connettore `get_ids_alerts`
+## Task 2: `get_ids_alerts` connector
 
 **Files:**
 - Modify: `app/connectors/opnsense/client.py`
 - Create: `tests/test_connector_ids.py`
 
-- [ ] **Step 1: Scrivere il test respx (fallisce)**
+- [ ] **Step 1: Write the respx test (fails)**
 
-Crea `tests/test_connector_ids.py`. Mocka una risposta IDS *plausibile* (lista di righe alert) e verifica la normalizzazione:
+Create `tests/test_connector_ids.py`. Mock a *plausible* IDS response (list of alert rows) and verify normalisation:
 ```python
 import httpx
 import pytest
@@ -369,25 +369,25 @@ async def test_get_ids_alerts_normalizes():
     assert e["severity"] == "2"
     assert e["action"] == "allowed"
     assert e["category"] == "alert"
-    assert e["event_key"]  # presente (id sorgente o hash)
-    assert e["time"].tzinfo is not None  # datetime tz-aware
+    assert e["event_key"]  # present (source id or hash)
+    assert e["time"].tzinfo is not None  # tz-aware datetime
 ```
-(Il file usa lo stile di `tests/test_connector_network.py`; se serve, importa `pytest` e marca async come gli altri test.)
+(The file follows the style of `tests/test_connector_network.py`; if needed, import `pytest` and mark async like the other tests.)
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
-Run: `... pytest tests/test_connector_ids.py -v` → FAIL (`get_ids_alerts` inesistente).
+Run: `... pytest tests/test_connector_ids.py -v` → FAIL (`get_ids_alerts` does not exist).
 
-- [ ] **Step 3: Implementare `get_ids_alerts`**
+- [ ] **Step 3: Implement `get_ids_alerts`**
 
-In `app/connectors/opnsense/client.py`, aggiungi (dopo `get_vpn_status`). Importa `datetime` e `hashlib` in cima al file se non presenti.
+In `app/connectors/opnsense/client.py`, add (after `get_vpn_status`). Import `datetime` and `hashlib` at the top of the file if not already present.
 ```python
     async def get_ids_alerts(self, since: "datetime | None" = None) -> list[dict]:
-        """Alert Suricata IDS/IPS normalizzati.
+        """Normalised Suricata IDS/IPS alerts.
 
-        NOTA: endpoint `ids/service/queryAlerts` e formato del payload DA VERIFICARE
-        su un OPNsense reale. Difensivo verso varianti di chiave. `since` è un hint:
-        il filtro fine e la deduplica avvengono a valle (cursore + ON CONFLICT).
+        NOTE: endpoint `ids/service/queryAlerts` and payload format TO BE VERIFIED
+        on a real OPNsense device. Defensive against key variants. `since` is a hint:
+        fine filtering and dedup happen downstream (cursor + ON CONFLICT).
         """
         data = await self._get("ids/service/queryAlerts")
         out: list[dict] = []
@@ -433,27 +433,27 @@ In `app/connectors/opnsense/client.py`, aggiungi (dopo `get_vpn_status`). Import
         return h.hexdigest()
 ```
 
-- [ ] **Step 4: Eseguire e verificare il passaggio**
+- [ ] **Step 4: Run and verify the pass**
 
 Run: `... pytest tests/test_connector_ids.py -v` → PASS.
 
 - [ ] **Step 5: Commit**
 ```bash
 git add app/connectors/opnsense/client.py tests/test_connector_ids.py
-git commit -m "feat(backend): connettore get_ids_alerts (normalizzazione alert Suricata)"
+git commit -m "feat(backend): connector get_ids_alerts (Suricata alert normalisation)"
 ```
 
 ---
 
-## Task 3: Servizio di ingest (cursore, dedup, IDS)
+## Task 3: Ingest service (cursor, dedup, IDS)
 
 **Files:**
 - Create: `app/services/ingest.py`
 - Create: `tests/test_ingest.py`
 
-- [ ] **Step 1: Scrivere i test (falliscono)**
+- [ ] **Step 1: Write the tests (they fail)**
 
-Crea `tests/test_ingest.py`. Usa un client fake iniettato (no HTTP). Verifica: scrittura eventi, avanzamento cursore, **idempotenza** (re-run non duplica), **resilienza** (errore source non solleva).
+Create `tests/test_ingest.py`. Use an injected fake client (no HTTP). Verify: event writes, cursor advancement, **idempotency** (re-run does not duplicate), **resilience** (source error does not raise).
 ```python
 import uuid
 from datetime import datetime, timezone
@@ -525,14 +525,14 @@ async def test_ingest_idempotent(db_engine, two_tenants):
     did = await _device(db_engine, tenant_a)
     now = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    for _ in range(2):  # due run con gli stessi eventi
+    for _ in range(2):  # two runs with the same events
         async with factory() as s:
             device = await s.get(Device, did)
             await ingest_events(s, device, FakeClient([_alert(now, "k1")]), now)
             await s.commit()
     async with factory() as s:
         cnt = (await s.execute(text("SELECT count(*) FROM events"))).scalar_one()
-    assert cnt == 1  # nessun duplicato
+    assert cnt == 1  # no duplicates
 
 
 async def test_ingest_resilient_to_source_error(db_engine, two_tenants):
@@ -542,18 +542,18 @@ async def test_ingest_resilient_to_source_error(db_engine, two_tenants):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         device = await s.get(Device, did)
-        n = await ingest_events(s, device, FakeClient([], fail=True), now)  # source solleva
+        n = await ingest_events(s, device, FakeClient([], fail=True), now)  # source raises
         await s.commit()
-    assert n == 0  # nessun crash, zero eventi
+    assert n == 0  # no crash, zero events
 ```
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
-Run: `... pytest tests/test_ingest.py -v` → FAIL (`app.services.ingest` inesistente).
+Run: `... pytest tests/test_ingest.py -v` → FAIL (`app.services.ingest` does not exist).
 
-- [ ] **Step 3: Implementare il servizio**
+- [ ] **Step 3: Implement the service**
 
-Crea `app/services/ingest.py`:
+Create `app/services/ingest.py`:
 ```python
 from datetime import datetime
 
@@ -566,22 +566,22 @@ from app.models.device import Device
 from app.models.event import Event
 from app.models.ingest_cursor import IngestCursor
 
-# Sorgenti attive: la 3B aggiungerà "dns".
+# Active sources: 3B will add "dns".
 SOURCES = ["ids"]
 
 
 async def ingest_events(session: AsyncSession, device: Device, client, now: datetime) -> int:
-    """Ingerisce gli eventi (per source) di un device. Ritorna il n. di eventi nuovi visti.
+    """Ingests events (per source) for a device. Returns the number of new events seen.
 
-    Resiliente: l'errore di una source non blocca le altre né solleva. Idempotente:
-    cursore per (device, source) + insert ON CONFLICT DO NOTHING sulla PK di dedup.
+    Resilient: an error in one source does not block others or raise. Idempotent:
+    cursor per (device, source) + insert ON CONFLICT DO NOTHING on the dedup PK.
     """
     total = 0
     for source in SOURCES:
         try:
             total += await _ingest_source(session, device, client, source)
         except OpnsenseError:
-            continue  # una source non disponibile non blocca le altre
+            continue  # an unavailable source does not block the others
     return total
 
 
@@ -603,7 +603,7 @@ async def _ingest_source(session: AsyncSession, device: Device, client, source: 
 async def _fetch(client, source: str, since):
     if source == "ids":
         return await client.get_ids_alerts(since)
-    raise ValueError(f"source sconosciuta: {source}")
+    raise ValueError(f"unknown source: {source}")
 
 
 def _normalize(device: Device, source: str, r: dict) -> dict:
@@ -635,48 +635,48 @@ async def _advance_cursor(session: AsyncSession, device_id, source: str, new_tim
     await session.execute(stmt)
 ```
 
-- [ ] **Step 4: Eseguire e verificare il passaggio**
+- [ ] **Step 4: Run and verify the pass**
 
-Run: `... pytest tests/test_ingest.py -v` → PASS (3/3). Poi l'INTERA suite verde.
+Run: `... pytest tests/test_ingest.py -v` → PASS (3/3). Then the full suite is green.
 
 - [ ] **Step 5: Commit**
 ```bash
 git add app/services/ingest.py tests/test_ingest.py
-git commit -m "feat(backend): servizio ingest_events (cursore + dedup ON CONFLICT, source IDS)"
+git commit -m "feat(backend): ingest_events service (cursor + ON CONFLICT dedup, IDS source)"
 ```
 
 ---
 
-## Task 4: Wiring nel worker (cron + job)
+## Task 4: Worker wiring (cron + job)
 
 **Files:**
 - Modify: `app/worker.py`
 - Modify: `tests/test_worker_config.py`
 
-- [ ] **Step 1: Scrivere/estendere il test di wiring (fallisce)**
+- [ ] **Step 1: Write/extend the wiring test (fails)**
 
-In `tests/test_worker_config.py`, aggiungi un test che verifica che il worker esponga la funzione e il cron dell'ingest. Adatta allo stile del file esistente (che già testa `WorkerSettings`):
+In `tests/test_worker_config.py`, add a test that verifies the worker exposes the ingest function and cron. Adapt to the style of the existing file (which already tests `WorkerSettings`):
 ```python
 def test_worker_exposes_event_ingest():
     from app.worker import WorkerSettings, ingest_device_events
 
     assert ingest_device_events in WorkerSettings.functions
-    # due cron: poll metriche + ingest eventi
+    # two crons: poll metrics + ingest events
     assert len(WorkerSettings.cron_jobs) >= 2
 ```
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
-Run: `... pytest tests/test_worker_config.py -v` → FAIL (`ingest_device_events` inesistente).
+Run: `... pytest tests/test_worker_config.py -v` → FAIL (`ingest_device_events` does not exist).
 
-- [ ] **Step 3: Implementare il wiring**
+- [ ] **Step 3: Implement the wiring**
 
 In `app/worker.py`:
 - import: `from app.services.ingest import ingest_events`.
-- aggiungi le due funzioni (mirror di `enqueue_device_polls`/`poll_device`):
+- add the two functions (mirror of `enqueue_device_polls`/`poll_device`):
 ```python
 async def enqueue_event_ingests(ctx: dict) -> int:
-    """Cron: accoda un ingest_device_events per ogni device."""
+    """Cron: enqueues one ingest_device_events per device."""
     factory = ctx["session_factory"]
     redis = ctx["redis"]
     async with factory() as session:
@@ -687,7 +687,7 @@ async def enqueue_event_ingests(ctx: dict) -> int:
 
 
 async def ingest_device_events(ctx: dict, device_id: str) -> int:
-    """Job: ingerisce gli eventi (IDS) di un singolo device."""
+    """Job: ingests events (IDS) for a single device."""
     factory = ctx["session_factory"]
     async with factory() as session:
         device = await session.get(Device, uuid.UUID(device_id))
@@ -703,22 +703,22 @@ async def ingest_device_events(ctx: dict, device_id: str) -> int:
         await session.commit()
         return n
 ```
-- aggiorna `WorkerSettings`:
+- update `WorkerSettings`:
 ```python
 class WorkerSettings:
     functions = [poll_device, ingest_device_events]
     cron_jobs = [
-        cron(enqueue_device_polls, second={0}),               # metriche, ogni minuto
-        cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # eventi, ogni 5 minuti
+        cron(enqueue_device_polls, second={0}),               # metrics, every minute
+        cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # events, every 5 minutes
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
 ```
 
-- [ ] **Step 4: Eseguire e verificare il passaggio**
+- [ ] **Step 4: Run and verify the pass**
 
-Run: `... pytest tests/test_worker_config.py -v` → PASS. Poi l'INTERA suite verde.
+Run: `... pytest tests/test_worker_config.py -v` → PASS. Then the full suite is green.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -728,66 +728,66 @@ git commit -m "feat(backend): worker — cron enqueue_event_ingests + job ingest
 
 ---
 
-## Task 5: Debito tecnico
+## Task 5: Technical debt
 
-- [ ] **Step 1: Registrare il debito 3A**
+- [ ] **Step 1: Record 3A debt**
 
-Append a questo piano:
+Append to this plan:
 ```markdown
-## Debito tecnico (3A)
+## Technical debt (3A)
 
-- **Endpoint OPNsense IDS DA VERIFICARE**: `ids/service/queryAlerts` e il formato del payload sono
-  plausibili ma non confermati su un device reale. Il connettore è difensivo verso varianti di chiave;
-  da rifinire col device reale (e probabilmente paginazione/filtro server-side per `since`).
-- **`since` solo client-side**: l'ingest filtra `time > last_time` lato client dopo il fetch; senza
-  filtro/paginazione server-side si rifetcha la finestra recente ad ogni run (la dedup evita duplicati
-  ma c'è rilavoro). Aggiungere il filtro server-side quando l'endpoint reale è noto.
-- **Niente overlap δ sul cursore**: eventi in arrivo tardivo con `time <= last_time` non visti prima
-  verrebbero saltati. Accettabile per report periodici; valutare un piccolo overlap + dedup.
-- **Cadenza ingest fissa (5 min)**: il cron usa un set di minuti fisso; rendere
-  `INGEST_INTERVAL_SECONDS` configurabile (oggi hardcoded).
-- **Compressione hypertable assente**: solo retention 90g. Aggiungere compression policy Timescale per
-  il volume eventi.
-- **`event_key` hash del contenuto** quando la sorgente non dà un id stabile: due eventi identici allo
-  stesso istante collassano in uno (accettabile). Preferire l'id sorgente quando disponibile.
+- **OPNsense IDS endpoint TO BE VERIFIED**: `ids/service/queryAlerts` and the payload format are
+  plausible but not confirmed on a real device. The connector is defensive against key variants;
+  to be refined with the real device (likely pagination/server-side filter for `since`).
+- **`since` client-side only**: the ingest filters `time > last_time` client-side after the fetch; without
+  server-side filter/pagination the recent window is re-fetched every run (dedup avoids duplicates
+  but there is redundant work). Add server-side filter when the real endpoint is known.
+- **No cursor delta overlap**: late-arriving events with `time <= last_time` not previously seen would
+  be skipped. Acceptable for periodic reports; consider a small overlap + dedup.
+- **Fixed ingest cadence (5 min)**: the cron uses a fixed minute set; make
+  `INGEST_INTERVAL_SECONDS` configurable (currently hardcoded).
+- **Hypertable compression absent**: only 90-day retention. Add Timescale compression policy for
+  event volume.
+- **`event_key` content hash** when the source provides no stable id: two identical events at the
+  same instant collapse into one (acceptable). Prefer source id when available.
 ```
 
 - [ ] **Step 2: Commit**
 ```bash
 git add docs/superpowers/plans/2026-06-09-opngms-phase3-milestone3A-ingest-suricata.md
-git commit -m "docs: debito tecnico milestone 3A"
+git commit -m "docs: technical debt milestone 3A"
 ```
 
 ---
 
-## Definizione di "fatto" (3A)
-- L'hypertable `events` esiste, isolata per tenant dalla RLS (test cross-tenant raw), con dedup via PK.
-- Il connettore `get_ids_alerts` normalizza gli alert Suricata (respx).
-- `ingest_events` scrive gli eventi IDS, avanza il cursore, è idempotente e resiliente agli errori di source.
-- Il worker espone il cron `enqueue_event_ingests` + il job `ingest_device_events`.
-- Suite verde + `alembic check` pulito.
+## Definition of "done" (3A)
+- The `events` hypertable exists, tenant-isolated by RLS (raw cross-tenant test), with PK-based dedup.
+- The `get_ids_alerts` connector normalises Suricata alerts (respx).
+- `ingest_events` writes IDS events, advances the cursor, is idempotent and resilient to source errors.
+- The worker exposes the `enqueue_event_ingests` cron + the `ingest_device_events` job.
+- Green suite + clean `alembic check`.
 
 ---
 
-## Debito tecnico (3A) — consolidato dalle review
+## Technical debt (3A) — consolidated from reviews
 
-- **Endpoint OPNsense IDS DA VERIFICARE**: `ids/service/queryAlerts` e il formato del payload sono
-  plausibili ma non confermati su un device reale. Il connettore è difensivo verso varianti di chiave;
-  da rifinire col device reale (probabilmente POST/paginazione/filtro server-side per `since`).
-- **`since` solo client-side**: l'ingest filtra `time > last_time` lato client dopo il fetch; senza
-  filtro/paginazione server-side si rifetcha la finestra recente ad ogni run (la dedup evita duplicati
-  ma c'è rilavoro). Aggiungere il filtro server-side quando l'endpoint reale è noto. (`since` è
-  accettato dal connettore ma ignorato — review Task 2.)
-- **Niente overlap δ sul cursore**: eventi in arrivo tardivo con `time <= last_time` non visti prima
-  verrebbero saltati. Accettabile per report periodici; valutare un piccolo overlap + dedup.
-- **Cadenza ingest fissa (5 min)**: il cron usa un set di minuti fisso; rendere
-  `INGEST_INTERVAL_SECONDS` configurabile (oggi hardcoded).
-- **Compressione hypertable assente**: solo retention 90g. Aggiungere compression policy Timescale per
-  il volume eventi.
-- **`event_key` hash del contenuto** quando la sorgente non dà un id stabile: due eventi *davvero*
-  identici allo stesso istante collassano in uno (accettabile, dedup voluta). Preferire l'id sorgente
-  quando disponibile (già fatto: `alert_id`/`_id` → fallback hash).
-- **`_normalize` accede a `r["time"]`/`r["event_key"]` con indicizzazione hard** (review Task 3): un
-  cambio di contratto del connettore darebbe KeyError. Accettabile (fail-fast su payload malformato).
-- **`now` non usato in `ingest_events`**: mantenuto in firma per omogeneità col poller; valutare se
-  usarlo per il watermark o rimuoverlo.
+- **OPNsense IDS endpoint TO BE VERIFIED**: `ids/service/queryAlerts` and the payload format are
+  plausible but not confirmed on a real device. The connector is defensive against key variants;
+  to be refined with the real device (likely POST/pagination/server-side filter for `since`).
+- **`since` client-side only**: the ingest filters `time > last_time` client-side after the fetch; without
+  server-side filter/pagination the recent window is re-fetched every run (dedup avoids duplicates
+  but there is redundant work). Add server-side filter when the real endpoint is known. (`since` is
+  accepted by the connector but ignored — review Task 2.)
+- **No cursor delta overlap**: late-arriving events with `time <= last_time` not previously seen would
+  be skipped. Acceptable for periodic reports; consider a small overlap + dedup.
+- **Fixed ingest cadence (5 min)**: the cron uses a fixed minute set; make
+  `INGEST_INTERVAL_SECONDS` configurable (currently hardcoded).
+- **Hypertable compression absent**: only 90-day retention. Add Timescale compression policy for
+  event volume.
+- **`event_key` content hash** when the source provides no stable id: two truly identical events at the
+  same instant collapse into one (acceptable, intended dedup). Prefer source id when available
+  (already done: `alert_id`/`_id` → fallback hash).
+- **`_normalize` hard-indexes `r["time"]`/`r["event_key"]`** (review Task 3): a connector contract
+  change would give a KeyError. Acceptable (fail-fast on malformed payload).
+- **`now` unused in `ingest_events`**: kept in signature for consistency with the poller; consider
+  whether to use it for the watermark or remove it.

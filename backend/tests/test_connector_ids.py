@@ -31,14 +31,14 @@ async def test_get_ids_alerts_normalizes():
     assert e["severity"] == "2"
     assert e["action"] == "allowed"
     assert e["category"] == "alert"
-    assert e["event_key"] == "abc123"  # id stabile della sorgente
+    assert e["event_key"] == "abc123"  # stable source id
     assert e["time"].tzinfo is not None  # datetime tz-aware
 
 
 @respx.mock
 async def test_get_ids_alerts_key_variants_and_hash_fallback():
-    """Difensivo verso varianti di chiave (alerts/dst_ip/signature in cima) e
-    event_key derivato da hash discriminante quando manca un id stabile."""
+    """Defensive toward key variants (alerts/dst_ip/signature at the top) and
+    event_key derived from a discriminating hash when a stable id is missing."""
     payload = {
         "alerts": [
             {
@@ -56,11 +56,11 @@ async def test_get_ids_alerts_key_variants_and_hash_fallback():
     assert len(out) == 1
     e = out[0]
     assert e["src_ip"] == "10.0.0.7"
-    assert e["dst_ip"] == "8.8.8.8"  # variante chiave dst_ip
-    assert e["name"] == "ET POLICY DNS"  # signature al top-level
+    assert e["dst_ip"] == "8.8.8.8"  # dst_ip key variant
+    assert e["name"] == "ET POLICY DNS"  # signature at top-level
     assert e["severity"] == "3"
     assert e["action"] == "blocked"
-    # nessun alert_id/_id -> hash discriminante di ts+src+dst+signature+severity
+    # no alert_id/_id -> discriminating hash of ts+src+dst+signature+severity
     expected = hashlib.sha1(
         "|".join([
             e["time"].isoformat(),
@@ -73,8 +73,8 @@ async def test_get_ids_alerts_key_variants_and_hash_fallback():
 
 @respx.mock
 async def test_get_ids_alerts_event_key_is_discriminating():
-    """Due alert distinti (stessa signature ma src/dst diversi) -> event_key distinti.
-    Presidia il rischio segnalato dal review Task 1: NON collassare eventi distinti."""
+    """Two distinct alerts (same signature but different src/dst) -> distinct event_keys.
+    Guards against the risk flagged by the Task 1 review: do NOT collapse distinct events."""
     payload = {
         "rows": [
             {
@@ -100,7 +100,7 @@ async def test_get_ids_alerts_event_key_is_discriminating():
 
 @respx.mock
 async def test_get_ids_alerts_empty_payload():
-    """Payload senza rows/alerts -> lista vuota, nessun errore."""
+    """Payload without rows/alerts -> empty list, no error."""
     respx.get(url__regex=r".*/api/ids/service/queryAlerts.*").mock(
         return_value=httpx.Response(200, json={})
     )

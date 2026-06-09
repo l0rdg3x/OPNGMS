@@ -1,136 +1,135 @@
-# OPNGMS — Fase 2 / Milestone 2D: Dashboard Frontend — Design Spec
+# OPNGMS — Phase 2 / Milestone 2D: Frontend Dashboard — Design Spec
 
-- **Data:** 2026-06-09
-- **Stato:** Approvato (design); l'utente ha delegato le decisioni e autorizzato a procedere
-- **Fase:** 2 di 5 (Milestone 2D, ultima della Fase 2)
-- **Dipende da:** Milestone D (shell frontend + auth + device) e Milestone 2C (API metriche/salute/alert) in `main`
+- **Date:** 2026-06-09
+- **Status:** Approved (design); the user has delegated decisions and authorized to proceed
+- **Phase:** 2 of 5 (Milestone 2D, last of Phase 2)
+- **Depends on:** Milestone D (frontend shell + auth + device) and Milestone 2C (metrics/health/alert API) in `main`
 
 ---
 
-## 1. Contesto
+## 1. Context
 
-La **2D** chiude la Fase 2 dando alla console una **dashboard di monitoraggio**: consuma i tre
-endpoint 2C (`GET .../devices/{id}/metrics`, `GET .../health`, `GET .../alerts`) e li presenta come
-grafici nel tempo, riepiloghi di salute della flotta, e una lista alert gestibile. Costruisce sui
-pattern già stabiliti da Milestone D: Vite + React 19 + Mantine v9 + React Router + TanStack Query,
-client API tipizzato (`openapi-fetch` + `schema.d.ts` generato), test Vitest + RTL + MSW.
+**2D** closes Phase 2 by giving the console a **monitoring dashboard**: it consumes the three
+2C endpoints (`GET .../devices/{id}/metrics`, `GET .../health`, `GET .../alerts`) and presents them as
+charts over time, fleet health summaries, and a manageable alert list. Builds on the patterns
+already established by Milestone D: Vite + React 19 + Mantine v9 + React Router + TanStack Query,
+typed API client (`openapi-fetch` + generated `schema.d.ts`), Vitest + RTL + MSW tests.
 
-## 2. Decisioni di design (brainstorming 2D)
+## 2. Design Decisions (2D brainstorming)
 
-| Tema | Decisione |
-|------|-----------|
-| Libreria grafici | **Mantine Charts** (`@mantine/charts`, su Recharts): integrata col tema Mantine già in uso, API minimale (`LineChart`/`AreaChart`/`DonutChart`). Zero attrito con lo stack |
-| Scope MVP | **Completo + gestione alert**: vista salute per-device, overview per-cliente, pagina alert con filtro attivi/storico |
-| Metriche per-device | **Essenziale + rete**: CPU/mem/disco (serie) + traffico interfacce + stato gateway (RTT/loss/up) e VPN (up) + last_seen/firmware |
-| Posizione overview | **`OverviewPage` come landing del tenant** (`/`): le card di salute sono la prima cosa che un MSP vuole vedere |
+| Topic | Decision |
+|-------|----------|
+| Charts library | **Mantine Charts** (`@mantine/charts`, on Recharts): integrated with the Mantine theme already in use, minimal API (`LineChart`/`AreaChart`/`DonutChart`). Zero friction with the stack |
+| MVP scope | **Complete + alert management**: per-device health view, per-client overview, alert page with active/historical filter |
+| Per-device metrics | **Essential + network**: CPU/mem/disk (series) + interface traffic + gateway status (RTT/loss/up) and VPN (up) + last_seen/firmware |
+| Overview placement | **`OverviewPage` as tenant landing** (`/`): health cards are the first thing an MSP wants to see |
 
-## 3. Architettura
+## 3. Architecture
 
-### 3.1 Routing & navigazione (riorganizza `AppShell`)
-Oggi `AppShell` ha `/` = `DevicesPage`. La 2D riorganizza le rotte (dentro `MantineAppShell.Main`)
-e aggiunge le voci di navbar:
+### 3.1 Routing & navigation (reorganizes `AppShell`)
+Today `AppShell` has `/` = `DevicesPage`. 2D reorganizes the routes (inside `MantineAppShell.Main`)
+and adds navbar entries:
 
-| Rotta | Pagina | Navbar |
-|-------|--------|--------|
-| `/` | `OverviewPage` (nuova) | **Overview** |
-| `/devices` | `DevicesPage` (spostata da `/`) | **Device** |
-| `/devices/:deviceId` | `DeviceDetailPage` (estesa) | — |
-| `/alerts` | `AlertsPage` (nuova) | **Alert** |
+| Route | Page | Navbar |
+|-------|------|--------|
+| `/` | `OverviewPage` (new) | **Overview** |
+| `/devices` | `DevicesPage` (moved from `/`) | **Devices** |
+| `/devices/:deviceId` | `DeviceDetailPage` (extended) | — |
+| `/alerts` | `AlertsPage` (new) | **Alerts** |
 
-I link interni esistenti verso i device (es. da `DevicesPage`) vanno aggiornati a `/devices/...`
-dove necessario.
+Existing internal links to devices (e.g. from `DevicesPage`) must be updated to `/devices/...`
+where needed.
 
 ### 3.2 Data layer
-- **`schema.d.ts` rigenerata** dall'OpenAPI del backend (include i 3 endpoint 2C). È un passo
-  meccanico (`openapi-typescript`), prerequisito di tutto il resto.
-- **Hook TanStack Query** sopra il client tipizzato `api`, uno per endpoint, tenant-scoped via
+- **`schema.d.ts` regenerated** from the backend OpenAPI (includes the 3 2C endpoints). It is a
+  mechanical step (`openapi-typescript`), prerequisite for everything else.
+- **TanStack Query hooks** on top of the typed `api` client, one per endpoint, tenant-scoped via
   `useTenant().activeId`:
   - `useTenantHealth()` → `GET /api/tenants/{tenant_id}/health`
   - `useAlerts({ active })` → `GET /api/tenants/{tenant_id}/alerts?active=`
   - `useDeviceMetrics(deviceId, metric, range)` → `GET .../devices/{device_id}/metrics?metric=&from=&to=&bucket=`
-  - Query key namespacing per tenant (coerente con `["device", activeId, deviceId]` esistente).
-- **Selettore time-range** (`1h` / `24h` / `7g`) → mappa a `from`/`to`/`bucket`:
-  `1h`→bucket 60s, `24h`→300s, `7g`→3600s. Mantiene i punti sotto `MAX_POINTS` (5000) lato API e
-  produce grafici lisci. Una util pura `rangeToParams(range, now)` calcola i parametri.
+  - Query key namespacing per tenant (consistent with existing `["device", activeId, deviceId]`).
+- **Time-range selector** (`1h` / `24h` / `7d`) → maps to `from`/`to`/`bucket`:
+  `1h`→bucket 60s, `24h`→300s, `7d`→3600s. Keeps points below `MAX_POINTS` (5000) on the API side and
+  produces smooth charts. A pure util `rangeToParams(range, now)` computes the parameters.
 
-### 3.3 Pagine e componenti
-- **`OverviewPage`** (`/`): card riepilogo da `/health` (device per stato + totale; n. alert
-  attivi) + lista **alert attivi** da `/alerts?active=true`, con link al device.
-- **`DeviceDetailPage`** (estesa): la sezione device esistente + **sezione salute** — card di stato
-  (status, last_seen, firmware) + **grafici** con selettore time-range:
-  - CPU/mem/disco → serie temporali (`cpu.pct`, `mem.pct`, `disk.pct`), + `uptime.seconds`
-  - Traffico interfacce → `iface.bytes_in`/`iface.bytes_out` (multi-serie per label interfaccia),
-    + `iface.up` (stato interfaccia)
-  - Gateway → `gateway.rtt_ms`/`gateway.loss_pct`/`gateway.up` (per label gateway)
-  - VPN → `vpn.up` (per label tunnel)
+### 3.3 Pages and components
+- **`OverviewPage`** (`/`): summary cards from `/health` (devices by status + total; number of
+  active alerts) + **active alerts** list from `/alerts?active=true`, with link to device.
+- **`DeviceDetailPage`** (extended): the existing device section + **health section** — status cards
+  (status, last_seen, firmware) + **charts** with time-range selector:
+  - CPU/mem/disk → time series (`cpu.pct`, `mem.pct`, `disk.pct`), + `uptime.seconds`
+  - Interface traffic → `iface.bytes_in`/`iface.bytes_out` (multi-series by interface label),
+    + `iface.up` (interface status)
+  - Gateways → `gateway.rtt_ms`/`gateway.loss_pct`/`gateway.up` (by gateway label)
+  - VPN → `vpn.up` (by tunnel label)
 
-  *Nomi metrica confermati* contro `backend/app/services/monitoring.py` (poller 2A/2B).
-- **`AlertsPage`** (`/alerts`): tabella alert con filtro **attivi/storico** (toggle `active=true|false`),
-  colonne tipo/label/severità/aperto/risolto, ordinati per `opened_at` (l'API già ordina desc).
-- **`MetricChart`** (componente riusabile): wrapper su `LineChart`/`AreaChart` di Mantine Charts;
-  prende una serie `MetricPoint[]` (eventualmente multi-label → multi-serie), con label/unità.
-  Trasforma i punti `{time,label,value}` nel formato dati di Mantine Charts.
-- **Componenti di stato**: `HealthSummaryCards` (conteggi da `/health`), `StatusBadge`/`DeviceStatusCard`
-  riusabili.
+  *Metric names confirmed* against `backend/app/services/monitoring.py` (2A/2B poller).
+- **`AlertsPage`** (`/alerts`): alert table with **active/historical** filter (toggle `active=true|false`),
+  columns type/label/severity/opened/resolved, sorted by `opened_at` (API already sorts desc).
+- **`MetricChart`** (reusable component): wrapper on Mantine Charts `LineChart`/`AreaChart`;
+  takes a `MetricPoint[]` series (optionally multi-label → multi-series), with label/units.
+  Transforms `{time,label,value}` points into the Mantine Charts data format.
+- **Status components**: `HealthSummaryCards` (counts from `/health`), reusable `StatusBadge`/`DeviceStatusCard`.
 
-### 3.4 Data flow & gestione errori
-- Loading/error gestiti da TanStack Query → skeleton Mantine durante il load, `Alert` Mantine in
-  errore, **empty-state** quando non ci sono dati (es. device mai pollato → serie vuota: messaggio
+### 3.4 Data flow & error handling
+- Loading/error handled by TanStack Query → Mantine skeleton during load, Mantine `Alert` on
+  error, **empty-state** when no data (e.g. device never polled → empty series: message
   "nessun dato ancora").
-- Tutto tenant-scoped: gli hook leggono `activeId` da `useTenant()`; il cambio tenant (via
-  `TenantSwitcher`) invalida/rifetcha le query (le query key includono `activeId`).
-- Le metriche/alert sono read-only nella 2D: nessuna mutazione (niente CSRF necessario per i GET).
+- Everything tenant-scoped: hooks read `activeId` from `useTenant()`; tenant change (via
+  `TenantSwitcher`) invalidates/refetches queries (query keys include `activeId`).
+- Metrics/alerts are read-only in 2D: no mutations (no CSRF needed for GETs).
 
 ## 4. Testing
-- **MSW handlers** per `/metrics`, `/health`, `/alerts` aggiunti nei test via `server.use(...)`
-  (il server è vuoto di default in `src/test/server.ts`).
-- **Vitest + RTL** per pagina/componente:
-  - `OverviewPage`: card mostrano i conteggi mock; lista alert attivi renderizzata; empty-state.
-  - `DeviceDetailPage`: i grafici renderizzano dati i mock; selettore time-range cambia la query;
-    empty-state su serie vuota.
-  - `AlertsPage`: il toggle attivi/storico cambia la richiesta (`active=true|false`) e il contenuto.
-  - `MetricChart`: mappa correttamente `MetricPoint[]` → dati Mantine Charts (test di trasformazione).
-  - `rangeToParams`: util pura testata su tutti i range.
-- Mantine Charts rende SVG/`ResponsiveContainer`: i test asseriscono presenza dei dati/strutture
-  (serie, etichette, valori nel DOM), **non** pixel/dimensioni. Dove `ResponsiveContainer` ha
-  problemi di dimensione in jsdom, mockare le dimensioni o usare i prop di width/height fissi nei
-  test (pattern noto Recharts/jsdom).
+- **MSW handlers** for `/metrics`, `/health`, `/alerts` added in tests via `server.use(...)`
+  (the server is empty by default in `src/test/server.ts`).
+- **Vitest + RTL** for page/component:
+  - `OverviewPage`: cards show mock counts; active alert list rendered; empty-state.
+  - `DeviceDetailPage`: charts render mock data; time-range selector changes the query;
+    empty-state on empty series.
+  - `AlertsPage`: active/historical toggle changes the request (`active=true|false`) and content.
+  - `MetricChart`: correctly maps `MetricPoint[]` → Mantine Charts data (transformation test).
+  - `rangeToParams`: pure util tested on all ranges.
+- Mantine Charts renders SVG/`ResponsiveContainer`: tests assert presence of data/structures
+  (series, labels, values in DOM), **not** pixels/dimensions. Where `ResponsiveContainer` has
+  dimension issues in jsdom, mock dimensions or use fixed width/height props in tests
+  (known Recharts/jsdom pattern).
 
-## 5. Scomposizione in milestone (per il piano)
-1. **Data layer**: rigenerazione `schema.d.ts` + hook (`useTenantHealth`/`useAlerts`/`useDeviceMetrics`)
-   + util `rangeToParams` (con test) + install `@mantine/charts`.
-2. **Componenti base**: `MetricChart` + `HealthSummaryCards`/card di stato (con test).
-3. **`OverviewPage`** + riorganizzazione routing/navbar (`/`=Overview, `/devices`=Devices,
-   `/alerts`=Alerts) (con test).
-4. **`DeviceDetailPage` esteso**: sezione salute con grafici essenziale+rete + selettore time-range
-   (con test).
-5. **`AlertsPage`**: tabella + filtro attivi/storico (con test).
+## 5. Milestone breakdown (for the plan)
+1. **Data layer**: `schema.d.ts` regeneration + hooks (`useTenantHealth`/`useAlerts`/`useDeviceMetrics`)
+   + util `rangeToParams` (with tests) + install `@mantine/charts`.
+2. **Base components**: `MetricChart` + `HealthSummaryCards`/status cards (with tests).
+3. **`OverviewPage`** + routing/navbar reorganization (`/`=Overview, `/devices`=Devices,
+   `/alerts`=Alerts) (with tests).
+4. **`DeviceDetailPage` extended**: health section with essential+network charts + time-range selector
+   (with tests).
+5. **`AlertsPage`**: table + active/historical filter (with tests).
 
-Ogni task = implementazione TDD + review (spec + qualità) subagent-driven.
+Each task = TDD implementation + review (spec + quality) subagent-driven.
 
-## 6. Definizione di "fatto" (2D, e Fase 2)
-- La navbar offre Overview / Device / Alert; il routing è riorganizzato senza rompere i link esistenti.
-- L'Overview mostra il riepilogo salute flotta + gli alert attivi del cliente.
-- La DeviceDetail mostra stato + grafici (CPU/mem/disco, traffico interfacce, gateway, VPN) con
-  selettore time-range.
-- La pagina Alert lista attivi e storico con filtro.
-- Tutto tenant-scoped (cambio tenant rifetcha), con loading/error/empty-state.
-- Suite frontend (Vitest) verde; `tsc`/lint puliti.
-- **Con la 2D la Fase 2 è completa**: poller → storage → API → dashboard.
+## 6. Definition of "Done" (2D, and Phase 2)
+- The navbar offers Overview / Devices / Alerts; routing is reorganized without breaking existing links.
+- Overview shows fleet health summary + active alerts for the client.
+- DeviceDetail shows status + charts (CPU/mem/disk, interface traffic, gateways, VPN) with
+  time-range selector.
+- Alerts page lists active and historical with filter.
+- Everything tenant-scoped (tenant change refetches), with loading/error/empty-state.
+- Frontend suite (Vitest) green; `tsc`/lint clean.
+- **With 2D, Phase 2 is complete**: poller → storage → API → dashboard.
 
-## 7. Non-goal / rimandato
-- **Auto-refresh/polling lato UI** (live update dei grafici): l'MVP fetcha on-load/cambio-range;
-  `refetchInterval` è un miglioramento successivo.
-- **Export/print dei grafici**, range custom (date picker libero): MVP usa i 3 preset.
-- **Continuous aggregate** lato API per range lunghi (debito 2C): il selettore `7g` usa bucket 3600s
-  on-the-fly — accettabile; la CAGG materializzata resta per la Fase 5/ottimizzazione.
-- **Bucket "naturali" enumerati lato API** (debito 2C): la UI passa `bucket` in secondi, sufficiente.
-- **Gestione/azioni sugli alert** (ack/resolve manuale dalla UI): la 2D è read-only sugli alert;
-  apertura/risoluzione resta del poller.
+## 7. Non-goal / deferred
+- **UI-side auto-refresh/polling** (live chart updates): MVP fetches on-load/range-change;
+  `refetchInterval` is a follow-up improvement.
+- **Chart export/print**, custom ranges (free date picker): MVP uses the 3 presets.
+- **Continuous aggregate** on the API side for long ranges (2C debt): the `7d` selector uses on-the-fly bucket 3600s
+  — acceptable; the materialized CAGG remains for Phase 5/optimization.
+- **Enumerated "natural" buckets on the API side** (2C debt): the UI passes `bucket` in seconds, sufficient.
+- **Alert management/actions** (manual ack/resolve from UI): 2D is read-only on alerts;
+  opening/resolving remains with the poller.
 
-## 8. Domande aperte (non bloccanti)
-- **Nomi metrica**: confermati contro `monitoring.py` (`cpu.pct`, `mem.pct`, `disk.pct`,
-  `uptime.seconds`, `iface.bytes_in/out`, `iface.up`, `gateway.rtt_ms/loss_pct/up`, `vpn.up`). Gli
-  endpoint OPNsense reali sono però ancora da validare (l'utente li fornirà): i *valori* potrebbero
-  rifinirsi, ma i *nomi* delle metriche restano il contratto stabile lato dashboard.
-- **Unità/formattazione** (bytes→MB/s, % , ms): scelte di presentazione decise in fase di piano.
+## 8. Open Questions (non-blocking)
+- **Metric names**: confirmed against `monitoring.py` (`cpu.pct`, `mem.pct`, `disk.pct`,
+  `uptime.seconds`, `iface.bytes_in/out`, `iface.up`, `gateway.rtt_ms/loss_pct/up`, `vpn.up`). The
+  real OPNsense endpoints are still to be validated (the user will provide them): *values* may
+  be refined, but metric *names* remain the stable contract on the dashboard side.
+- **Units/formatting** (bytes→MB/s, %, ms): presentation choices decided during the plan phase.

@@ -33,7 +33,7 @@ const resolved = {
 };
 
 describe("AlertsPage", () => {
-  it("filtra attivi vs storico", async () => {
+  it("filters active vs history", async () => {
     server.use(
       http.get("/api/tenants/t1/alerts", ({ request }) => {
         const url = new URL(request.url);
@@ -42,12 +42,12 @@ describe("AlertsPage", () => {
       }),
     );
     renderWithProviders(withTenant(<AlertsPage />));
-    // default: solo attivi
+    // default: active only
     expect(await screen.findByText("device.down")).toBeInTheDocument();
     expect(screen.queryByText("gateway.down")).not.toBeInTheDocument();
-    // passa a storico — SegmentedControl Mantine rende input radio + label;
-    // il testo "Storico" è in uno <span> dentro la label: si clicca il testo.
-    await userEvent.click(screen.getByText(/storico/i));
+    // switch to history — Mantine SegmentedControl renders radio input + label;
+    // the "History" text lives in a <span> inside the label, so click the text.
+    await userEvent.click(screen.getByText(/history/i));
     await waitFor(() => expect(screen.getByText("gateway.down")).toBeInTheDocument());
   });
 });

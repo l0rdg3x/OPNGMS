@@ -1,4 +1,4 @@
-"""indici (sessions/memberships/audit) + updated_at sulle tabelle con TimestampMixin"""
+"""indexes (sessions/memberships/audit) + updated_at on the tables with TimestampMixin"""
 
 import sqlalchemy as sa
 from alembic import op

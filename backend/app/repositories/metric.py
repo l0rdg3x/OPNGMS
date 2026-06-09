@@ -6,13 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.metric import MetricPoint
 
-# Cap difensivo: numero massimo di righe restituite dalla serie raw (senza bucket),
-# per evitare di materializzare serie illimitate.
+# Defensive cap: maximum number of rows returned by the raw series (without bucket),
+# to avoid materializing unbounded series.
 MAX_POINTS = 5000
 
 
 class MetricRepository:
-    """Letture serie-temporali per tenant. Doppio isolamento: filtro tenant_id + RLS."""
+    """Per-tenant time-series reads. Two isolation layers: tenant_id filter + RLS."""
 
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID) -> None:
         self.session = session
@@ -50,8 +50,8 @@ class MetricRepository:
                 "GROUP BY point_time, label ORDER BY point_time, label"
             )
         else:
-            # Cap difensivo: senza bucket limitiamo le righe raw a MAX_POINTS,
-            # selezionando i più recenti entro MAX_POINTS, presentati in ordine crescente.
+            # Defensive cap: without a bucket we limit the raw rows to MAX_POINTS,
+            # selecting the most recent within MAX_POINTS, presented in ascending order.
             params["limit"] = MAX_POINTS
             sql = text(
                 "SELECT point_time, label, point_value FROM ("

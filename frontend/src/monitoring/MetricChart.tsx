@@ -1,5 +1,6 @@
 import { Card, Text } from "@mantine/core";
 import { LineChart } from "@mantine/charts";
+import { useT } from "../i18n";
 import type { MetricPoint } from "./types";
 
 export interface ChartData {
@@ -7,8 +8,8 @@ export interface ChartData {
   series: string[];
 }
 
-/** Trasforma punti {time,label,value} in righe per timestamp con una colonna per label.
- *  Label vuota ('') → colonna 'value'. Funzione pura, testata a parte. */
+/** Turns {time,label,value} points into rows keyed by timestamp, one column per label.
+ *  An empty label ('') maps to the 'value' column. Pure function, tested separately. */
 // eslint-disable-next-line react-refresh/only-export-components
 export function toChartData(points: MetricPoint[]): ChartData {
   const seriesSet: string[] = [];
@@ -37,6 +38,7 @@ export function MetricChart({
   points: MetricPoint[];
   unit?: string;
 }) {
+  const t = useT();
   const { data, series } = toChartData(points);
   return (
     <Card withBorder padding="sm">
@@ -46,7 +48,7 @@ export function MetricChart({
       </Text>
       {data.length === 0 ? (
         <Text c="dimmed" size="sm">
-          Nessun dato ancora
+          {t.chart.noData}
         </Text>
       ) : (
         <LineChart

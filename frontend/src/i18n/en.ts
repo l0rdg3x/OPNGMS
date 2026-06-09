@@ -1,0 +1,103 @@
+// English UI dictionary. All user-facing strings live here, grouped by feature.
+// Add a new locale by creating a sibling file with the same shape (see ./index.ts).
+export const en = {
+  common: {
+    appName: "OPNGMS",
+    logout: "Log out",
+    none: "—",
+  },
+  nav: {
+    overview: "Overview",
+    devices: "Devices",
+    alerts: "Alerts",
+  },
+  login: {
+    title: "OPNGMS",
+    email: "Email",
+    password: "Password",
+    passwordToggle: "Show/hide",
+    submit: "Sign in",
+    invalidCredentials: "Invalid credentials",
+  },
+  tenant: {
+    activeLabel: "Active tenant",
+    none: "No tenant",
+  },
+  overview: {
+    title: "Overview",
+    activeAlerts: "Active alerts",
+    noActiveAlerts: "No active alerts",
+    healthLoadError: "Failed to load fleet health",
+    alertsLoadError: "Failed to load alerts",
+  },
+  alerts: {
+    title: "Alerts",
+    active: "Active",
+    history: "History",
+    loadError: "Failed to load alerts",
+    noAlerts: "No alerts",
+    colType: "Type",
+    colLabel: "Label",
+    colSeverity: "Severity",
+    colOpened: "Opened",
+    colResolved: "Resolved",
+    colDevice: "Device",
+  },
+  devices: {
+    title: "Devices",
+    add: "Add device",
+    colName: "Name",
+    colUrl: "URL",
+    colStatus: "Status",
+    colFirmware: "Firmware",
+  },
+  deviceDetail: {
+    url: "URL",
+    status: "Status",
+    firmware: "Firmware",
+  },
+  deviceActions: {
+    testConnection: "Test connection",
+    delete: "Delete",
+    testResult: "Test result",
+    testNotification: "Test",
+    testFailed: "Connection test failed",
+    deleteFailed: "Delete failed",
+  },
+  deviceCreate: {
+    title: "Add device",
+    name: "Name",
+    url: "URL (https)",
+    apiKey: "API key",
+    apiSecret: "API secret",
+    verifyTls: "Verify TLS",
+    save: "Save",
+    created: "Device created",
+    createFailed: "Create failed",
+  },
+  health: {
+    totalDevices: "Total devices",
+    activeAlerts: "Active alerts",
+  },
+  deviceHealth: {
+    title: "Health",
+    cpu: "CPU",
+    memory: "Memory",
+    disk: "Disk",
+    trafficIn: "Traffic in",
+    trafficOut: "Traffic out",
+    gatewayRtt: "Gateway RTT",
+    gatewayLoss: "Gateway loss",
+    vpnUp: "VPN up",
+  },
+  chart: {
+    noData: "No data yet",
+  },
+  errors: {
+    fleetHealthLoad: "Failed to load fleet health",
+    alertsLoad: "Failed to load alerts",
+    metricsLoad: "Failed to load metrics",
+  },
+} as const;
+
+export type Dict = typeof en;

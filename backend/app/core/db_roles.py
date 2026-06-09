@@ -1,20 +1,20 @@
-"""Ruolo applicativo non-superuser per far valere la RLS a runtime.
+"""Non-superuser application role to enforce RLS at runtime.
 
-I superuser PostgreSQL bypassano sempre la RLS (anche con FORCE). L'app deve
-quindi connettersi con un ruolo NON-superuser e NOBYPASSRLS; migrazioni e setup
-girano come owner/superuser. Fonte unica usata sia dalla migrazione 0003 sia
-dalla conftest dei test.
+PostgreSQL superusers always bypass RLS (even with FORCE). The app must therefore
+connect with a NON-superuser, NOBYPASSRLS role; migrations and setup run as
+owner/superuser. Single source used both by migration 0003 and by the tests'
+conftest.
 """
 
 APP_ROLE = "opngms_app"
-# MVP/locale: in produzione cambiare con `ALTER ROLE opngms_app PASSWORD '...'`
-# E AGGIORNARE di conseguenza DATABASE_URL (l'app si connette con queste credenziali).
+# MVP/local: in production change it with `ALTER ROLE opngms_app PASSWORD '...'`
+# AND UPDATE DATABASE_URL accordingly (the app connects with these credentials).
 APP_ROLE_PASSWORD = "opngms_app"
 
 
 def create_app_role_statements() -> list[str]:
-    # CREATE-or-ALTER: garantisce gli attributi anche se il ruolo esiste gia'
-    # (es. creato da una run precedente della conftest).
+    # CREATE-or-ALTER: ensures the attributes even if the role already exists
+    # (e.g. created by a previous conftest run).
     return [
         f"""DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{APP_ROLE}') THEN
@@ -37,12 +37,12 @@ def grant_app_role_statements() -> list[str]:
 
 
 def drop_app_role_statements() -> list[str]:
-    # Il ruolo e' a livello di cluster ma i privilegi sono per-database: revochiamo
-    # e facciamo DROP OWNED solo nel DB corrente. DROP ROLE e' cluster-wide e
-    # fallisce finche' un altro DB del cluster (es. dev vs test, che condividono il
-    # cluster) concede ancora privilegi al ruolo. Per questo droppiamo il ruolo solo
-    # quando non restano dipendenze in nessun database (pg_shdepend vuoto); altrimenti
-    # lo lasciamo perche' serve ancora altrove. Downgrade idempotente e fail-safe.
+    # The role is cluster-wide but the privileges are per-database: we revoke
+    # and DROP OWNED only in the current DB. DROP ROLE is cluster-wide and
+    # fails as long as another DB in the cluster (e.g. dev vs test, which share the
+    # cluster) still grants privileges to the role. That is why we drop the role only
+    # when no dependencies remain in any database (pg_shdepend empty); otherwise
+    # we leave it because it is still needed elsewhere. Idempotent and fail-safe downgrade.
     return [
         f"""DO $$ BEGIN
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{APP_ROLE}') THEN

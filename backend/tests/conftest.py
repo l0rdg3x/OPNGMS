@@ -119,7 +119,7 @@ async def two_tenants(db_engine):
 
 @pytest.fixture
 async def api_client(db_engine):
-    """Client ASGI con get_session sovrascritto verso il DB di test (ruolo owner)."""
+    """ASGI client with get_session overridden toward the test DB (owner role)."""
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
 
     async def _override_get_session():
@@ -128,7 +128,7 @@ async def api_client(db_engine):
 
     app.dependency_overrides[get_session] = _override_get_session
     transport = ASGITransport(app=app)
-    # base_url https:// così httpx memorizza i cookie `secure=True` (l'ASGITransport non fa TLS reale).
+    # base_url https:// so httpx stores the `secure=True` cookies (ASGITransport does no real TLS).
     async with AsyncClient(transport=transport, base_url="https://test") as c:
         yield c
     app.dependency_overrides.clear()
@@ -136,7 +136,7 @@ async def api_client(db_engine):
 
 @pytest.fixture
 async def app_role_api_client(db_engine):
-    """Come api_client, ma la sessione si connette come opngms_app (non-superuser) -> RLS attiva."""
+    """Like api_client, but the session connects as opngms_app (non-superuser) -> RLS active."""
     app_url = make_url(TEST_DB_URL).set(username="opngms_app", password="opngms_app")
     engine = make_engine(app_url.render_as_string(hide_password=False))
     factory = async_sessionmaker(engine, expire_on_commit=False)

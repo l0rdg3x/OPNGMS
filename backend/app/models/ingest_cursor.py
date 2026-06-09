@@ -9,8 +9,8 @@ from app.models.base import Base
 
 
 class IngestCursor(Base):
-    """Watermark per-(device, source) dell'ingest. Stato interno del worker, NON user-facing
-    (niente RLS): mai esposto via API."""
+    """Per-(device, source) ingest watermark. Internal worker state, NOT user-facing
+    (no RLS): never exposed via the API."""
 
     __tablename__ = "ingest_cursors"
 

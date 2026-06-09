@@ -8,22 +8,22 @@ from app.models.device import Device
 from app.models.event import Event
 from app.models.ingest_cursor import IngestCursor
 
-# Sorgenti attive.
+# Active sources.
 SOURCES = ["ids", "dns"]
 
 
 async def ingest_events(session: AsyncSession, device: Device, client, now: datetime) -> int:
-    """Ingerisce gli eventi (per source) di un device. Ritorna il n. di eventi nuovi visti.
+    """Ingest the events (per source) of a device. Returns the number of new events seen.
 
-    Resiliente: l'errore di una source non blocca le altre né solleva. Idempotente:
-    cursore per (device, source) + insert ON CONFLICT DO NOTHING sulla PK di dedup.
+    Resilient: an error in one source neither blocks the others nor raises. Idempotent:
+    cursor per (device, source) + ON CONFLICT DO NOTHING insert on the dedup PK.
     """
     total = 0
     for source in SOURCES:
         try:
             total += await _ingest_source(session, device, client, source)
         except OpnsenseError:
-            continue  # una source non disponibile non blocca le altre
+            continue  # an unavailable source does not block the others
     return total
 
 
@@ -47,7 +47,7 @@ async def _fetch(client, source: str, since):
         return await client.get_ids_alerts(since)
     if source == "dns":
         return await client.get_dns_events(since)
-    raise ValueError(f"source sconosciuta: {source}")
+    raise ValueError(f"unknown source: {source}")
 
 
 def _normalize(device: Device, source: str, r: dict) -> dict:

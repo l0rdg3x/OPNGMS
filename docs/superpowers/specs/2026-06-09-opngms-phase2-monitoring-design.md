@@ -1,33 +1,33 @@
-# OPNGMS — Fase 2: Monitoraggio & Salute — Design Spec
+# OPNGMS — Phase 2: Monitoring & Health — Design Spec
 
-- **Data:** 2026-06-09
-- **Stato:** Approvato (design), in attesa di revisione finale dello spec
-- **Fase:** 2 di 5 della roadmap OPNGMS
-- **Dipende da:** Fase 1 (Foundation+Auth+Device+Frontend) in `main`
+- **Date:** 2026-06-09
+- **Status:** Approved (design), pending final spec review
+- **Phase:** 2 of 5 of the OPNGMS roadmap
+- **Depends on:** Phase 1 (Foundation+Auth+Device+Frontend) in `main`
 
 ---
 
-## 1. Contesto
+## 1. Context
 
-La **Fase 2** dà a OPNGMS il monitoraggio di stato/salute della flotta OPNsense: un motore di
-**polling** che, su cadenza, interroga ogni device via la sua REST API, raccoglie metriche, le
-memorizza come serie temporali, aggiorna lo stato, genera alert, e le espone via API e dashboard.
+**Phase 2** gives OPNGMS status/health monitoring of the OPNsense fleet: a **polling**
+engine that, on a schedule, queries each device via its REST API, collects metrics, stores
+them as time series, updates status, generates alerts, and exposes them via API and dashboard.
 
-I **log/eventi** (per i report stile SonicWall) sono la Fase 3 — qui ci occupiamo dello *stato*
-(polling), non delle *cronologie di eventi* (syslog).
+**Log/events** (for Phase 5 reports) are Phase 3 — here we handle *state*
+(polling), not *event chronologies* (syslog).
 
-## 2. Decisioni di design (brainstorming Fase 2)
+## 2. Design Decisions (Phase 2 brainstorming)
 
-| Tema | Decisione |
-|------|-----------|
-| Storage time-series | **TimescaleDB** (estensione Postgres): hypertable, compressione, continuous aggregates, retention native. Resta lo stesso DB/stack/migrazioni |
-| Motore di polling | **ARQ + Redis** (coda di job async): cron → enqueue `poll_device` per device → worker concorrenti. Retry/backoff e osservabilità integrati |
-| Scope metriche MVP | **Essenziale + rete**: up/down + last_seen, CPU/mem/disco, uptime, firmware+update; interfacce (stato+traffico), gateway (stato/RTT/loss), tunnel VPN (stato) |
+| Topic | Decision |
+|-------|----------|
+| Time-series storage | **TimescaleDB** (Postgres extension): hypertable, compression, continuous aggregates, native retention. Same DB/stack/migrations |
+| Polling engine | **ARQ + Redis** (async job queue): cron → enqueue `poll_device` per device → concurrent workers. Integrated retry/backoff and observability |
+| MVP metrics scope | **Essential + network**: up/down + last_seen, CPU/mem/disk, uptime, firmware+update; interfaces (status+traffic), gateways (status/RTT/loss), VPN tunnels (status) |
 
-Vincoli di piattaforma (Fase 1): Python/FastAPI, ~100-300 device, API diretta (pull), connector
-`OpnsenseClient` (unico confine HTTP), app runtime come ruolo non-superuser `opngms_app` con RLS.
+Platform constraints (Phase 1): Python/FastAPI, ~100-300 devices, direct API (pull), connector
+`OpnsenseClient` (single HTTP boundary), app runtime as non-superuser role `opngms_app` with RLS.
 
-## 3. Architettura
+## 3. Architecture
 
 ```
                  ┌─────────────┐   cron 60s    ┌──────────────┐
@@ -36,149 +36,148 @@ Vincoli di piattaforma (Fase 1): Python/FastAPI, ~100-300 device, API diretta (p
                                   poll_device(id)      │ consume
                                                 ┌──────▼───────┐  OpnsenseClient   ┌─────────┐
                                                 │ ARQ worker(s) ├──────HTTPS───────►│ OPNsense │
-                                                └──────┬───────┘  (privilegiato)    └─────────┘
+                                                └──────┬───────┘  (privileged)      └─────────┘
                                                        │ write metrics / status / alerts
                                                 ┌──────▼─────────────────────┐
    React dashboard ──HTTP──► FastAPI ──RLS────► │ TimescaleDB (Postgres+TS)   │
-   (grafici)                 (read, opngms_app) │  metrics hypertable, alerts │
+   (charts)                  (read, opngms_app) │  metrics hypertable, alerts │
                                                 └─────────────────────────────┘
 ```
 
-- Il **poller** (processo `python -m app.worker`) è infrastruttura backend fidata: si connette con
-  il ruolo **owner** (`ADMIN_DATABASE_URL`, bypassa la RLS) per leggere TUTTI i device e scrivere
-  metriche/stato/alert.
-- L'**API** legge metriche/alert come `opngms_app` (non-superuser) sotto **tenant-context** → la
-  RLS filtra per cliente. Difesa-in-profondità identica a `devices`.
+- The **poller** (process `python -m app.worker`) is trusted backend infrastructure: it connects with
+  the **owner** role (`ADMIN_DATABASE_URL`, bypasses RLS) to read ALL devices and write
+  metrics/status/alerts.
+- The **API** reads metrics/alerts as `opngms_app` (non-superuser) under **tenant-context** → the
+  RLS filters by client. Same defense-in-depth as `devices`.
 
-## 4. Modello dati
+## 4. Data Model
 
 ### 4.1 Hypertable `metrics` (TimescaleDB)
-Narrow + etichettata, copre scalari e multi-dimensionali:
+Narrow + labeled, covers scalars and multi-dimensional:
 ```
 metrics(
   time        TIMESTAMPTZ NOT NULL,
-  device_id   UUID NOT NULL,        -- (no FK: hypertable; integrità gestita dal poller)
-  tenant_id   UUID NOT NULL,        -- denormalizzato: aggregazioni per cliente + RLS
-  metric      TEXT NOT NULL,        -- es. 'cpu.load', 'mem.used_pct', 'iface.bytes_in', 'gateway.rtt_ms', 'vpn.up'
-  label       TEXT NOT NULL DEFAULT '',  -- dimensione: '' per scalari, 'igb0'/'WAN_GW'/'wg0' per multi-dim
+  device_id   UUID NOT NULL,        -- (no FK: hypertable; integrity managed by poller)
+  tenant_id   UUID NOT NULL,        -- denormalized: per-client aggregations + RLS
+  metric      TEXT NOT NULL,        -- e.g. 'cpu.load', 'mem.used_pct', 'iface.bytes_in', 'gateway.rtt_ms', 'vpn.up'
+  label       TEXT NOT NULL DEFAULT '',  -- dimension: '' for scalars, 'igb0'/'WAN_GW'/'wg0' for multi-dim
   value       DOUBLE PRECISION NOT NULL
 )
 ```
-- `create_hypertable('metrics', 'time')`; indice su `(tenant_id, device_id, metric, time DESC)`.
-- **Continuous aggregate** `metrics_5m` (avg/max per metric+label, bucket 5 min) per le dashboard a
-  lungo periodo. **Retention policy**: raw droppato dopo N giorni (config, default 30); il
-  continuous aggregate ha retention più lunga.
-- **RLS** sull'hypertable keyed su `tenant_id` (il poller owner bypassa; l'API filtra). Aggiunta a
-  `TENANT_TABLES` (modulo `rls.py` esistente). `opngms_app` riceve SELECT (grant; verificare la
-  propagazione ai chunk Timescale).
+- `create_hypertable('metrics', 'time')`; index on `(tenant_id, device_id, metric, time DESC)`.
+- **Continuous aggregate** `metrics_5m` (avg/max per metric+label, 5 min bucket) for long-period
+  dashboards. **Retention policy**: raw dropped after N days (config, default 30); the
+  continuous aggregate has longer retention.
+- **RLS** on the hypertable keyed on `tenant_id` (poller owner bypasses; API filters). Added to
+  `TENANT_TABLES` (existing `rls.py` module). `opngms_app` gets SELECT (grant; verify
+  propagation to Timescale chunks).
 
-### 4.2 Tabella `alerts` (control-plane relazionale, non hypertable)
+### 4.2 Table `alerts` (relational control-plane, not a hypertable)
 ```
 alerts(
   id          UUID PK,
   tenant_id   UUID NOT NULL,    -- RLS
   device_id   UUID NOT NULL FK devices ON DELETE CASCADE,
   type        TEXT NOT NULL,    -- 'device.down' | 'gateway.down' | ...
-  label       TEXT,             -- es. nome gateway
+  label       TEXT,             -- e.g. gateway name
   severity    TEXT NOT NULL DEFAULT 'warning',
   opened_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  resolved_at TIMESTAMPTZ,      -- NULL = attivo
+  resolved_at TIMESTAMPTZ,      -- NULL = active
   details     JSONB NOT NULL DEFAULT '{}'
 )
 ```
-- RLS keyed su `tenant_id`. Unico alert *attivo* per `(device_id, type, label)` (vincolo parziale
-  su `resolved_at IS NULL`). Il poller apre/risolve gli alert sui cambi di stato.
+- RLS keyed on `tenant_id`. Single *active* alert per `(device_id, type, label)` (partial
+  unique constraint on `resolved_at IS NULL`). The poller opens/resolves alerts on state changes.
 
-### 4.3 Stato corrente sul `Device`
-Lo stato *corrente* (up/down, last_seen, firmware_version) resta sui campi esistenti del `Device`,
-aggiornati dal poller a ogni ciclo. Le metriche *correnti* (ultima CPU/mem/ecc.) si derivano
-dall'hypertable (`last()` di Timescale) — niente tabella "snapshot" separata nell'MVP.
+### 4.3 Current status on `Device`
+The *current* status (up/down, last_seen, firmware_version) stays on the existing `Device`
+fields, updated by the poller each cycle. *Current* metrics (latest CPU/mem/etc.) are derived
+from the hypertable (`last()` from Timescale) — no separate "snapshot" table in the MVP.
 
-## 5. Motore di polling (ARQ + Redis)
+## 5. Polling Engine (ARQ + Redis)
 
-- **`app/worker.py`**: `WorkerSettings` ARQ con functions + cron jobs + Redis settings.
-- **Cron `enqueue_device_polls`** (ogni `POLL_INTERVAL_SECONDS`, default 60): lista tutti i device
-  (owner connection), enqueue `poll_device(device_id)` per ciascuno.
-- **`poll_device(device_id)`**: carica il device, decifra i segreti (`crypto`), costruisce
-  `OpnsenseClient`, raccoglie le metriche, scrive su `metrics`, aggiorna `Device.status`/`last_seen`/
-  `firmware_version`, valuta gli alert (transizioni di stato). Idempotente; ARQ **retry** con
-  backoff su errori transitori.
-- **Concorrenza/rate-limit**: `max_jobs` del worker ARQ bounda la concorrenza globale verso le API
-  OPNsense.
-- **Connessione DB del worker**: ruolo owner (`ADMIN_DATABASE_URL`) — vede tutti i device, scrive
-  metriche/alert bypassando la RLS (è infrastruttura fidata, non user-facing).
-- **docker-compose**: aggiunge servizi `redis` e `worker` (oltre a `db` ora TimescaleDB).
+- **`app/worker.py`**: ARQ `WorkerSettings` with functions + cron jobs + Redis settings.
+- **Cron `enqueue_device_polls`** (every `POLL_INTERVAL_SECONDS`, default 60): lists all devices
+  (owner connection), enqueues `poll_device(device_id)` for each.
+- **`poll_device(device_id)`**: loads the device, decrypts secrets (`crypto`), builds
+  `OpnsenseClient`, collects metrics, writes to `metrics`, updates `Device.status`/`last_seen`/
+  `firmware_version`, evaluates alerts (state transitions). Idempotent; ARQ **retry** with
+  backoff on transient errors.
+- **Concurrency/rate-limit**: ARQ worker `max_jobs` bounds global concurrency toward the
+  OPNsense APIs.
+- **Worker DB connection**: owner role (`ADMIN_DATABASE_URL`) — sees all devices, writes
+  metrics/alerts bypassing RLS (it is trusted infrastructure, not user-facing).
+- **docker-compose**: adds `redis` and `worker` services (in addition to `db` now TimescaleDB).
 
-## 6. Estensioni del connector `OpnsenseClient`
+## 6. `OpnsenseClient` Connector Extensions
 
-Nuovi metodi async (un metodo per gruppo di metriche), che ritornano dict normalizzati; mantengono
-il principio dell'**unico confine HTTP** e la normalizzazione errori esistente:
-- `get_system_info()` → cpu/mem/disco/uptime
-- `get_firmware_status()` (già esiste) → versione + update disponibili
-- `get_interfaces()` → per interfaccia: stato, bytes in/out
-- `get_gateways()` → per gateway: stato, RTT, loss
+New async methods (one method per metric group), returning normalized dicts; they maintain
+the **single HTTP boundary** principle and existing error normalization:
+- `get_system_info()` → cpu/mem/disk/uptime
+- `get_firmware_status()` (already exists) → version + available updates
+- `get_interfaces()` → per interface: status, bytes in/out
+- `get_gateways()` → per gateway: status, RTT, loss
 - `get_vpn_status()` → per tunnel: up/down
 
-⚠️ **Endpoint OPNsense esatti DA VERIFICARE** contro un device reale (presumibilmente sotto
-`/api/diagnostics/...`, `/api/routes/gateway/status`, `/api/wireguard/...`, ecc.). L'astrazione e i
-test (mock respx) non cambiano; il mapping endpoint→metrica si conferma in implementazione.
+⚠️ **Exact OPNsense endpoints TO VERIFY** against a real device (presumably under
+`/api/diagnostics/...`, `/api/routes/gateway/status`, `/api/wireguard/...`, etc.). The abstraction and
+tests (mock respx) do not change; the endpoint→metric mapping is confirmed in implementation.
 
-## 7. API metriche/salute (FastAPI, tenant-scoped)
+## 7. Metrics/Health API (FastAPI, tenant-scoped)
 
-Sotto `/api/tenants/{tenant_id}/...`, gated da `require_tenant(DEVICE_VIEW)` + tenant-context (RLS):
-- `GET .../devices/{device_id}/metrics?metric=&from=&to=` → serie temporale (dal continuous
-  aggregate per range lunghi, raw per range brevi) + ultimo valore.
-- `GET .../health` → riassunto per cliente: # device reachable/unverified/unreachable, # alert
-  attivi.
-- `GET .../alerts?active=true` → alert (attivi o storici) del cliente.
+Under `/api/tenants/{tenant_id}/...`, gated by `require_tenant(DEVICE_VIEW)` + tenant-context (RLS):
+- `GET .../devices/{device_id}/metrics?metric=&from=&to=` → time series (from the continuous
+  aggregate for long ranges, raw for short ranges) + last value.
+- `GET .../health` → per-client summary: # reachable/unverified/unreachable devices, # active alerts.
+- `GET .../alerts?active=true` → alerts (active or historical) for the client.
 
-## 8. Dashboard frontend (React + Mantine)
+## 8. Frontend Dashboard (React + Mantine)
 
-- **Vista salute per-device**: grafici nel tempo (CPU/mem, traffico interfacce), stato gateway/VPN,
-  ultimo aggiornamento. Libreria grafici (Mantine Charts / Recharts — scelta in fase di piano).
-- **Overview per-cliente**: riepilogo salute flotta + lista alert attivi.
+- **Per-device health view**: charts over time (CPU/mem, interface traffic), gateway/VPN status,
+  last update. Charts library (Mantine Charts / Recharts — chosen during the plan phase).
+- **Per-client overview**: fleet health summary + active alert list.
 
-## 9. Scomposizione in milestone
-1. **2A — Infra + storage + poller core**: TimescaleDB+Redis nel compose, migrazione (estensione +
-   hypertable `metrics` + retention + RLS), setup ARQ, poller (cron→`poll_device`), connector
-   `get_system_info`, raccolta **salute essenziale** (up/down, CPU/mem/disco, uptime, firmware) +
-   update stato. *Definizione di fatto:* un device mockato viene "pollato", le metriche compaiono
-   nell'hypertable, lo stato si aggiorna.
-2. **2B — Metriche di rete + alerting**: connector interfacce/gateway/VPN + raccolta, motore alert
-   (transizioni → tabella `alerts`, apri/risolvi).
-3. **2C — API metriche/salute**: endpoint per-device (serie+ultimo), riassunto per-cliente, alert —
-   tenant-scoped + RLS, con test di isolamento.
-4. **2D — Dashboard frontend**: viste salute per-device (grafici) + overview per-cliente + alert.
+## 9. Milestone Breakdown
+1. **2A — Infra + storage + core poller**: TimescaleDB+Redis in compose, migration (extension +
+   `metrics` hypertable + retention + RLS), ARQ setup, poller (cron→`poll_device`), connector
+   `get_system_info`, collection of **essential health** (up/down, CPU/mem/disk, uptime, firmware) +
+   status update. *Definition of done:* a mocked device is "polled", metrics appear
+   in the hypertable, status updates.
+2. **2B — Network metrics + alerting**: interfaces/gateways/VPN connector + collection, alert
+   engine (transitions → `alerts` table, open/resolve).
+3. **2C — Metrics/health API**: per-device endpoint (series+last), per-client summary, alerts —
+   tenant-scoped + RLS, with cross-tenant isolation tests.
+4. **2D — Frontend dashboard**: per-device health views (charts) + per-client overview + alerts.
 
-Ogni milestone = spec→piano→esecuzione subagent-driven.
+Each milestone = spec→plan→subagent-driven execution.
 
 ## 10. Testing
-- **Poller**: `poll_device` testato con un `OpnsenseClient` mockato (respx) o un client fake
-  iniettato; verifica scrittura metriche su un TimescaleDB di test + update stato + apertura alert.
-  Il connector con respx (come Fase 1).
-- **Storage**: i test girano su un TimescaleDB reale (l'estensione serve per create_hypertable); la
-  conftest crea l'estensione + hypertable nel DB di test.
-- **API**: integration test tenant-scoped + **isolamento metriche cross-tenant** (un cliente non
-  vede le metriche di un altro), via RLS come per i device.
-- **Alerting**: transizioni di stato (reachable→unreachable apre un alert; ritorno lo risolve).
+- **Poller**: `poll_device` tested with a mocked `OpnsenseClient` (respx) or injected fake
+  client; verifies metric write to a test TimescaleDB + status update + alert opening.
+  Connector with respx (as in Phase 1).
+- **Storage**: tests run on a real TimescaleDB (the extension is needed for create_hypertable); the
+  conftest creates the extension + hypertable in the test DB.
+- **API**: tenant-scoped integration tests + **cross-tenant metric isolation** (one client cannot
+  see another's metrics), via RLS as with devices.
+- **Alerting**: state transitions (reachable→unreachable opens an alert; return resolves it).
 
-## 11. Definizione di "fatto" (Fase 2)
-- Il worker pollla la flotta su cadenza, con concorrenza bounded e retry.
-- Le metriche essenziali+rete fluiscono nell'hypertable TimescaleDB; lo stato del device si aggiorna.
-- Gli alert si aprono/risolvono sui cambi di stato.
-- L'API espone metriche/salute/alert per cliente, isolate dalla RLS (test lo dimostrano).
-- La dashboard mostra salute per-device e overview per-cliente.
+## 11. Definition of "Done" (Phase 2)
+- The worker polls the fleet on a schedule, with bounded concurrency and retry.
+- Essential+network metrics flow into the TimescaleDB hypertable; device status updates.
+- Alerts open/resolve on state changes.
+- The API exposes metrics/health/alerts per client, isolated by RLS (tests prove it).
+- The dashboard shows per-device health and per-client overview.
 
-## 12. Non-goals / rimandato
-- Log/eventi e syslog ingest (Fase 3); config push (Fase 4); reporting PDF (Fase 5).
-- Canali di notifica degli alert (email/webhook) — l'MVP genera/espone gli alert; l'invio è dopo.
-- Scaling orizzontale multi-worker oltre il pool ARQ singola-istanza.
-- Soglie di alert configurabili dall'utente (MVP: regole fisse device-down/gateway-down).
+## 12. Non-goals / deferred
+- Log/events and syslog ingest (Phase 3); config push (Phase 4); PDF reporting (Phase 5).
+- Alert notification channels (email/webhook) — the MVP generates/exposes alerts; sending is later.
+- Horizontal scaling beyond single-instance ARQ pool.
+- User-configurable alert thresholds (MVP: fixed device-down/gateway-down rules).
 
-## 13. Domande aperte (non bloccanti)
-- **Endpoint OPNsense** esatti per system/interfaces/gateways/VPN — da verificare contro un device
-  reale; mockati fino ad allora.
-- **Grant su hypertable Timescale** per `opngms_app` (propagazione ai chunk) — da verificare in 2A.
-- **Cadenze multiple** (es. firmware/update ogni ora invece di 60s) — MVP: cadenza unica; si raffina
-  con cron ARQ multipli se serve.
-- **Libreria grafici** frontend (Mantine Charts vs Recharts) — decisa in fase di piano della 2D.
+## 13. Open Questions (non-blocking)
+- **Exact OPNsense endpoints** for system/interfaces/gateways/VPN — to verify against a real
+  device; mocked until then.
+- **Grant on Timescale hypertable** for `opngms_app` (chunk propagation) — to verify in 2A.
+- **Multiple cadences** (e.g. firmware/update every hour instead of 60s) — MVP: single cadence;
+  refine with multiple ARQ crons if needed.
+- **Frontend charts library** (Mantine Charts vs Recharts) — decided during the 2D plan phase.

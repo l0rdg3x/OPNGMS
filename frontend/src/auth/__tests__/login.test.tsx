@@ -25,7 +25,7 @@ describe("login flow", () => {
     expect(await screen.findByLabelText(/email/i)).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/email/i), "a@x.io");
     await userEvent.type(screen.getByLabelText(/password/i), "pw12345");
-    await userEvent.click(screen.getByRole("button", { name: /accedi/i }));
+    await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
     await waitFor(() => expect(screen.getByText(/a@x.io/i)).toBeInTheDocument());
   });
 });

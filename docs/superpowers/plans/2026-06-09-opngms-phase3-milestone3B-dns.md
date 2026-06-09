@@ -1,61 +1,61 @@
-# OPNGMS — Fase 3 / Milestone 3B: Sorgente DNS — Piano di Implementazione
+# OPNGMS — Phase 3 / Milestone 3B: DNS Source — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Aggiungere la sorgente **DNS** (query Unbound → "siti visitati") all'ingest eventi, riusando il framework 3A (hypertable `events`, cursore per `(device, source)`, dedup, worker).
+**Goal:** Add the **DNS** source (Unbound queries → "visited sites") to event ingest, reusing the 3A framework (hypertable `events`, cursor per `(device, source)`, dedup, worker).
 
-**Architecture:** La 3A ha reso l'ingest generico sul `source`. La 3B aggiunge solo: un metodo connettore `get_dns_events(since)` che normalizza le query DNS, e l'attivazione della source `"dns"` nel servizio `ingest_events` (lista `SOURCES` + dispatch `_fetch`). Storage, cursore, dedup, RLS, cron e job restano invariati.
+**Architecture:** 3A made the ingest generic on `source`. 3B adds only: a connector method `get_dns_events(since)` that normalises DNS queries, and activation of the `"dns"` source in the `ingest_events` service (`SOURCES` list + `_fetch` dispatch). Storage, cursor, dedup, RLS, cron, and job remain unchanged.
 
 **Tech Stack:** Python 3.12+, SQLAlchemy 2.0 async, TimescaleDB, ARQ, pytest + respx.
 
 ---
 
-## Contesto per l'implementatore (leggere prima di iniziare)
+## Context for the implementer (read before starting)
 
-Codebase backend in `/home/l0rdg3x/coding/OPNGMS/backend`. La 3A è già in `main`.
+Backend codebase at `/home/l0rdg3x/coding/OPNGMS/backend`. 3A is already on `main`.
 
-- **Connettore** (`app/connectors/opnsense/client.py`): `get_ids_alerts(since)` (righe ~167-201) è il modello da replicare per `get_dns_events`. Usa `self._get(path)` (unico confine HTTP + SSRF), `self._parse_ts(...)` (ritorna sempre `datetime` tz-aware), `self._event_key(ts, *parts)` (hash discriminante quando manca un id sorgente). `datetime`/`timezone`/`hashlib` sono già importati.
-- **Servizio ingest** (`app/services/ingest.py`):
-  - `SOURCES = ["ids"]` → diventa `["ids", "dns"]`.
-  - `_fetch(client, source, since)` fa il dispatch per source (oggi solo `ids`); aggiungi il ramo `dns`.
-  - `_normalize(device, source, r)` è **già generico**: legge `time, category, src_ip, dst_ip, name, severity, action, event_key, attributes` dal dict del connettore. NON va modificato (il dict DNS deve avere queste chiavi).
-  - `ingest_events` è resiliente per-source (`except OpnsenseError: continue`): un errore della sorgente DNS non blocca IDS e viceversa.
-- **Modello eventi** (`app/models/event.py`): `Event` con PK dedup `(time, device_id, source, event_key)`. Per DNS: `source="dns"`, `category="query"`, `src_ip=client_ip`, `name=domain`, `action=allowed|blocked`.
-- **Test ingest** (`tests/test_ingest.py`): contiene un `FakeClient` con SOLO `get_ids_alerts`. ⚠️ **Aggiungendo `"dns"` a `SOURCES`, `ingest_events` chiamerà `client.get_dns_events` anche nei test esistenti** → senza aggiornare `FakeClient` si avrebbe `AttributeError` (NON un `OpnsenseError`, quindi non catturato) e i 3 test 3A si romperebbero. Il `FakeClient` e i suoi call-site VANNO aggiornati (Task 2).
-- **Test connettore**: `tests/test_connector_ids.py` è il modello per `tests/test_connector_dns.py` (respx).
+- **Connector** (`app/connectors/opnsense/client.py`): `get_ids_alerts(since)` (lines ~167-201) is the model to replicate for `get_dns_events`. Uses `self._get(path)` (single HTTP boundary + SSRF), `self._parse_ts(...)` (always returns a tz-aware `datetime`), `self._event_key(ts, *parts)` (discriminating hash when no source id is available). `datetime`/`timezone`/`hashlib` are already imported.
+- **Ingest service** (`app/services/ingest.py`):
+  - `SOURCES = ["ids"]` → becomes `["ids", "dns"]`.
+  - `_fetch(client, source, since)` dispatches by source (currently only `ids`); add the `dns` branch.
+  - `_normalize(device, source, r)` is **already generic**: reads `time, category, src_ip, dst_ip, name, severity, action, event_key, attributes` from the connector dict. NOT to be modified (the DNS dict must have these keys).
+  - `ingest_events` is resilient per-source (`except OpnsenseError: continue`): a DNS source error does not block IDS and vice versa.
+- **Event model** (`app/models/event.py`): `Event` with dedup PK `(time, device_id, source, event_key)`. For DNS: `source="dns"`, `category="query"`, `src_ip=client_ip`, `name=domain`, `action=allowed|blocked`.
+- **Ingest tests** (`tests/test_ingest.py`): contains a `FakeClient` with ONLY `get_ids_alerts`. ⚠️ **Adding `"dns"` to `SOURCES`, `ingest_events` will call `client.get_dns_events` even in existing tests** → without updating `FakeClient` you get `AttributeError` (NOT an `OpnsenseError`, so not caught) and the 3 existing 3A tests break. The `FakeClient` and its call sites MUST be updated (Task 2).
+- **Connector tests**: `tests/test_connector_ids.py` is the model for `tests/test_connector_dns.py` (respx).
 
-**Comando test** (dir `backend/`):
+**Test command** (from `backend/`):
 ```
 TEST_DATABASE_URL="postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test" \
 ADMIN_DATABASE_URL="postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test" \
 .venv/bin/python -m pytest -q
 ```
-Suite attuale: **138 test verdi**.
+Current suite: **138 green tests**.
 
-⚠️ **Endpoint OPNsense DNS DA VERIFICARE — la sorgente più incerta** (debito 3A): l'esposizione API dei log DNS di OPNsense (Unbound) non è confermata. `get_dns_events` è scritto contro un payload *plausibile* e testato con respx; se sul device reale non esiste un endpoint usabile, la raccolta DNS resterà mockata fino ad allora. **NON è un blocco** per storage/dedup/API: l'astrazione regge e la dedup ON CONFLICT è la rete di sicurezza. Niente schema/migrazioni nuove in 3B.
+⚠️ **OPNsense DNS endpoint TO BE VERIFIED — the most uncertain source** (3A debt): the API exposure of OPNsense (Unbound) DNS logs is not confirmed. `get_dns_events` is written against a *plausible* payload and tested with respx; if no usable endpoint exists on the real device, DNS collection will remain mocked until then. **NOT a blocker** for storage/dedup/API: the abstraction holds and ON CONFLICT dedup is the safety net. No new schema/migrations in 3B.
 
 ---
 
 ## File Structure
 
-| File | Responsabilità | Azione |
+| File | Responsibility | Action |
 |------|----------------|--------|
 | `app/connectors/opnsense/client.py` | `get_dns_events(since)` | Modify |
-| `tests/test_connector_dns.py` | respx per `get_dns_events` | Create |
-| `app/services/ingest.py` | `"dns"` in `SOURCES` + dispatch `_fetch` | Modify |
-| `tests/test_ingest.py` | `FakeClient` multi-source + test DNS/both/resilienza | Modify |
+| `tests/test_connector_dns.py` | respx for `get_dns_events` | Create |
+| `app/services/ingest.py` | `"dns"` in `SOURCES` + `_fetch` dispatch | Modify |
+| `tests/test_ingest.py` | multi-source `FakeClient` + DNS/both/resilience tests | Modify |
 
 ---
 
-## Task 1: Connettore `get_dns_events`
+## Task 1: `get_dns_events` connector
 
 **Files:**
 - Modify: `app/connectors/opnsense/client.py`
 - Create: `tests/test_connector_dns.py`
 
-- [ ] **Step 1: Scrivere il test respx (fallisce)**
+- [ ] **Step 1: Write the respx test (fails)**
 
-Crea `tests/test_connector_dns.py` (mirror di `test_connector_ids.py`). Payload DNS *plausibile* (query Unbound):
+Create `tests/test_connector_dns.py` (mirror of `test_connector_ids.py`). *Plausible* DNS payload (Unbound queries):
 ```python
 import httpx
 import respx
@@ -84,18 +84,18 @@ async def test_get_dns_events_normalizes():
     assert len(out) == 1
     e = out[0]
     assert e["src_ip"] == "10.0.0.20"
-    assert e["name"] == "example.com"       # dominio = "sito visitato"
+    assert e["name"] == "example.com"       # domain = "visited site"
     assert e["action"] == "allowed"
     assert e["category"] == "query"
     assert e["dst_ip"] == ""
     assert e["severity"] == ""
-    assert e["event_key"]                    # id sorgente o hash
+    assert e["event_key"]                    # source id or hash
     assert e["time"].tzinfo is not None      # tz-aware
 
 
 @respx.mock
 async def test_get_dns_events_key_variants_and_empty():
-    # varianti di chiave + fallback hash + payload vuoto
+    # key variants + fallback hash + empty payload
     payload = {
         "queries": [
             {"time": "2026-06-09T13:00:00Z", "client_ip": "10.0.0.21", "query": "blocked.test", "action": "blocked"}
@@ -109,7 +109,7 @@ async def test_get_dns_events_key_variants_and_empty():
     assert out[0]["src_ip"] == "10.0.0.21"
     assert out[0]["name"] == "blocked.test"
     assert out[0]["action"] == "blocked"
-    assert out[0]["event_key"]  # hash del contenuto (nessun id)
+    assert out[0]["event_key"]  # content hash (no id)
 
     respx.get(url__regex=r".*/api/unbound/diagnostics/queries.*").mock(
         return_value=httpx.Response(200, json={})
@@ -117,20 +117,20 @@ async def test_get_dns_events_key_variants_and_empty():
     assert await client.get_dns_events() == []
 ```
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
-Run: `... pytest tests/test_connector_dns.py -v` → FAIL (`get_dns_events` inesistente).
+Run: `... pytest tests/test_connector_dns.py -v` → FAIL (`get_dns_events` does not exist).
 
-- [ ] **Step 3: Implementare `get_dns_events`**
+- [ ] **Step 3: Implement `get_dns_events`**
 
-In `app/connectors/opnsense/client.py`, aggiungi dopo `get_ids_alerts` (e prima di `_parse_ts`):
+In `app/connectors/opnsense/client.py`, add after `get_ids_alerts` (and before `_parse_ts`):
 ```python
     async def get_dns_events(self, since: datetime | None = None) -> list[dict]:
-        """Query DNS (Unbound) normalizzate → "siti visitati".
+        """Normalised DNS queries (Unbound) -> "visited sites".
 
-        NOTA: endpoint `unbound/diagnostics/queries` e formato del payload DA VERIFICARE
-        su un OPNsense reale — è la sorgente più incerta (vedi debito 3A). Difensivo verso
-        varianti di chiave. `since` è un hint: filtro fine e dedup avvengono a valle.
+        NOTE: endpoint `unbound/diagnostics/queries` and payload format TO BE VERIFIED
+        on a real OPNsense device — this is the most uncertain source (see 3A debt). Defensive
+        against key variants. `since` is a hint: fine filtering and dedup happen downstream.
         """
         data = await self._get("unbound/diagnostics/queries")
         out: list[dict] = []
@@ -139,7 +139,7 @@ In `app/connectors/opnsense/client.py`, aggiungi dopo `get_ids_alerts` (e prima 
             client_ip = r.get("client") or r.get("client_ip") or ""
             domain = r.get("domain") or r.get("query") or r.get("name") or ""
             action = r.get("action", "")  # allowed | blocked
-            # event_key discriminante: id stabile se presente, altrimenti hash del contenuto.
+            # event_key: stable id if present, otherwise content hash.
             key = r.get("query_id") or r.get("id") or r.get("_id") or self._event_key(
                 ts, client_ip, domain, action
             )
@@ -157,27 +157,27 @@ In `app/connectors/opnsense/client.py`, aggiungi dopo `get_ids_alerts` (e prima 
         return out
 ```
 
-- [ ] **Step 4: Eseguire e verificare il passaggio**
+- [ ] **Step 4: Run and verify the pass**
 
 Run: `... pytest tests/test_connector_dns.py -v` → PASS.
 
 - [ ] **Step 5: Commit**
 ```bash
 git add app/connectors/opnsense/client.py tests/test_connector_dns.py
-git commit -m "feat(backend): connettore get_dns_events (normalizzazione query DNS Unbound)"
+git commit -m "feat(backend): connector get_dns_events (Unbound DNS query normalisation)"
 ```
 
 ---
 
-## Task 2: Attivare la source `dns` nell'ingest
+## Task 2: Activate the `dns` source in the ingest
 
 **Files:**
 - Modify: `app/services/ingest.py`
 - Modify: `tests/test_ingest.py`
 
-- [ ] **Step 1: Aggiornare `FakeClient` + scrivere i test DNS (falliscono)**
+- [ ] **Step 1: Update `FakeClient` + write DNS tests (they fail)**
 
-In `tests/test_ingest.py`, **sostituisci** il `FakeClient` esistente con una versione multi-source (mantiene la compatibilità col primo argomento posizionale `alerts`):
+In `tests/test_ingest.py`, **replace** the existing `FakeClient` with a multi-source version (maintains compatibility with the first positional argument `alerts`):
 ```python
 class FakeClient:
     def __init__(self, alerts=None, dns=None, fail_ids=False, fail_dns=False):
@@ -196,9 +196,9 @@ class FakeClient:
             raise ReachabilityError("boom")
         return self._dns
 ```
-**Aggiorna il call-site esistente** in `test_ingest_resilient_to_source_error`: `FakeClient([], fail=True)` → `FakeClient(fail_ids=True)` (il vecchio kwarg `fail` non esiste più). Gli altri call-site (`FakeClient([_alert(...)])`) restano validi.
+**Update the existing call site** in `test_ingest_resilient_to_source_error`: `FakeClient([], fail=True)` → `FakeClient(fail_ids=True)` (the old `fail` kwarg no longer exists). The other call sites (`FakeClient([_alert(...)])`) remain valid.
 
-Aggiungi un helper `_dns` e i nuovi test in fondo al file:
+Add a `_dns` helper and the new tests at the end of the file:
 ```python
 def _dns(ts, key, client="10.0.0.20", domain="example.com", action="allowed"):
     return {
@@ -244,7 +244,7 @@ async def test_ingest_dns_fails_ids_succeeds(db_engine, two_tenants):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         device = await s.get(Device, did)
-        # DNS solleva, IDS riesce: la resilienza per-source garantisce che IDS venga comunque ingerito
+        # DNS raises, IDS succeeds: per-source resilience ensures IDS is still ingested
         n = await ingest_events(s, device, FakeClient(alerts=[_alert(now, "k1")], fail_dns=True), now)
         await s.commit()
     assert n == 1
@@ -253,85 +253,85 @@ async def test_ingest_dns_fails_ids_succeeds(db_engine, two_tenants):
     assert srcs == ["ids"]
 ```
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
 Run: `... pytest tests/test_ingest.py -v`
-Expected: i nuovi test DNS FALLISCONO (la source `dns` non è in `SOURCES`, quindi nessun evento dns scritto). I 3 test 3A esistenti devono comunque PASSARE (FakeClient ora ha `get_dns_events` che ritorna `[]` di default → la nuova iterazione `dns` non rompe nulla; il test di resilienza usa `fail_ids=True`).
+Expected: the new DNS tests FAIL (the `dns` source is not in `SOURCES`, so no dns events are written). The 3 existing 3A tests must still PASS (FakeClient now has `get_dns_events` returning `[]` by default → the new `dns` iteration breaks nothing; the resilience test uses `fail_ids=True`).
 
-- [ ] **Step 3: Attivare la source `dns`**
+- [ ] **Step 3: Activate the `dns` source**
 
 In `app/services/ingest.py`:
 ```python
 SOURCES = ["ids", "dns"]
 ```
-e in `_fetch`, aggiungi il ramo `dns`:
+and in `_fetch`, add the `dns` branch:
 ```python
 async def _fetch(client, source: str, since):
     if source == "ids":
         return await client.get_ids_alerts(since)
     if source == "dns":
         return await client.get_dns_events(since)
-    raise ValueError(f"source sconosciuta: {source}")
+    raise ValueError(f"unknown source: {source}")
 ```
 
-- [ ] **Step 4: Eseguire e verificare il passaggio**
+- [ ] **Step 4: Run and verify the pass**
 
-Run: `... pytest tests/test_ingest.py -v` → tutti PASS (3 esistenti + 3 nuovi). Poi l'INTERA suite verde.
+Run: `... pytest tests/test_ingest.py -v` → all PASS (3 existing + 3 new). Then the full suite is green.
 
 - [ ] **Step 5: Commit**
 ```bash
 git add app/services/ingest.py tests/test_ingest.py
-git commit -m "feat(backend): attiva la source DNS nell'ingest (SOURCES + dispatch _fetch)"
+git commit -m "feat(backend): activate DNS source in ingest (SOURCES + _fetch dispatch)"
 ```
 
 ---
 
-## Task 3: Debito tecnico
+## Task 3: Technical debt
 
-- [ ] **Step 1: Registrare il debito 3B**
+- [ ] **Step 1: Record 3B debt**
 
-Append a questo piano:
+Append to this plan:
 ```markdown
-## Debito tecnico (3B)
+## Technical debt (3B)
 
-- **Endpoint DNS DA VERIFICARE (sorgente più incerta)**: `unbound/diagnostics/queries` e il payload
-  sono plausibili ma non confermati. Se OPNsense non espone i log DNS via API in modo usabile, valutare
-  una sorgente alternativa (Zenarmor, export periodico) o il passaggio a syslog push per il DNS.
-- **`since` non onorato anche per DNS** (come IDS): filtro client-side + dedup; rifinire col device reale.
-- **Niente `dst_ip`/resolver per DNS**: `dst_ip=""`. Se servisse il resolver upstream per i report,
-  mapparlo dagli attributes.
-- **Stesso evento DNS allo stesso istante** (stesso client+dominio+action, nessun id): collassa per dedup
-  — accettabile, ma per i conteggi "hits per sito" potrebbe sottostimare query identiche ravvicinate.
-  Valutare un contatore o un id sorgente quando disponibile.
+- **DNS endpoint TO BE VERIFIED (most uncertain source)**: `unbound/diagnostics/queries` and the payload
+  are plausible but not confirmed. If OPNsense does not expose DNS logs via API in a usable way, consider
+  an alternative source (Zenarmor, periodic export) or switching to syslog push for DNS.
+- **`since` not honoured for DNS either** (same as IDS): client-side filter + dedup; refine with real device.
+- **No `dst_ip`/resolver for DNS** (`dst_ip=""`): if the upstream resolver is needed for reports,
+  map it from attributes.
+- **Identical DNS queries at the same instant** (same client+domain+action, no id): collapsed by dedup
+  — acceptable, but for "hits per site" counts could undercount identical closely-spaced queries.
+  Consider a counter or source id when available.
 ```
 
 - [ ] **Step 2: Commit**
 ```bash
 git add docs/superpowers/plans/2026-06-09-opngms-phase3-milestone3B-dns.md
-git commit -m "docs: debito tecnico milestone 3B"
+git commit -m "docs: technical debt milestone 3B"
 ```
 
 ---
 
-## Definizione di "fatto" (3B)
-- Il connettore `get_dns_events` normalizza le query DNS (respx).
-- La source `"dns"` è attiva nell'ingest: gli eventi DNS finiscono in `events` (`source='dns'`), con la stessa idempotenza/dedup degli IDS.
-- IDS e DNS coesistono in un singolo run; l'errore di una sorgente non blocca l'altra (test).
-- Suite verde (nessun test 3A rotto dal `FakeClient` aggiornato).
+## Definition of "done" (3B)
+- The `get_dns_events` connector normalises DNS queries (respx).
+- The `"dns"` source is active in the ingest: DNS events land in `events` (`source='dns'`), with the same idempotency/dedup as IDS.
+- IDS and DNS coexist in a single run; an error in one source does not block the other (tested).
+- Green suite (no 3A tests broken by the updated `FakeClient`).
 
 ---
 
-## Debito tecnico (3B) — consolidato dalle review
+## Technical debt (3B) — consolidated from reviews
 
-- **Endpoint DNS DA VERIFICARE (sorgente più incerta)**: `unbound/diagnostics/queries` e il payload
-  sono plausibili ma non confermati. Se OPNsense non espone i log DNS via API in modo usabile, valutare
-  una sorgente alternativa (Zenarmor, export periodico) o syslog push per il DNS.
-- **`since` non onorato anche per DNS** (come IDS): filtro client-side + dedup; rifinire col device reale.
-- **Niente `dst_ip`/resolver per DNS** (`dst_ip=""`): se servisse il resolver upstream nei report,
-  mapparlo dagli `attributes`.
-- **Collasso di query DNS identiche ravvicinate** senza id sorgente (stesso ts+client+dominio+action →
-  stesso hash → dedup le fonde): per i conteggi "hits per sito" potrebbe sottostimare. Valutare un
-  contatore o l'id sorgente quando disponibile.
-- **Cursore DNS non riverificato nei nuovi test** (review Task 2): l'avanzamento cursore per `source='dns'`
-  è coperto solo indirettamente (la logica cursore è generica e già provata in 3A). Aggiungere
-  un'asserzione esplicita se si vuole alzare la copertura.
+- **DNS endpoint TO BE VERIFIED (most uncertain source)**: `unbound/diagnostics/queries` and the payload
+  are plausible but not confirmed. If OPNsense does not expose DNS logs via API in a usable way, consider
+  an alternative source (Zenarmor, periodic export) or syslog push for DNS.
+- **`since` not honoured for DNS either** (same as IDS): client-side filter + dedup; refine with real device.
+- **No `dst_ip`/resolver for DNS** (`dst_ip=""`): if the upstream resolver is needed in reports,
+  map it from `attributes`.
+- **Collapse of identical closely-spaced DNS queries** with no source id (same ts+client+domain+action →
+  same hash → dedup merges them): for "hits per site" counts could undercount. Consider a counter
+  or source id when available.
+- **DNS cursor not re-verified in new tests** (review Task 2): cursor advancement for `source='dns'`
+  is covered only indirectly (cursor logic is generic and already proven in 3A). Add an explicit
+  assertion if higher coverage is desired.

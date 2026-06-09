@@ -1,74 +1,74 @@
-# OPNGMS — Fase 2 / Milestone 2C: API Metriche / Salute / Alert (tenant-scoped + RLS) — Piano di Implementazione
+# OPNGMS — Phase 2 / Milestone 2C: Metrics / Health / Alerts API (tenant-scoped + RLS) — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Esporre via API REST le metriche serie-temporali, il riassunto di salute della flotta e gli alert che il poller (2A/2B) già scrive, isolati per cliente dalla RLS Postgres.
+**Goal:** Expose via REST API the time-series metrics, fleet health summary, and alerts that the poller (2A/2B) already writes, isolated per customer by Postgres RLS.
 
-**Architecture:** Tre endpoint read-only sotto `/api/tenants/{tenant_id}/...`, gated da `require_tenant(DEVICE_VIEW)` + tenant-context (che imposta `app.current_tenant`). La RLS Postgres filtra `metrics` e `alerts` per tenant esattamente come per `devices` (doppio livello: filtro applicativo nel repository + policy DB). Una nuova migrazione estende la RLS alle due tabelle e concede i privilegi a `opngms_app`, incluso il grant esplicito sull'hypertable `metrics` per propagarlo ai chunk TimescaleDB. Il downsampling delle serie lunghe è fatto on-the-fly con `time_bucket()` (la continuous aggregate materializzata è deferita).
+**Architecture:** Three read-only endpoints under `/api/tenants/{tenant_id}/...`, gated by `require_tenant(DEVICE_VIEW)` + tenant-context (which sets `app.current_tenant`). Postgres RLS filters `metrics` and `alerts` by tenant exactly as for `devices` (double layer: application-layer filter in the repository + DB policy). A new migration extends RLS to both tables and grants privileges to `opngms_app`, including an explicit grant on the `metrics` hypertable to propagate it to TimescaleDB chunks. Downsampling of long series is done on-the-fly with `time_bucket()` (the materialised continuous aggregate is deferred).
 
 **Tech Stack:** FastAPI async, SQLAlchemy 2.0 async + asyncpg, TimescaleDB (hypertable `metrics`), Pydantic v2, pytest + pytest-asyncio.
 
 ---
 
-## Contesto per l'implementatore (leggere prima di iniziare)
+## Context for the implementer (read before starting)
 
-Sei in una codebase esistente con pattern consolidati. **Seguili esattamente.** Riferimenti chiave:
+You are in an existing codebase with established patterns. **Follow them exactly.** Key references:
 
-- **Router tenant-scoped**: `app/api/devices.py` — `APIRouter(prefix="/api/tenants/{tenant_id}/...")`, ogni endpoint dipende da `ctx = Depends(require_tenant(Action.DEVICE_VIEW))` e `session = Depends(get_session)`. `require_tenant` (in `app/core/deps.py`) chiama `tenant_context`, che **imposta `app.current_tenant`** sulla sessione (`set_tenant_context`) → la RLS si attiva. Non devi gestire la RLS nell'endpoint: arriva gratis dal dependency.
-- **Repository tenant-scoped**: `app/repositories/device.py` — costruito con `(session, tenant_id)`, ogni query filtra `WHERE tenant_id == self.tenant_id` (filtro applicativo) **in aggiunta** alla RLS DB. Replica questo pattern per metriche e alert.
-- **RLS — fonte unica**: `app/core/rls.py`. `TENANT_TABLES` elenca le tabelle con RLS (oggi solo `["devices"]`). `policy_create_statement(table)` genera la `CREATE POLICY tenant_isolation`. La conftest dei test (`tests/conftest.py`, fixture `db_engine`) chiama `enable_rls_statements()` su tutte le `TENANT_TABLES`: **appena aggiungi `metrics`/`alerts` lì, i test le proteggeranno automaticamente.**
-- **Ruoli DB**: `app/core/db_roles.py`. Le migrazioni/il poller girano come owner superuser `opngms` (bypassa la RLS — è infrastruttura fidata). L'API si connette come `opngms_app` (NOSUPERUSER NOBYPASSRLS) → la RLS si applica. `grant_app_role_statements()` concede SELECT/INSERT/UPDATE/DELETE `ON ALL TABLES IN SCHEMA public` + default privileges.
-- **Modelli**: `app/models/metric.py` (`Metric`: PK composita `time,device_id,metric,label`, + `tenant_id`, `value`), `app/models/alert.py` (`Alert`: `id` PK, `tenant_id`, `device_id`, `type`, `label`, `severity`, `opened_at`, `resolved_at` nullable, `details` JSONB).
-- **Schemi Pydantic**: `app/schemas/device.py` — `DeviceOut` usa `model_config = {"from_attributes": True}`. Replica lo stile.
-- **Registrazione router**: `app/main.py` — `app.include_router(...)`.
-- **RBAC**: `app/core/rbac.py` — `Action.DEVICE_VIEW` è concesso a `tenant_admin/operator/read_only` (giusto per endpoint di sola lettura). Riusalo, **non** creare nuove Action.
-- **Test di isolamento**: `tests/test_rls_isolation.py` (raw SELECT con `SET ROLE opngms_app`) e `tests/test_devices_rls_api.py` (via `app_role_api_client`, connessione reale come `opngms_app`). Fixture rilevanti in `tests/conftest.py`: `db_engine`, `two_tenants`, `api_client` (owner), `app_role_api_client` (opngms_app reale). `tests/factories.py` ha `make_tenant`.
+- **Tenant-scoped router**: `app/api/devices.py` — `APIRouter(prefix="/api/tenants/{tenant_id}/...")`, each endpoint depends on `ctx = Depends(require_tenant(Action.DEVICE_VIEW))` and `session = Depends(get_session)`. `require_tenant` (in `app/core/deps.py`) calls `tenant_context`, which **sets `app.current_tenant`** on the session (`set_tenant_context`) → RLS activates. You do not need to manage RLS in the endpoint: it comes for free from the dependency.
+- **Tenant-scoped repository**: `app/repositories/device.py` — constructed with `(session, tenant_id)`, every query filters `WHERE tenant_id == self.tenant_id` (application filter) **in addition** to DB RLS. Replicate this pattern for metrics and alerts.
+- **RLS — single source of truth**: `app/core/rls.py`. `TENANT_TABLES` lists tables with RLS (today only `["devices"]`). `policy_create_statement(table)` generates the `CREATE POLICY tenant_isolation`. The test conftest (`tests/conftest.py`, fixture `db_engine`) calls `enable_rls_statements()` on all `TENANT_TABLES`: **as soon as you add `metrics`/`alerts` there, tests will protect them automatically.**
+- **DB roles**: `app/core/db_roles.py`. Migrations/the poller run as superuser owner `opngms` (bypasses RLS — trusted infrastructure). The API connects as `opngms_app` (NOSUPERUSER NOBYPASSRLS) → RLS applies. `grant_app_role_statements()` grants SELECT/INSERT/UPDATE/DELETE `ON ALL TABLES IN SCHEMA public` + default privileges.
+- **Models**: `app/models/metric.py` (`Metric`: composite PK `time,device_id,metric,label`, + `tenant_id`, `value`), `app/models/alert.py` (`Alert`: `id` PK, `tenant_id`, `device_id`, `type`, `label`, `severity`, `opened_at`, `resolved_at` nullable, `details` JSONB).
+- **Pydantic schemas**: `app/schemas/device.py` — `DeviceOut` uses `model_config = {"from_attributes": True}`. Replicate the style.
+- **Router registration**: `app/main.py` — `app.include_router(...)`.
+- **RBAC**: `app/core/rbac.py` — `Action.DEVICE_VIEW` is granted to `tenant_admin/operator/read_only` (correct for read-only endpoints). Reuse it, do **not** create new Actions.
+- **Isolation tests**: `tests/test_rls_isolation.py` (raw SELECT with `SET ROLE opngms_app`) and `tests/test_devices_rls_api.py` (via `app_role_api_client`, real connection as `opngms_app`). Relevant fixtures in `tests/conftest.py`: `db_engine`, `two_tenants`, `api_client` (owner), `app_role_api_client` (real opngms_app). `tests/factories.py` has `make_tenant`.
 
-**Comando test** (un solo DB, owner+app role nello stesso): dalla dir `backend/`
+**Test command** (single DB, owner+app role in the same one): from `backend/` directory
 ```
 TEST_DATABASE_URL="postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test" \
 ADMIN_DATABASE_URL="postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test" \
 .venv/bin/python -m pytest -q
 ```
-Il DB di test gira in Docker (`docker compose ps` → servizio `db`). La suite oggi conta **108 test verdi**.
+The test DB runs in Docker (`docker compose ps` → `db` service). The suite currently has **108 green tests**.
 
-**Scostamento dallo spec (deliberato, YAGNI):** lo spec §7 prevede di leggere da una *continuous aggregate* `metrics_5m` per i range lunghi. Per l'MVP la **deferiamo**: il downsampling è fatto on-the-fly con `time_bucket()` (stessa shape di risposta, corretto a 100-300 device/30 giorni di retention). La CAGG materializzata + la sua retention restano debito tecnico per un'ottimizzazione futura (Task 6 la registra).
+**Deliberate deviation from spec (YAGNI):** spec §7 prescribes reading from a *continuous aggregate* `metrics_5m` for long ranges. For the MVP we **defer it**: downsampling is done on-the-fly with `time_bucket()` (same response shape, correct for 100-300 devices / 30 days of retention). The materialised CAGG + its retention remain technical debt for future optimisation (Task 6 records it).
 
 ---
 
 ## File Structure
 
-| File | Responsabilità | Azione |
+| File | Responsibility | Action |
 |------|----------------|--------|
-| `app/core/rls.py` | Aggiungere `metrics`, `alerts` a `TENANT_TABLES` | Modify |
-| `migrations/versions/0007_rls_metrics_alerts.py` | Enable RLS+policy su metrics/alerts + grant a opngms_app | Create |
+| `app/core/rls.py` | Add `metrics`, `alerts` to `TENANT_TABLES` | Modify |
+| `migrations/versions/0007_rls_metrics_alerts.py` | Enable RLS+policy on metrics/alerts + grant to opngms_app | Create |
 | `app/schemas/metric.py` | `MetricPoint`, `MetricSeriesOut` | Create |
 | `app/schemas/alert.py` | `AlertOut` | Create |
 | `app/schemas/health.py` | `HealthOut` | Create |
-| `app/repositories/metric.py` | `MetricRepository` (serie con time_bucket, ultimo valore) | Create |
-| `app/repositories/alert.py` | `AlertRepository` (lista attivi/storici) | Create |
+| `app/repositories/metric.py` | `MetricRepository` (series with time_bucket, last value) | Create |
+| `app/repositories/alert.py` | `AlertRepository` (list active/historical) | Create |
 | `app/api/monitoring.py` | Router: metrics series, health, alerts | Create |
 | `app/main.py` | `include_router(monitoring_router)` | Modify |
-| `tests/test_rls_isolation.py` | Estendere: metrics/alerts in TENANT_TABLES + isolamento raw | Modify |
-| `tests/test_metric_repository.py` | Serie + ultimo valore, tenant-scoped | Create |
-| `tests/test_alert_repository.py` | Lista alert attivi/tutti, tenant-scoped | Create |
+| `tests/test_rls_isolation.py` | Extend: metrics/alerts in TENANT_TABLES + raw isolation | Modify |
+| `tests/test_metric_repository.py` | Series + last value, tenant-scoped | Create |
+| `tests/test_alert_repository.py` | List active/all alerts, tenant-scoped | Create |
 | `tests/test_monitoring_api.py` | Endpoint happy-path + RBAC (owner client) | Create |
-| `tests/test_monitoring_rls_api.py` | Isolamento cross-tenant via opngms_app reale | Create |
+| `tests/test_monitoring_rls_api.py` | Cross-tenant isolation via real opngms_app | Create |
 
 ---
 
-## Task 1: Estendere la RLS a `metrics` e `alerts`
+## Task 1: Extend RLS to `metrics` and `alerts`
 
 **Files:**
 - Modify: `app/core/rls.py:7`
 - Create: `migrations/versions/0007_rls_metrics_alerts.py`
 - Modify: `tests/test_rls_isolation.py`
 
-Questa è la fondazione di sicurezza: senza RLS sulle due tabelle, qualunque endpoint potrebbe far trapelare metriche/alert cross-tenant. Procediamo TDD partendo dal contratto statico, poi la migrazione, poi l'isolamento reale.
+This is the security foundation: without RLS on both tables, any endpoint could leak metrics/alerts cross-tenant. We proceed TDD starting from the static contract, then the migration, then real isolation.
 
-- [ ] **Step 1: Scrivere il test che fallisce (contratto statico)**
+- [ ] **Step 1: Write the failing test (static contract)**
 
-In `tests/test_rls_isolation.py`, modificare `test_rls_statements_cover_devices` aggiungendo subito dopo una nuova funzione:
+In `tests/test_rls_isolation.py`, modify `test_rls_statements_cover_devices` by adding immediately after a new function:
 
 ```python
 def test_rls_statements_cover_metrics_and_alerts():
@@ -80,30 +80,30 @@ def test_rls_statements_cover_metrics_and_alerts():
         assert f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY" in sql
 ```
 
-- [ ] **Step 2: Eseguire il test e verificarne il fallimento**
+- [ ] **Step 2: Run the test and verify it fails**
 
 Run: `... .venv/bin/python -m pytest tests/test_rls_isolation.py::test_rls_statements_cover_metrics_and_alerts -v`
-Expected: FAIL con `assert 'metrics' in ['devices']`.
+Expected: FAIL with `assert 'metrics' in ['devices']`.
 
-- [ ] **Step 3: Aggiungere le tabelle a `TENANT_TABLES`**
+- [ ] **Step 3: Add the tables to `TENANT_TABLES`**
 
-In `app/core/rls.py`, riga 7:
+In `app/core/rls.py`, line 7:
 
 ```python
 TENANT_TABLES: list[str] = ["devices", "metrics", "alerts"]
 ```
 
-- [ ] **Step 4: Eseguire il test e verificarne il passaggio**
+- [ ] **Step 4: Run the test and verify it passes**
 
 Run: `... .venv/bin/python -m pytest tests/test_rls_isolation.py::test_rls_statements_cover_metrics_and_alerts -v`
 Expected: PASS.
 
-- [ ] **Step 5: Scrivere la migrazione 0007**
+- [ ] **Step 5: Write migration 0007**
 
-Crea `migrations/versions/0007_rls_metrics_alerts.py`. Abilita RLS+policy SOLO sulle due nuove tabelle (`devices` è già coperta da 0002/0003) e ri-concede i privilegi a `opngms_app` (ora che le tabelle esistono), con grant esplicito su `metrics` perché TimescaleDB propaghi il privilegio ai chunk.
+Create `migrations/versions/0007_rls_metrics_alerts.py`. Enable RLS+policy ONLY on the two new tables (`devices` is already covered by 0002/0003) and re-grant privileges to `opngms_app` (now that the tables exist), with an explicit grant on `metrics` so TimescaleDB propagates the privilege to chunks.
 
 ```python
-"""RLS su metrics + alerts; grant a opngms_app (con propagazione ai chunk Timescale)"""
+"""RLS on metrics + alerts; grant to opngms_app (with Timescale chunk propagation)"""
 
 from alembic import op
 
@@ -123,9 +123,9 @@ def upgrade() -> None:
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
         op.execute(policy_create_statement(table))
-    # Le tabelle metrics/alerts sono state create DOPO il GRANT ON ALL TABLES della 0003:
-    # ri-eseguiamo i grant ora che esistono. Su `metrics` (hypertable) il GRANT esplicito
-    # fa propagare il privilegio ai chunk TimescaleDB (esistenti e futuri).
+    # The metrics/alerts tables were created AFTER the GRANT ON ALL TABLES in migration 0003:
+    # re-run the grants now that they exist. On `metrics` (hypertable) the explicit GRANT
+    # propagates the privilege to TimescaleDB chunks (existing and future).
     for stmt in grant_app_role_statements():
         op.execute(stmt)
     op.execute(f"GRANT SELECT ON metrics TO {APP_ROLE}")
@@ -139,24 +139,24 @@ def downgrade() -> None:
         op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
 ```
 
-- [ ] **Step 6: Aggiungere il test di isolamento raw su metrics e alerts**
+- [ ] **Step 6: Add raw isolation test for metrics and alerts**
 
-In `tests/test_rls_isolation.py`, aggiungere in fondo. Inserisce una metrica e un alert per ciascun tenant (come owner, che bypassa la RLS), poi legge come `opngms_app` reale verificando l'isolamento. Riusa il pattern di `test_app_role_connection_enforces_rls`.
+In `tests/test_rls_isolation.py`, add at the end. Inserts a metric and an alert for each tenant (as owner, which bypasses RLS), then reads as real `opngms_app` verifying isolation. Reuse the pattern from `test_app_role_connection_enforces_rls`.
 
 ```python
 async def test_metrics_alerts_isolated_cross_tenant(db_engine, two_tenants):
-    """metrics e alerts: la connessione reale opngms_app vede solo il tenant in contesto.
+    """metrics and alerts: real opngms_app connection sees only the tenant in context.
 
-    Prova anche la propagazione della RLS ai chunk dell'hypertable Timescale.
+    Also proves RLS propagation to Timescale hypertable chunks.
     """
     import os
     import uuid as _uuid
     from datetime import datetime, timezone
 
     tenant_a, tenant_b = two_tenants
-    # device_id qualunque: la RLS filtra su tenant_id, non serve un device reale per la metrica.
+    # device_id can be anything: RLS filters on tenant_id, not a real device for the metric.
     owner_factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with owner_factory() as s:  # owner = superuser -> bypassa RLS, inserisce per entrambi
+    async with owner_factory() as s:  # owner = superuser -> bypasses RLS, inserts for both
         for tid, val in ((tenant_a, 1.0), (tenant_b, 2.0)):
             await s.execute(
                 text(
@@ -165,7 +165,7 @@ async def test_metrics_alerts_isolated_cross_tenant(db_engine, two_tenants):
                 ),
                 {"t": datetime.now(timezone.utc), "d": _uuid.uuid4(), "tid": tid, "v": val},
             )
-        # alert: device_id deve riferire un device esistente (FK). two_tenants ha fw-a/fw-b.
+        # alert: device_id must reference an existing device (FK). two_tenants has fw-a/fw-b.
         for tid, name in ((tenant_a, "fw-a"), (tenant_b, "fw-b")):
             dev_id = (
                 await s.execute(text("SELECT id FROM devices WHERE name = :n"), {"n": name})
@@ -191,19 +191,19 @@ async def test_metrics_alerts_isolated_cross_tenant(db_engine, two_tenants):
             sev = (await s.execute(text("SELECT severity FROM alerts"))).scalars().all()
             assert sev == ["critical"]
         async with factory() as s2:
-            # nessun contesto -> fail-closed su entrambe
+            # no context -> fail-closed on both
             assert (await s2.execute(text("SELECT value FROM metrics"))).scalars().all() == []
             assert (await s2.execute(text("SELECT id FROM alerts"))).scalars().all() == []
     finally:
         await engine.dispose()
 ```
 
-- [ ] **Step 7: Eseguire l'intera suite RLS**
+- [ ] **Step 7: Run the full RLS suite**
 
 Run: `... .venv/bin/python -m pytest tests/test_rls_isolation.py -v`
-Expected: tutti PASS (incluso il nuovo isolamento metrics/alerts). Se `test_metrics_alerts_isolated_cross_tenant` mostra che `opngms_app` vede 0 righe **anche con contesto** su `metrics`, è il problema di propagazione grant→chunk: verificare che lo Step 5 abbia eseguito `GRANT SELECT ON metrics`. La conftest concede già via `grant_app_role_statements()` prima degli insert, quindi i chunk nuovi ereditano.
+Expected: all PASS (including the new metrics/alerts isolation). If `test_metrics_alerts_isolated_cross_tenant` shows that `opngms_app` sees 0 rows **even with context** on `metrics`, it is the grant→chunk propagation problem: verify that Step 5 executed `GRANT SELECT ON metrics`. The conftest already grants via `grant_app_role_statements()` before inserts, so new chunks inherit.
 
-- [ ] **Step 8: Verificare `alembic check` su DB pulito**
+- [ ] **Step 8: Verify `alembic check` on a clean DB**
 
 ```bash
 docker compose exec -T db psql -U opngms -d postgres -c "DROP DATABASE IF EXISTS opngms_check;"
@@ -219,18 +219,18 @@ SESSION_SECRET="x" MASTER_KEY="$(.venv/bin/python -c 'from cryptography.fernet i
 .venv/bin/alembic check
 docker compose exec -T db psql -U opngms -d postgres -c "DROP DATABASE IF EXISTS opngms_check;"
 ```
-Expected: `upgrade head` arriva a 0007; `alembic check` → "No new upgrade operations detected." (le policy/grant non sono oggetti del modello, quindi nessun drift).
+Expected: `upgrade head` reaches 0007; `alembic check` → "No new upgrade operations detected." (policies/grants are not model objects, so no drift).
 
 - [ ] **Step 9: Commit**
 
 ```bash
 git add app/core/rls.py migrations/versions/0007_rls_metrics_alerts.py tests/test_rls_isolation.py
-git commit -m "feat(backend): RLS su metrics+alerts (migrazione 0007 + isolamento cross-tenant)"
+git commit -m "feat(backend): RLS on metrics+alerts (migration 0007 + cross-tenant isolation)"
 ```
 
 ---
 
-## Task 2: Repository + schema + endpoint serie metriche
+## Task 2: Repository + schema + metrics series endpoint
 
 **Files:**
 - Create: `app/schemas/metric.py`
@@ -239,9 +239,9 @@ git commit -m "feat(backend): RLS su metrics+alerts (migrazione 0007 + isolament
 - Modify: `app/main.py`
 - Create: `tests/test_metric_repository.py`
 
-- [ ] **Step 1: Scrivere il test del repository che fallisce**
+- [ ] **Step 1: Write the failing repository test**
 
-Crea `tests/test_metric_repository.py`. Inserisce alcune metriche per il tenant attivo (come owner) e verifica che il repository, sotto `SET ROLE opngms_app` + contesto, ritorni serie e ultimo valore corretti.
+Create `tests/test_metric_repository.py`. Inserts some metrics for the active tenant (as owner) and verifies that the repository, under `SET ROLE opngms_app` + context, returns correct series and last value.
 
 ```python
 import uuid
@@ -258,7 +258,7 @@ from app.repositories.metric import MetricRepository
 async def _seed(db_engine, tenant_id, device_id):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
-    async with factory() as s:  # owner -> bypassa RLS
+    async with factory() as s:  # owner -> bypasses RLS
         for i, v in enumerate((10.0, 20.0, 30.0)):
             await s.execute(
                 text(
@@ -312,20 +312,20 @@ async def test_series_bucket_downsamples(db_engine, two_tenants):
         points = await repo.series(
             device_id, "cpu.load",
             base - timedelta(minutes=1), base + timedelta(minutes=10),
-            timedelta(hours=1),  # un bucket -> media (10+20+30)/3 = 20
+            timedelta(hours=1),  # one bucket -> average (10+20+30)/3 = 20
         )
     assert len(points) == 1
     assert points[0].value == 20.0
 ```
 
-- [ ] **Step 2: Eseguire i test e verificarne il fallimento**
+- [ ] **Step 2: Run the tests and verify they fail**
 
 Run: `... .venv/bin/python -m pytest tests/test_metric_repository.py -v`
-Expected: FAIL con `ModuleNotFoundError: app.repositories.metric` / `app.schemas.metric`.
+Expected: FAIL with `ModuleNotFoundError: app.repositories.metric` / `app.schemas.metric`.
 
-- [ ] **Step 3: Scrivere lo schema metriche**
+- [ ] **Step 3: Write the metrics schema**
 
-Crea `app/schemas/metric.py`:
+Create `app/schemas/metric.py`:
 
 ```python
 from datetime import datetime
@@ -342,12 +342,12 @@ class MetricPoint(BaseModel):
 class MetricSeriesOut(BaseModel):
     metric: str
     points: list[MetricPoint]
-    last: list[MetricPoint]  # ultimo valore per label
+    last: list[MetricPoint]  # last value per label
 ```
 
-- [ ] **Step 4: Scrivere il repository metriche**
+- [ ] **Step 4: Write the metrics repository**
 
-Crea `app/repositories/metric.py`. Filtro applicativo `tenant_id` + `device_id` (doppio isolamento con la RLS). `series` con `time_bucket` opzionale; `last` = ultimo punto per label via `DISTINCT ON`.
+Create `app/repositories/metric.py`. Application filter `tenant_id` + `device_id` (double isolation with RLS). `series` with optional `time_bucket`; `last` = last point per label via `DISTINCT ON`.
 
 ```python
 import uuid
@@ -360,7 +360,7 @@ from app.schemas.metric import MetricPoint
 
 
 class MetricRepository:
-    """Letture serie-temporali per tenant. Doppio isolamento: filtro tenant_id + RLS."""
+    """Time-series reads for a tenant. Double isolation: tenant_id filter + RLS."""
 
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID) -> None:
         self.session = session
@@ -416,14 +416,14 @@ class MetricRepository:
         return [MetricPoint(time=r.t, label=r.label, value=float(r.v)) for r in rows]
 ```
 
-- [ ] **Step 5: Eseguire i test del repository e verificarne il passaggio**
+- [ ] **Step 5: Run the repository tests and verify they pass**
 
 Run: `... .venv/bin/python -m pytest tests/test_metric_repository.py -v`
 Expected: PASS (3/3).
 
-- [ ] **Step 6: Scrivere il router con l'endpoint serie + registrarlo**
+- [ ] **Step 6: Write the router with the series endpoint + register it**
 
-Crea `app/api/monitoring.py`. Parsing dei query param `metric` (obbligatorio), `from`/`to` (default: ultime 24h), `bucket` (ISO-8601 secondi opzionale → `timedelta`). Restituisce `MetricSeriesOut`.
+Create `app/api/monitoring.py`. Parse query params `metric` (required), `from`/`to` (default: last 24h), `bucket` (ISO-8601 seconds optional → `timedelta`). Returns `MetricSeriesOut`.
 
 ```python
 import uuid
@@ -445,7 +445,7 @@ router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["monitoring"])
 async def get_device_metrics(
     tenant_id: uuid.UUID,
     device_id: uuid.UUID,
-    metric: str = Query(..., description="Nome metrica, es. 'cpu.load'"),
+    metric: str = Query(..., description="Metric name, e.g. 'cpu.load'"),
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = Query(None),
     bucket_seconds: int | None = Query(None, alias="bucket", ge=1),
@@ -462,31 +462,31 @@ async def get_device_metrics(
     return MetricSeriesOut(metric=metric, points=points, last=last)
 ```
 
-In `app/main.py`, aggiungere l'import e la registrazione accanto agli altri router:
+In `app/main.py`, add the import and registration alongside the other routers:
 
 ```python
 from app.api.monitoring import router as monitoring_router
 ```
-e dopo `app.include_router(me_tenants_router)`:
+and after `app.include_router(me_tenants_router)`:
 ```python
 app.include_router(monitoring_router)
 ```
 
-- [ ] **Step 7: Eseguire l'intera suite**
+- [ ] **Step 7: Run the full suite**
 
 Run: `... .venv/bin/python -m pytest -q`
-Expected: tutti PASS (108 + i nuovi del repository). L'endpoint sarà testato in Task 5.
+Expected: all PASS (108 + new repository tests). The endpoint will be tested in Task 5.
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add app/schemas/metric.py app/repositories/metric.py app/api/monitoring.py app/main.py tests/test_metric_repository.py
-git commit -m "feat(backend): endpoint serie metriche (repository time_bucket + ultimo valore)"
+git commit -m "feat(backend): metrics series endpoint (time_bucket repository + last value)"
 ```
 
 ---
 
-## Task 3: Repository + schema + endpoint alert
+## Task 3: Repository + schema + alerts endpoint
 
 **Files:**
 - Create: `app/schemas/alert.py`
@@ -494,9 +494,9 @@ git commit -m "feat(backend): endpoint serie metriche (repository time_bucket + 
 - Modify: `app/api/monitoring.py`
 - Create: `tests/test_alert_repository.py`
 
-- [ ] **Step 1: Scrivere il test del repository che fallisce**
+- [ ] **Step 1: Write the failing repository test**
 
-Crea `tests/test_alert_repository.py`. Inserisce un alert attivo e uno risolto per il tenant; verifica i filtri.
+Create `tests/test_alert_repository.py`. Inserts one active and one resolved alert for the tenant; verifies the filters.
 
 ```python
 import uuid
@@ -512,7 +512,7 @@ from app.repositories.alert import AlertRepository
 
 async def _seed_alerts(db_engine, tenant_id, device_id):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as s:  # owner -> bypassa RLS
+    async with factory() as s:  # owner -> bypasses RLS
         await s.execute(
             text(
                 "INSERT INTO alerts (id, tenant_id, device_id, type, label, severity) "
@@ -564,14 +564,14 @@ async def _device_id_of(db_engine, name):
         ).scalar_one()
 ```
 
-- [ ] **Step 2: Eseguire i test e verificarne il fallimento**
+- [ ] **Step 2: Run the tests and verify they fail**
 
 Run: `... .venv/bin/python -m pytest tests/test_alert_repository.py -v`
-Expected: FAIL con `ModuleNotFoundError: app.repositories.alert`.
+Expected: FAIL with `ModuleNotFoundError: app.repositories.alert`.
 
-- [ ] **Step 3: Scrivere lo schema alert**
+- [ ] **Step 3: Write the alert schema**
 
-Crea `app/schemas/alert.py`:
+Create `app/schemas/alert.py`:
 
 ```python
 import uuid
@@ -593,9 +593,9 @@ class AlertOut(BaseModel):
     model_config = {"from_attributes": True}
 ```
 
-- [ ] **Step 4: Scrivere il repository alert**
+- [ ] **Step 4: Write the alert repository**
 
-Crea `app/repositories/alert.py`. Usa il modello ORM `Alert` (tabella normale, non hypertable). Ordine: più recenti prima.
+Create `app/repositories/alert.py`. Uses the ORM model `Alert` (normal table, not a hypertable). Order: most recent first.
 
 ```python
 import uuid
@@ -608,7 +608,7 @@ from app.models.alert import Alert
 
 
 class AlertRepository:
-    """Letture alert per tenant. Doppio isolamento: filtro tenant_id + RLS."""
+    """Alert reads for a tenant. Double isolation: tenant_id filter + RLS."""
 
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID) -> None:
         self.session = session
@@ -622,14 +622,14 @@ class AlertRepository:
         return (await self.session.execute(stmt)).scalars().all()
 ```
 
-- [ ] **Step 5: Eseguire i test del repository e verificarne il passaggio**
+- [ ] **Step 5: Run the repository tests and verify they pass**
 
 Run: `... .venv/bin/python -m pytest tests/test_alert_repository.py -v`
 Expected: PASS (2/2).
 
-- [ ] **Step 6: Aggiungere l'endpoint alert al router**
+- [ ] **Step 6: Add the alerts endpoint to the router**
 
-In `app/api/monitoring.py`, aggiungere l'import e l'endpoint:
+In `app/api/monitoring.py`, add the import and endpoint:
 
 ```python
 from app.repositories.alert import AlertRepository
@@ -640,7 +640,7 @@ from app.schemas.alert import AlertOut
 @router.get("/alerts", response_model=list[AlertOut])
 async def list_alerts(
     tenant_id: uuid.UUID,
-    active: bool = Query(True, description="Solo alert attivi (resolved_at IS NULL)"),
+    active: bool = Query(True, description="Active alerts only (resolved_at IS NULL)"),
     ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
     session: AsyncSession = Depends(get_session),
 ) -> list[AlertOut]:
@@ -648,30 +648,30 @@ async def list_alerts(
     return [AlertOut.model_validate(a) for a in alerts]
 ```
 
-- [ ] **Step 7: Eseguire l'intera suite**
+- [ ] **Step 7: Run the full suite**
 
 Run: `... .venv/bin/python -m pytest -q`
-Expected: tutti PASS.
+Expected: all PASS.
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add app/schemas/alert.py app/repositories/alert.py app/api/monitoring.py tests/test_alert_repository.py
-git commit -m "feat(backend): endpoint lista alert (attivi/storici, tenant-scoped)"
+git commit -m "feat(backend): alerts list endpoint (active/historical, tenant-scoped)"
 ```
 
 ---
 
-## Task 4: Endpoint riassunto salute flotta
+## Task 4: Fleet health summary endpoint
 
 **Files:**
 - Create: `app/schemas/health.py`
 - Modify: `app/api/monitoring.py`
-- Test: coperto in Task 5 (`tests/test_monitoring_api.py`)
+- Test: covered in Task 5 (`tests/test_monitoring_api.py`)
 
-- [ ] **Step 1: Scrivere lo schema health**
+- [ ] **Step 1: Write the health schema**
 
-Crea `app/schemas/health.py`:
+Create `app/schemas/health.py`:
 
 ```python
 from pydantic import BaseModel
@@ -679,13 +679,13 @@ from pydantic import BaseModel
 
 class HealthOut(BaseModel):
     total_devices: int
-    by_status: dict[str, int]  # es. {"reachable": 3, "unverified": 1}
+    by_status: dict[str, int]  # e.g. {"reachable": 3, "unverified": 1}
     active_alerts: int
 ```
 
-- [ ] **Step 2: Aggiungere l'endpoint health al router**
+- [ ] **Step 2: Add the health endpoint to the router**
 
-In `app/api/monitoring.py`, aggiungere import e endpoint. Conta i device per `status` e gli alert attivi, scoping per tenant (filtro applicativo + RLS).
+In `app/api/monitoring.py`, add import and endpoint. Count devices by `status` and active alerts, scoped by tenant (application filter + RLS).
 
 ```python
 from sqlalchemy import func, select
@@ -721,31 +721,31 @@ async def fleet_health(
     return HealthOut(total_devices=total, by_status=by_status, active_alerts=active_alerts)
 ```
 
-- [ ] **Step 3: Verifica rapida di import (no errori di sintassi)**
+- [ ] **Step 3: Quick import check (no syntax errors)**
 
 Run: `... .venv/bin/python -c "import app.main"`
-Expected: nessun errore.
+Expected: no errors.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add app/schemas/health.py app/api/monitoring.py
-git commit -m "feat(backend): endpoint riassunto salute flotta (conteggi device + alert attivi)"
+git commit -m "feat(backend): fleet health summary endpoint (device counts + active alerts)"
 ```
 
 ---
 
-## Task 5: Test integrazione endpoint + RBAC + isolamento cross-tenant via API
+## Task 5: Endpoint integration tests + RBAC + cross-tenant isolation via API
 
 **Files:**
 - Create: `tests/test_monitoring_api.py`
 - Create: `tests/test_monitoring_rls_api.py`
 
-Questi test chiudono la milestone: happy-path degli endpoint, gate RBAC, e — il più importante per la sicurezza — l'isolamento cross-tenant **attraverso l'API reale** con connessione `opngms_app`.
+These tests close the milestone: endpoint happy-path, RBAC gate, and — most important for security — cross-tenant isolation **through the real API** with `opngms_app` connection.
 
-- [ ] **Step 1: Scrivere i test happy-path + RBAC (client owner)**
+- [ ] **Step 1: Write happy-path + RBAC tests (owner client)**
 
-Crea `tests/test_monitoring_api.py`. Usa `api_client` (owner) per il percorso felice, e un membership read_only per verificare che VIEW è concesso. Riusa l'helper di login da `test_devices_rls_api.py` adattandolo. Per semplicità autentichiamo un superadmin via `/api/setup` + `/api/login` (vede tutti i tenant), creiamo un tenant e un device, iniettiamo metriche/alert come owner, poi interroghiamo gli endpoint.
+Create `tests/test_monitoring_api.py`. Use `api_client` (owner) for the happy path, and a read_only membership to verify that VIEW is granted. For simplicity authenticate a superadmin via `/api/setup` + `/api/login` (sees all tenants), create a tenant and a device, inject metrics/alerts as owner, then query the endpoints.
 
 ```python
 import uuid
@@ -843,7 +843,7 @@ async def test_alerts_endpoint_active_filter(api_client, db_engine):
 async def test_metrics_requires_auth(api_client, db_engine):
     tid = await _login_superadmin(api_client, db_engine)
     did = await _insert_device(db_engine, tid)
-    # nuovo client senza cookie di sessione
+    # new client without session cookie
     from httpx import ASGITransport, AsyncClient
 
     transport = ASGITransport(app=app)
@@ -854,14 +854,14 @@ async def test_metrics_requires_auth(api_client, db_engine):
     assert r.status_code == 401
 ```
 
-- [ ] **Step 2: Eseguire e verificare**
+- [ ] **Step 2: Run and verify**
 
 Run: `... .venv/bin/python -m pytest tests/test_monitoring_api.py -v`
-Expected: PASS (4/4). Se un endpoint dà 404 sul tenant, controlla che `make_tenant`/login superadmin funzioni come in `test_devices_rls_api.py`.
+Expected: PASS (4/4). If an endpoint returns 404 on the tenant, check that `make_tenant`/superadmin login works as in `test_devices_rls_api.py`.
 
-- [ ] **Step 3: Scrivere il test di isolamento cross-tenant via API reale (opngms_app)**
+- [ ] **Step 3: Write the cross-tenant isolation test via real API (opngms_app)**
 
-Crea `tests/test_monitoring_rls_api.py`. Usa `app_role_api_client` (connessione reale `opngms_app` → RLS attiva). Crea due tenant, un device + metriche/alert per ciascuno, e verifica che interrogando il tenant B **non** si vedano i dati del tenant A. Riusa l'helper di setup di `test_devices_rls_api.py`.
+Create `tests/test_monitoring_rls_api.py`. Uses `app_role_api_client` (real `opngms_app` connection → RLS active). Creates two tenants, a device + metrics/alerts for each, and verifies that querying tenant B does **not** show tenant A's data. Reuse the setup helper from `test_devices_rls_api.py`.
 
 ```python
 import uuid
@@ -911,7 +911,7 @@ async def test_metrics_and_alerts_isolated_via_api(app_role_api_client, db_engin
     dev_a = await _make_device(app_role_api_client, ta, "fw-a")
     dev_b = await _make_device(app_role_api_client, tb, "fw-b")
 
-    # inietta dati come owner (bypassa RLS) per entrambi
+    # inject data as owner (bypasses RLS) for both
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         for tid, did, val in ((ta, dev_a, 11.0), (tb, dev_b, 22.0)):
@@ -931,12 +931,12 @@ async def test_metrics_and_alerts_isolated_via_api(app_role_api_client, db_engin
             )
         await s.commit()
 
-    # tenant A vede solo i propri dati
+    # tenant A sees only its own data
     ra = await app_role_api_client.get(
         f"/api/tenants/{ta}/devices/{dev_a}/metrics", params={"metric": "cpu.load"}
     )
     assert ra.json()["points"][0]["value"] == 11.0
-    # i dati di B sul device di B, interrogati nel contesto di A -> RLS nasconde tutto
+    # B's data on B's device, queried in A's context -> RLS hides everything
     cross = await app_role_api_client.get(
         f"/api/tenants/{ta}/devices/{dev_b}/metrics", params={"metric": "cpu.load"}
     )
@@ -952,98 +952,98 @@ async def test_metrics_and_alerts_isolated_via_api(app_role_api_client, db_engin
     assert ha.json()["active_alerts"] == 1
 ```
 
-- [ ] **Step 4: Eseguire e verificare l'isolamento**
+- [ ] **Step 4: Run and verify isolation**
 
 Run: `... .venv/bin/python -m pytest tests/test_monitoring_rls_api.py -v`
-Expected: PASS. Questo test **dimostra** la propagazione della RLS ai chunk Timescale: se `ra.json()["points"]` fosse vuoto, i grant non sono propagati ai chunk → rivedere Task 1 Step 5.
+Expected: PASS. This test **proves** RLS propagation to Timescale chunks: if `ra.json()["points"]` were empty, the grants were not propagated to chunks → revisit Task 1 Step 5.
 
-- [ ] **Step 5: Eseguire l'intera suite + `alembic check`**
+- [ ] **Step 5: Run the full suite + `alembic check`**
 
 Run: `... .venv/bin/python -m pytest -q`
-Expected: tutti PASS.
-Poi rieseguire la procedura `alembic check` su DB pulito (Task 1 Step 8). Expected: clean.
+Expected: all PASS.
+Then re-run the `alembic check` procedure on a clean DB (Task 1 Step 8). Expected: clean.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add tests/test_monitoring_api.py tests/test_monitoring_rls_api.py
-git commit -m "test(backend): integrazione endpoint monitoraggio + isolamento cross-tenant via API"
+git commit -m "test(backend): monitoring endpoint integration + cross-tenant isolation via API"
 ```
 
 ---
 
-## Task 6: Debito tecnico
+## Task 6: Technical debt
 
-Aggiungere in fondo a questo file la sezione "Debito tecnico" con le voci emerse durante l'implementazione. Voci note in partenza:
+Add a "Technical debt" section to the end of this file with items that emerged during implementation. Known items:
 
-- [ ] **Step 1: Registrare il debito 2C**
+- [ ] **Step 1: Record 2C debt**
 
-Append a questo piano:
+Append to this plan:
 
 ```markdown
-## Debito tecnico (2C)
+## Technical debt (2C)
 
-- **Continuous aggregate `metrics_5m` deferita**: il downsampling è on-the-fly (`time_bucket()`).
-  A scala maggiore o per i report a lungo periodo (Fase 5), materializzare la CAGG + retention
-  differenziata (raw 30g, CAGG più lunga) come da spec §4.1. Da rivalutare in 2D o Fase 5.
-- **Endpoint metriche senza paginazione/limite**: un range ampio senza `bucket` può restituire
-  molti punti. Valutare un cap di righe o `bucket` obbligatorio oltre N giorni.
-- **`bucket` come secondi interi**: l'API accetta `bucket` in secondi. Se la 2D necessita di
-  bucket "naturali" (5m/1h/1d allineati), valutare un parametro enumerato.
-- **Nomi metrica non validati**: `metric` è una stringa libera; un set enumerato/registro delle
-  metriche note migliorerebbe la DX dell'API (e abiliterebbe validazione 422).
+- **Deferred continuous aggregate `metrics_5m`**: downsampling is on-the-fly (`time_bucket()`).
+  At greater scale or for long-period reports (Phase 5), materialise the CAGG + differentiated
+  retention (raw 30d, longer CAGG) as per spec §4.1. Re-evaluate in 2D or Phase 5.
+- **Metrics endpoint without pagination/limit**: a wide range without `bucket` can return many
+  points. Consider a row cap or mandatory `bucket` beyond N days.
+- **`bucket` as integer seconds**: the API accepts `bucket` in seconds. If 2D needs "natural"
+  buckets (5m/1h/1d aligned), consider an enumerated parameter.
+- **Metric names not validated**: `metric` is a free string; an enumerated set/registry of known
+  metrics would improve API DX (and enable 422 validation).
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-06-09-opngms-phase2-milestone2C-metrics-alerts-api.md
-git commit -m "docs: debito tecnico milestone 2C"
+git commit -m "docs: technical debt milestone 2C"
 ```
 
 ---
 
-## Definizione di "fatto" (2C)
+## Definition of "done" (2C)
 
-- La RLS protegge `metrics` e `alerts` (migrazione 0007), con grant propagati ai chunk Timescale.
-- `GET /devices/{id}/metrics` ritorna serie (raw o downsampled) + ultimo valore per label.
-- `GET /health` ritorna conteggi device per stato + alert attivi.
-- `GET /alerts` ritorna gli alert (attivi o storici).
-- Tutti gli endpoint sono tenant-scoped (`require_tenant(DEVICE_VIEW)`) e isolati dalla RLS — un test via connessione `opngms_app` reale lo dimostra cross-tenant.
-- Suite verde + `alembic check` pulito.
+- RLS protects `metrics` and `alerts` (migration 0007), with grants propagated to Timescale chunks.
+- `GET /devices/{id}/metrics` returns series (raw or downsampled) + last value per label.
+- `GET /health` returns device counts by status + active alerts.
+- `GET /alerts` returns alerts (active or historical).
+- All endpoints are tenant-scoped (`require_tenant(DEVICE_VIEW)`) and isolated by RLS — a test via real `opngms_app` connection proves it cross-tenant.
+- Green suite + clean `alembic check`.
 
 ---
 
-## Debito tecnico (2C) — consolidato dalle review
+## Technical debt (2C) — consolidated from reviews
 
-**Performance / scala**
-- **Continuous aggregate `metrics_5m` deferita**: il downsampling è on-the-fly (`time_bucket()`).
-  A scala maggiore o per i report a lungo periodo (Fase 5), materializzare la CAGG + retention
-  differenziata (raw 30g, CAGG più lunga) come da spec §4.1. Da rivalutare in 2D o Fase 5.
-- **Troncamento silenzioso dei punti più recenti** (review Task 2): la query serie senza `bucket`
-  applica `ORDER BY time ASC LIMIT MAX_POINTS` (cap difensivo a 5000). Se la serie supera il cap,
-  vengono restituiti i punti **più vecchi**, troncando la coda recente, senza alcun flag di
-  troncamento nella risposta. Per la dashboard (2D) valutare: troncare i più recenti invece dei
-  più vecchi, o esporre un flag `truncated`, o rendere `bucket` obbligatorio oltre N giorni.
-- **`bucket` come secondi interi**: l'API accetta `bucket` in secondi. Se la 2D necessita di
-  bucket "naturali" (5m/1h/1d allineati), valutare un parametro enumerato.
+**Performance / scale**
+- **Deferred continuous aggregate `metrics_5m`**: downsampling is on-the-fly (`time_bucket()`).
+  At greater scale or for long-period reports (Phase 5), materialise the CAGG + differentiated
+  retention (raw 30d, longer CAGG) as per spec §4.1. Re-evaluate in 2D or Phase 5.
+- **Silent truncation of most recent points** (Task 2 review): the series query without `bucket`
+  applies `ORDER BY time ASC LIMIT MAX_POINTS` (defensive cap at 5000). If the series exceeds the
+  cap, the **oldest** points are returned, truncating the recent tail, with no truncation flag in
+  the response. For the dashboard (2D) consider: truncating the oldest instead, exposing a
+  `truncated` flag, or making `bucket` mandatory beyond N days.
+- **`bucket` as integer seconds**: the API accepts `bucket` in seconds. If 2D needs "natural"
+  buckets (5m/1h/1d aligned), consider an enumerated parameter.
 
-**Modello dati / contratto**
-- **`alerts.details` passthrough JSONB aperto** (review Task 3): `AlertOut.details` espone il JSONB
-  così com'è a chiunque abbia `DEVICE_VIEW` (entro il proprio tenant — la frontiera cross-tenant è
-  garantita dalla RLS). Oggi nessun leak: il poller (`alerting.py`) non scrive mai `details`
-  (sempre `{}`). Governance lato-write: PRIMA che il poller popoli `details`, decidere cosa è lecito
-  scrivervi (mai segreti/PII) e valutare un modello tipizzato con whitelist invece di `dict` aperto.
-- **Divergenza ORM↔migrazione su `alerts.details`** (review Task 1): il modello `Alert.details` ha
-  `default=dict` (Python) ma niente `server_default`, mentre la migrazione 0006 ha
-  `server_default '{}'::jsonb`. In test (schema da `create_all`) gli INSERT raw devono passare
-  `details` esplicito. Allineare il modello aggiungendo `server_default` (non rilevato da
-  `alembic check` perché `compare_server_default` non è attivo).
-- **Nomi metrica non validati**: `metric` è una stringa libera; un set enumerato/registro delle
-  metriche note migliorerebbe la DX dell'API (e abiliterebbe validazione 422).
+**Data model / contract**
+- **`alerts.details` open JSONB passthrough** (Task 3 review): `AlertOut.details` exposes the JSONB
+  as-is to anyone with `DEVICE_VIEW` (within their own tenant — the cross-tenant boundary is
+  guaranteed by RLS). Today no leakage: the poller (`alerting.py`) never writes `details`
+  (always `{}`). Write-side governance: BEFORE the poller populates `details`, decide what is
+  permitted there (never secrets/PII) and consider a typed whitelisted model instead of open `dict`.
+- **ORM↔migration divergence on `alerts.details`** (Task 1 review): the `Alert.details` model has
+  `default=dict` (Python) but no `server_default`, while migration 0006 has
+  `server_default '{}'::jsonb`. In tests (schema from `create_all`) raw INSERTs must pass
+  `details` explicitly. Align the model by adding `server_default` (not detected by
+  `alembic check` because `compare_server_default` is not active).
+- **Metric names not validated**: `metric` is a free string; an enumerated set/registry of known
+  metrics would improve API DX (and enable 422 validation).
 
-**Test (nice-to-have)**
-- **DRY dei seed di test** (review Task 5): i blocchi di INSERT raw per `metrics`/`alerts` e il
-  setup superadmin/login sono duplicati tra `test_monitoring_api.py`, `test_monitoring_rls_api.py`
-  e `test_devices_rls_api.py`. Estrarre `make_metric`/`make_alert` + helper login in
-  `factories.py`/`conftest.py` quando il duplicato cresce.
+**Tests (nice-to-have)**
+- **DRY of test seeds** (Task 5 review): the raw INSERT blocks for `metrics`/`alerts` and the
+  superadmin/login setup are duplicated across `test_monitoring_api.py`, `test_monitoring_rls_api.py`
+  and `test_devices_rls_api.py`. Extract `make_metric`/`make_alert` + login helpers into
+  `factories.py`/`conftest.py` when the duplication grows.

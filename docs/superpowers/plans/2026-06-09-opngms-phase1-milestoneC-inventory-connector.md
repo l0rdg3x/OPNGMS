@@ -1,45 +1,45 @@
-# OPNGMS Fase 1 · Milestone C — Inventario, Segreti, Connector & Onboarding — Implementation Plan
+# OPNGMS Phase 1 · Milestone C — Inventory, Secrets, Connector & Onboarding — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Dare a OPNGMS la gestione dei device OPNsense: cifratura dei segreti (Fernet/MASTER_KEY), il connector `OpnsenseClient` (unico confine HTTP, con normalizzazione errori), il flusso di onboarding (test connessione → status reachable|unverified), e il CRUD device completo (create/list/get/update/delete + test-connection + rotate-secret) tenant-scoped — dove la RLS della Milestone A viene finalmente **esercitata** da query reali, provata end-to-end attraverso l'API come ruolo non-superuser.
+**Goal:** Give OPNGMS the ability to manage OPNsense devices: encryption of secrets (Fernet/MASTER_KEY), the `OpnsenseClient` connector (single HTTP boundary, with error normalisation), the onboarding flow (connection test → status reachable|unverified), and the full device CRUD (create/list/get/update/delete + test-connection + rotate-secret) tenant-scoped — where the RLS from Milestone A is finally **exercised** by real queries, proven end-to-end through the API as a non-superuser role.
 
-**Architecture:** I segreti API (`api_key`/`api_secret`) sono cifrati at-rest con **Fernet** (chiave da `MASTER_KEY`) e **mai restituiti** al client (write-only). Un'unica astrazione **`OpnsenseClient`** (httpx async, HTTP Basic, verifica TLS, timeout) è il solo punto che parla con OPNsense; gli errori sono normalizzati (`AuthError`/`ReachabilityError`/`ApiError`/`ParseError`). Il **probe** di onboarding è iniettato come dependency FastAPI (override-abile nei test con un fake → niente HTTP reale nei test degli endpoint; il client vero è testato a parte con **respx**). Gli endpoint device stanno sotto `/api/tenants/{tenant_id}/devices`, gated da `require_tenant` (DEVICE_VIEW/DEVICE_WRITE) e dal `tenant_context` che imposta `app.current_tenant` → la RLS filtra le query device. L'app si connette come `opngms_app` (non-superuser) in produzione, quindi la RLS è effettiva; un test dedicato lo prova attraverso l'API.
+**Architecture:** API secrets (`api_key`/`api_secret`) are encrypted at-rest with **Fernet** (key from `MASTER_KEY`) and **never returned** to the client (write-only). A single **`OpnsenseClient`** abstraction (httpx async, HTTP Basic, TLS verification, timeout) is the only point that communicates with OPNsense; errors are normalised (`AuthError`/`ReachabilityError`/`ApiError`/`ParseError`). The onboarding **probe** is injected as a FastAPI dependency (overridable in tests with a fake → no real HTTP in endpoint tests; the real client is tested separately with **respx**). Device endpoints live under `/api/tenants/{tenant_id}/devices`, gated by `require_tenant` (DEVICE_VIEW/DEVICE_WRITE) and by `tenant_context` which sets `app.current_tenant` → RLS filters device queries. The app connects as `opngms_app` (non-superuser) in production, so RLS is effective; a dedicated test proves this through the API.
 
 **Tech Stack:** Python 3.12+, FastAPI, SQLAlchemy 2.0 async, httpx, cryptography (Fernet), respx (test), Postgres, pytest.
 
 ---
 
-## Riferimento spec
-Implementa le sezioni **11 (onboarding), 12 (segreti), 13 (connector)** dello spec
-`docs/superpowers/specs/2026-06-08-opngms-foundation-inventory-design.md`. Decisioni di
-pianificazione: connector **mockato** (respx) con endpoint OPNsense flaggati "da verificare
-contro un device reale"; scope device **completo** (CRUD + test + rotate).
+## Spec reference
+Implements sections **11 (onboarding), 12 (secrets), 13 (connector)** of the spec
+`docs/superpowers/specs/2026-06-08-opngms-foundation-inventory-design.md`. Planning
+decisions: connector **mocked** (respx) with OPNsense endpoints flagged "to verify
+against a real device"; device scope **complete** (CRUD + test + rotate).
 
-## Prerequisiti (da Milestone A+B, in `main`)
-- Modello `Device` (tenant_id, name, base_url, api_key_enc/api_secret_enc bytea, verify_tls,
+## Prerequisites (from Milestone A+B, in `main`)
+- `Device` model (tenant_id, name, base_url, api_key_enc/api_secret_enc bytea, verify_tls,
   tls_fingerprint, site, tags, status, last_seen, firmware_version, created_at, updated_at).
-- `DeviceRepository(session, tenant_id)` con `list()` + `add()` (scoping app-layer); RLS su
-  `devices` (Milestone A); l'app gira come `opngms_app` non-superuser.
+- `DeviceRepository(session, tenant_id)` with `list()` + `add()` (app-layer scoping); RLS on
+  `devices` (Milestone A); the app runs as `opngms_app` non-superuser.
 - `app/core/deps.py`: `get_current_user`, `enforce_csrf`, `require_tenant(action)`,
-  `tenant_context` (imposta `app.current_tenant`). `app/core/rbac.py`: `Action.DEVICE_VIEW`,
+  `tenant_context` (sets `app.current_tenant`). `app/core/rbac.py`: `Action.DEVICE_VIEW`,
   `Action.DEVICE_WRITE`. `app/services/audit.py`. `app/core/config.py` (`master_key`).
-- conftest: `db_engine`, `api_client` (owner), factories. Env di test (MASTER_KEY valida Fernet)
-  già impostato in conftest.
+- conftest: `db_engine`, `api_client` (owner), factories. Test env (valid Fernet MASTER_KEY)
+  already set in conftest.
 
-NESSUNA nuova migrazione: il modello `Device` ha già tutti i campi necessari.
+NO new migrations: the `Device` model already has all required fields.
 
-## Struttura file (creati/modificati)
+## File structure (created/modified)
 ```
 backend/app/
   core/crypto.py              # NEW: encrypt/decrypt Fernet
   connectors/opnsense/
     __init__.py               # NEW
-    client.py                 # NEW: OpnsenseClient + errori
+    client.py                 # NEW: OpnsenseClient + errors
   services/onboarding.py      # NEW: probe_device + ProbeResult + get_prober
   schemas/device.py           # NEW
   repositories/device.py      # MODIFY: get/update/delete
-  api/devices.py              # NEW: router device tenant-scoped
+  api/devices.py              # NEW: tenant-scoped device router
   main.py                     # MODIFY: include devices_router
 backend/tests/
   test_crypto.py
@@ -53,7 +53,7 @@ backend/tests/
 
 ---
 
-## Task 1: Cifratura segreti (Fernet)
+## Task 1: Secret encryption (Fernet)
 
 **Files:** Create `backend/app/core/crypto.py`, `backend/tests/test_crypto.py`
 
@@ -65,14 +65,14 @@ from app.core import crypto
 def test_encrypt_decrypt_roundtrip():
     token = crypto.encrypt("api-secret-123")
     assert isinstance(token, bytes)
-    assert token != b"api-secret-123"  # cifrato, non in chiaro
+    assert token != b"api-secret-123"  # encrypted, not in plaintext
     assert crypto.decrypt(token) == "api-secret-123"
 
 
 def test_two_encryptions_differ_but_both_decrypt():
     a = crypto.encrypt("x")
     b = crypto.encrypt("x")
-    assert a != b  # Fernet include timestamp+IV
+    assert a != b  # Fernet includes timestamp+IV
     assert crypto.decrypt(a) == crypto.decrypt(b) == "x"
 ```
 Run: `cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_crypto.py -v` → FAIL (no module).
@@ -101,13 +101,13 @@ def decrypt(ciphertext: bytes) -> str:
 ```bash
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_crypto.py -v
 git add backend/app/core/crypto.py backend/tests/test_crypto.py
-git commit -m "feat(backend): cifratura segreti Fernet (crypto.py)"
+git commit -m "feat(backend): Fernet secret encryption (crypto.py)"
 ```
 Expected: 2 passed.
 
 ---
 
-## Task 2: OpnsenseClient + normalizzazione errori (respx)
+## Task 2: OpnsenseClient + error normalisation (respx)
 
 **Files:** Create `backend/app/connectors/opnsense/__init__.py`, `client.py`, `backend/tests/test_opnsense_client.py`
 
@@ -178,19 +178,19 @@ import httpx
 
 
 class OpnsenseError(Exception):
-    """Base per gli errori del connector OPNsense."""
+    """Base class for OPNsense connector errors."""
 
 
 class AuthError(OpnsenseError):
-    """Credenziali API rifiutate (401/403)."""
+    """API credentials rejected (401/403)."""
 
 
 class ReachabilityError(OpnsenseError):
-    """Device non raggiungibile (DNS/TLS/connessione/timeout)."""
+    """Device unreachable (DNS/TLS/connection/timeout)."""
 
 
 class ApiError(OpnsenseError):
-    """Risposta HTTP di errore (4xx/5xx non-auth)."""
+    """HTTP error response (4xx/5xx non-auth)."""
 
     def __init__(self, status_code: int, message: str = "") -> None:
         self.status_code = status_code
@@ -198,15 +198,15 @@ class ApiError(OpnsenseError):
 
 
 class ParseError(OpnsenseError):
-    """Risposta non interpretabile come JSON."""
+    """Response cannot be parsed as JSON."""
 
 
 class OpnsenseClient:
-    """Unico confine HTTP verso un device OPNsense.
+    """Single HTTP boundary to an OPNsense device.
 
-    Auth HTTP Basic (api_key come username, api_secret come password) su HTTPS.
-    NOTA: gli endpoint esatti sono DA VERIFICARE contro un OPNsense reale; qui si usa
-    `core/firmware/status` per il test di connessione + versione firmware.
+    HTTP Basic auth (api_key as username, api_secret as password) over HTTPS.
+    NOTE: exact endpoints are TO BE VERIFIED against a real OPNsense device; here
+    `core/firmware/status` is used for connection test + firmware version.
     """
 
     def __init__(
@@ -245,12 +245,12 @@ class OpnsenseClient:
         return await self._get("core/firmware/status")
 
     async def test_connection(self) -> str | None:
-        """Verifica raggiungibilità+credenziali; ritorna la versione firmware o None.
+        """Check reachability+credentials; returns firmware version or None.
 
-        Solleva AuthError/ReachabilityError/ApiError/ParseError in caso di problemi.
+        Raises AuthError/ReachabilityError/ApiError/ParseError on failure.
         """
         data = await self.get_firmware_status()
-        # Campo DA VERIFICARE su un OPNsense reale (nome esatto può differire).
+        # Field TO BE VERIFIED on a real OPNsense device (exact name may differ).
         version = data.get("product_version")
         if version is None and isinstance(data.get("product"), dict):
             version = data["product"].get("product_version")
@@ -261,13 +261,13 @@ class OpnsenseClient:
 ```bash
 cd backend && .venv/bin/python -m pytest tests/test_opnsense_client.py -v
 git add backend/app/connectors backend/tests/test_opnsense_client.py
-git commit -m "feat(backend): OpnsenseClient + normalizzazione errori (respx)"
+git commit -m "feat(backend): OpnsenseClient + error normalisation (respx)"
 ```
 Expected: 5 passed. (respx mocks httpx; no DB needed.)
 
 ---
 
-## Task 3: Schemas device
+## Task 3: Device schemas
 
 **Files:** Create `backend/app/schemas/device.py`. Verify import.
 
@@ -305,7 +305,7 @@ class RotateSecretIn(BaseModel):
 
 
 class DeviceOut(BaseModel):
-    # NB: NESSUN campo segreto (api_key_enc/api_secret_enc) — write-only.
+    # NB: NO secret fields (api_key_enc/api_secret_enc) — write-only.
     id: uuid.UUID
     tenant_id: uuid.UUID
     name: str
@@ -333,7 +333,7 @@ class TestResultOut(BaseModel):
 ```bash
 cd backend && .venv/bin/python -c "import app.schemas.device; print('ok')"
 git add backend/app/schemas/device.py
-git commit -m "feat(backend): schemas device (DeviceOut senza segreti)"
+git commit -m "feat(backend): device schemas (DeviceOut without secrets)"
 ```
 
 ---
@@ -369,7 +369,7 @@ Expected: suite still green (no behavior change for existing tests).
 
 ---
 
-## Task 5: Onboarding — probe_device + dependency override-abile
+## Task 5: Onboarding — probe_device + overridable dependency
 
 **Files:** Create `backend/app/services/onboarding.py`, `backend/tests/test_onboarding.py`
 
@@ -439,7 +439,7 @@ async def probe_device(
         )
 
 
-# Tipo del "prober" iniettabile (override-abile nei test degli endpoint).
+# Injectable "prober" type (overridable in endpoint tests).
 Prober = Callable[..., Coroutine[Any, Any, ProbeResult]]
 
 
@@ -451,7 +451,7 @@ def get_prober() -> Prober:
 ```bash
 cd backend && .venv/bin/python -m pytest tests/test_onboarding.py -v
 git add backend/app/services/onboarding.py backend/tests/test_onboarding.py
-git commit -m "feat(backend): onboarding probe_device + dependency get_prober"
+git commit -m "feat(backend): onboarding probe_device + get_prober dependency"
 ```
 Expected: 2 passed.
 
@@ -545,9 +545,9 @@ async def test_secrets_encrypted_at_rest(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         row = (await s.execute(select(Device).where(Device.name == "fw3"))).scalar_one()
-        assert bytes(row.api_secret_enc) != b"the-secret"  # cifrato
+        assert bytes(row.api_secret_enc) != b"the-secret"  # encrypted
         from app.core import crypto
-        assert crypto.decrypt(row.api_secret_enc) == "the-secret"  # decifrabile
+        assert crypto.decrypt(row.api_secret_enc) == "the-secret"  # decryptable
     from app.services.onboarding import get_prober
     app.dependency_overrides.pop(get_prober, None)
 
@@ -609,7 +609,7 @@ async def get_device(
 ) -> Device:
     device = await DeviceRepository(session, tenant_id).get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     return device
 
 
@@ -673,7 +673,7 @@ app.include_router(devices_router)
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_devices_api.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/app/api/devices.py backend/app/main.py backend/tests/test_devices_api.py
-git commit -m "feat(backend): API device create(onboarding)/list/get + secrets write-only + audit"
+git commit -m "feat(backend): device API create(onboarding)/list/get + write-only secrets + audit"
 ```
 Expected: device tests PASS (4); full suite green.
 
@@ -768,7 +768,7 @@ async def update_device(
     repo = DeviceRepository(session, tenant_id)
     device = await repo.get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(device, field, value)
     await session.flush()
@@ -800,7 +800,7 @@ async def delete_device(
     repo = DeviceRepository(session, tenant_id)
     device = await repo.get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     await repo.delete(device)
     await AuditService(session).record(
         actor_user_id=ctx.user.id,
@@ -819,7 +819,7 @@ async def delete_device(
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_devices_update_delete.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/app/api/devices.py backend/tests/test_devices_update_delete.py
-git commit -m "feat(backend): API device update/delete + audit"
+git commit -m "feat(backend): device API update/delete + audit"
 ```
 Expected: 2 passed; full suite green.
 
@@ -926,7 +926,7 @@ async def test_device_connection(
     repo = DeviceRepository(session, tenant_id)
     device = await repo.get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     result = await prober(
         device.base_url,
         crypto.decrypt(device.api_key_enc),
@@ -970,7 +970,7 @@ async def rotate_secret(
     repo = DeviceRepository(session, tenant_id)
     device = await repo.get(device_id)
     if device is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     device.api_key_enc = crypto.encrypt(payload.api_key)
     device.api_secret_enc = crypto.encrypt(payload.api_secret)
     await session.flush()
@@ -981,7 +981,7 @@ async def rotate_secret(
         target_type="device",
         target_id=str(device.id),
         ip=request.client.host if request.client else None,
-        details={},  # MAI loggare i segreti
+        details={},  # NEVER log secrets
     )
     await session.commit()
     return device
@@ -992,18 +992,18 @@ async def rotate_secret(
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_devices_test_rotate.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/app/api/devices.py backend/tests/test_devices_test_rotate.py
-git commit -m "feat(backend): API device test-connection + rotate-secret + audit"
+git commit -m "feat(backend): device API test-connection + rotate-secret + audit"
 ```
 Expected: 2 passed; full suite green.
 
 ---
 
-## Task 9: RLS device end-to-end via API (ruolo non-superuser)
+## Task 9: Device RLS end-to-end via API (non-superuser role)
 
 **Files:** Modify `backend/tests/conftest.py` (add `app_role_api_client`); create `backend/tests/test_devices_rls_api.py`
 
-Questo prova che la RLS sui device regge ATTRAVERSO l'API quando l'app si connette come
-`opngms_app` (non-superuser), non solo a livello applicativo.
+This proves that RLS on devices holds THROUGH the API when the app connects as
+`opngms_app` (non-superuser), not just at the application layer.
 
 - [ ] **Step 1: Add the `app_role_api_client` fixture** to `backend/tests/conftest.py`:
 ```python
@@ -1012,7 +1012,7 @@ from sqlalchemy.engine import make_url
 
 @pytest.fixture
 async def app_role_api_client(db_engine):
-    """Come api_client, ma la sessione si connette come opngms_app (non-superuser) -> RLS attiva."""
+    """Like api_client, but the session connects as opngms_app (non-superuser) -> RLS active."""
     app_url = make_url(TEST_DB_URL).set(username="opngms_app", password="opngms_app")
     engine = make_engine(app_url.render_as_string(hide_password=False))
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -1049,7 +1049,7 @@ async def _setup_two_tenants(app_role_api_client, db_engine):
         b = await make_tenant(s, slug="b")
         await s.commit()
         ta, tb = a.id, b.id
-    # superadmin via /api/setup (può accedere a tutti i tenant)
+    # superadmin via /api/setup (can access all tenants)
     await app_role_api_client.post(
         "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
     )
@@ -1066,17 +1066,17 @@ async def test_device_created_in_tenant_a_not_visible_in_tenant_b(app_role_api_c
     from app.main import app
 
     ta, tb = await _setup_two_tenants(app_role_api_client, db_engine)
-    # crea un device nel tenant A (contesto A, RLS WITH CHECK ok)
+    # create a device in tenant A (context A, RLS WITH CHECK ok)
     created = await app_role_api_client.post(
         f"/api/tenants/{ta}/devices",
         json={"name": "fw-a", "base_url": "https://a", "api_key": "k", "api_secret": "s"},
         headers=CSRF,
     )
     assert created.status_code == 201
-    # list nel tenant A: lo vede
+    # list in tenant A: device is visible
     la = await app_role_api_client.get(f"/api/tenants/{ta}/devices")
     assert [d["name"] for d in la.json()] == ["fw-a"]
-    # list nel tenant B: la RLS (contesto B) non mostra il device di A
+    # list in tenant B: RLS (context B) does not show tenant A's device
     lb = await app_role_api_client.get(f"/api/tenants/{tb}/devices")
     assert lb.json() == []
     app.dependency_overrides.pop(get_prober, None)
@@ -1087,13 +1087,13 @@ async def test_device_created_in_tenant_a_not_visible_in_tenant_b(app_role_api_c
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_devices_rls_api.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/tests/conftest.py backend/tests/test_devices_rls_api.py
-git commit -m "test(backend): isolamento device RLS end-to-end via API (opngms_app)"
+git commit -m "test(backend): device RLS isolation end-to-end via API (opngms_app)"
 ```
 Expected: RLS API test PASS; full suite green.
 
 ---
 
-## Task 10: Integrazione e2e + suite finale
+## Task 10: e2e integration + final suite
 
 **Files:** Create `backend/tests/test_c_integration.py`
 
@@ -1159,60 +1159,60 @@ async def test_device_lifecycle(api_client, db_engine):
 ```bash
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/tests/test_c_integration.py
-git commit -m "test(backend): integrazione end-to-end Milestone C (ciclo di vita device)"
+git commit -m "test(backend): Milestone C end-to-end integration (device lifecycle)"
 ```
 Expected: full suite green.
 
 ---
 
-## Self-review (mappatura spec → task)
-- **Spec §12 Segreti** (Fernet, write-only) → Task 1 (crypto), Task 6 (DeviceOut senza segreti,
-  encrypted-at-rest test), Task 8 (rotate, segreti mai in audit).
-- **Spec §13 Connector** (`OpnsenseClient`, unico confine, normalizzazione errori) → Task 2
-  (+respx). HTTP Basic, verify TLS, timeout. Endpoint esatti flaggati "da verificare".
-- **Spec §11 Onboarding** (test → reachable|unverified, errore preciso) → Task 5 (probe), Task 6
-  (create salva con status; fallimento → unverified). Salva anche se il test fallisce.
-- **Wiring RLS esercitato** → Task 9: device API come `opngms_app`, isolamento cross-tenant
-  provato end-to-end attraverso `tenant_context` (`app.current_tenant`) + RLS.
-- **RBAC device** → Task 6/7/8 (`require_tenant(DEVICE_VIEW|DEVICE_WRITE)`): read_only vede ma
-  non scrive (test in Task 6).
+## Self-review (spec → task mapping)
+- **Spec §12 Secrets** (Fernet, write-only) → Task 1 (crypto), Task 6 (DeviceOut without secrets,
+  encrypted-at-rest test), Task 8 (rotate, secrets never in audit).
+- **Spec §13 Connector** (`OpnsenseClient`, single boundary, error normalisation) → Task 2
+  (+respx). HTTP Basic, verify TLS, timeout. Exact endpoints flagged "to verify".
+- **Spec §11 Onboarding** (test → reachable|unverified, precise error) → Task 5 (probe), Task 6
+  (create saves with status; failure → unverified). Saves even if the test fails.
+- **RLS wiring exercised** → Task 9: device API as `opngms_app`, cross-tenant isolation
+  proven end-to-end through `tenant_context` (`app.current_tenant`) + RLS.
+- **Device RBAC** → Task 6/7/8 (`require_tenant(DEVICE_VIEW|DEVICE_WRITE)`): read_only can view
+  but not write (test in Task 6).
 
-**Note di scope / debito tracciato:**
-- **TLS fingerprint pinning** NON applicato dal connector in questa milestone (si accetta il
-  campo `tls_fingerprint` ma `verify_tls` resta bool: True=verifica CA, False=nessuna verifica).
-  Per i cert self-signed comuni su OPNsense, `verify_tls=False` = rischio MITM → il pinning
-  effettivo del fingerprint è **debito per dopo** (documentare).
-- Endpoint OPNsense (`core/firmware/status`, campo `product_version`) **da verificare** contro un
-  device reale; l'astrazione e i test (mock) non cambiano.
-- Guard transaction-scoping di `set_tenant_context` (dal debito Milestone B): le query device
-  vengono eseguite nella stessa transazione in cui il context è impostato (nessun commit a metà
-  handler prima della query) — rispettato in tutti gli endpoint di questo piano.
+**Scope notes / tracked debt:**
+- **TLS fingerprint pinning** NOT applied by the connector in this milestone (the
+  `tls_fingerprint` field is accepted but `verify_tls` remains bool: True=CA verification,
+  False=no verification). For the self-signed certs common on OPNsense, `verify_tls=False`
+  = MITM risk → actual fingerprint pinning is **future debt** (to be documented).
+- OPNsense endpoints (`core/firmware/status`, field `product_version`) **to be verified** against
+  a real device; the abstraction and tests (mock) remain unchanged.
+- Guard transaction-scoping of `set_tenant_context` (from Milestone B debt): device queries
+  are executed in the same transaction where the context is set (no mid-handler commit before
+  the query) — respected in all endpoints in this plan.
 
-**Placeholder scan:** nessun TBD/TODO; ogni step ha codice/comando concreto.
+**Placeholder scan:** no TBD/TODO; every step has concrete code/commands.
 **Type consistency:** `crypto.encrypt/decrypt`, `OpnsenseClient`, `ProbeResult(reachable,
 firmware_version,error)`, `get_prober`/`Prober`, `DeviceRepository(session,tenant_id)`
-.get/.add/.delete, `require_tenant(Action.DEVICE_*)`, `DeviceOut` (no segreti) coerenti tra i
-Task 1-10.
+.get/.add/.delete, `require_tenant(Action.DEVICE_*)`, `DeviceOut` (no secrets) consistent across
+Tasks 1-10.
 
 ---
 
-## Debito tecnico (dalla review olistica finale — READY TO MERGE)
+## Technical debt (from final holistic review — READY TO MERGE)
 
-Zero issue Critical/Important. Gestione segreti write-only verificata end-to-end, RLS device
-esercitata via connessione `opngms_app` non-superuser, RBAC corretto. Da tracciare:
+Zero Critical/Important issues. Write-only secret management verified end-to-end, device RLS
+exercised via `opngms_app` non-superuser connection, correct RBAC. To track:
 
-1. ⚠️ **TLS fingerprint pinning non applicato** (priorità più alta). `verify_tls=False` (caso
-   comune per i cert self-signed di OPNsense) = nessuna verifica del certificato → rischio MITM.
-   Il campo `tls_fingerprint` è memorizzato ma ignorato dal connector. Implementare il pinning
-   reale (SSL context custom su httpx) prima della produzione.
-2. **Endpoint OPNsense da verificare** contro un device reale (`core/firmware/status`, campo
-   `product_version`) — oggi mockati.
-3. **Nessun re-probe al cambio di `base_url`** (PATCH): `status`/`firmware_version`/`last_seen`
-   restano stale finché non si lancia test-connection.
-4. **Connector senza retry/backoff** né sessione HTTP condivisa / limiti di concorrenza per-device
-   (spec §13, serviranno al polling della Fase 2). Oggi un nuovo `AsyncClient` per richiesta.
-5. **Nessuna paginazione** su `GET /devices`.
-6. **Nessuna rotazione della MASTER_KEY / key versioning**: ruotare la chiave renderebbe i
-   ciphertext esistenti non decifrabili (manca una colonna key-id + percorso di re-cifratura).
-7. **Password del ruolo app hardcoded** (`opngms_app/opngms_app`, default MVP) — da cambiare e
-   aggiornare `DATABASE_URL` in produzione.
+1. ⚠️ **TLS fingerprint pinning not applied** (highest priority). `verify_tls=False` (common
+   case for OPNsense self-signed certs) = no certificate verification → MITM risk.
+   The `tls_fingerprint` field is stored but ignored by the connector. Implement real pinning
+   (custom httpx SSL context) before production.
+2. **OPNsense endpoints to verify** against a real device (`core/firmware/status`, field
+   `product_version`) — mocked today.
+3. **No re-probe on `base_url` change** (PATCH): `status`/`firmware_version`/`last_seen`
+   remain stale until test-connection is triggered.
+4. **Connector without retry/backoff** or shared HTTP session / per-device concurrency limits
+   (spec §13, needed for Phase 2 polling). Today a new `AsyncClient` per request.
+5. **No pagination** on `GET /devices`.
+6. **No MASTER_KEY rotation / key versioning**: rotating the key would make existing
+   ciphertexts undecryptable (missing a key-id column + re-encryption path).
+7. **App role password hardcoded** (`opngms_app/opngms_app`, MVP default) — change and
+   update `DATABASE_URL` in production.

@@ -8,19 +8,19 @@ from app.connectors.opnsense.url_safety import UnsafeUrlError, validate_base_url
 
 
 class OpnsenseError(Exception):
-    """Base per gli errori del connector OPNsense."""
+    """Base class for OPNsense connector errors."""
 
 
 class AuthError(OpnsenseError):
-    """Credenziali API rifiutate (401/403)."""
+    """API credentials rejected (401/403)."""
 
 
 class ReachabilityError(OpnsenseError):
-    """Device non raggiungibile (DNS/TLS/connessione/timeout)."""
+    """Device unreachable (DNS/TLS/connection/timeout)."""
 
 
 class ApiError(OpnsenseError):
-    """Risposta HTTP di errore (4xx/5xx non-auth)."""
+    """HTTP error response (non-auth 4xx/5xx)."""
 
     def __init__(self, status_code: int, message: str = "") -> None:
         self.status_code = status_code
@@ -28,15 +28,15 @@ class ApiError(OpnsenseError):
 
 
 class ParseError(OpnsenseError):
-    """Risposta non interpretabile come JSON."""
+    """Response not interpretable as JSON."""
 
 
 class OpnsenseClient:
-    """Unico confine HTTP verso un device OPNsense.
+    """Single HTTP boundary toward an OPNsense device.
 
-    Auth HTTP Basic (api_key come username, api_secret come password) su HTTPS.
-    NOTA: gli endpoint esatti sono DA VERIFICARE contro un OPNsense reale; qui si usa
-    `core/firmware/status` per il test di connessione + versione firmware.
+    HTTP Basic auth (api_key as username, api_secret as password) over HTTPS.
+    NOTE: the exact endpoints are TO BE VERIFIED against a real OPNsense; here we use
+    `core/firmware/status` for the connection test + firmware version.
     """
 
     def __init__(
@@ -54,14 +54,14 @@ class OpnsenseClient:
         self._timeout = timeout
 
     async def _get(self, path: str) -> dict:
-        # Guardia SSRF: valida lo schema/userinfo/host e risolve+pinna l'IP.
+        # SSRF guard: validate the scheme/userinfo/host and resolve+pin the IP.
         try:
             pinned_ip, host, port = validate_base_url(self._base_url)
         except UnsafeUrlError as exc:
-            # Messaggio SANITIZZATO: niente dettaglio dell'URL non sicuro.
-            raise ReachabilityError("destinazione non sicura") from exc
-        # Connetti all'IP pinnato (anti DNS-rebinding); l'hostname originale resta
-        # per l'header Host e per SNI/verifica cert TLS.
+            # SANITIZED message: no detail of the unsafe URL.
+            raise ReachabilityError("unsafe destination") from exc
+        # Connect to the pinned IP (anti DNS-rebinding); the original hostname remains
+        # for the Host header and for SNI/TLS cert verification.
         conn_host = f"[{pinned_ip}]" if ":" in pinned_ip else pinned_ip
         netloc = conn_host if port is None else f"{conn_host}:{port}"
         base_path = urlsplit(self._base_url).path.rstrip("/")
@@ -77,22 +77,22 @@ class OpnsenseClient:
                     url, headers={"Host": host}, extensions={"sni_hostname": host}
                 )
         except httpx.HTTPError as exc:  # ConnectError/Timeout/TLS/etc.
-            raise ReachabilityError("device non raggiungibile") from exc
+            raise ReachabilityError("device unreachable") from exc
         if resp.status_code in (401, 403):
             raise AuthError(f"auth failed: HTTP {resp.status_code}")
         if resp.status_code >= 400:
-            # NON includere il body upstream nell'errore.
+            # Do NOT include the upstream body in the error.
             raise ApiError(resp.status_code)
         try:
             return resp.json()
         except ValueError as exc:
-            raise ParseError("risposta non interpretabile") from exc
+            raise ParseError("response not interpretable") from exc
 
     async def get_firmware_status(self) -> dict:
         return await self._get("core/firmware/status")
 
     async def get_system_info(self) -> dict:
-        """CPU/mem/disco/uptime. NOTA: endpoint+campi DA VERIFICARE su un OPNsense reale."""
+        """CPU/mem/disk/uptime. NOTE: endpoint+fields TO BE VERIFIED against a real OPNsense."""
         data = await self._get("diagnostics/system/systemInformation")
         return {
             "cpu_pct": float((data.get("cpu") or {}).get("used", 0.0)),
@@ -103,10 +103,10 @@ class OpnsenseClient:
 
     @staticmethod
     def _num(v) -> float:
-        """Estrae il primo float da una stringa tipo '12.3 ms' / '0.0 %' / numero.
+        """Extract the first float from a string like '12.3 ms' / '0.0 %' / a number.
 
-        NOTA: il formato esatto dei campi delay/loss/bytes è DA VERIFICARE contro
-        un OPNsense reale; la regex è difensiva per gestire varianti di stringa.
+        NOTE: the exact format of the delay/loss/bytes fields is TO BE VERIFIED against
+        a real OPNsense; the regex is defensive to handle string variants.
         """
         import re
 
@@ -116,10 +116,10 @@ class OpnsenseClient:
         return float(m.group()) if m else 0.0
 
     async def get_interfaces(self) -> list[dict]:
-        """Statistiche per interfaccia di rete.
+        """Per-network-interface statistics.
 
-        NOTA: endpoint `diagnostics/interface/getInterfaceStatistics` e i campi
-        bytes_received/bytes_transmitted sono DA VERIFICARE su un OPNsense reale.
+        NOTE: the `diagnostics/interface/getInterfaceStatistics` endpoint and the
+        bytes_received/bytes_transmitted fields are TO BE VERIFIED against a real OPNsense.
         """
         data = await self._get("diagnostics/interface/getInterfaceStatistics")
         out = []
@@ -133,11 +133,11 @@ class OpnsenseClient:
         return out
 
     async def get_gateways(self) -> list[dict]:
-        """Stato dei gateway (RTT, packet-loss).
+        """Gateway status (RTT, packet-loss).
 
-        NOTA: endpoint `routes/gateway/status`, chiave `items`, e i campi
-        delay/loss (con unità " ms"/" %") sono DA VERIFICARE su un OPNsense reale.
-        Gateway è down solo se status in {"down", "force_down"}.
+        NOTE: the `routes/gateway/status` endpoint, the `items` key, and the
+        delay/loss fields (with " ms"/" %" units) are TO BE VERIFIED against a real OPNsense.
+        A gateway is down only if status is in {"down", "force_down"}.
         """
         data = await self._get("routes/gateway/status")
         out = []
@@ -152,11 +152,11 @@ class OpnsenseClient:
         return out
 
     async def get_vpn_status(self) -> list[dict]:
-        """Stato dei tunnel WireGuard.
+        """WireGuard tunnel status.
 
-        NOTA: endpoint `wireguard/service/show` e la chiave `tunnels` con campo
-        `connected` sono DA VERIFICARE su un OPNsense reale. OpenVPN usa un endpoint
-        diverso (non ancora implementato).
+        NOTE: the `wireguard/service/show` endpoint and the `tunnels` key with the
+        `connected` field are TO BE VERIFIED against a real OPNsense. OpenVPN uses a
+        different endpoint (not yet implemented).
         """
         data = await self._get("wireguard/service/show")
         return [
@@ -165,11 +165,11 @@ class OpnsenseClient:
         ]
 
     async def get_ids_alerts(self, since: datetime | None = None) -> list[dict]:
-        """Alert Suricata IDS/IPS normalizzati.
+        """Normalized Suricata IDS/IPS alerts.
 
-        NOTA: endpoint `ids/service/queryAlerts` e formato del payload DA VERIFICARE
-        su un OPNsense reale. Difensivo verso varianti di chiave. `since` è un hint:
-        il filtro fine e la deduplica avvengono a valle (cursore + ON CONFLICT).
+        NOTE: the `ids/service/queryAlerts` endpoint and the payload format are TO BE
+        VERIFIED against a real OPNsense. Defensive toward key variants. `since` is a hint:
+        the fine filtering and the deduplication happen downstream (cursor + ON CONFLICT).
         """
         data = await self._get("ids/service/queryAlerts")
         out: list[dict] = []
@@ -181,9 +181,9 @@ class OpnsenseClient:
             dst = r.get("dest_ip", r.get("dst_ip", ""))
             action = alert.get("action", r.get("action", ""))
             severity = str(alert.get("severity", r.get("severity", "")))
-            # event_key DISCRIMINANTE: id stabile della sorgente se presente,
-            # ALTRIMENTI hash del contenuto (ts+src+dst+signature+severity) per
-            # NON collassare eventi distinti con la stessa signature.
+            # DISCRIMINATING event_key: stable source id if present,
+            # OTHERWISE a hash of the content (ts+src+dst+signature+severity) so as
+            # NOT to collapse distinct events that share the same signature.
             key = r.get("alert_id") or r.get("_id") or self._event_key(
                 ts, src, dst, name, severity
             )
@@ -201,11 +201,12 @@ class OpnsenseClient:
         return out
 
     async def get_dns_events(self, since: datetime | None = None) -> list[dict]:
-        """Query DNS (Unbound) normalizzate → "siti visitati".
+        """Normalized DNS queries (Unbound) → "visited sites".
 
-        NOTA: endpoint `unbound/diagnostics/queries` e formato del payload DA VERIFICARE
-        su un OPNsense reale — è la sorgente più incerta (vedi debito 3A). Difensivo verso
-        varianti di chiave. `since` è un hint: filtro fine e dedup avvengono a valle.
+        NOTE: the `unbound/diagnostics/queries` endpoint and the payload format are TO BE
+        VERIFIED against a real OPNsense — it is the most uncertain source (see debt 3A).
+        Defensive toward key variants. `since` is a hint: fine filtering and dedup happen
+        downstream.
         """
         data = await self._get("unbound/diagnostics/queries")
         out: list[dict] = []
@@ -214,7 +215,7 @@ class OpnsenseClient:
             client_ip = r.get("client") or r.get("client_ip") or ""
             domain = r.get("domain") or r.get("query") or r.get("name") or ""
             action = r.get("action", "")  # allowed | blocked
-            # event_key discriminante: id stabile se presente, altrimenti hash del contenuto.
+            # discriminating event_key: stable id if present, otherwise a hash of the content.
             key = r.get("query_id") or r.get("id") or r.get("_id") or self._event_key(
                 ts, client_ip, domain, action
             )
@@ -233,7 +234,7 @@ class OpnsenseClient:
 
     @staticmethod
     def _parse_ts(value) -> datetime:
-        """Ritorna sempre un datetime tz-aware (naive -> UTC; non-parsabile -> now UTC)."""
+        """Always returns a tz-aware datetime (naive -> UTC; unparsable -> now UTC)."""
         if isinstance(value, datetime):
             return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
         try:
@@ -244,17 +245,17 @@ class OpnsenseClient:
 
     @staticmethod
     def _event_key(ts, *parts) -> str:
-        """Hash discriminante del contenuto dell'evento (id sorgente assente)."""
+        """Discriminating hash of the event content (no source id available)."""
         h = hashlib.sha1("|".join([ts.isoformat(), *[str(p) for p in parts]]).encode())
         return h.hexdigest()
 
     async def test_connection(self) -> str | None:
-        """Verifica raggiungibilità+credenziali; ritorna la versione firmware o None.
+        """Verify reachability+credentials; returns the firmware version or None.
 
-        Solleva AuthError/ReachabilityError/ApiError/ParseError in caso di problemi.
+        Raises AuthError/ReachabilityError/ApiError/ParseError on problems.
         """
         data = await self.get_firmware_status()
-        # Campo DA VERIFICARE su un OPNsense reale (nome esatto può differire).
+        # Field TO BE VERIFIED against a real OPNsense (the exact name may differ).
         version = data.get("product_version")
         if version is None and isinstance(data.get("product"), dict):
             version = data["product"].get("product_version")

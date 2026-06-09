@@ -23,7 +23,7 @@ describe("AppShell", () => {
       http.get("/api/me/tenants", () =>
         HttpResponse.json([{ id: "t1", name: "Alpha", slug: "alpha", role: "operator" }]),
       ),
-      // La landing route "/" ora monta OverviewPage, che interroga /health e /alerts.
+      // The landing route "/" now mounts OverviewPage, which queries /health and /alerts.
       http.get("/api/tenants/t1/health", () =>
         HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
       ),

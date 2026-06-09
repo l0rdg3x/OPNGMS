@@ -47,27 +47,27 @@ async def _make_device(app_role_api_client, tid, name):
 
 
 async def test_metrics_and_alerts_isolated_via_api(app_role_api_client, db_engine):
-    """Isolamento monitoraggio end-to-end, su tre livelli di prova:
+    """End-to-end monitoring isolation, across three levels of proof:
 
-    (a) Comportamento via API (difesa-in-profondità: gli endpoint/repository applicano
-        un filtro applicativo esplicito ``WHERE tenant_id = <tenant del path>`` *e* la
-        RLS gira sotto). A vede i propri dati, B i propri.
-    (b) ``opngms_app`` reale legge i propri chunk dell'hypertable Timescale attraverso
-        l'API (propagazione dei grant): asserzione positiva ``value == 11.0``.
-    (c) E' la RLS — non il filtro applicativo — a isolare cross-tenant: a fondo test una
-        query RAW *senza* ``WHERE tenant_id``, eseguita come ruolo reale ``opngms_app``
-        con contesto sul tenant A, vede solo le righe di A. Senza il filtro applicativo
-        l'unica difesa rimasta e' la RLS, quindi questa asserzione fallirebbe se la RLS
-        fosse disattivata (non e' tautologica).
+    (a) Behavior via the API (defense-in-depth: the endpoints/repositories apply
+        an explicit application filter ``WHERE tenant_id = <tenant from the path>`` *and*
+        RLS runs underneath). A sees its own data, B sees its own.
+    (b) The real ``opngms_app`` reads its own Timescale hypertable chunks through
+        the API (grant propagation): positive assertion ``value == 11.0``.
+    (c) It is RLS — not the application filter — that isolates cross-tenant: at the end of
+        the test a RAW query *without* ``WHERE tenant_id``, run as the real ``opngms_app``
+        role with context on tenant A, sees only A's rows. Without the application filter
+        the only remaining defense is RLS, so this assertion would fail if RLS were
+        disabled (it is not tautological).
 
-    La prova RLS pura a livello SQL e' anche in
+    The pure SQL-level RLS proof is also in
     ``tests/test_rls_isolation.py::test_metrics_alerts_isolated_cross_tenant``.
     """
     ta, tb = await _setup(app_role_api_client, db_engine)
     dev_a = await _make_device(app_role_api_client, ta, "fw-a")
     dev_b = await _make_device(app_role_api_client, tb, "fw-b")
 
-    # inietta dati come owner (bypassa RLS) per entrambi
+    # inject data as owner (bypasses RLS) for both
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         for tid, did, val in ((ta, dev_a, 11.0), (tb, dev_b, 22.0)):
@@ -87,17 +87,17 @@ async def test_metrics_and_alerts_isolated_via_api(app_role_api_client, db_engin
             )
         await s.commit()
 
-    # opngms_app reale legge i propri chunk dell'hypertable Timescale attraverso l'API:
-    # asserzione POSITIVA -> prova la propagazione dei grant ai chunk (non e' tautologica).
+    # real opngms_app reads its own Timescale hypertable chunks through the API:
+    # POSITIVE assertion -> proves grant propagation to the chunks (it is not tautological).
     ra = await app_role_api_client.get(
         f"/api/tenants/{ta}/devices/{dev_a}/metrics", params={"metric": "cpu.load"}
     )
     assert ra.json()["points"][0]["value"] == 11.0
-    # I dati di B sul device di B, interrogati nel contesto di A -> nessun punto.
-    # NB: qui isola gia' il filtro applicativo WHERE tenant_id dell'endpoint, quindi questa
-    # asserzione negativa NON distingue "RLS attiva" da "solo filtro applicativo": e' un
-    # test di comportamento (difesa-in-profondita'). La prova che e' la RLS a isolare e'
-    # la query RAW a fondo test.
+    # B's data on B's device, queried in A's context -> no point.
+    # NB: here the endpoint's application filter WHERE tenant_id already isolates, so this
+    # negative assertion does NOT distinguish "RLS active" from "application filter only": it is a
+    # behavior test (defense-in-depth). The proof that it is RLS that isolates is
+    # the RAW query at the end of the test.
     cross = await app_role_api_client.get(
         f"/api/tenants/{ta}/devices/{dev_b}/metrics", params={"metric": "cpu.load"}
     )
@@ -112,14 +112,14 @@ async def test_metrics_and_alerts_isolated_via_api(app_role_api_client, db_engin
     assert ha.json()["total_devices"] == 1
     assert ha.json()["active_alerts"] == 1
 
-    # Prova che e' la RLS (non il filtro applicativo) a isolare cross-tenant.
-    # Sessione DIRETTA come ruolo reale opngms_app (NON via API, NON come owner),
-    # contesto sul tenant A, query RAW SENZA WHERE tenant_id: l'unica difesa rimasta
-    # e' la RLS. Deve vedere SOLO le righe di A -> fallirebbe se la RLS fosse spenta.
+    # Proof that it is RLS (not the application filter) that isolates cross-tenant.
+    # DIRECT session as the real opngms_app role (NOT via the API, NOT as owner),
+    # context on tenant A, RAW query WITHOUT WHERE tenant_id: the only remaining defense
+    # is RLS. It must see ONLY A's rows -> it would fail if RLS were off.
     app_url = make_url(os.environ["TEST_DATABASE_URL"]).set(
         username=APP_ROLE, password=APP_ROLE_PASSWORD
     )
-    assert app_url.username == APP_ROLE  # fail loudly se il ruolo non e' stato applicato
+    assert app_url.username == APP_ROLE  # fail loudly if the role was not applied
     engine = make_engine(app_url.render_as_string(hide_password=False))
     try:
         factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -128,10 +128,10 @@ async def test_metrics_and_alerts_isolated_via_api(app_role_api_client, db_engin
             vals = (
                 await s.execute(text("SELECT value FROM metrics ORDER BY value"))
             ).scalars().all()
-            assert vals == [11.0]  # NON [11.0, 22.0]: senza filtro applicativo e' la RLS a escludere B
+            assert vals == [11.0]  # NOT [11.0, 22.0]: without the application filter it is RLS that excludes B
             n_alerts = (
                 await s.execute(text("SELECT count(*) FROM alerts"))
             ).scalar_one()
-            assert n_alerts == 1  # solo l'alert di A
+            assert n_alerts == 1  # only A's alert
     finally:
         await engine.dispose()

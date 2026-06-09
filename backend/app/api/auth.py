@@ -25,7 +25,7 @@ async def login(
     user = await svc.authenticate(payload.email, payload.password)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenziali non valide"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
     settings = get_settings()
     sess = await svc.create_session(user, settings.session_ttl_hours)

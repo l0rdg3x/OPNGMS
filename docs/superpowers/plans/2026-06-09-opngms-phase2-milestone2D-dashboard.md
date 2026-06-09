@@ -1,61 +1,61 @@
-# OPNGMS — Fase 2 / Milestone 2D: Dashboard Frontend — Piano di Implementazione
+# OPNGMS — Phase 2 / Milestone 2D: Dashboard Frontend — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Una dashboard di monitoraggio (React/Mantine) che consuma gli endpoint 2C (`/metrics`, `/health`, `/alerts`): overview di flotta per-cliente, salute per-device con grafici, e una pagina alert con filtro attivi/storico.
+**Goal:** A monitoring dashboard (React/Mantine) that consumes the 2C endpoints (`/metrics`, `/health`, `/alerts`): per-customer fleet overview, per-device health with charts, and an alerts page with active/historical filter.
 
-**Architecture:** Estende il frontend di Milestone D (Vite + React 19 + Mantine v9 + React Router + TanStack Query + client `openapi-fetch` tipizzato). Aggiunge un feature-folder `src/monitoring/` (hook per-endpoint, util time-range, componenti grafico/card) e tre pagine (Overview nuova come landing, DeviceDetail estesa, Alerts nuova), con il routing riorganizzato. Grafici via `@mantine/charts` (su Recharts). Test Vitest + RTL + MSW.
+**Architecture:** Extends the Milestone D frontend (Vite + React 19 + Mantine v9 + React Router + TanStack Query + typed `openapi-fetch` client). Adds a feature folder `src/monitoring/` (per-endpoint hooks, time-range utils, chart/card components) and three pages (new Overview as landing, extended DeviceDetail, new Alerts), with reorganised routing. Charts via `@mantine/charts` (on Recharts). Tests Vitest + RTL + MSW.
 
-**Tech Stack:** React 19, Mantine v9 (`@mantine/core` + nuovo `@mantine/charts`), `recharts`, TanStack Query v5, React Router v7, `openapi-fetch`, Vitest + Testing Library + MSW.
+**Tech Stack:** React 19, Mantine v9 (`@mantine/core` + new `@mantine/charts`), `recharts`, TanStack Query v5, React Router v7, `openapi-fetch`, Vitest + Testing Library + MSW.
 
 ---
 
-## Contesto per l'implementatore (leggere prima di iniziare)
+## Context for the implementer (read before starting)
 
-Codebase frontend esistente in `/home/l0rdg3x/coding/OPNGMS/frontend`. **Segui i pattern esistenti.**
+Existing frontend codebase at `/home/l0rdg3x/coding/OPNGMS/frontend`. **Follow existing patterns.**
 
-- **Client API tipizzato** (`src/api/client.ts`): singleton `api` (`openapi-fetch`), già con CSRF middleware e `credentials:include`. Uso: `api.GET("/api/tenants/{tenant_id}/...", { params: { path: {...}, query: {...} } })` → ritorna `{ data, error }`. I tipi vengono da `src/api/schema.d.ts` (**da rigenerare**, Task 1).
-- **Tenant context** (`src/tenant/TenantProvider.tsx`, `useTenant.ts`): `useTenant()` → `{ tenants, activeId, setActiveId, loading }`. `activeId` è il tenant corrente (string|null). Gli hook dati devono essere `enabled: !!activeId`.
-- **Pattern query** (vedi `src/pages/DeviceDetailPage.tsx`): `useQuery({ queryKey: ["device", activeId, deviceId], enabled: !!activeId && !!deviceId, queryFn: async () => { const {data} = await api.GET(...); return data; } })`.
-- **AppShell** (`src/components/AppShell.tsx`): header (TenantSwitcher + logout) + navbar (oggi un solo `NavLink` "Device" → `/`) + `<Routes>` dentro `MantineAppShell.Main`. Oggi: `/`=`DevicesPage`, `/devices/:deviceId`=`DeviceDetailPage`.
-- **Test** (`src/test/utils.tsx`): `renderWithProviders(ui, { route })` avvolge in `MantineProvider` + `QueryClientProvider` (retry:false) + `MemoryRouter`. Il tenant si inietta avvolgendo in `<TenantContext.Provider value={{tenants, activeId, setActiveId, loading}}>` (vedi `src/pages/__tests__/devicedetail.test.tsx`, helper `withTenant`). MSW: `server.use(http.get("/api/tenants/t1/...", () => HttpResponse.json(...)))`. **`onUnhandledRequest: "error"`** (`src/test/setup.ts`): ogni endpoint chiamato da una pagina DEVE essere mockato, altrimenti il test fallisce.
-- **CSS Mantine** importati in `src/main.tsx`: va aggiunto `import "@mantine/charts/styles.css"`.
+- **Typed API client** (`src/api/client.ts`): singleton `api` (`openapi-fetch`), already with CSRF middleware and `credentials:include`. Usage: `api.GET("/api/tenants/{tenant_id}/...", { params: { path: {...}, query: {...} } })` → returns `{ data, error }`. Types come from `src/api/schema.d.ts` (**must be regenerated**, Task 1).
+- **Tenant context** (`src/tenant/TenantProvider.tsx`, `useTenant.ts`): `useTenant()` → `{ tenants, activeId, setActiveId, loading }`. `activeId` is the current tenant (string|null). Data hooks must be `enabled: !!activeId`.
+- **Query pattern** (see `src/pages/DeviceDetailPage.tsx`): `useQuery({ queryKey: ["device", activeId, deviceId], enabled: !!activeId && !!deviceId, queryFn: async () => { const {data} = await api.GET(...); return data; } })`.
+- **AppShell** (`src/components/AppShell.tsx`): header (TenantSwitcher + logout) + navbar (currently a single `NavLink` "Devices" → `/`) + `<Routes>` inside `MantineAppShell.Main`. Currently: `/`=`DevicesPage`, `/devices/:deviceId`=`DeviceDetailPage`.
+- **Tests** (`src/test/utils.tsx`): `renderWithProviders(ui, { route })` wraps in `MantineProvider` + `QueryClientProvider` (retry:false) + `MemoryRouter`. The tenant is injected by wrapping in `<TenantContext.Provider value={{tenants, activeId, setActiveId, loading}}>` (see `src/pages/__tests__/devicedetail.test.tsx`, helper `withTenant`). MSW: `server.use(http.get("/api/tenants/t1/...", () => HttpResponse.json(...)))`. **`onUnhandledRequest: "error"`** (`src/test/setup.ts`): every endpoint called by a page MUST be mocked, otherwise the test fails.
+- **Mantine CSS** imported in `src/main.tsx`: `import "@mantine/charts/styles.css"` must be added.
 
-**Comandi** (dalla dir `frontend/`):
-- Test: `npm test` (vitest run). Oggi i test esistenti sono verdi.
-- Lint/typecheck: `npm run lint` ed `npm run build` (`tsc -b && vite build`).
-- Rigenerazione tipi API: `npm run gen:api` — **richiede le env del backend** (importa `app.main`): eseguire come
+**Commands** (from `frontend/` dir):
+- Test: `npm test` (vitest run). Existing tests are currently green.
+- Lint/typecheck: `npm run lint` and `npm run build` (`tsc -b && vite build`).
+- API type regeneration: `npm run gen:api` — **requires backend env vars** (imports `app.main`): run as
   `SESSION_SECRET=x MASTER_KEY="$(cd ../backend && .venv/bin/python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms ADMIN_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms npm run gen:api`.
 
-**Nomi metrica** (confermati in `backend/app/services/monitoring.py`): `cpu.pct`, `mem.pct`, `disk.pct`, `uptime.seconds`, `iface.bytes_in`, `iface.bytes_out`, `iface.up`, `gateway.rtt_ms`, `gateway.loss_pct`, `gateway.up`, `vpn.up`.
+**Metric names** (confirmed in `backend/app/services/monitoring.py`): `cpu.pct`, `mem.pct`, `disk.pct`, `uptime.seconds`, `iface.bytes_in`, `iface.bytes_out`, `iface.up`, `gateway.rtt_ms`, `gateway.loss_pct`, `gateway.up`, `vpn.up`.
 
-**Strategia test grafici (importante):** Mantine Charts usa Recharts `ResponsiveContainer`, che in jsdom non ha dimensioni → non renderizza i path SVG in modo affidabile. Quindi: (1) la logica di trasformazione dati è una **funzione pura testata a parte**; (2) i test dei componenti grafico/pagina asseriscono **testo/strutture** (titoli, valori da `/health` e `/alerts`, empty-state), **non** i path SVG; (3) Task 1 aggiunge un mock di `ResizeObserver` in `setup.ts` come rete di sicurezza.
+**Chart testing strategy (important):** Mantine Charts uses Recharts `ResponsiveContainer`, which in jsdom has no dimensions → does not reliably render SVG paths. Therefore: (1) data transformation logic is a **pure function tested separately**; (2) chart/page component tests assert **text/structures** (titles, values from `/health` and `/alerts`, empty-state), **not** SVG paths; (3) Task 1 adds a `ResizeObserver` mock in `setup.ts` as a safety net.
 
 ---
 
 ## File Structure
 
-| File | Responsabilità | Azione |
+| File | Responsibility | Action |
 |------|----------------|--------|
-| `package.json` / lockfile | Aggiunge `@mantine/charts` + `recharts` | Modify (via npm i) |
-| `src/api/schema.d.ts` | Tipi rigenerati (include endpoint 2C) | Regen |
+| `package.json` / lockfile | Adds `@mantine/charts` + `recharts` | Modify (via npm i) |
+| `src/api/schema.d.ts` | Regenerated types (includes 2C endpoints) | Regen |
 | `src/main.tsx` | Import `@mantine/charts/styles.css` | Modify |
 | `src/test/setup.ts` | Mock `ResizeObserver` | Modify |
-| `src/monitoring/range.ts` | `rangeToParams(range, now)` (util pura) | Create |
-| `src/monitoring/types.ts` | Tipi locali (`MetricPoint`, `Range`) derivati dallo schema | Create |
+| `src/monitoring/range.ts` | `rangeToParams(range, now)` (pure util) | Create |
+| `src/monitoring/types.ts` | Local types (`MetricPoint`, `Range`) derived from schema | Create |
 | `src/monitoring/hooks.ts` | `useTenantHealth`, `useAlerts`, `useDeviceMetrics` | Create |
-| `src/monitoring/MetricChart.tsx` | Wrapper grafico + `toChartData` (puro) | Create |
-| `src/monitoring/HealthSummaryCards.tsx` | Card riepilogo da `/health` | Create |
-| `src/pages/OverviewPage.tsx` | Landing: health + alert attivi | Create |
-| `src/pages/AlertsPage.tsx` | Tabella alert + filtro attivi/storico | Create |
-| `src/pages/DeviceDetailPage.tsx` | + sezione salute (grafici + time-range) | Modify |
-| `src/components/AppShell.tsx` | Routing + navbar (Overview/Device/Alert) | Modify |
-| `src/monitoring/__tests__/*.test.tsx(ts)` | Test unità/componenti | Create |
-| `src/pages/__tests__/*.test.tsx` | Test pagine | Create |
+| `src/monitoring/MetricChart.tsx` | Chart wrapper + `toChartData` (pure) | Create |
+| `src/monitoring/HealthSummaryCards.tsx` | Summary cards from `/health` | Create |
+| `src/pages/OverviewPage.tsx` | Landing: health + active alerts | Create |
+| `src/pages/AlertsPage.tsx` | Alerts table + active/historical filter | Create |
+| `src/pages/DeviceDetailPage.tsx` | + health section (charts + time-range) | Modify |
+| `src/components/AppShell.tsx` | Routing + navbar (Overview/Devices/Alerts) | Modify |
+| `src/monitoring/__tests__/*.test.tsx(ts)` | Unit/component tests | Create |
+| `src/pages/__tests__/*.test.tsx` | Page tests | Create |
 
 ---
 
-## Task 1: Data layer (install grafici, schema, hook, util time-range, infra test)
+## Task 1: Data layer (install charts, schema, hooks, time-range util, test infra)
 
 **Files:**
 - Modify: `package.json` (npm i), `src/main.tsx`, `src/test/setup.ts`
@@ -63,15 +63,15 @@ Codebase frontend esistente in `/home/l0rdg3x/coding/OPNGMS/frontend`. **Segui i
 - Create: `src/monitoring/range.ts`, `src/monitoring/types.ts`, `src/monitoring/hooks.ts`
 - Create: `src/monitoring/__tests__/range.test.ts`
 
-- [ ] **Step 1: Installare la libreria grafici**
+- [ ] **Step 1: Install the chart library**
 
-Dalla dir `frontend/`:
+From `frontend/` dir:
 ```bash
 npm i @mantine/charts recharts
 ```
-Verifica che `@mantine/charts` e `recharts` compaiano in `package.json` → `dependencies`.
+Verify that `@mantine/charts` and `recharts` appear in `package.json` → `dependencies`.
 
-- [ ] **Step 2: Rigenerare i tipi API (include gli endpoint 2C)**
+- [ ] **Step 2: Regenerate API types (includes 2C endpoints)**
 
 ```bash
 SESSION_SECRET=x \
@@ -80,22 +80,22 @@ DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms \
 ADMIN_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms \
 npm run gen:api
 ```
-Verifica che `src/api/schema.d.ts` ora contenga i path `/api/tenants/{tenant_id}/devices/{device_id}/metrics`, `/api/tenants/{tenant_id}/health`, `/api/tenants/{tenant_id}/alerts` (es. `grep -c "/health" src/api/schema.d.ts`). Se il comando fallisce per env mancanti, aggiungi le env mancanti come per i test backend.
+Verify that `src/api/schema.d.ts` now contains the paths `/api/tenants/{tenant_id}/devices/{device_id}/metrics`, `/api/tenants/{tenant_id}/health`, `/api/tenants/{tenant_id}/alerts` (e.g. `grep -c "/health" src/api/schema.d.ts`). If the command fails due to missing env vars, add them as for the backend tests.
 
-- [ ] **Step 3: Importare il CSS dei grafici**
+- [ ] **Step 3: Import chart CSS**
 
-In `src/main.tsx`, dopo `import "@mantine/notifications/styles.css";` aggiungi:
+In `src/main.tsx`, after `import "@mantine/notifications/styles.css";` add:
 ```ts
 import "@mantine/charts/styles.css";
 ```
 
-- [ ] **Step 4: Aggiungere il mock di ResizeObserver ai test**
+- [ ] **Step 4: Add ResizeObserver mock to tests**
 
-In `src/test/setup.ts`, dopo il blocco `matchMedia`, aggiungi:
+In `src/test/setup.ts`, after the `matchMedia` block, add:
 ```ts
-// Recharts ResponsiveContainer (usato da @mantine/charts) osserva le dimensioni via
-// ResizeObserver, assente in jsdom. Mock no-op: i test dei grafici asseriscono dati/strutture,
-// non dimensioni.
+// Recharts ResponsiveContainer (used by @mantine/charts) observes dimensions via
+// ResizeObserver, which is absent in jsdom. No-op mock: chart tests assert data/structures,
+// not dimensions.
 class ResizeObserverMock {
   observe() {}
   unobserve() {}
@@ -104,9 +104,9 @@ class ResizeObserverMock {
 globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
 ```
 
-- [ ] **Step 5: Util time-range — scrivere il test (fallisce)**
+- [ ] **Step 5: Time-range util — write the failing test**
 
-Crea `src/monitoring/__tests__/range.test.ts`:
+Create `src/monitoring/__tests__/range.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
 import { rangeToParams } from "../range";
@@ -114,20 +114,20 @@ import { rangeToParams } from "../range";
 describe("rangeToParams", () => {
   const now = new Date("2026-06-09T12:00:00.000Z");
 
-  it("1h → finestra 1h, bucket 60s", () => {
+  it("1h → 1h window, bucket 60s", () => {
     const p = rangeToParams("1h", now);
     expect(p.to).toBe("2026-06-09T12:00:00.000Z");
     expect(p.from).toBe("2026-06-09T11:00:00.000Z");
     expect(p.bucket).toBe(60);
   });
 
-  it("24h → finestra 24h, bucket 300s", () => {
+  it("24h → 24h window, bucket 300s", () => {
     const p = rangeToParams("24h", now);
     expect(p.from).toBe("2026-06-08T12:00:00.000Z");
     expect(p.bucket).toBe(300);
   });
 
-  it("7d → finestra 7g, bucket 3600s", () => {
+  it("7d → 7-day window, bucket 3600s", () => {
     const p = rangeToParams("7d", now);
     expect(p.from).toBe("2026-06-02T12:00:00.000Z");
     expect(p.bucket).toBe(3600);
@@ -135,18 +135,18 @@ describe("rangeToParams", () => {
 });
 ```
 
-- [ ] **Step 6: Eseguire il test e verificarne il fallimento**
+- [ ] **Step 6: Run the test and verify it fails**
 
 Run: `npm test -- range`
-Expected: FAIL (modulo `../range` inesistente).
+Expected: FAIL (module `../range` does not exist).
 
-- [ ] **Step 7: Implementare util + tipi**
+- [ ] **Step 7: Implement util + types**
 
-Crea `src/monitoring/types.ts`:
+Create `src/monitoring/types.ts`:
 ```ts
 export type Range = "1h" | "24h" | "7d";
 
-// Forma di un punto serie come restituito da GET .../metrics (vedi MetricPoint backend).
+// Shape of a series point as returned by GET .../metrics (see MetricPoint backend).
 export interface MetricPoint {
   time: string;
   label: string;
@@ -154,7 +154,7 @@ export interface MetricPoint {
 }
 ```
 
-Crea `src/monitoring/range.ts`:
+Create `src/monitoring/range.ts`:
 ```ts
 import type { Range } from "./types";
 
@@ -167,8 +167,8 @@ export interface RangeParams {
   bucket: number;
 }
 
-/** Converte un preset di range nei query param dell'endpoint metriche.
- *  bucket scelto per restare sotto MAX_POINTS (5000) lato API e dare grafici lisci. */
+/** Converts a range preset to query params for the metrics endpoint.
+ *  Bucket chosen to stay under MAX_POINTS (5000) on the API side and produce smooth charts. */
 export function rangeToParams(range: Range, now: Date): RangeParams {
   const to = now;
   const from = new Date(now.getTime() - SPAN_SECONDS[range] * 1000);
@@ -176,14 +176,14 @@ export function rangeToParams(range: Range, now: Date): RangeParams {
 }
 ```
 
-- [ ] **Step 8: Eseguire il test e verificarne il passaggio**
+- [ ] **Step 8: Run the test and verify it passes**
 
 Run: `npm test -- range`
 Expected: PASS (3/3).
 
-- [ ] **Step 9: Implementare gli hook dati**
+- [ ] **Step 9: Implement data hooks**
 
-Crea `src/monitoring/hooks.ts`:
+Create `src/monitoring/hooks.ts`:
 ```ts
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
@@ -240,30 +240,30 @@ export function useDeviceMetrics(deviceId: string | undefined, metric: string, r
   });
 }
 ```
-**Nota:** i nomi esatti dei query param (`from`/`to`/`bucket`/`active`) e i tipi vengono da `schema.d.ts` rigenerato. Se TypeScript segnala un mismatch sul nome di un parametro, allinea al nome reale nello schema (l'endpoint backend usa alias `from`/`bucket`). Esegui `npm run build` per il typecheck.
+**Note:** the exact query param names (`from`/`to`/`bucket`/`active`) and types come from the regenerated `schema.d.ts`. If TypeScript reports a mismatch on a parameter name, align to the real name in the schema (the backend endpoint uses aliases `from`/`bucket`). Run `npm run build` for the typecheck.
 
 - [ ] **Step 10: Typecheck + suite**
 
-Run: `npm run build` (tsc) — nessun errore di tipo sugli hook.
-Run: `npm test` — tutti i test verdi (esistenti + `range`).
+Run: `npm run build` (tsc) — no type errors on the hooks.
+Run: `npm test` — all tests green (existing + `range`).
 
 - [ ] **Step 11: Commit**
 ```bash
 git add package.json package-lock.json src/main.tsx src/test/setup.ts src/api/schema.d.ts src/monitoring/
-git commit -m "feat(fe): data layer 2D (charts install, schema 2C, hook metriche/health/alert, range util)"
+git commit -m "feat(fe): data layer 2D (charts install, 2C schema, metrics/health/alerts hooks, range util)"
 ```
 
 ---
 
-## Task 2: Componenti base — `MetricChart` + `HealthSummaryCards`
+## Task 2: Base components — `MetricChart` + `HealthSummaryCards`
 
 **Files:**
 - Create: `src/monitoring/MetricChart.tsx`, `src/monitoring/HealthSummaryCards.tsx`
 - Create: `src/monitoring/__tests__/metricchart.test.tsx`, `src/monitoring/__tests__/healthcards.test.tsx`
 
-- [ ] **Step 1: Test di `toChartData` + smoke di `MetricChart` (fallisce)**
+- [ ] **Step 1: `toChartData` test + `MetricChart` smoke test (failing)**
 
-Crea `src/monitoring/__tests__/metricchart.test.tsx`:
+Create `src/monitoring/__tests__/metricchart.test.tsx`:
 ```tsx
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -277,7 +277,7 @@ const points: MetricPoint[] = [
 ];
 
 describe("toChartData", () => {
-  it("raggruppa per timestamp con una serie per label", () => {
+  it("groups by timestamp with one series per label", () => {
     const multi: MetricPoint[] = [
       { time: "t1", label: "igb0", value: 1 },
       { time: "t1", label: "igb1", value: 2 },
@@ -291,14 +291,14 @@ describe("toChartData", () => {
     ]);
   });
 
-  it("label vuota → serie 'value'", () => {
+  it("empty label → series 'value'", () => {
     const { series } = toChartData(points);
     expect(series).toEqual(["value"]);
   });
 });
 
 describe("MetricChart", () => {
-  it("mostra il titolo e non crasha con dati", () => {
+  it("shows the title and does not crash with data", () => {
     render(
       <MantineProvider>
         <MetricChart title="CPU %" points={points} />
@@ -307,25 +307,25 @@ describe("MetricChart", () => {
     expect(screen.getByText("CPU %")).toBeInTheDocument();
   });
 
-  it("mostra empty-state senza dati", () => {
+  it("shows empty-state with no data", () => {
     render(
       <MantineProvider>
         <MetricChart title="CPU %" points={[]} />
       </MantineProvider>,
     );
-    expect(screen.getByText(/nessun dato/i)).toBeInTheDocument();
+    expect(screen.getByText(/no data/i)).toBeInTheDocument();
   });
 });
 ```
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
 Run: `npm test -- metricchart`
-Expected: FAIL (modulo inesistente).
+Expected: FAIL (module does not exist).
 
-- [ ] **Step 3: Implementare `MetricChart`**
+- [ ] **Step 3: Implement `MetricChart`**
 
-Crea `src/monitoring/MetricChart.tsx`:
+Create `src/monitoring/MetricChart.tsx`:
 ```tsx
 import { Card, Text } from "@mantine/core";
 import { LineChart } from "@mantine/charts";
@@ -336,8 +336,8 @@ export interface ChartData {
   series: string[];
 }
 
-/** Trasforma punti {time,label,value} in righe per timestamp con una colonna per label.
- *  Label vuota ('') → colonna 'value'. Funzione pura, testata a parte. */
+/** Transforms {time,label,value} points into rows by timestamp with one column per label.
+ *  Empty label ('') → column 'value'. Pure function, tested separately. */
 export function toChartData(points: MetricPoint[]): ChartData {
   const seriesSet: string[] = [];
   const byTime = new Map<string, Record<string, number | string>>();
@@ -374,7 +374,7 @@ export function MetricChart({
       </Text>
       {data.length === 0 ? (
         <Text c="dimmed" size="sm">
-          Nessun dato ancora
+          No data yet
         </Text>
       ) : (
         <LineChart
@@ -392,14 +392,14 @@ export function MetricChart({
 }
 ```
 
-- [ ] **Step 4: Eseguire e verificare il passaggio**
+- [ ] **Step 4: Run and verify the pass**
 
 Run: `npm test -- metricchart`
-Expected: PASS. (Se `LineChart` lancia in jsdom nonostante il mock di ResizeObserver, avvolgi il render del grafico in modo che l'empty-path resti testabile; ma con il mock di Step 1.4 il render non deve crashare — asseriamo solo il titolo, non i path SVG.)
+Expected: PASS. (If `LineChart` throws in jsdom despite the ResizeObserver mock, wrap the chart render so the empty path remains testable; but with the mock from Step 1.4 the render should not crash — we only assert the title, not SVG paths.)
 
-- [ ] **Step 5: Test `HealthSummaryCards` (fallisce)**
+- [ ] **Step 5: `HealthSummaryCards` test (failing)**
 
-Crea `src/monitoring/__tests__/healthcards.test.tsx`:
+Create `src/monitoring/__tests__/healthcards.test.tsx`:
 ```tsx
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -407,7 +407,7 @@ import { MantineProvider } from "@mantine/core";
 import { HealthSummaryCards } from "../HealthSummaryCards";
 
 describe("HealthSummaryCards", () => {
-  it("mostra totale device, conteggi per stato e alert attivi", () => {
+  it("shows total devices, per-status counts, and active alerts", () => {
     render(
       <MantineProvider>
         <HealthSummaryCards
@@ -415,20 +415,20 @@ describe("HealthSummaryCards", () => {
         />
       </MantineProvider>,
     );
-    expect(screen.getByText("3")).toBeInTheDocument(); // totale
+    expect(screen.getByText("3")).toBeInTheDocument(); // total
     expect(screen.getByText(/reachable/i)).toBeInTheDocument();
-    expect(screen.getByText("4")).toBeInTheDocument(); // alert attivi
+    expect(screen.getByText("4")).toBeInTheDocument(); // active alerts
   });
 });
 ```
 
-- [ ] **Step 6: Eseguire e verificare il fallimento**
+- [ ] **Step 6: Run and verify the failure**
 
 Run: `npm test -- healthcards` → FAIL.
 
-- [ ] **Step 7: Implementare `HealthSummaryCards`**
+- [ ] **Step 7: Implement `HealthSummaryCards`**
 
-Crea `src/monitoring/HealthSummaryCards.tsx`:
+Create `src/monitoring/HealthSummaryCards.tsx`:
 ```tsx
 import { Card, Group, SimpleGrid, Text, Title } from "@mantine/core";
 
@@ -442,7 +442,7 @@ export function HealthSummaryCards({ health }: { health: FleetHealth }) {
   return (
     <SimpleGrid cols={{ base: 1, sm: 3 }}>
       <Card withBorder>
-        <Text size="sm" c="dimmed">Device totali</Text>
+        <Text size="sm" c="dimmed">Total devices</Text>
         <Title order={2}>{health.total_devices}</Title>
         <Group gap="xs" mt="xs">
           {Object.entries(health.by_status).map(([status, count]) => (
@@ -453,7 +453,7 @@ export function HealthSummaryCards({ health }: { health: FleetHealth }) {
         </Group>
       </Card>
       <Card withBorder>
-        <Text size="sm" c="dimmed">Alert attivi</Text>
+        <Text size="sm" c="dimmed">Active alerts</Text>
         <Title order={2}>{health.active_alerts}</Title>
       </Card>
     </SimpleGrid>
@@ -461,27 +461,27 @@ export function HealthSummaryCards({ health }: { health: FleetHealth }) {
 }
 ```
 
-- [ ] **Step 8: Eseguire e verificare il passaggio**
+- [ ] **Step 8: Run and verify the pass**
 
-Run: `npm test -- healthcards` → PASS. Poi `npm test` intero → verde.
+Run: `npm test -- healthcards` → PASS. Then `npm test` full suite → green.
 
 - [ ] **Step 9: Commit**
 ```bash
 git add src/monitoring/MetricChart.tsx src/monitoring/HealthSummaryCards.tsx src/monitoring/__tests__/
-git commit -m "feat(fe): componenti MetricChart (+ toChartData) e HealthSummaryCards"
+git commit -m "feat(fe): MetricChart (+ toChartData) and HealthSummaryCards components"
 ```
 
 ---
 
-## Task 3: `OverviewPage` + riorganizzazione routing/navbar
+## Task 3: `OverviewPage` + routing/navbar reorganisation
 
 **Files:**
 - Create: `src/pages/OverviewPage.tsx`, `src/pages/__tests__/overview.test.tsx`
 - Modify: `src/components/AppShell.tsx`
 
-- [ ] **Step 1: Test `OverviewPage` (fallisce)**
+- [ ] **Step 1: `OverviewPage` test (failing)**
 
-Crea `src/pages/__tests__/overview.test.tsx`:
+Create `src/pages/__tests__/overview.test.tsx`:
 ```tsx
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
@@ -508,7 +508,7 @@ function withTenant(node: ReactNode) {
 }
 
 describe("OverviewPage", () => {
-  it("mostra health e alert attivi", async () => {
+  it("shows health and active alerts", async () => {
     server.use(
       http.get("/api/tenants/t1/health", () =>
         HttpResponse.json({ total_devices: 2, by_status: { reachable: 2 }, active_alerts: 1 }),
@@ -527,7 +527,7 @@ describe("OverviewPage", () => {
     expect(await screen.findByText(/device\.down/)).toBeInTheDocument();
   });
 
-  it("empty-state senza alert attivi", async () => {
+  it("empty-state with no active alerts", async () => {
     server.use(
       http.get("/api/tenants/t1/health", () =>
         HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
@@ -535,18 +535,18 @@ describe("OverviewPage", () => {
       http.get("/api/tenants/t1/alerts", () => HttpResponse.json([])),
     );
     renderWithProviders(withTenant(<OverviewPage />));
-    expect(await screen.findByText(/nessun alert attivo/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no active alerts/i)).toBeInTheDocument();
   });
 });
 ```
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
 Run: `npm test -- overview` → FAIL.
 
-- [ ] **Step 3: Implementare `OverviewPage`**
+- [ ] **Step 3: Implement `OverviewPage`**
 
-Crea `src/pages/OverviewPage.tsx`:
+Create `src/pages/OverviewPage.tsx`:
 ```tsx
 import { Alert, Badge, Loader, Stack, Table, Text, Title } from "@mantine/core";
 import { Link } from "react-router-dom";
@@ -561,22 +561,22 @@ export function OverviewPage() {
     <Stack>
       <Title order={3}>Overview</Title>
       {health.isLoading && <Loader />}
-      {health.error && <Alert color="red">Errore nel caricamento della salute flotta</Alert>}
+      {health.error && <Alert color="red">Error loading fleet health</Alert>}
       {health.data && <HealthSummaryCards health={health.data as FleetHealth} />}
 
-      <Title order={4} mt="md">Alert attivi</Title>
+      <Title order={4} mt="md">Active alerts</Title>
       {alerts.isLoading && <Loader />}
       {alerts.data && alerts.data.length === 0 && (
-        <Text c="dimmed">Nessun alert attivo</Text>
+        <Text c="dimmed">No active alerts</Text>
       )}
       {alerts.data && alerts.data.length > 0 && (
         <Table striped withTableBorder>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Tipo</Table.Th>
-              <Table.Th>Etichetta</Table.Th>
-              <Table.Th>Severità</Table.Th>
-              <Table.Th>Aperto</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Label</Table.Th>
+              <Table.Th>Severity</Table.Th>
+              <Table.Th>Opened</Table.Th>
               <Table.Th>Device</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -597,27 +597,27 @@ export function OverviewPage() {
   );
 }
 ```
-**Nota tipi:** `alerts.data`/`health.data` sono tipizzati dallo schema generato. Se i tipi generati differiscono (es. `details` opzionale), adatta gli accessi; non usare `any` se evitabile (i cast `as FleetHealth` sono ammessi dove lo schema è più largo).
+**Type note:** `alerts.data`/`health.data` are typed by the generated schema. If the generated types differ (e.g. `details` optional), adapt the accesses; avoid `any` where possible (`as FleetHealth` casts are acceptable where the schema is wider).
 
-- [ ] **Step 4: Eseguire e verificare il passaggio**
+- [ ] **Step 4: Run and verify the pass**
 
 Run: `npm test -- overview` → PASS (2/2).
 
-- [ ] **Step 5: Riorganizzare routing + navbar in `AppShell`**
+- [ ] **Step 5: Reorganise routing + navbar in `AppShell`**
 
 In `src/components/AppShell.tsx`:
-- import `OverviewPage` e `AlertsPage` (quest'ultima creata nel Task 5; per ora, se AlertsPage non esiste ancora, NON importarla — aggiungi la sua rotta nel Task 5. In questo task aggiungi solo Overview + sposta Devices).
-- import aggiuntivi: `OverviewPage` da `../pages/OverviewPage`.
+- import `OverviewPage` and `AlertsPage` (the latter created in Task 5; if AlertsPage does not exist yet, do NOT import it — add its route in Task 5. In this task add only Overview + move Devices).
+- Additional imports: `OverviewPage` from `../pages/OverviewPage`.
 
-Sostituisci il blocco navbar:
+Replace the navbar block:
 ```tsx
 <MantineAppShell.Navbar p="sm">
   <NavLink component={RouterNavLink} to="/" label="Overview" />
-  <NavLink component={RouterNavLink} to="/devices" label="Device" />
-  <NavLink component={RouterNavLink} to="/alerts" label="Alert" />
+  <NavLink component={RouterNavLink} to="/devices" label="Devices" />
+  <NavLink component={RouterNavLink} to="/alerts" label="Alerts" />
 </MantineAppShell.Navbar>
 ```
-e il blocco Routes:
+and the Routes block:
 ```tsx
 <Routes>
   <Route path="/" element={<OverviewPage />} />
@@ -625,39 +625,39 @@ e il blocco Routes:
   <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
 </Routes>
 ```
-(La rotta `/alerts` viene aggiunta nel Task 5.)
+(The `/alerts` route is added in Task 5.)
 
-**Aggiorna i link interni** che puntavano a `/` per la lista device: cerca `to="/"`/`navigate("/")` nei componenti/pagine (es. dopo creazione/eliminazione device) e reindirizza a `/devices` dove il senso era "torna alla lista device". Esegui:
+**Update internal links** that pointed to `/` for the device list: search for `to="/"` / `navigate("/")` in components/pages (e.g. after device creation/deletion) and redirect to `/devices` where the intent was "go back to device list". Run:
 ```bash
 grep -rn '"/"' src --include=*.tsx | grep -v OverviewPage
 ```
-e correggi i casi che intendevano la lista device (es. in `DeviceActions`/`DevicesPage`/test di delete che si aspettano "home"). Aggiorna i test impattati di conseguenza (es. `devicedetail.test.tsx` delete → la rotta di ritorno).
+and fix cases that meant the device list (e.g. in `DeviceActions`/`DevicesPage`/delete tests that expect "home"). Update impacted tests accordingly (e.g. `devicedetail.test.tsx` delete → the return route).
 
-- [ ] **Step 6: Typecheck + suite intera**
+- [ ] **Step 6: Typecheck + full suite**
 
-Run: `npm run build` → nessun errore.
-Run: `npm test` → tutti verdi (aggiorna eventuali test che dipendevano da `/`=Devices).
+Run: `npm run build` → no errors.
+Run: `npm test` → all green (update any tests that depended on `/`=Devices).
 
 - [ ] **Step 7: Commit**
 ```bash
 git add src/pages/OverviewPage.tsx src/pages/__tests__/overview.test.tsx src/components/AppShell.tsx
-git commit -m "feat(fe): OverviewPage (health + alert attivi) + routing/navbar riorganizzati"
+git commit -m "feat(fe): OverviewPage (health + active alerts) + reorganised routing/navbar"
 ```
 
 ---
 
-## Task 4: `DeviceDetailPage` esteso — sezione salute con grafici
+## Task 4: Extended `DeviceDetailPage` — health section with charts
 
 **Files:**
 - Modify: `src/pages/DeviceDetailPage.tsx`
 - Create: `src/monitoring/DeviceHealthSection.tsx`
-- Modify/Create: `src/pages/__tests__/devicedetail.test.tsx` (aggiungere test salute)
+- Modify/Create: `src/pages/__tests__/devicedetail.test.tsx` (add health tests)
 
-- [ ] **Step 1: Test della sezione salute (fallisce)**
+- [ ] **Step 1: Health section test (failing)**
 
-Aggiungi a `src/pages/__tests__/devicedetail.test.tsx` un nuovo test (mantieni quelli esistenti). Mocka l'endpoint metriche con un handler che ispeziona il query param `metric` e ritorna una serie; mocka anche il GET device:
+Add a new test to `src/pages/__tests__/devicedetail.test.tsx` (keep existing ones). Mock the metrics endpoint with a handler that inspects the `metric` query param and returns a series; also mock the GET device:
 ```tsx
-it("mostra la sezione salute con grafici e selettore range", async () => {
+it("shows the health section with charts and range selector", async () => {
   server.use(
     http.get("/api/tenants/t1/devices/d1", () => HttpResponse.json(device)),
     http.get("/api/tenants/t1/devices/d1/metrics", ({ request }) => {
@@ -681,22 +681,22 @@ it("mostra la sezione salute con grafici e selettore range", async () => {
     ),
     { route: "/devices/d1" },
   );
-  // i titoli dei grafici della sezione salute compaiono
+  // chart section titles appear
   expect(await screen.findByText(/CPU/i)).toBeInTheDocument();
-  expect(await screen.findByText(/Memoria/i)).toBeInTheDocument();
-  // selettore range presente
+  expect(await screen.findByText(/Memory/i)).toBeInTheDocument();
+  // range selector present
   expect(screen.getByRole("button", { name: "24h" })).toBeInTheDocument();
 });
 ```
-**Importante:** poiché `onUnhandledRequest:"error"`, l'handler unico su `/metrics` con ispezione del query param copre TUTTE le metriche richieste dalla sezione.
+**Important:** since `onUnhandledRequest:"error"`, the single `/metrics` handler with query param inspection covers ALL metrics requested by the section.
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
-Run: `npm test -- devicedetail` → FAIL (titoli salute assenti).
+Run: `npm test -- devicedetail` → FAIL (health section titles absent).
 
-- [ ] **Step 3: Implementare `DeviceHealthSection`**
+- [ ] **Step 3: Implement `DeviceHealthSection`**
 
-Crea `src/monitoring/DeviceHealthSection.tsx`:
+Create `src/monitoring/DeviceHealthSection.tsx`:
 ```tsx
 import { useState } from "react";
 import { Group, SegmentedControl, SimpleGrid, Stack, Title } from "@mantine/core";
@@ -717,7 +717,7 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={4}>Salute</Title>
+        <Title order={4}>Health</Title>
         <SegmentedControl
           value={range}
           onChange={(v) => setRange(v as Range)}
@@ -730,10 +730,10 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
       </Group>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <ChartFor deviceId={deviceId} metric="cpu.pct" title="CPU" unit="%" range={range} />
-        <ChartFor deviceId={deviceId} metric="mem.pct" title="Memoria" unit="%" range={range} />
-        <ChartFor deviceId={deviceId} metric="disk.pct" title="Disco" unit="%" range={range} />
-        <ChartFor deviceId={deviceId} metric="iface.bytes_in" title="Traffico in" unit="bytes" range={range} />
-        <ChartFor deviceId={deviceId} metric="iface.bytes_out" title="Traffico out" unit="bytes" range={range} />
+        <ChartFor deviceId={deviceId} metric="mem.pct" title="Memory" unit="%" range={range} />
+        <ChartFor deviceId={deviceId} metric="disk.pct" title="Disk" unit="%" range={range} />
+        <ChartFor deviceId={deviceId} metric="iface.bytes_in" title="Inbound traffic" unit="bytes" range={range} />
+        <ChartFor deviceId={deviceId} metric="iface.bytes_out" title="Outbound traffic" unit="bytes" range={range} />
         <ChartFor deviceId={deviceId} metric="gateway.rtt_ms" title="Gateway RTT" unit="ms" range={range} />
         <ChartFor deviceId={deviceId} metric="gateway.loss_pct" title="Gateway loss" unit="%" range={range} />
         <ChartFor deviceId={deviceId} metric="vpn.up" title="VPN up" range={range} />
@@ -742,42 +742,42 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
   );
 }
 ```
-**Nota:** `SegmentedControl` di Mantine rende i segmenti come radio con label; il test cerca `getByRole("button", { name: "24h" })` — se in jsdom il ruolo è `radio` invece di `button`, adatta l'asserzione del test a `getByText("24h")` o `getByRole("radio", { name: "24h" })`. Verifica e allinea il test al markup reale.
+**Note:** Mantine's `SegmentedControl` renders segments as radio inputs with a label; the test looks for `getByRole("button", { name: "24h" })` — if in jsdom the role is `radio` instead of `button`, adapt the test assertion to `getByText("24h")` or `getByRole("radio", { name: "24h" })`. Verify and align the test to the actual markup.
 
-- [ ] **Step 4: Agganciare la sezione in `DeviceDetailPage`**
+- [ ] **Step 4: Hook the section into `DeviceDetailPage`**
 
-In `src/pages/DeviceDetailPage.tsx`, importa `DeviceHealthSection` e aggiungila dopo le card di stato (dentro lo `Stack`, prima o dopo `DeviceActions`):
+In `src/pages/DeviceDetailPage.tsx`, import `DeviceHealthSection` and add it after the status cards (inside the `Stack`, before or after `DeviceActions`):
 ```tsx
 import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
 // ...
 {deviceId && <DeviceHealthSection deviceId={deviceId} />}
 ```
 
-- [ ] **Step 5: Eseguire e verificare il passaggio**
+- [ ] **Step 5: Run and verify the pass**
 
-Run: `npm test -- devicedetail` → PASS (inclusi i test esistenti). Allinea l'asserzione del selettore al ruolo reale se necessario (vedi nota Step 3).
+Run: `npm test -- devicedetail` → PASS (including existing tests). Align the range selector assertion to the actual role if needed (see Step 3 note).
 
 - [ ] **Step 6: Typecheck + suite**
 
-Run: `npm run build` → ok. Run: `npm test` → verde.
+Run: `npm run build` → ok. Run: `npm test` → green.
 
 - [ ] **Step 7: Commit**
 ```bash
 git add src/pages/DeviceDetailPage.tsx src/monitoring/DeviceHealthSection.tsx src/pages/__tests__/devicedetail.test.tsx
-git commit -m "feat(fe): DeviceDetail con sezione salute (grafici essenziale+rete + selettore range)"
+git commit -m "feat(fe): DeviceDetail with health section (system+network charts + range selector)"
 ```
 
 ---
 
-## Task 5: `AlertsPage` — tabella + filtro attivi/storico
+## Task 5: `AlertsPage` — table + active/historical filter
 
 **Files:**
 - Create: `src/pages/AlertsPage.tsx`, `src/pages/__tests__/alerts.test.tsx`
-- Modify: `src/components/AppShell.tsx` (aggiungi rotta `/alerts`)
+- Modify: `src/components/AppShell.tsx` (add `/alerts` route)
 
-- [ ] **Step 1: Test `AlertsPage` (fallisce)**
+- [ ] **Step 1: `AlertsPage` test (failing)**
 
-Crea `src/pages/__tests__/alerts.test.tsx`:
+Create `src/pages/__tests__/alerts.test.tsx`:
 ```tsx
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -812,7 +812,7 @@ const resolved = {
 };
 
 describe("AlertsPage", () => {
-  it("filtra attivi vs storico", async () => {
+  it("filters active vs history", async () => {
     server.use(
       http.get("/api/tenants/t1/alerts", ({ request }) => {
         const url = new URL(request.url);
@@ -821,23 +821,23 @@ describe("AlertsPage", () => {
       }),
     );
     renderWithProviders(withTenant(<AlertsPage />));
-    // default: solo attivi
+    // default: active only
     expect(await screen.findByText("device.down")).toBeInTheDocument();
     expect(screen.queryByText("gateway.down")).not.toBeInTheDocument();
-    // passa a storico
-    await userEvent.click(screen.getByRole("button", { name: /storico/i }));
+    // switch to history
+    await userEvent.click(screen.getByRole("button", { name: /history/i }));
     await waitFor(() => expect(screen.getByText("gateway.down")).toBeInTheDocument());
   });
 });
 ```
 
-- [ ] **Step 2: Eseguire e verificare il fallimento**
+- [ ] **Step 2: Run and verify the failure**
 
 Run: `npm test -- alerts` → FAIL.
 
-- [ ] **Step 3: Implementare `AlertsPage`**
+- [ ] **Step 3: Implement `AlertsPage`**
 
-Crea `src/pages/AlertsPage.tsx`:
+Create `src/pages/AlertsPage.tsx`:
 ```tsx
 import { useState } from "react";
 import { Badge, Group, Loader, SegmentedControl, Stack, Table, Text, Title } from "@mantine/core";
@@ -850,27 +850,27 @@ export function AlertsPage() {
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={3}>Alert</Title>
+        <Title order={3}>Alerts</Title>
         <SegmentedControl
           value={mode}
           onChange={(v) => setMode(v as "active" | "history")}
           data={[
-            { label: "Attivi", value: "active" },
-            { label: "Storico", value: "history" },
+            { label: "Active", value: "active" },
+            { label: "History", value: "history" },
           ]}
         />
       </Group>
       {q.isLoading && <Loader />}
-      {q.data && q.data.length === 0 && <Text c="dimmed">Nessun alert</Text>}
+      {q.data && q.data.length === 0 && <Text c="dimmed">No alerts</Text>}
       {q.data && q.data.length > 0 && (
         <Table striped withTableBorder>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Tipo</Table.Th>
-              <Table.Th>Etichetta</Table.Th>
-              <Table.Th>Severità</Table.Th>
-              <Table.Th>Aperto</Table.Th>
-              <Table.Th>Risolto</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Label</Table.Th>
+              <Table.Th>Severity</Table.Th>
+              <Table.Th>Opened</Table.Th>
+              <Table.Th>Resolved</Table.Th>
               <Table.Th>Device</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -894,86 +894,87 @@ export function AlertsPage() {
   );
 }
 ```
-**Nota:** il test clicca un `button` con nome "storico". `SegmentedControl` rende i controlli come `radio`/`label`. Se il ruolo non è `button`, adatta l'asserzione del test al markup reale (`getByText(/storico/i)` o `getByRole("radio", { name: /storico/i })`). Allinea test e markup.
+**Note:** the test clicks a `button` named "History". `SegmentedControl` renders controls as `radio`/`label`. If the role is not `button`, adapt the test assertion to the actual markup (`getByText(/history/i)` or `getByRole("radio", { name: /history/i })`). Align test and markup.
 
-- [ ] **Step 4: Aggiungere la rotta `/alerts` in `AppShell`**
+- [ ] **Step 4: Add the `/alerts` route in `AppShell`**
 
-In `src/components/AppShell.tsx`, importa `AlertsPage` e aggiungi la rotta:
+In `src/components/AppShell.tsx`, import `AlertsPage` and add the route:
 ```tsx
 import { AlertsPage } from "../pages/AlertsPage";
-// dentro <Routes>:
+// inside <Routes>:
 <Route path="/alerts" element={<AlertsPage />} />
 ```
-(La voce navbar "Alert" è già stata aggiunta nel Task 3.)
+(The "Alerts" navbar entry was already added in Task 3.)
 
-- [ ] **Step 5: Eseguire e verificare il passaggio**
+- [ ] **Step 5: Run and verify the pass**
 
 Run: `npm test -- alerts` → PASS.
 
-- [ ] **Step 6: Typecheck + suite intera + lint**
+- [ ] **Step 6: Typecheck + full suite + lint**
 
-Run: `npm run build` → ok. Run: `npm test` → tutti verdi. Run: `npm run lint` → pulito (correggi eventuali warning introdotti).
+Run: `npm run build` → ok. Run: `npm test` → all green. Run: `npm run lint` → clean (fix any warnings introduced).
 
 - [ ] **Step 7: Commit**
 ```bash
 git add src/pages/AlertsPage.tsx src/pages/__tests__/alerts.test.tsx src/components/AppShell.tsx
-git commit -m "feat(fe): AlertsPage con filtro attivi/storico + rotta /alerts"
+git commit -m "feat(fe): AlertsPage with active/historical filter + /alerts route"
 ```
 
 ---
 
-## Task 6: Debito tecnico
+## Task 6: Technical debt
 
-- [ ] **Step 1: Registrare il debito 2D**
+- [ ] **Step 1: Record 2D debt**
 
-Append a questo piano:
+Append to this plan:
+
 ```markdown
-## Debito tecnico (2D)
+## Technical debt (2D)
 
-- **Nessun auto-refresh dei grafici/alert**: i dati si fetchano on-load/cambio-range. Aggiungere
-  `refetchInterval` (es. 60s) per un aggiornamento live in un secondo momento.
-- **Range fissi (1h/24h/7d)**: niente date-picker custom. Aggiungere range arbitrari se richiesto.
-- **Formattazione unità grezza**: i traffici interfaccia sono in bytes assoluti (contatori), non
-  rate (bytes/s); valutare derivata/normalizzazione MB e tooltip formattati nella UI.
-- **Asserzioni grafici limitate**: i test verificano transform + presenza titoli/empty-state, non i
-  path SVG (limite jsdom/Recharts). Un test e2e (Playwright) coprirebbe il rendering reale.
-- **`gateway.up`/`vpn.up`/`iface.up` come serie 0/1**: graficati come linee; valutare badge/heatmap
-  di stato invece di un line chart per le metriche booleane.
+- **No auto-refresh of charts/alerts**: data is fetched on-load/range-change. Add
+  `refetchInterval` (e.g. 60s) for live updates later.
+- **Fixed ranges (1h/24h/7d)**: no custom date-picker. Add arbitrary ranges if needed.
+- **Raw unit formatting**: interface traffic is in absolute bytes (counters), not
+  rate (bytes/s); consider derivative/MB normalisation and formatted tooltips in the UI.
+- **Limited chart assertions**: tests verify transform + title/empty-state presence, not
+  SVG paths (jsdom/Recharts limitation). A Playwright e2e test would cover real rendering.
+- **`gateway.up`/`vpn.up`/`iface.up` as 0/1 series**: charted as lines; consider status
+  badges/heatmap instead of a line chart for boolean metrics.
 ```
 
 - [ ] **Step 2: Commit**
 ```bash
 git add docs/superpowers/plans/2026-06-09-opngms-phase2-milestone2D-dashboard.md
-git commit -m "docs: debito tecnico milestone 2D"
+git commit -m "docs: technical debt milestone 2D"
 ```
 
 ---
 
-## Definizione di "fatto" (2D)
+## Definition of "done" (2D)
 
-- Navbar Overview / Device / Alert; routing riorganizzato (`/`=Overview) senza rompere i link esistenti.
-- Overview mostra riepilogo salute flotta + alert attivi del cliente.
-- DeviceDetail mostra stato + grafici (CPU/mem/disco, traffico interfacce, gateway, VPN) con selettore time-range.
-- AlertsPage lista attivi e storico con filtro.
-- Tutto tenant-scoped (cambio tenant rifetcha), con loading/error/empty-state.
-- Suite Vitest verde; `npm run build` (tsc) e `npm run lint` puliti.
-- **La Fase 2 è completa**: poller → storage → API → dashboard.
+- Navbar Overview / Devices / Alerts; reorganised routing (`/`=Overview) without breaking existing links.
+- Overview shows fleet health summary + active customer alerts.
+- DeviceDetail shows status + charts (CPU/mem/disk, interface traffic, gateways, VPN) with time-range selector.
+- AlertsPage lists active and historical alerts with filter.
+- All tenant-scoped (tenant change refetches), with loading/error/empty-state.
+- Vitest suite green; `npm run build` (tsc) and `npm run lint` clean.
+- **Phase 2 is complete**: poller → storage → API → dashboard.
 
 ---
 
-## Debito tecnico (2D) — consolidato dalle review
+## Technical debt (2D) — consolidated from reviews
 
-- **Nessun auto-refresh dei grafici/alert**: i dati si fetchano on-load/cambio-range. Aggiungere
-  `refetchInterval` (es. 60s) per un aggiornamento live in un secondo momento.
-- **Stati loading/error per-grafico assenti** (review Task 4): durante il fetch ogni `MetricChart`
-  mostra l'empty-state "Nessun dato ancora" (non distingue loading da vuoto, né gestisce l'errore
-  della singola metrica). Aggiungere skeleton/error per-grafico quando si raffina la UX.
-- **Range fissi (1h/24h/7d)**: niente date-picker custom. Aggiungere range arbitrari se richiesto.
-- **Formattazione unità grezza**: i traffici interfaccia sono in bytes assoluti (contatori), non
-  rate (bytes/s); valutare derivata/normalizzazione MB e tooltip formattati nella UI.
-- **Tabella alert duplicata** (review Task 5): `OverviewPage` e `AlertsPage` ripetono la tabella
-  alert (differiscono per la colonna "Risolto"). Estraibile in un componente condiviso.
-- **Asserzioni grafici limitate**: i test verificano transform + presenza titoli/empty-state, non i
-  path SVG (limite jsdom/Recharts). Un test e2e (Playwright) coprirebbe il rendering reale.
-- **`gateway.up`/`vpn.up`/`iface.up` come serie 0/1**: graficati come linee; valutare badge/heatmap
-  di stato invece di un line chart per le metriche booleane.
+- **No auto-refresh of charts/alerts**: data is fetched on-load/range-change. Add
+  `refetchInterval` (e.g. 60s) for live updates later.
+- **Missing per-chart loading/error states** (Task 4 review): during fetch each `MetricChart`
+  shows the empty-state "No data yet" (does not distinguish loading from empty, nor handles
+  individual metric errors). Add per-chart skeleton/error when refining the UX.
+- **Fixed ranges (1h/24h/7d)**: no custom date-picker. Add arbitrary ranges if needed.
+- **Raw unit formatting**: interface traffic is in absolute bytes (counters), not
+  rate (bytes/s); consider derivative/MB normalisation and formatted tooltips in the UI.
+- **Duplicate alerts table** (Task 5 review): `OverviewPage` and `AlertsPage` repeat the alerts
+  table (differing only in the "Resolved" column). Extractable into a shared component.
+- **Limited chart assertions**: tests verify transform + title/empty-state presence, not
+  SVG paths (jsdom/Recharts limitation). A Playwright e2e test would cover real rendering.
+- **`gateway.up`/`vpn.up`/`iface.up` as 0/1 series**: charted as lines; consider status
+  badges/heatmap instead of a line chart for boolean metrics.

@@ -92,8 +92,8 @@ async def test_no_tenant_context_sees_nothing(db_engine, two_tenants):
 
 
 async def test_app_role_connection_enforces_rls(db_engine, two_tenants):
-    """Connessione REALE come ruolo non-superuser opngms_app: la RLS deve valere
-    senza SET ROLE, esattamente come in produzione."""
+    """REAL connection as the non-superuser opngms_app role: RLS must apply
+    without SET ROLE, exactly as in production."""
     import os
 
     tenant_a, _ = two_tenants
@@ -108,7 +108,7 @@ async def test_app_role_connection_enforces_rls(db_engine, two_tenants):
             rows = (await s.execute(text("SELECT name FROM devices"))).scalars().all()
             assert rows == ["fw-a"]
         async with factory() as s2:
-            # nessun contesto -> nessuna riga (fail-closed) anche per il ruolo reale
+            # no context -> no rows (fail-closed) even for the real role
             rows = (await s2.execute(text("SELECT name FROM devices"))).scalars().all()
             assert rows == []
     finally:
@@ -116,18 +116,18 @@ async def test_app_role_connection_enforces_rls(db_engine, two_tenants):
 
 
 async def test_metrics_alerts_isolated_cross_tenant(db_engine, two_tenants):
-    """metrics e alerts: la connessione reale opngms_app vede solo il tenant in contesto.
+    """metrics and alerts: the real opngms_app connection sees only the tenant in context.
 
-    Prova anche la propagazione della RLS ai chunk dell'hypertable Timescale.
+    Also proves the propagation of RLS to the Timescale hypertable chunks.
     """
     import os
     import uuid as _uuid
     from datetime import datetime, timezone
 
     tenant_a, tenant_b = two_tenants
-    # device_id qualunque: la RLS filtra su tenant_id, non serve un device reale per la metrica.
+    # any device_id: RLS filters on tenant_id, no real device is needed for the metric.
     owner_factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with owner_factory() as s:  # owner = superuser -> bypassa RLS, inserisce per entrambi
+    async with owner_factory() as s:  # owner = superuser -> bypasses RLS, inserts for both
         for tid, val in ((tenant_a, 1.0), (tenant_b, 2.0)):
             await s.execute(
                 text(
@@ -136,7 +136,7 @@ async def test_metrics_alerts_isolated_cross_tenant(db_engine, two_tenants):
                 ),
                 {"t": datetime.now(timezone.utc), "d": _uuid.uuid4(), "tid": tid, "v": val},
             )
-        # alert: device_id deve riferire un device esistente (FK). two_tenants ha fw-a/fw-b.
+        # alert: device_id must reference an existing device (FK). two_tenants has fw-a/fw-b.
         for tid, name in ((tenant_a, "fw-a"), (tenant_b, "fw-b")):
             dev_id = (
                 await s.execute(text("SELECT id FROM devices WHERE name = :n"), {"n": name})
@@ -163,7 +163,7 @@ async def test_metrics_alerts_isolated_cross_tenant(db_engine, two_tenants):
             sev = (await s.execute(text("SELECT severity FROM alerts"))).scalars().all()
             assert sev == ["critical"]
         async with factory() as s2:
-            # nessun contesto -> fail-closed su entrambe
+            # no context -> fail-closed on both
             assert (await s2.execute(text("SELECT value FROM metrics"))).scalars().all() == []
             assert (await s2.execute(text("SELECT id FROM alerts"))).scalars().all() == []
     finally:
@@ -177,7 +177,7 @@ async def test_events_isolated_cross_tenant(db_engine, two_tenants):
 
     tenant_a, tenant_b = two_tenants
     owner = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with owner() as s:  # owner bypassa RLS, inserisce per entrambi
+    async with owner() as s:  # owner bypasses RLS, inserts for both
         for tid, key in ((tenant_a, "a"), (tenant_b, "b")):
             await s.execute(
                 text(
@@ -196,7 +196,7 @@ async def test_events_isolated_cross_tenant(db_engine, two_tenants):
         async with factory() as s:
             await set_tenant_context(s, tenant_a)
             keys = (await s.execute(text("SELECT event_key FROM events"))).scalars().all()
-            assert keys == ["a"]  # solo il tenant A; la RLS esclude B (query raw senza filtro tenant)
+            assert keys == ["a"]  # only tenant A; RLS excludes B (raw query without tenant filter)
         async with factory() as s2:
             assert (await s2.execute(text("SELECT event_key FROM events"))).scalars().all() == []
     finally:

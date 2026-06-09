@@ -85,14 +85,14 @@ async def test_collect_and_store_error_path_unverified_no_metrics(db_engine):
         await s.commit()
     async with factory() as s:
         count = (await s.execute(select(func.count()).select_from(Metric).where(Metric.device_id == did))).scalar_one()
-        assert count == 0  # nessuna metrica scritta sull'errore
+        assert count == 0  # no metric written on error
         device = await s.get(Device, did)
         assert device.status == "unverified"
 
 
 async def test_poll_device_wiring(db_engine, monkeypatch):
     _, did = await _make_device(db_engine)
-    # monkeypatch decrypt (i segreti del device di test sono '' = non decifrabili) e il client
+    # monkeypatch decrypt (the test device's secrets are '' = not decryptable) and the client
     monkeypatch.setattr("app.worker.crypto.decrypt", lambda b: "x")
     monkeypatch.setattr("app.worker.OpnsenseClient", lambda *a, **k: FakeClient())
     from app.worker import poll_device

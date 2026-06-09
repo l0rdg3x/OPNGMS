@@ -18,7 +18,7 @@ class MyTenantOut(BaseModel):
     id: uuid.UUID
     name: str
     slug: str
-    role: str | None  # None per superadmin (accesso globale)
+    role: str | None  # None for superadmin (global access)
 
 
 @router.get("/tenants", response_model=list[MyTenantOut])

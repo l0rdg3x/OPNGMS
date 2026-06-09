@@ -12,4 +12,4 @@ class MetricPoint(BaseModel):
 class MetricSeriesOut(BaseModel):
     metric: str
     points: list[MetricPoint]
-    last: list[MetricPoint]  # ultimo valore per label
+    last: list[MetricPoint]  # last value per label

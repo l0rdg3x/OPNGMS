@@ -16,7 +16,7 @@ async def setup(payload: SetupIn, session: AsyncSession = Depends(get_session)) 
     if await repo.count() > 0:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Setup gia' completato: esiste gia' almeno un utente.",
+            detail="Setup already completed: at least one user already exists.",
         )
     user = User(
         email=payload.email,

@@ -18,11 +18,11 @@ describe("DeviceCreateModal", () => {
       http.get("/api/tenants/t1/devices", () => HttpResponse.json([])),
     );
     renderWithProviders(<DeviceCreateModal tenantId="t1" opened onClose={onClose} />);
-    await userEvent.type(screen.getByLabelText(/nome/i), "fw1");
+    await userEvent.type(screen.getByLabelText(/name/i), "fw1");
     await userEvent.type(screen.getByLabelText(/url/i), "https://fw1");
     await userEvent.type(screen.getByLabelText(/api key/i), "k");
     await userEvent.type(screen.getByLabelText(/api secret/i), "s");
-    await userEvent.click(screen.getByRole("button", { name: /salva/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect((posted as { base_url?: string } | null)?.base_url).toBe("https://fw1");
   });

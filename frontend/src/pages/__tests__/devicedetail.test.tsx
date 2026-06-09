@@ -47,11 +47,11 @@ describe("DeviceDetailPage", () => {
       { route: "/devices/d1" },
     );
     expect(await screen.findByRole("heading", { name: "fw1" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /testa connessione/i }));
+    await userEvent.click(screen.getByRole("button", { name: /test connection/i }));
     await waitFor(() => expect(screen.getByText(/reachable/i)).toBeInTheDocument());
   });
 
-  it("mostra la sezione salute con grafici e selettore range", async () => {
+  it("shows the health section with charts and a range selector", async () => {
     server.use(
       http.get("/api/tenants/t1/devices/d1", () => HttpResponse.json(device)),
       http.get("/api/tenants/t1/devices/d1/metrics", ({ request }) => {
@@ -75,11 +75,11 @@ describe("DeviceDetailPage", () => {
       ),
       { route: "/devices/d1" },
     );
-    // i titoli dei grafici della sezione salute compaiono
+    // the health section chart titles appear
     expect(await screen.findByText(/CPU/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Memoria/i)).toBeInTheDocument();
-    // selettore range presente (SegmentedControl Mantine → input radio + label;
-    // il testo "24h" è in uno <span> dentro la label)
+    expect(await screen.findByText(/Memory/i)).toBeInTheDocument();
+    // range selector present (Mantine SegmentedControl → radio input + label;
+    // the "24h" text lives in a <span> inside the label)
     expect(screen.getByText("24h")).toBeInTheDocument();
   });
 
@@ -102,7 +102,7 @@ describe("DeviceDetailPage", () => {
       { route: "/devices/d1" },
     );
     await screen.findByRole("heading", { name: "fw1" });
-    await userEvent.click(screen.getByRole("button", { name: /elimina/i }));
+    await userEvent.click(screen.getByRole("button", { name: /delete/i }));
     await waitFor(() => expect(deleted).toBe(true));
   });
 });
