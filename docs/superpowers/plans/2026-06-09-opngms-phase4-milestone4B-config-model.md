@@ -560,3 +560,28 @@ git commit -m "docs: technical debt milestone 4B"
 - `GET /config/capabilities` returns interfaces, configured sections, OPNsense version, and available plugins/modules (empirical + live probe), resilient to probe failure.
 - Both tenant-scoped + RLS-isolated (proven by a real-`opngms_app` test); no secret value in any response.
 - Suite green + `alembic check` clean.
+
+---
+
+## Technical debt (4B) — consolidated from reviews
+
+- **Plugin/version endpoint TO VERIFY**: `core/firmware/info` + payload shape unconfirmed; confirm
+  against a real device. Probe failure already degrades to empirical-only.
+- **Sensitive denylist completeness** (security-critical): the tag-substring denylist now covers
+  `privkey`/`hash`/`seed`/`crypt` (closed a real private-key leak in review), but an oddly named secret
+  field could still slip through. Maintain conservatively (over-redact); consider a value-shape
+  heuristic (long base64 / hash-looking) as a secondary guard.
+- **Sensitive container not redacted** (review Task 1): redaction targets leaf element text; a secret
+  nested under a sensitive *container* tag (`<apikey><value>…</value></apikey>`) is not flagged. Rare
+  in OPNsense (secrets are leaves); revisit if a plugin uses it.
+- **Attribute values not redacted**: redaction targets leaf text, not XML attributes. Rare in OPNsense.
+- **Non-dict package element** (review Task 2): `get_plugin_info` assumes each package is a dict; a
+  malformed/hostile device payload (list of strings) would raise an unwrapped `AttributeError`. The
+  `/config/capabilities` endpoint catches `OpnsenseError`/`InvalidToken` but not that. Add an
+  `isinstance(p, dict)` guard in the connector (cheap) or broaden the endpoint's except.
+- **Minor parse duplication**: `config_model`/`capability` each parse with defusedxml + strip
+  `<revision>` (overlap with `config_diff`). Extract a shared `parse_config` helper if it grows.
+- **No field-level schema**: capability is plugin/section level; the per-field editable schema (for 4D
+  forms) is deferred and best sourced from the device.
+- **Model recomputed per request**: on-demand parse of the latest snapshot each call (acceptable —
+  config is small); cache if it ever matters.
