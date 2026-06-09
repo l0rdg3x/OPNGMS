@@ -28,3 +28,15 @@ class DeviceRepository:
         self.session.add(device)
         await self.session.flush()
         return device
+
+    async def get(self, device_id: uuid.UUID) -> Device | None:
+        result = await self.session.execute(
+            select(Device).where(
+                Device.id == device_id, Device.tenant_id == self.tenant_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def delete(self, device: Device) -> None:
+        await self.session.delete(device)
+        await self.session.flush()
