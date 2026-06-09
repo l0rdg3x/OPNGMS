@@ -635,3 +635,30 @@ esatta) sono esplicite e isolate dietro contratti pinnati dai test.
 **Type consistency:** `collect_and_store(session, device, client, now)`, `Metric(time, device_id,
 tenant_id, metric, label, value)`, `OpnsenseClient.get_system_info()`, `WorkerSettings.{functions,
 cron_jobs}`, `poll_device(ctx, device_id)` coerenti tra i Task 2-6.
+
+---
+
+## Debito tecnico (dalla review olistica finale — READY TO MERGE)
+
+Zero issue Critical/Important. Multi-tenancy strutturale (metrica eredita `tenant_id` dal device),
+resilienza corretta, segreti come Fase 1, separazione owner-vs-app pulita, `alembic check` pulito.
+Da tracciare (in gran parte per 2B/2C):
+
+1. **RLS su `metrics` (2C):** aggiungere `metrics` a `TENANT_TABLES`, ENABLE/FORCE + policy, e
+   verificare la propagazione ai chunk Timescale. ⚠️ `grant_app_role_statements` concede già a
+   `opngms_app` DML su TUTTE le tabelle public (inclusa `metrics`) → la RLS è ciò che fermerà le
+   letture cross-tenant: deve atterrare INSIEME all'API di lettura in 2C.
+2. **API di lettura metriche + test isolamento cross-tenant (2C).**
+3. **Metriche di rete + alerting (2B):** `get_interfaces`/`get_gateways`/`get_vpn_status`, tabella
+   `alerts`, motore open/resolve sui cambi di stato.
+4. **Continuous aggregate `metrics_5m` + rollup (2C).**
+5. **Tuning ARQ (2B):** impostare `max_jobs` esplicito (bound concorrenza verso le API OPNsense) e
+   valutare `retry`/backoff espliciti su `poll_device` (oggi default arq: `max_tries=5`).
+6. **Nessuna CI** (`.github/workflows/` assente): Dockerfile + servizio worker non buildati/testati
+   in CI; il deploy di produzione (vedi memoria) ci si appoggerà.
+7. **Endpoint OPNsense `get_system_info` + nomi campi DA VERIFICARE** contro un device reale (come
+   `core/firmware/status`/`product_version`).
+8. **Stato `unreachable`** documentato ma mai scritto dal poller — decidere se distinguere
+   hard-unreachable da `unverified`.
+9. **`collect_and_store` indicizza `info[...]` direttamente** (accoppiamento stretto col contratto
+   di `get_system_info`; co-locati, rischio basso).
