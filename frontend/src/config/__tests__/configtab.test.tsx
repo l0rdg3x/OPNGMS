@@ -78,6 +78,9 @@ describe("ConfigTab", () => {
       http.get("/api/tenants/t1/devices/d1/config/capabilities", () =>
         HttpResponse.json(inv),
       ),
+      http.get("/api/tenants/t1/devices/d1/config/changes", () =>
+        HttpResponse.json([]),
+      ),
     );
     renderWithProviders(withTenant(<ConfigTab deviceId="d1" />));
 
@@ -88,6 +91,8 @@ describe("ConfigTab", () => {
     expect(screen.getByText("fw1")).toBeInTheDocument();
     // no secret string ever appears in the DOM
     expect(document.body.textContent).not.toContain("password-secret");
+    // changes panel title is rendered
+    expect(screen.getByText(/pending changes/i)).toBeInTheDocument();
   });
 
   it("shows the empty state when there is no snapshot yet (404)", async () => {
@@ -99,6 +104,9 @@ describe("ConfigTab", () => {
       http.get(
         "/api/tenants/t1/devices/d1/config/capabilities",
         () => new HttpResponse(null, { status: 404 }),
+      ),
+      http.get("/api/tenants/t1/devices/d1/config/changes", () =>
+        HttpResponse.json([]),
       ),
     );
     renderWithProviders(withTenant(<ConfigTab deviceId="d1" />));

@@ -1,8 +1,29 @@
 import { useState } from "react";
-import { Badge, Button, Card, Group, Table, Text, Title } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Card,
+  Code,
+  Group,
+  Modal,
+  Popover,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from "@mantine/core";
+import { DateTimePicker } from "@mantine/dates";
+import { notifications } from "@mantine/notifications";
 import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
-import { useConfigChanges } from "./changeHooks";
+import type { ConfigChange } from "./changeTypes";
+import {
+  useCancelChange,
+  useConfigChanges,
+  usePreviewChange,
+  useScheduleChange,
+} from "./changeHooks";
+import { ProposeAliasModal } from "./ProposeAliasModal";
 
 // Pipeline status -> Mantine badge color.
 const STATUS_COLOR: Record<string, string> = {
@@ -15,14 +36,141 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: "gray",
 };
 
+// Statuses that allow editing actions.
+const ACTIONABLE = new Set(["draft", "scheduled"]);
+
+// Per-row action buttons for draft/scheduled changes.
+function ChangeRowActions({
+  deviceId,
+  c,
+  onPreview,
+}: {
+  deviceId: string;
+  c: ConfigChange;
+  onPreview: (id: string) => void;
+}) {
+  const t = useT();
+  const schedule = useScheduleChange(deviceId);
+  const cancel = useCancelChange(deviceId);
+  const [scheduleDate, setScheduleDate] = useState<string | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+
+  async function handleApplyNow() {
+    try {
+      await schedule.mutateAsync({ id: c.id, scheduled_at: null });
+    } catch {
+      notifications.show({ color: "red", message: t.errors.configChangeAction });
+    }
+  }
+
+  async function handleSchedule() {
+    const iso = scheduleDate ? new Date(scheduleDate).toISOString() : null;
+    try {
+      await schedule.mutateAsync({ id: c.id, scheduled_at: iso });
+      setScheduleOpen(false);
+      setScheduleDate(null);
+    } catch {
+      notifications.show({ color: "red", message: t.errors.configChangeAction });
+    }
+  }
+
+  async function handleCancel() {
+    try {
+      await cancel.mutateAsync(c.id);
+    } catch {
+      notifications.show({ color: "red", message: t.errors.configChangeAction });
+    }
+  }
+
+  return (
+    <Group gap="xs" wrap="nowrap">
+      <Button size="xs" variant="light" onClick={() => onPreview(c.id)}>
+        {t.config.changes.preview}
+      </Button>
+
+      <Popover opened={scheduleOpen} onChange={setScheduleOpen} withinPortal>
+        <Popover.Target>
+          <Button
+            size="xs"
+            variant="light"
+            onClick={() => setScheduleOpen((v) => !v)}
+          >
+            {t.config.changes.schedule}
+          </Button>
+        </Popover.Target>
+        <Popover.Dropdown>
+          <Stack gap="xs">
+            <Button
+              size="xs"
+              variant="subtle"
+              onClick={handleApplyNow}
+              loading={schedule.isPending}
+            >
+              {t.config.changes.applyNow}
+            </Button>
+            <DateTimePicker
+              label={t.config.changes.pickTime}
+              value={scheduleDate}
+              onChange={setScheduleDate}
+              minDate={new Date()}
+              clearable
+            />
+            <Button
+              size="xs"
+              onClick={handleSchedule}
+              loading={schedule.isPending}
+              disabled={!scheduleDate}
+            >
+              {t.config.changes.schedule}
+            </Button>
+          </Stack>
+        </Popover.Dropdown>
+      </Popover>
+
+      <Button
+        size="xs"
+        color="red"
+        variant="light"
+        onClick={handleCancel}
+        loading={cancel.isPending}
+      >
+        {t.config.changes.cancel}
+      </Button>
+    </Group>
+  );
+}
+
+// Preview modal: displays the server-returned preview dict read-only.
+function PreviewModal({
+  deviceId,
+  previewId,
+  onClose,
+}: {
+  deviceId: string;
+  previewId: string | null;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const preview = usePreviewChange(deviceId, previewId);
+
+  return (
+    <Modal opened={!!previewId} onClose={onClose} title={t.config.changes.preview}>
+      {preview.isLoading && <Text>{t.config.changes.preview}…</Text>}
+      {preview.data && (
+        <Code block>{JSON.stringify(preview.data, null, 2)}</Code>
+      )}
+    </Modal>
+  );
+}
+
 export function ChangesPanel({ deviceId }: { deviceId: string }) {
   const t = useT();
   const { activeId, tenants } = useTenant();
   const role = tenants.find((x) => x.id === activeId)?.role ?? null;
   const canEdit = role === "tenant_admin" || role === "operator";
   const q = useConfigChanges(deviceId);
-  // Modal/per-row actions are wired in later tasks; the state is ready here.
-  const [, setProposeOpen] = useState(false);
+  const [proposeOpen, setProposeOpen] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   return (
     <Card withBorder>
@@ -45,6 +193,7 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
               <Table.Th>{t.config.changes.colOperation}</Table.Th>
               <Table.Th>{t.config.changes.colTarget}</Table.Th>
               <Table.Th>{t.config.changes.colStatus}</Table.Th>
+              {canEdit && <Table.Th />}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -58,12 +207,34 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
                     {c.status}
                   </Badge>
                 </Table.Td>
+                {canEdit && (
+                  <Table.Td>
+                    {ACTIONABLE.has(c.status) && (
+                      <ChangeRowActions
+                        deviceId={deviceId}
+                        c={c}
+                        onPreview={setPreviewId}
+                      />
+                    )}
+                  </Table.Td>
+                )}
               </Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
       )}
-      {/* ProposeAliasModal mounted in Task 3/4; proposeOpen state ready */}
+
+      <ProposeAliasModal
+        deviceId={deviceId}
+        opened={proposeOpen}
+        onClose={() => setProposeOpen(false)}
+      />
+
+      <PreviewModal
+        deviceId={deviceId}
+        previewId={previewId}
+        onClose={() => setPreviewId(null)}
+      />
     </Card>
   );
 }
