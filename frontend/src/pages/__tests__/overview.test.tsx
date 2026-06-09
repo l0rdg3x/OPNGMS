@@ -52,4 +52,20 @@ describe("OverviewPage", () => {
     renderWithProviders(withTenant(<OverviewPage />));
     expect(await screen.findByText(/nessun alert attivo/i)).toBeInTheDocument();
   });
+
+  it("mostra messaggio d'errore quando l'API alert ritorna 500", async () => {
+    // Lock-in del ramo d'errore: senza il throw nello hook, useAlerts
+    // farebbe `return data ?? []` su un 500 -> nessun errore propagato,
+    // l'Alert rosso resterebbe dead code. Con il fix l'errore si propaga.
+    server.use(
+      http.get("/api/tenants/t1/health", () =>
+        HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
+      ),
+      http.get("/api/tenants/t1/alerts", () =>
+        HttpResponse.json({ detail: "boom" }, { status: 500 }),
+      ),
+    );
+    renderWithProviders(withTenant(<OverviewPage />));
+    expect(await screen.findByText(/errore nel caricamento degli alert/i)).toBeInTheDocument();
+  });
 });

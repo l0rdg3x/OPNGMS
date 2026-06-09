@@ -10,9 +10,10 @@ export function useTenantHealth() {
     queryKey: ["health", activeId],
     enabled: !!activeId,
     queryFn: async () => {
-      const { data } = await api.GET("/api/tenants/{tenant_id}/health", {
+      const { data, error } = await api.GET("/api/tenants/{tenant_id}/health", {
         params: { path: { tenant_id: activeId! } },
       });
+      if (error) throw new Error("Errore nel caricamento della salute flotta");
       return data;
     },
   });
@@ -24,9 +25,10 @@ export function useAlerts(active: boolean) {
     queryKey: ["alerts", activeId, active],
     enabled: !!activeId,
     queryFn: async () => {
-      const { data } = await api.GET("/api/tenants/{tenant_id}/alerts", {
+      const { data, error } = await api.GET("/api/tenants/{tenant_id}/alerts", {
         params: { path: { tenant_id: activeId! }, query: { active } },
       });
+      if (error) throw new Error("Errore nel caricamento degli alert");
       return data ?? [];
     },
   });
@@ -39,7 +41,7 @@ export function useDeviceMetrics(deviceId: string | undefined, metric: string, r
     enabled: !!activeId && !!deviceId,
     queryFn: async () => {
       const { from, to, bucket } = rangeToParams(range, new Date());
-      const { data } = await api.GET(
+      const { data, error } = await api.GET(
         "/api/tenants/{tenant_id}/devices/{device_id}/metrics",
         {
           params: {
@@ -48,6 +50,7 @@ export function useDeviceMetrics(deviceId: string | undefined, metric: string, r
           },
         },
       );
+      if (error) throw new Error("Errore nel caricamento delle metriche");
       return data;
     },
   });
