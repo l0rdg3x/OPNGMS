@@ -15,6 +15,7 @@ class Action(str, enum.Enum):
     MEMBERSHIP_MANAGE = "membership.manage"
     DEVICE_VIEW = "device.view"
     DEVICE_WRITE = "device.write"
+    CONFIG_PUSH = "config.push"
     AUDIT_VIEW = "audit.view"
 
 
@@ -26,6 +27,7 @@ _TENANT_MATRIX: dict[Action, set[str]] = {
     Action.MEMBERSHIP_MANAGE: {TENANT_ADMIN},
     Action.DEVICE_VIEW: {TENANT_ADMIN, OPERATOR, READ_ONLY},
     Action.DEVICE_WRITE: {TENANT_ADMIN, OPERATOR},
+    Action.CONFIG_PUSH: {TENANT_ADMIN, OPERATOR},
     Action.AUDIT_VIEW: {TENANT_ADMIN, OPERATOR, READ_ONLY},
 }
 

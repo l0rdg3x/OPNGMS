@@ -33,6 +33,11 @@ from app.core.rbac import (
         (False, TENANT_ADMIN, Action.DEVICE_VIEW, True),
         (False, TENANT_ADMIN, Action.DEVICE_WRITE, True),
         (False, TENANT_ADMIN, Action.AUDIT_VIEW, True),
+        # CONFIG_PUSH: granted to tenant_admin + operator + superadmin, denied to read_only
+        (False, TENANT_ADMIN, Action.CONFIG_PUSH, True),
+        (False, OPERATOR, Action.CONFIG_PUSH, True),
+        (True, None, Action.CONFIG_PUSH, True),
+        (False, READ_ONLY, Action.CONFIG_PUSH, False),
     ],
 )
 def test_permission_matrix(is_superadmin, role, action, expected):
