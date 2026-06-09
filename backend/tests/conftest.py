@@ -1,6 +1,14 @@
 import os
 import uuid
 
+from cryptography.fernet import Fernet
+
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+asyncpg://opngms:opngms@localhost:5432/opngms"
+)
+os.environ.setdefault("SESSION_SECRET", "test-session-secret")
+os.environ.setdefault("MASTER_KEY", Fernet.generate_key().decode())
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
