@@ -1006,3 +1006,29 @@ git commit -m "docs: technical debt milestone 4A"
 - Drift detection (`canonical_hash`) ignores re-save noise (`<revision>`) and is tolerant of version/plugin differences (schema-agnostic).
 - The API exposes snapshot history, a **secret-safe per-path structural diff**, and a drift summary, isolated per customer by RLS (proven by a real-`opngms_app` test).
 - Suite green + `alembic check` clean.
+
+---
+
+## Technical debt (4A) — consolidated from reviews
+
+- **OPNsense backup endpoint TO VERIFY**: `core/backup/download/this` and the response format are
+  plausible but unconfirmed; confirm against a real device (the response may be wrapped, not raw XML).
+- **Volatile-node allowlist**: only `<revision>` is stripped. Refine against real configs if other
+  nodes (statistics/caches) prove volatile and cause false drift.
+- **Backup cadence fixed (daily ~03:00)**: make `CONFIG_BACKUP_INTERVAL` configurable (currently a
+  hardcoded cron).
+- **No "last checked" timestamp**: dedup means no row is written when unchanged, so "when did we last
+  successfully check?" is not recorded. Add a small per-device state row/timestamp if needed.
+- **Snapshot retention unbounded**: all versions are kept. Add a retention/prune policy if storage
+  grows (config changes are low-volume, so deferred).
+- **`changed_since_previous` derived from `version_count >= 2`** (review Task 5): correct by
+  construction (dedup-on-change means a new row implies a real change), but the field name suggests an
+  explicit latest-vs-previous comparison. Refine if the semantics need to be exact.
+- **Diff requires two explicit snapshot ids**: add convenience (`against=previous`, default
+  latest-vs-previous). Both ids are already validated to belong to the path device + tenant.
+- **Raw config download intentionally absent** (holds secrets): a gated + audited download is a later
+  milestone (elevated role).
+- **`size_bytes` records raw XML length** (not the compressed/encrypted size) — intentional (documents
+  the real config size); noted for clarity.
+- **Mixed-content XML** (text + children on the same element) would ignore the text in `_flatten` —
+  not used by OPNsense `config.xml`; revisit only if a plugin introduces it.
