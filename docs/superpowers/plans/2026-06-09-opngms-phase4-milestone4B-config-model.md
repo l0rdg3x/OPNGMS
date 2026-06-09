@@ -567,14 +567,14 @@ git commit -m "docs: technical debt milestone 4B"
 
 - **Plugin/version endpoint TO VERIFY**: `core/firmware/info` + payload shape unconfirmed; confirm
   against a real device. Probe failure already degrades to empirical-only.
-- **Sensitive denylist completeness** (security-critical): the tag-substring denylist now covers
-  `privkey`/`hash`/`seed`/`crypt` (closed a real private-key leak in review), but an oddly named secret
-  field could still slip through. Maintain conservatively (over-redact); consider a value-shape
-  heuristic (long base64 / hash-looking) as a secondary guard.
-- **Sensitive container not redacted** (review Task 1): redaction targets leaf element text; a secret
-  nested under a sensitive *container* tag (`<apikey><value>…</value></apikey>`) is not flagged. Rare
-  in OPNsense (secrets are leaves); revisit if a plugin uses it.
-- **Attribute values not redacted**: redaction targets leaf text, not XML attributes. Rare in OPNsense.
+- **Sensitive denylist completeness** (security-critical): the tag-substring denylist covers
+  `privkey`/`hash`/`seed`/... (a real private-key leak was closed in review; the over-broad `crypt` was
+  dropped because it matched `encryption`). An oddly named secret field could still slip through.
+  Maintain conservatively (over-redact); consider a value-shape heuristic (long base64 / hash-looking)
+  as a secondary guard.
+- *(Resolved in review)* Sensitive **subtrees** and **attribute values** are now redacted: once a tag
+  is sensitive the whole subtree is flagged + its values nulled, and attribute values are redacted when
+  the attribute key is sensitive or under a redacted subtree.
 - **Non-dict package element** (review Task 2): `get_plugin_info` assumes each package is a dict; a
   malformed/hostile device payload (list of strings) would raise an unwrapped `AttributeError`. The
   `/config/capabilities` endpoint catches `OpnsenseError`/`InvalidToken` but not that. Add an

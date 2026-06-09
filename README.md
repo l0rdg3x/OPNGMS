@@ -5,8 +5,8 @@ firewalls from a single pane of glass. Device inventory, health and network moni
 and — on the roadmap — log/event ingest, configuration push, and per-customer PDF reporting.
 
 > **Status:** Phases 1 (Foundation & Inventory), 2 (Monitoring), and 3 (Log/Event ingest) are
-> **complete**; Phase 4 (Config management) is **in progress** (4A — versioned config backup + drift —
-> done). See [Roadmap & status](#roadmap--status).
+> **complete**; Phase 4 (Config management) is **in progress** (4A — backup + drift — and 4B — config
+> model + capability discovery — done). See [Roadmap & status](#roadmap--status).
 
 ---
 
@@ -160,7 +160,7 @@ npm run lint        # ESLint
 | **SSRF hardening** | SSRF guard on the OPNsense connector | ✅ Done |
 | **2 — Monitoring** | 2A poller core · 2B network metrics + alerting · 2C metrics/health/alert API + RLS · 2D dashboard frontend | ✅ Done |
 | **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS ✅ · 3C query API ✅ | ✅ Done |
-| **4 — Config management** | Versioned, encrypted config backup + drift detection (schema-agnostic, RLS). 4A backup+drift ✅ · 4B config model · 4C firewall-aware UI · 4D edit + push | 🔄 In progress (4A ✅) |
+| **4 — Config management** | Versioned, encrypted config backup + drift detection (schema-agnostic, RLS). 4A backup+drift ✅ · 4B config model + capability ✅ · 4C firewall-aware UI · 4D edit + push | 🔄 In progress (4A, 4B ✅) |
 | **5 — PDF reporting** | Per-customer PDF reports (attacks, sites visited, bandwidth) | ⬜ Planned |
 | **Deploy** | Multi-stage Dockerfile + production docker-compose for the whole stack | ⬜ End of project |
 
