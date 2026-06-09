@@ -64,7 +64,7 @@ describe("DeviceDetailPage", () => {
       withTenant(
         <Routes>
           <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
-          <Route path="/" element={<div>home</div>} />
+          <Route path="/devices" element={<div>device list</div>} />
         </Routes>,
       ),
       { route: "/devices/d1" },
