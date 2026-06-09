@@ -1,3 +1,5 @@
+import hashlib
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 import httpx
@@ -161,6 +163,59 @@ class OpnsenseClient:
             {"name": t.get("name", ""), "up": bool(t.get("connected"))}
             for t in data.get("tunnels", [])
         ]
+
+    async def get_ids_alerts(self, since: datetime | None = None) -> list[dict]:
+        """Alert Suricata IDS/IPS normalizzati.
+
+        NOTA: endpoint `ids/service/queryAlerts` e formato del payload DA VERIFICARE
+        su un OPNsense reale. Difensivo verso varianti di chiave. `since` è un hint:
+        il filtro fine e la deduplica avvengono a valle (cursore + ON CONFLICT).
+        """
+        data = await self._get("ids/service/queryAlerts")
+        out: list[dict] = []
+        for r in data.get("rows", data.get("alerts", [])):
+            alert = r.get("alert", {}) if isinstance(r.get("alert"), dict) else {}
+            ts = self._parse_ts(r.get("timestamp"))
+            name = alert.get("signature") or r.get("signature") or ""
+            src = r.get("src_ip", "")
+            dst = r.get("dest_ip", r.get("dst_ip", ""))
+            action = alert.get("action", r.get("action", ""))
+            severity = str(alert.get("severity", r.get("severity", "")))
+            # event_key DISCRIMINANTE: id stabile della sorgente se presente,
+            # ALTRIMENTI hash del contenuto (ts+src+dst+signature+severity) per
+            # NON collassare eventi distinti con la stessa signature.
+            key = r.get("alert_id") or r.get("_id") or self._event_key(
+                ts, src, dst, name, severity
+            )
+            out.append({
+                "time": ts,
+                "category": "alert",
+                "src_ip": src,
+                "dst_ip": dst,
+                "name": name,
+                "severity": severity,
+                "action": action,
+                "event_key": str(key),
+                "attributes": r,
+            })
+        return out
+
+    @staticmethod
+    def _parse_ts(value) -> datetime:
+        """Ritorna sempre un datetime tz-aware (naive -> UTC; non-parsabile -> now UTC)."""
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            return datetime.now(timezone.utc)
+
+    @staticmethod
+    def _event_key(ts, *parts) -> str:
+        """Hash discriminante del contenuto dell'evento (id sorgente assente)."""
+        h = hashlib.sha1("|".join([ts.isoformat(), *[str(p) for p in parts]]).encode())
+        return h.hexdigest()
 
     async def test_connection(self) -> str | None:
         """Verifica raggiungibilità+credenziali; ritorna la versione firmware o None.
