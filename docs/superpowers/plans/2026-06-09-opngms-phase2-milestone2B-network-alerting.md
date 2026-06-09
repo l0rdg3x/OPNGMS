@@ -627,3 +627,29 @@ esplicite e isolate dietro contratti pinnati dai test.
 **Type consistency:** `collect_and_store(...) -> PollState(reachable, gateways)`, `evaluate_alerts(
 session, device, state)`, `Alert(tenant_id, device_id, type, label, severity, opened_at,
 resolved_at, details)`, metriche `iface.*`/`gateway.*`/`vpn.up` con `label`, coerenti tra i Task 1-5.
+
+---
+
+## Debito tecnico (dalla review olistica finale — READY TO MERGE)
+
+Zero issue Critical/Important. Alert engine corretto e idempotente (guardia app + indice parziale
+concordi), multi-tenancy strutturale (metrica/alert ereditano `tenant_id` dal device), resilienza
+ok, connector confine unico difensivo, `alembic check` pulito. Da tracciare:
+
+1. **RLS su `alerts` e `metrics` (2C):** entrambe fuori da `TENANT_TABLES` (solo `devices`); il
+   worker scrive come owner (intenzionale), ma la RLS deve atterrare in 2C PRIMA di qualsiasi
+   read-path user-facing.
+2. **Read API + test isolamento cross-tenant (2C):** `GET .../metrics`, `.../health`,
+   `.../alerts?active=` con negativi che provano l'isolamento sotto RLS.
+3. **Endpoint OPNsense DA VERIFICARE** contro un device reale (interfacce/gateway/VPN + formati
+   stringa di `_num` + `product_version`).
+4. **Canali di notifica alert** (email/webhook su open/resolve) — assenti.
+5. **Soglie configurabili + alert su soglia metrica** (CPU/mem/disco/loss/RTT) — oggi solo
+   device.down/gateway.down hard-coded.
+6. **OpenVPN/IPsec** in `get_vpn_status` (oggi solo WireGuard).
+7. **Nomi entità vuoti:** skippare/deduplicare interfacce/gateway con `name=""` per evitare
+   collisioni PK/unique.
+8. **Dedup job per-device** (`_job_id` in `enqueue_device_polls`) e/o gestione graziosa
+   dell'`IntegrityError` sull'insert alert, per rendere i poll sovrapposti un no-op pulito.
+9. **`device.status = "unreachable"`** citato nel commento ma mai scritto — decidere se
+   distinguerlo da `unverified`.
