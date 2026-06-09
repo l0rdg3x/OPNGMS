@@ -53,7 +53,14 @@ class OpnsenseClient:
         self._verify = verify_tls
         self._timeout = timeout
 
-    async def _get(self, path: str) -> dict:
+    async def _request(self, path: str) -> httpx.Response:
+        """SSRF-guarded GET toward the device API; the single guarded HTTP boundary.
+
+        Validates the URL, pins the resolved IP (anti DNS-rebinding), keeps the
+        original hostname for the Host header + SNI, and maps transport/status
+        errors to the connector exceptions. Returns the raw response; callers
+        decide how to interpret the body (JSON vs raw text).
+        """
         # SSRF guard: validate the scheme/userinfo/host and resolve+pin the IP.
         try:
             pinned_ip, host, port = validate_base_url(self._base_url)
@@ -83,10 +90,23 @@ class OpnsenseClient:
         if resp.status_code >= 400:
             # Do NOT include the upstream body in the error.
             raise ApiError(resp.status_code)
+        return resp
+
+    async def _get(self, path: str) -> dict:
+        resp = await self._request(path)
         try:
             return resp.json()
         except ValueError as exc:
             raise ParseError("response not interpretable") from exc
+
+    async def get_config_backup(self) -> str:
+        """Download the raw config.xml as text.
+
+        NOTE: the endpoint `core/backup/download/this` is TO BE VERIFIED against a
+        real OPNsense device (the response may be wrapped rather than raw XML).
+        """
+        resp = await self._request("core/backup/download/this")
+        return resp.text
 
     async def get_firmware_status(self) -> dict:
         return await self._get("core/firmware/status")

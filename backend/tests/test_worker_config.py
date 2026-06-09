@@ -14,3 +14,11 @@ def test_worker_exposes_event_ingest():
     assert ingest_device_events in WorkerSettings.functions
     # two crons: metrics poll + events ingest
     assert len(WorkerSettings.cron_jobs) >= 2
+
+
+def test_worker_exposes_config_backup():
+    from app.worker import WorkerSettings, backup_device_config
+
+    assert backup_device_config in WorkerSettings.functions
+    # three crons: metrics poll + events ingest + config backup
+    assert len(WorkerSettings.cron_jobs) >= 3

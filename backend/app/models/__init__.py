@@ -1,6 +1,7 @@
 from app.models.base import Base
 from app.models.alert import Alert
 from app.models.audit import AuditLog
+from app.models.config_snapshot import ConfigSnapshot
 from app.models.device import Device
 from app.models.event import Event
 from app.models.ingest_cursor import IngestCursor
@@ -14,6 +15,7 @@ __all__ = [
     "Base",
     "Alert",
     "AuditLog",
+    "ConfigSnapshot",
     "Device",
     "Event",
     "IngestCursor",
