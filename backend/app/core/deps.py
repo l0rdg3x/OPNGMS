@@ -1,5 +1,4 @@
 import uuid
-import uuid as _uuid
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request, status
@@ -50,7 +49,7 @@ class TenantContext:
 
 
 async def tenant_context(
-    tenant_id: _uuid.UUID,
+    tenant_id: uuid.UUID,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> TenantContext:

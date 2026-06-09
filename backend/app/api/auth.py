@@ -8,6 +8,7 @@ from app.core.db import get_session
 from app.core.deps import SESSION_COOKIE, enforce_csrf, get_current_user
 from app.models.user import User
 from app.schemas.auth import LoginIn, MeOut
+from app.services.audit import AuditService
 from app.services.auth import AuthService
 
 router = APIRouter(prefix="/api", tags=["auth"])
@@ -15,7 +16,10 @@ router = APIRouter(prefix="/api", tags=["auth"])
 
 @router.post("/login", response_model=MeOut)
 async def login(
-    payload: LoginIn, response: Response, session: AsyncSession = Depends(get_session)
+    payload: LoginIn,
+    request: Request,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
 ) -> User:
     svc = AuthService(session)
     user = await svc.authenticate(payload.email, payload.password)
@@ -25,6 +29,15 @@ async def login(
         )
     settings = get_settings()
     sess = await svc.create_session(user, settings.session_ttl_hours)
+    await AuditService(session).record(
+        actor_user_id=user.id,
+        tenant_id=None,
+        action="auth.login",
+        target_type="session",
+        target_id=str(sess.id),
+        ip=request.client.host if request.client else None,
+        details={},
+    )
     await session.commit()
     response.set_cookie(
         SESSION_COOKIE,
@@ -52,6 +65,15 @@ async def logout(
     if raw:
         try:
             await AuthService(session).delete_session(uuid.UUID(raw))
+            await AuditService(session).record(
+                actor_user_id=user.id,
+                tenant_id=None,
+                action="auth.logout",
+                target_type="session",
+                target_id=raw,
+                ip=request.client.host if request.client else None,
+                details={},
+            )
             await session.commit()
         except ValueError:
             pass
