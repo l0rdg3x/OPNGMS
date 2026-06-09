@@ -1,29 +1,33 @@
 # OPNGMS Frontend
 
-Console web React per OPNGMS (Fase 1 · Milestone D): login a sessione, app shell con tenant
-switcher, e gestione device (lista, dettaglio, onboarding, test-connection, elimina).
+React web console for OPNGMS: session login, app shell with tenant switcher, device management
+(list, detail, onboarding, test-connection, delete), and the monitoring dashboard (fleet overview,
+per-device health charts, alert list).
 
 ## Stack
-Vite + React + TypeScript, Mantine (UI), React Router, TanStack Query, client API tipizzato
-(openapi-fetch) generato da OpenAPI, test Vitest + Testing Library + MSW.
+Vite + React + TypeScript, Mantine (UI) + Mantine Charts, React Router, TanStack Query, typed API
+client (openapi-fetch) generated from OpenAPI, Vitest + Testing Library + MSW tests. UI strings live
+behind a lightweight i18n layer (`src/i18n/`, English by default, ready for additional languages).
 
-## Sviluppo
+## Development
 1. `npm install`
-2. Genera il client API dal backend (richiede il venv del backend): `npm run gen:api`
-3. Avvia il backend su :8000 (`cd ../backend && .venv/bin/uvicorn app.main:app`)
-4. `npm run dev` → http://localhost:5173 (il dev server fa da proxy `/api` → :8000)
+2. Generate the API client from the backend (requires the backend venv): `npm run gen:api`
+3. Start the backend on :8000 (`cd ../backend && .venv/bin/uvicorn app.main:app`)
+4. `npm run dev` → http://localhost:5173 (the dev server proxies `/api` → :8000)
 
-L'auth è a cookie httpOnly: il frontend deriva lo stato da `GET /api/me` e invia il cookie con
-`credentials: 'include'`; l'header CSRF `X-OPNGMS-CSRF` è aggiunto automaticamente sulle mutazioni.
+Auth uses an httpOnly cookie: the frontend derives its state from `GET /api/me` and sends the cookie
+with `credentials: 'include'`; the CSRF header `X-OPNGMS-CSRF` is added automatically on mutations.
 
-## Test e build
+## Test and build
 - Test: `npm run test`
-- Build di produzione: `npm run build` (type-check + bundle in `dist/`)
+- Production build: `npm run build` (type-check + bundle into `dist/`)
+- Lint: `npm run lint`
 
-## Rigenerare il client API
-Dopo modifiche all'API backend: `npm run gen:api` (riesporta `openapi.json` + `src/api/schema.d.ts`).
-Se i tipi divergono dal backend, è perché va rigenerato.
+## Regenerating the API client
+After backend API changes: `npm run gen:api` (re-exports `openapi.json` + `src/api/schema.d.ts`).
+If the types diverge from the backend, it means a regeneration is due.
 
-## Scope (Milestone D)
-Focalizzato: login + shell + gestione device. L'UI org-admin (tenant/utenti/membership) e le UI di
-edit/rotate-secret sono follow-up.
+## i18n
+UI text is keyed in `src/i18n/en.ts` and accessed via the `useT()` hook. To add a language, create a
+new dictionary file with the same shape, register it in `src/i18n/index.ts`, and select the locale in
+the `I18nProvider`.
