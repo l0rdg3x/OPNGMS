@@ -6,8 +6,8 @@ health and network monitoring, alerting, and — on the roadmap — log/event in
 push, and per-customer PDF reporting.
 
 > **Status:** Phases 1 (Foundation & Inventory) and 2 (Monitoring) are **complete**; Phase 3
-> (Log/Event ingest) is **in progress** (milestone 3A — Suricata ingest — done). See
-> [Roadmap & status](#roadmap--status).
+> (Log/Event ingest) is **in progress** (milestones 3A — Suricata — and 3B — DNS — done; 3C query API
+> next). See [Roadmap & status](#roadmap--status).
 
 ---
 
@@ -160,7 +160,7 @@ npm run lint        # ESLint
 | **1 — Foundation & Inventory** | Scaffold, auth/RBAC, org admin, devices/secrets/onboarding, frontend shell | ✅ Done |
 | **SSRF hardening** | SSRF guard on the OPNsense connector | ✅ Done |
 | **2 — Monitoring** | 2A poller core · 2B network metrics + alerting · 2C metrics/health/alert API + RLS · 2D dashboard frontend | ✅ Done |
-| **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS · 3C query API | 🔄 In progress (3A ✅) |
+| **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS ✅ · 3C query API | 🔄 In progress (3A, 3B ✅) |
 | **4 — Config push** | Push configuration to devices | ⬜ Planned |
 | **5 — PDF reporting** | Per-customer SonicWall SGMS-style reports (attacks, sites visited, bandwidth) | ⬜ Planned |
 | **Deploy** | Multi-stage Dockerfile + production docker-compose for the whole stack | ⬜ End of project |
