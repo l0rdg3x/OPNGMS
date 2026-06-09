@@ -2,9 +2,11 @@
 
 Parses config.xml with defusedxml (XXE/billion-laughs safe), strips the volatile
 <revision> node, preserves element order (repeated siblings indexed by position, same
-path scheme as config_diff), and emits a JSON tree. Sensitive leaf values (passwords,
-keys, secrets...) are REDACTED: the node carries sensitive=True and value=None, and the
-secret value never appears in the output. Redaction is conservative (when in doubt, redact).
+path scheme as config_diff), and emits a JSON tree. Sensitive values (passwords, keys,
+secrets...) are REDACTED: once a tag is sensitive the node AND its whole subtree carry
+sensitive=True with value=None and nulled attribute values, so neither descendant text
+nor attribute secrets ever appear in the output. Redaction is conservative (when in
+doubt, redact).
 """
 
 import xml.etree.ElementTree as ET  # type annotations only — NOT for parsing
@@ -21,8 +23,10 @@ _SENSITIVE_SUBSTRINGS = (
     "sharedkey", "shared_key", "token", "prv",
     # OPNsense literal secret tags missed by the substrings above:
     # privkey (cert/WireGuard private keys), hash (password hashes),
-    # seed (TOTP/OTP seeds), crypt (bcrypt/crypt hashes).
-    "privkey", "hash", "seed", "crypt",
+    # seed (TOTP/OTP seeds). NB: "crypt" is intentionally excluded — it
+    # over-matches <encryption> (non-secret settings); bcrypt/crypt hashes
+    # are already covered by "hash" and "password".
+    "privkey", "hash", "seed",
 )
 
 
@@ -37,21 +41,27 @@ def _strip_volatile(root: ET.Element) -> None:
             root.remove(child)
 
 
-def _node(elem: ET.Element, path: str) -> dict:
+def _node(elem: ET.Element, path: str, redacted: bool = False) -> dict:
+    # Once a node's tag is sensitive, the node AND its entire subtree are redacted:
+    # the flag is propagated down so descendant text/attributes never leak.
+    redacted = redacted or is_sensitive(elem.tag)
+    # Redact attribute values that are themselves sensitively-keyed, or any
+    # attribute under a redacted subtree.
+    attributes = {
+        k: (None if (redacted or is_sensitive(k)) else v) for k, v in elem.attrib.items()
+    }
     node: dict = {
         "tag": elem.tag,
         "path": path,
-        "attributes": dict(elem.attrib),
+        "attributes": attributes,
         "children": [],
         "value": None,
-        "sensitive": False,
+        "sensitive": redacted,
     }
     children = list(elem)
     if not children:
-        if is_sensitive(elem.tag):
-            node["sensitive"] = True  # value stays None (redacted)
-        else:
-            node["value"] = (elem.text or "").strip()
+        if not redacted:
+            node["value"] = (elem.text or "").strip()  # value stays None when redacted
         return node
     tag_total: dict[str, int] = {}
     for child in children:
@@ -60,7 +70,7 @@ def _node(elem: ET.Element, path: str) -> dict:
     for child in children:
         seen[child.tag] = seen.get(child.tag, 0) + 1
         seg = child.tag if tag_total[child.tag] == 1 else f"{child.tag}[{seen[child.tag]}]"
-        node["children"].append(_node(child, f"{path}/{seg}"))
+        node["children"].append(_node(child, f"{path}/{seg}", redacted))
     return node
 
 

@@ -60,6 +60,49 @@ def test_sensitive_value_is_redacted_and_never_emitted():
     assert pw["sensitive"] is True and pw["value"] is None
 
 
+def test_sensitive_container_redacts_whole_subtree():
+    # A sensitive tag WITH children must redact the node and its descendants:
+    # the descendant text must NOT leak and the node must be sensitive.
+    import json
+
+    xml = "<opnsense><privkey><inner>SECRET</inner></privkey></opnsense>"
+    root = build_tree(xml)
+    privkey = root["children"][0]
+    assert privkey["tag"] == "privkey"
+    assert privkey["sensitive"] is True
+    inner = privkey["children"][0]
+    assert inner["tag"] == "inner"
+    assert inner["sensitive"] is True and inner["value"] is None
+    assert "SECRET" not in json.dumps(root)
+
+
+def test_sensitive_attribute_value_is_redacted():
+    # A secret carried in an attribute must be nulled, never emitted verbatim.
+    import json
+
+    xml = '<opnsense><user password="ATTRSECRET">root</user></opnsense>'
+    root = build_tree(xml)
+    user = root["children"][0]
+    assert user["attributes"]["password"] is None
+    assert "ATTRSECRET" not in json.dumps(root)
+
+
+def test_non_sensitive_encryption_subtree_not_redacted():
+    # Regression: removing "crypt" from the denylist means <encryption> is no longer
+    # over-matched; a non-sensitive subtree keeps its values and stays sensitive=False.
+    import json
+
+    xml = "<opnsense><encryption><cipher>aes-256-gcm</cipher></encryption></opnsense>"
+    root = build_tree(xml)
+    encryption = root["children"][0]
+    assert encryption["tag"] == "encryption"
+    assert encryption["sensitive"] is False
+    cipher = encryption["children"][0]
+    assert cipher["tag"] == "cipher"
+    assert cipher["sensitive"] is False and cipher["value"] == "aes-256-gcm"
+    assert "aes-256-gcm" in json.dumps(root)
+
+
 def test_rejects_hostile_xml():
     import pytest
 
