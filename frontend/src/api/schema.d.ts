@@ -1147,7 +1147,7 @@ export interface operations {
     get_device_metrics_api_tenants__tenant_id__devices__device_id__metrics_get: {
         parameters: {
             query: {
-                /** @description Nome metrica, es. 'cpu.load' */
+                /** @description Metric name, e.g. 'cpu.load' */
                 metric: string;
                 from?: string | null;
                 to?: string | null;
@@ -1185,7 +1185,7 @@ export interface operations {
     list_alerts_api_tenants__tenant_id__alerts_get: {
         parameters: {
             query?: {
-                /** @description Solo alert attivi (resolved_at IS NULL) */
+                /** @description Active alerts only (resolved_at IS NULL) */
                 active?: boolean;
             };
             header?: never;

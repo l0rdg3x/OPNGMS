@@ -779,10 +779,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Nome metrica, es. 'cpu.load'",
+              "description": "Metric name, e.g. 'cpu.load'",
               "title": "Metric"
             },
-            "description": "Nome metrica, es. 'cpu.load'"
+            "description": "Metric name, e.g. 'cpu.load'"
           },
           {
             "name": "from",
@@ -884,11 +884,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "Solo alert attivi (resolved_at IS NULL)",
+              "description": "Active alerts only (resolved_at IS NULL)",
               "default": true,
               "title": "Active"
             },
-            "description": "Solo alert attivi (resolved_at IS NULL)"
+            "description": "Active alerts only (resolved_at IS NULL)"
           }
         ],
         "responses": {
