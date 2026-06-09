@@ -112,6 +112,8 @@ export const en = {
     metricsLoad: "Failed to load metrics",
     configModelLoad: "Failed to load configuration",
     configCapabilitiesLoad: "Failed to load capabilities",
+    configChangesLoad: "Failed to load changes",
+    configChangeAction: "Action failed (you may lack permission)",
   },
 } as const;
 
