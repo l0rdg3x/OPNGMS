@@ -74,10 +74,14 @@ async def test_health_endpoint_counts(api_client, db_engine):
 
 
 async def test_alerts_endpoint_active_filter(api_client, db_engine):
+    """Il filtro `active` discrimina davvero: due alert (uno attivo, uno risolto)
+    sullo stesso device. active=true -> solo l'attivo; active=false -> storico completo.
+    """
     tid = await _login_superadmin(api_client, db_engine)
     did = await _insert_device(db_engine, tid)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
+        # Alert ATTIVO: resolved_at NULL.
         await s.execute(
             text(
                 "INSERT INTO alerts (id, tenant_id, device_id, type, label, severity, details) "
@@ -85,8 +89,35 @@ async def test_alerts_endpoint_active_filter(api_client, db_engine):
             ),
             {"id": uuid.uuid4(), "tid": tid, "did": did},
         )
+        # Alert RISOLTO: resolved_at valorizzato. type/label diversi per stare fuori
+        # dal vincolo unico parziale uq_alerts_active (che vale solo per resolved_at NULL).
+        await s.execute(
+            text(
+                "INSERT INTO alerts "
+                "(id, tenant_id, device_id, type, label, severity, resolved_at, details) "
+                "VALUES (:id, :tid, :did, 'gateway.down', 'wan', 'warning', :resolved, '{}'::jsonb)"
+            ),
+            {
+                "id": uuid.uuid4(),
+                "tid": tid,
+                "did": did,
+                "resolved": datetime.now(timezone.utc),
+            },
+        )
         await s.commit()
+
+    # active=true -> SOLO l'alert attivo (il risolto e' escluso).
     r = await api_client.get(f"/api/tenants/{tid}/alerts", params={"active": "true"})
+    assert r.status_code == 200
+    assert [a["type"] for a in r.json()] == ["device.down"]
+
+    # active=false -> ENTRAMBI (storico completo: attivo + risolto).
+    r = await api_client.get(f"/api/tenants/{tid}/alerts", params={"active": "false"})
+    assert r.status_code == 200
+    assert {a["type"] for a in r.json()} == {"device.down", "gateway.down"}
+
+    # default (senza parametro) -> active=true -> solo l'attivo.
+    r = await api_client.get(f"/api/tenants/{tid}/alerts")
     assert r.status_code == 200
     assert [a["type"] for a in r.json()] == ["device.down"]
 
