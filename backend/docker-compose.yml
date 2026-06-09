@@ -25,5 +25,18 @@ services:
       timeout: 3s
       retries: 10
 
+  worker:
+    build: .
+    command: ["arq", "app.worker.WorkerSettings"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://opngms_app:opngms_app@db:5432/opngms
+      ADMIN_DATABASE_URL: postgresql+asyncpg://opngms:opngms@db:5432/opngms
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: change-me
+      MASTER_KEY: change-me-fernet-key
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
 volumes:
   opngms_pg:
