@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Group, SegmentedControl, SimpleGrid, Stack, Title } from "@mantine/core";
+import { useT } from "../i18n";
 import { MetricChart } from "./MetricChart";
 import { useDeviceMetrics } from "./hooks";
 import type { MetricPoint, Range } from "./types";
@@ -23,11 +24,12 @@ function ChartFor({
 }
 
 export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
+  const t = useT();
   const [range, setRange] = useState<Range>("24h");
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={4}>Salute</Title>
+        <Title order={4}>{t.deviceHealth.title}</Title>
         <SegmentedControl
           value={range}
           onChange={(v) => setRange(v as Range)}
@@ -39,38 +41,38 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
         />
       </Group>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
-        <ChartFor deviceId={deviceId} metric="cpu.pct" title="CPU" unit="%" range={range} />
-        <ChartFor deviceId={deviceId} metric="mem.pct" title="Memoria" unit="%" range={range} />
-        <ChartFor deviceId={deviceId} metric="disk.pct" title="Disco" unit="%" range={range} />
+        <ChartFor deviceId={deviceId} metric="cpu.pct" title={t.deviceHealth.cpu} unit="%" range={range} />
+        <ChartFor deviceId={deviceId} metric="mem.pct" title={t.deviceHealth.memory} unit="%" range={range} />
+        <ChartFor deviceId={deviceId} metric="disk.pct" title={t.deviceHealth.disk} unit="%" range={range} />
         <ChartFor
           deviceId={deviceId}
           metric="iface.bytes_in"
-          title="Traffico in"
+          title={t.deviceHealth.trafficIn}
           unit="bytes"
           range={range}
         />
         <ChartFor
           deviceId={deviceId}
           metric="iface.bytes_out"
-          title="Traffico out"
+          title={t.deviceHealth.trafficOut}
           unit="bytes"
           range={range}
         />
         <ChartFor
           deviceId={deviceId}
           metric="gateway.rtt_ms"
-          title="Gateway RTT"
+          title={t.deviceHealth.gatewayRtt}
           unit="ms"
           range={range}
         />
         <ChartFor
           deviceId={deviceId}
           metric="gateway.loss_pct"
-          title="Gateway loss"
+          title={t.deviceHealth.gatewayLoss}
           unit="%"
           range={range}
         />
-        <ChartFor deviceId={deviceId} metric="vpn.up" title="VPN up" range={range} />
+        <ChartFor deviceId={deviceId} metric="vpn.up" title={t.deviceHealth.vpnUp} range={range} />
       </SimpleGrid>
     </Stack>
   );

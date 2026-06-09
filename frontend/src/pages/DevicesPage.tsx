@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { DeviceCreateModal } from "../components/DeviceCreateModal";
+import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -13,6 +14,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export function DevicesPage() {
+  const t = useT();
   const { activeId } = useTenant();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
@@ -30,14 +32,14 @@ export function DevicesPage() {
   return (
     <>
       <Group justify="space-between" mb="md">
-        <Title order={3}>Device</Title>
-        <Button onClick={() => setCreateOpen(true)} disabled={!activeId}>Aggiungi device</Button>
+        <Title order={3}>{t.devices.title}</Title>
+        <Button onClick={() => setCreateOpen(true)} disabled={!activeId}>{t.devices.add}</Button>
       </Group>
       <Table highlightOnHover>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Nome</Table.Th><Table.Th>URL</Table.Th>
-            <Table.Th>Stato</Table.Th><Table.Th>Firmware</Table.Th>
+            <Table.Th>{t.devices.colName}</Table.Th><Table.Th>{t.devices.colUrl}</Table.Th>
+            <Table.Th>{t.devices.colStatus}</Table.Th><Table.Th>{t.devices.colFirmware}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -46,7 +48,7 @@ export function DevicesPage() {
               <Table.Td>{d.name}</Table.Td>
               <Table.Td>{d.base_url}</Table.Td>
               <Table.Td><Badge color={STATUS_COLOR[d.status] ?? "gray"}>{d.status}</Badge></Table.Td>
-              <Table.Td>{d.firmware_version ?? "—"}</Table.Td>
+              <Table.Td>{d.firmware_version ?? t.common.none}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>

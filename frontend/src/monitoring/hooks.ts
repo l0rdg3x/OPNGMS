@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { en } from "../i18n/en";
 import { useTenant } from "../tenant/useTenant";
 import { rangeToParams } from "./range";
 import type { Range } from "./types";
@@ -13,7 +14,7 @@ export function useTenantHealth() {
       const { data, error } = await api.GET("/api/tenants/{tenant_id}/health", {
         params: { path: { tenant_id: activeId! } },
       });
-      if (error) throw new Error("Errore nel caricamento della salute flotta");
+      if (error) throw new Error(en.errors.fleetHealthLoad);
       return data;
     },
   });
@@ -28,7 +29,7 @@ export function useAlerts(active: boolean) {
       const { data, error } = await api.GET("/api/tenants/{tenant_id}/alerts", {
         params: { path: { tenant_id: activeId! }, query: { active } },
       });
-      if (error) throw new Error("Errore nel caricamento degli alert");
+      if (error) throw new Error(en.errors.alertsLoad);
       return data ?? [];
     },
   });
@@ -50,7 +51,7 @@ export function useDeviceMetrics(deviceId: string | undefined, metric: string, r
           },
         },
       );
-      if (error) throw new Error("Errore nel caricamento delle metriche");
+      if (error) throw new Error(en.errors.metricsLoad);
       return data;
     },
   });

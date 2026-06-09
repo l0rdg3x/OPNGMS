@@ -23,7 +23,7 @@ function withTenant(node: ReactNode) {
 }
 
 describe("OverviewPage", () => {
-  it("mostra health e alert attivi", async () => {
+  it("shows health and active alerts", async () => {
     server.use(
       http.get("/api/tenants/t1/health", () =>
         HttpResponse.json({ total_devices: 5, by_status: { reachable: 2 }, active_alerts: 1 }),
@@ -42,7 +42,7 @@ describe("OverviewPage", () => {
     expect(await screen.findByText(/device\.down/)).toBeInTheDocument();
   });
 
-  it("empty-state senza alert attivi", async () => {
+  it("empty-state with no active alerts", async () => {
     server.use(
       http.get("/api/tenants/t1/health", () =>
         HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
@@ -50,13 +50,13 @@ describe("OverviewPage", () => {
       http.get("/api/tenants/t1/alerts", () => HttpResponse.json([])),
     );
     renderWithProviders(withTenant(<OverviewPage />));
-    expect(await screen.findByText(/nessun alert attivo/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no active alerts/i)).toBeInTheDocument();
   });
 
-  it("mostra messaggio d'errore quando l'API alert ritorna 500", async () => {
-    // Lock-in del ramo d'errore: senza il throw nello hook, useAlerts
-    // farebbe `return data ?? []` su un 500 -> nessun errore propagato,
-    // l'Alert rosso resterebbe dead code. Con il fix l'errore si propaga.
+  it("shows an error message when the alerts API returns 500", async () => {
+    // Locks in the error branch: without the throw in the hook, useAlerts
+    // would `return data ?? []` on a 500 -> no error propagated,
+    // and the red Alert would be dead code. With the fix the error propagates.
     server.use(
       http.get("/api/tenants/t1/health", () =>
         HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
@@ -66,6 +66,6 @@ describe("OverviewPage", () => {
       ),
     );
     renderWithProviders(withTenant(<OverviewPage />));
-    expect(await screen.findByText(/errore nel caricamento degli alert/i)).toBeInTheDocument();
+    expect(await screen.findByText(/failed to load alerts/i)).toBeInTheDocument();
   });
 });

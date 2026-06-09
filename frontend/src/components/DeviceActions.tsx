@@ -3,8 +3,10 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { useT } from "../i18n";
 
 export function DeviceActions({ tenantId, deviceId }: { tenantId: string; deviceId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const pathParams = { params: { path: { tenant_id: tenantId, device_id: deviceId } } } as const;
@@ -20,10 +22,10 @@ export function DeviceActions({ tenantId, deviceId }: { tenantId: string; device
     },
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: ["device", tenantId, deviceId] });
-      qc.invalidateQueries({ queryKey: ["devices", tenantId] }); // Fix 3: aggiorna anche la lista
-      notifications.show({ message: `Test: ${d.status}` }); // no cast needed now
+      qc.invalidateQueries({ queryKey: ["devices", tenantId] }); // also refresh the list
+      notifications.show({ message: `${t.deviceActions.testNotification}: ${d.status}` });
     },
-    onError: () => notifications.show({ color: "red", message: "Test connessione fallito" }), // Fix 2
+    onError: () => notifications.show({ color: "red", message: t.deviceActions.testFailed }),
   });
 
   const remove = useMutation({
@@ -38,18 +40,18 @@ export function DeviceActions({ tenantId, deviceId }: { tenantId: string; device
       qc.invalidateQueries({ queryKey: ["devices", tenantId] });
       navigate("/devices");
     },
-    onError: () => notifications.show({ color: "red", message: "Eliminazione fallita" }),
+    onError: () => notifications.show({ color: "red", message: t.deviceActions.deleteFailed }),
   });
 
   return (
     <>
       <Group mt="md">
-        <Button onClick={() => test.mutate()} loading={test.isPending}>Testa connessione</Button>
-        <Button color="red" variant="light" onClick={() => remove.mutate()}>Elimina</Button>
+        <Button onClick={() => test.mutate()} loading={test.isPending}>{t.deviceActions.testConnection}</Button>
+        <Button color="red" variant="light" onClick={() => remove.mutate()}>{t.deviceActions.delete}</Button>
       </Group>
       {test.data && (
         <Text data-testid="test-result">
-          Risultato test: {test.data.status}
+          {t.deviceActions.testResult}: {test.data.status}
         </Text>
       )}
     </>

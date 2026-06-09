@@ -10,7 +10,7 @@ const points: MetricPoint[] = [
 ];
 
 describe("toChartData", () => {
-  it("raggruppa per timestamp con una serie per label", () => {
+  it("groups by timestamp with one series per label", () => {
     const multi: MetricPoint[] = [
       { time: "t1", label: "igb0", value: 1 },
       { time: "t1", label: "igb1", value: 2 },
@@ -24,14 +24,14 @@ describe("toChartData", () => {
     ]);
   });
 
-  it("label vuota → serie 'value'", () => {
+  it("empty label → 'value' series", () => {
     const { series } = toChartData(points);
     expect(series).toEqual(["value"]);
   });
 });
 
 describe("MetricChart", () => {
-  it("mostra il titolo e non crasha con dati", () => {
+  it("shows the title and does not crash with data", () => {
     render(
       <MantineProvider>
         <MetricChart title="CPU %" points={points} />
@@ -40,12 +40,12 @@ describe("MetricChart", () => {
     expect(screen.getByText("CPU %")).toBeInTheDocument();
   });
 
-  it("mostra empty-state senza dati", () => {
+  it("shows empty-state without data", () => {
     render(
       <MantineProvider>
         <MetricChart title="CPU %" points={[]} />
       </MantineProvider>,
     );
-    expect(screen.getByText(/nessun dato/i)).toBeInTheDocument();
+    expect(screen.getByText(/no data/i)).toBeInTheDocument();
   });
 });
