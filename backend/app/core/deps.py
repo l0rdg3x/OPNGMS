@@ -8,6 +8,16 @@ from app.models.user import User
 from app.services.auth import AuthService
 
 SESSION_COOKIE = "opngms_session"
+CSRF_HEADER = "X-OPNGMS-CSRF"
+
+
+async def enforce_csrf(request: Request) -> None:
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        if not request.headers.get(CSRF_HEADER):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Header CSRF mancante",
+            )
 
 
 async def get_current_user(
