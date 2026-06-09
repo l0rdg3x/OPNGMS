@@ -10,7 +10,7 @@ from app.core.deps import TenantContext, enforce_csrf, require_tenant
 from app.core.rbac import Action
 from app.models.device import Device
 from app.repositories.device import DeviceRepository
-from app.schemas.device import DeviceIn, DeviceOut, DeviceUpdateIn
+from app.schemas.device import DeviceIn, DeviceOut, DeviceUpdateIn, RotateSecretIn, TestResultOut
 from app.services.audit import AuditService
 from app.services.onboarding import Prober, get_prober
 
@@ -145,3 +145,81 @@ async def delete_device(
         details={},
     )
     await session.commit()
+
+
+@router.post(
+    "/{device_id}/test-connection",
+    response_model=TestResultOut,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def test_device_connection(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    request: Request,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_WRITE)),
+    session: AsyncSession = Depends(get_session),
+    prober: Prober = Depends(get_prober),
+) -> TestResultOut:
+    repo = DeviceRepository(session, tenant_id)
+    device = await repo.get(device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+    result = await prober(
+        device.base_url,
+        crypto.decrypt(device.api_key_enc),
+        crypto.decrypt(device.api_secret_enc),
+        verify_tls=device.verify_tls,
+        tls_fingerprint=device.tls_fingerprint,
+    )
+    device.status = "reachable" if result.reachable else "unverified"
+    if result.reachable:
+        device.last_seen = datetime.now(timezone.utc)
+        device.firmware_version = result.firmware_version
+    await session.flush()
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="device.test",
+        target_type="device",
+        target_id=str(device.id),
+        ip=request.client.host if request.client else None,
+        details={"status": device.status},
+    )
+    await session.commit()
+    return TestResultOut(
+        status=device.status, firmware_version=device.firmware_version, error=result.error
+    )
+
+
+@router.post(
+    "/{device_id}/rotate-secret",
+    response_model=DeviceOut,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def rotate_secret(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    payload: RotateSecretIn,
+    request: Request,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_WRITE)),
+    session: AsyncSession = Depends(get_session),
+) -> Device:
+    repo = DeviceRepository(session, tenant_id)
+    device = await repo.get(device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+    device.api_key_enc = crypto.encrypt(payload.api_key)
+    device.api_secret_enc = crypto.encrypt(payload.api_secret)
+    await session.flush()
+    await session.refresh(device)  # ricarica updated_at server-side (evita MissingGreenlet alla serializzazione DeviceOut)
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="device.rotate_secret",
+        target_type="device",
+        target_id=str(device.id),
+        ip=request.client.host if request.client else None,
+        details={},  # MAI loggare i segreti
+    )
+    await session.commit()
+    return device
