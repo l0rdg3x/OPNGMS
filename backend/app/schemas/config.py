@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -12,6 +13,32 @@ class ConfigSnapshotOut(BaseModel):
     opnsense_version: str
     size_bytes: int
     # NB: content is NEVER exposed (it holds secrets).
+
+    model_config = {"from_attributes": True}
+
+
+class ConfigChangeIn(BaseModel):
+    kind: str
+    operation: Literal["add", "set", "delete"]  # fail-fast 422 on an invalid operation
+    target: str = ""
+    payload: dict = {}
+
+
+class ScheduleIn(BaseModel):
+    scheduled_at: datetime | None = None  # None = immediate
+
+
+class ConfigChangeOut(BaseModel):
+    id: uuid.UUID
+    device_id: uuid.UUID
+    kind: str
+    operation: str
+    target: str
+    status: str
+    scheduled_at: datetime | None
+    applied_at: datetime | None
+    created_at: datetime
+    # NB: payload/result/baseline_hash are internal and NEVER exposed.
 
     model_config = {"from_attributes": True}
 

@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.models.device import Device
 from app.services.alerting import evaluate_alerts
 from app.services.config_backup import backup_config
+from app.services.config_push import apply_change
 from app.services.ingest import ingest_events
 from app.services.monitoring import collect_and_store
 
@@ -109,6 +110,43 @@ async def backup_device_config(ctx: dict, device_id: str) -> bool:
         return created
 
 
+async def apply_config_change(ctx: dict, change_id: str) -> str:
+    """Job: apply a scheduled config change (dry-run), staleness-guarded + audited."""
+    from app.models.config_change import ConfigChange
+    from app.services.audit import AuditService
+
+    factory = ctx["session_factory"]
+    async with factory() as session:
+        change = await session.get(ConfigChange, uuid.UUID(change_id))
+        if change is None:
+            return "missing"
+        device = await session.get(Device, change.device_id)
+        if device is None:
+            return "missing-device"
+        client = OpnsenseClient(
+            device.base_url,
+            crypto.decrypt(device.api_key_enc),
+            crypto.decrypt(device.api_secret_enc),
+            verify_tls=device.verify_tls,
+        )
+        status = await apply_change(
+            session, change, client, now=datetime.now(timezone.utc)
+        )
+        await AuditService(session).record(
+            actor_user_id=change.created_by,
+            tenant_id=change.tenant_id,
+            action="config.change.apply",
+            target_type="config_change",
+            target_id=str(change.id),
+            ip=None,
+            details={"status": status},
+        )
+        await session.commit()
+        # Refresh the snapshot so the next change's baseline reflects reality.
+        await ctx["redis"].enqueue_job("backup_device_config", str(change.device_id))
+        return status
+
+
 async def on_startup(ctx: dict) -> None:
     engine = create_async_engine(_owner_url(), pool_pre_ping=True)
     ctx["engine"] = engine
@@ -120,7 +158,7 @@ async def on_shutdown(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # events, every 5 minutes

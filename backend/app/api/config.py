@@ -2,26 +2,34 @@ import gzip
 import uuid
 
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.opnsense.client import OpnsenseClient, OpnsenseError
 from app.core import crypto
 from app.core.db import get_session
-from app.core.deps import TenantContext, require_tenant
+from app.core.deps import TenantContext, enforce_csrf, require_tenant
+from app.core.queue import get_enqueuer
 from app.core.rbac import Action
+from app.models.config_change import ConfigChange
 from app.models.config_snapshot import ConfigSnapshot
 from app.models.device import Device
+from app.repositories.config_change import ConfigChangeRepository
 from app.repositories.config_snapshot import ConfigSnapshotRepository
 from app.schemas.config import (
     CapabilityInventory,
+    ConfigChangeIn,
+    ConfigChangeOut,
     ConfigDiffEntry,
     ConfigSnapshotOut,
     DriftSummary,
+    ScheduleIn,
 )
+from app.services.audit import AuditService
 from app.services.capability import build_inventory
 from app.services.config_diff import structural_diff
 from app.services.config_model import build_tree
+from app.services.config_push import create_change, preview_change
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["config"])
 
@@ -135,3 +143,163 @@ async def config_capabilities(
             plugin_info = {"plugins": []}
     inv = build_inventory(_xml(snap), snap.opnsense_version, plugin_info)
     return CapabilityInventory(**inv)
+
+
+# --- Config change & push pipeline (4D-a) ---------------------------------
+#
+# create/schedule/cancel mutate state and are gated by CONFIG_PUSH (the elevated
+# mutation action) + CSRF; list/preview are read-only and gated by DEVICE_VIEW.
+# ConfigChangeOut deliberately hides payload/result/baseline_hash (internal).
+
+
+@router.post(
+    "/devices/{device_id}/config/changes",
+    response_model=ConfigChangeOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def create_config_change(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    payload: ConfigChangeIn,
+    request: Request,
+    ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
+    session: AsyncSession = Depends(get_session),
+) -> ConfigChange:
+    # Cross-tenant guard: the worker applies changes as the DB owner (RLS bypassed)
+    # and loads the device by id, so a change must never be created for a device the
+    # caller cannot see. Under RLS this lookup returns None for another tenant's device.
+    device = await session.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    change = await create_change(
+        session,
+        tenant_id=tenant_id,
+        device_id=device_id,
+        created_by=ctx.user.id,
+        kind=payload.kind,
+        operation=payload.operation,
+        target=payload.target,
+        payload=payload.payload,
+    )
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="config.change.create",
+        target_type="config_change",
+        target_id=str(change.id),
+        ip=request.client.host if request.client else None,
+        details={"kind": change.kind, "op": change.operation},
+    )
+    await session.commit()
+    return change
+
+
+@router.get(
+    "/devices/{device_id}/config/changes",
+    response_model=list[ConfigChangeOut],
+)
+async def list_config_changes(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> list[ConfigChange]:
+    return list(await ConfigChangeRepository(session, tenant_id).list(device_id))
+
+
+@router.get("/devices/{device_id}/config/changes/{change_id}/preview")
+async def preview_config_change(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    change_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    change = await ConfigChangeRepository(session, tenant_id).get(change_id)
+    if change is None or change.device_id != device_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Change not found")
+    return preview_change(change)
+
+
+@router.post(
+    "/devices/{device_id}/config/changes/{change_id}/schedule",
+    response_model=ConfigChangeOut,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def schedule_config_change(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    change_id: uuid.UUID,
+    body: ScheduleIn,
+    request: Request,
+    ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
+    session: AsyncSession = Depends(get_session),
+    enqueue=Depends(get_enqueuer),
+) -> ConfigChange:
+    repo = ConfigChangeRepository(session, tenant_id)
+    change = await repo.get(change_id)
+    if change is None or change.device_id != device_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Change not found")
+    if change.status not in ("draft", "scheduled"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot schedule a change in status {change.status}",
+        )
+    change.status = "scheduled"
+    change.scheduled_at = body.scheduled_at
+    await session.flush()
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="config.change.schedule",
+        target_type="config_change",
+        target_id=str(change.id),
+        ip=request.client.host if request.client else None,
+        details={
+            "scheduled_at": body.scheduled_at.isoformat()
+            if body.scheduled_at
+            else "immediate"
+        },
+    )
+    await session.commit()
+    # Immediate -> defer_until=None; deferred -> defer_until=scheduled_at.
+    await enqueue("apply_config_change", str(change.id), defer_until=body.scheduled_at)
+    return change
+
+
+@router.post(
+    "/devices/{device_id}/config/changes/{change_id}/cancel",
+    response_model=ConfigChangeOut,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def cancel_config_change(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    change_id: uuid.UUID,
+    request: Request,
+    ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
+    session: AsyncSession = Depends(get_session),
+) -> ConfigChange:
+    repo = ConfigChangeRepository(session, tenant_id)
+    change = await repo.get(change_id)
+    if change is None or change.device_id != device_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Change not found")
+    if change.status not in ("draft", "scheduled"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel a change in status {change.status}",
+        )
+    change.status = "cancelled"
+    await session.flush()
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="config.change.cancel",
+        target_type="config_change",
+        target_id=str(change.id),
+        ip=request.client.host if request.client else None,
+        details={},
+    )
+    await session.commit()
+    return change

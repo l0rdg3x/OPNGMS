@@ -22,3 +22,9 @@ def test_worker_exposes_config_backup():
     assert backup_device_config in WorkerSettings.functions
     # three crons: metrics poll + events ingest + config backup
     assert len(WorkerSettings.cron_jobs) >= 3
+
+
+def test_worker_exposes_config_change_apply():
+    from app.worker import WorkerSettings, apply_config_change
+
+    assert apply_config_change in WorkerSettings.functions
