@@ -19,6 +19,10 @@ _SENSITIVE_SUBSTRINGS = (
     "password", "passwd", "secret", "psk", "pre-shared-key", "preshared",
     "passphrase", "privatekey", "private_key", "apikey", "api_key",
     "sharedkey", "shared_key", "token", "prv",
+    # OPNsense literal secret tags missed by the substrings above:
+    # privkey (cert/WireGuard private keys), hash (password hashes),
+    # seed (TOTP/OTP seeds), crypt (bcrypt/crypt hashes).
+    "privkey", "hash", "seed", "crypt",
 )
 
 

@@ -15,6 +15,27 @@ def test_is_sensitive():
     assert not is_sensitive("hostname") and not is_sensitive("if")
 
 
+def test_is_sensitive_opnsense_secret_tags():
+    # OPNsense literal secret tags that the original denylist missed.
+    assert is_sensitive("privkey") and is_sensitive("cert_privkey")
+    assert is_sensitive("md5-hash") and is_sensitive("nthash")
+    assert is_sensitive("otp_seed")
+    # Legitimate display fields must stay visible (no over-redaction here).
+    assert not is_sensitive("hostname") and not is_sensitive("if") and not is_sensitive("descr")
+    assert not is_sensitive("type") and not is_sensitive("ipaddr")
+
+
+def test_privkey_leaf_is_redacted_and_never_emitted():
+    import json
+
+    xml = "<opnsense><cert><privkey>SUPERSECRETPRIVATEKEY</privkey></cert></opnsense>"
+    root = build_tree(xml)
+    privkey = root["children"][0]["children"][0]
+    assert privkey["tag"] == "privkey"
+    assert privkey["sensitive"] is True and privkey["value"] is None
+    assert "SUPERSECRETPRIVATEKEY" not in json.dumps(root)
+
+
 def test_build_tree_structure_and_order():
     root = build_tree(XML)
     assert root["tag"] == "opnsense"
