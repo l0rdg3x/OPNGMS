@@ -89,6 +89,16 @@ class OpnsenseClient:
     async def get_firmware_status(self) -> dict:
         return await self._get("core/firmware/status")
 
+    async def get_system_info(self) -> dict:
+        """CPU/mem/disco/uptime. NOTA: endpoint+campi DA VERIFICARE su un OPNsense reale."""
+        data = await self._get("diagnostics/system/systemInformation")
+        return {
+            "cpu_pct": float((data.get("cpu") or {}).get("used", 0.0)),
+            "mem_pct": float((data.get("memory") or {}).get("used_pct", 0.0)),
+            "disk_pct": float((data.get("disk") or {}).get("used_pct", 0.0)),
+            "uptime_seconds": int(data.get("uptime_seconds", 0)),
+        }
+
     async def test_connection(self) -> str | None:
         """Verifica raggiungibilità+credenziali; ritorna la versione firmware o None.
 
