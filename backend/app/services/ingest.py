@@ -8,8 +8,8 @@ from app.models.device import Device
 from app.models.event import Event
 from app.models.ingest_cursor import IngestCursor
 
-# Sorgenti attive: la 3B aggiungerà "dns".
-SOURCES = ["ids"]
+# Sorgenti attive.
+SOURCES = ["ids", "dns"]
 
 
 async def ingest_events(session: AsyncSession, device: Device, client, now: datetime) -> int:
@@ -45,6 +45,8 @@ async def _ingest_source(session: AsyncSession, device: Device, client, source: 
 async def _fetch(client, source: str, since):
     if source == "ids":
         return await client.get_ids_alerts(since)
+    if source == "dns":
+        return await client.get_dns_events(since)
     raise ValueError(f"source sconosciuta: {source}")
 
 
