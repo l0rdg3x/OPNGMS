@@ -16,6 +16,32 @@ class ConfigSnapshotOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConfigChangeIn(BaseModel):
+    kind: str
+    operation: str
+    target: str = ""
+    payload: dict = {}
+
+
+class ScheduleIn(BaseModel):
+    scheduled_at: datetime | None = None  # None = immediate
+
+
+class ConfigChangeOut(BaseModel):
+    id: uuid.UUID
+    device_id: uuid.UUID
+    kind: str
+    operation: str
+    target: str
+    status: str
+    scheduled_at: datetime | None
+    applied_at: datetime | None
+    created_at: datetime
+    # NB: payload/result/baseline_hash are internal and NEVER exposed.
+
+    model_config = {"from_attributes": True}
+
+
 class ConfigDiffEntry(BaseModel):
     path: str
     change: str  # added | removed | modified
