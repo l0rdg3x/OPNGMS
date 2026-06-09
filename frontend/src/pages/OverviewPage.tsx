@@ -16,6 +16,7 @@ export function OverviewPage() {
 
       <Title order={4} mt="md">Alert attivi</Title>
       {alerts.isLoading && <Loader />}
+      {alerts.error && <Alert color="red">Errore nel caricamento degli alert</Alert>}
       {alerts.data && alerts.data.length === 0 && (
         <Text c="dimmed">Nessun alert attivo</Text>
       )}
