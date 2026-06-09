@@ -214,6 +214,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Device Metrics */
+        get: operations["get_device_metrics_api_tenants__tenant_id__devices__device_id__metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Alerts */
+        get: operations["list_alerts_api_tenants__tenant_id__alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fleet Health */
+        get: operations["fleet_health_api_tenants__tenant_id__health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -235,6 +286,36 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AlertOut */
+        AlertOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Type */
+            type: string;
+            /** Label */
+            label: string;
+            /** Severity */
+            severity: string;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            };
+        };
         /** DeviceIn */
         DeviceIn: {
             /** Name */
@@ -318,6 +399,17 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HealthOut */
+        HealthOut: {
+            /** Total Devices */
+            total_devices: number;
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** Active Alerts */
+            active_alerts: number;
+        };
         /** LoginIn */
         LoginIn: {
             /**
@@ -377,6 +469,27 @@ export interface components {
             tenant_id: string;
             /** Role */
             role: string;
+        };
+        /** MetricPoint */
+        MetricPoint: {
+            /**
+             * Time
+             * Format: date-time
+             */
+            time: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+        };
+        /** MetricSeriesOut */
+        MetricSeriesOut: {
+            /** Metric */
+            metric: string;
+            /** Points */
+            points: components["schemas"]["MetricPoint"][];
+            /** Last */
+            last: components["schemas"]["MetricPoint"][];
         };
         /** MyTenantOut */
         MyTenantOut: {
@@ -1027,6 +1140,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyTenantOut"][];
+                };
+            };
+        };
+    };
+    get_device_metrics_api_tenants__tenant_id__devices__device_id__metrics_get: {
+        parameters: {
+            query: {
+                /** @description Nome metrica, es. 'cpu.load' */
+                metric: string;
+                from?: string | null;
+                to?: string | null;
+                bucket?: number | null;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricSeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_alerts_api_tenants__tenant_id__alerts_get: {
+        parameters: {
+            query?: {
+                /** @description Solo alert attivi (resolved_at IS NULL) */
+                active?: boolean;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fleet_health_api_tenants__tenant_id__health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
