@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.core.db import make_engine, set_tenant_context
+from app.core.db import get_session, make_engine, set_tenant_context
 from app.core.db_roles import (
     create_app_role_statements,
     grant_app_role_statements,
@@ -101,3 +101,20 @@ async def two_tenants(db_engine):
         )
         await s.commit()
     return a, b
+
+
+@pytest.fixture
+async def api_client(db_engine):
+    """Client ASGI con get_session sovrascritto verso il DB di test (ruolo owner)."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+
+    async def _override_get_session():
+        async with factory() as s:
+            yield s
+
+    app.dependency_overrides[get_session] = _override_get_session
+    transport = ASGITransport(app=app)
+    # base_url https:// così httpx memorizza i cookie `secure=True` (l'ASGITransport non fa TLS reale).
+    async with AsyncClient(transport=transport, base_url="https://test") as c:
+        yield c
+    app.dependency_overrides.clear()
