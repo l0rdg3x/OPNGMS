@@ -9,6 +9,7 @@ export interface ChartData {
 
 /** Trasforma punti {time,label,value} in righe per timestamp con una colonna per label.
  *  Label vuota ('') → colonna 'value'. Funzione pura, testata a parte. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function toChartData(points: MetricPoint[]): ChartData {
   const seriesSet: string[] = [];
   const byTime = new Map<string, Record<string, number | string>>();
