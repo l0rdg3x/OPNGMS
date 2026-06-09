@@ -3,7 +3,7 @@ import respx
 
 from app.services.onboarding import probe_device
 
-BASE = "https://fw.test"
+BASE = "https://203.0.113.10"
 FW_URL = f"{BASE}/api/core/firmware/status"
 
 

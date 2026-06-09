@@ -25,8 +25,9 @@ async def probe_device(
         version = await client.test_connection()
         return ProbeResult(reachable=True, firmware_version=version, error=None)
     except OpnsenseError as exc:
+        # SANITIZZATO: solo il nome del tipo, niente contenuto upstream/URL.
         return ProbeResult(
-            reachable=False, firmware_version=None, error=f"{type(exc).__name__}: {exc}"
+            reachable=False, firmware_version=None, error=type(exc).__name__
         )
 
 

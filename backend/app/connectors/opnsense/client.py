@@ -1,4 +1,8 @@
+from urllib.parse import urlsplit
+
 import httpx
+
+from app.connectors.opnsense.url_safety import UnsafeUrlError, validate_base_url
 
 
 class OpnsenseError(Exception):
@@ -48,22 +52,39 @@ class OpnsenseClient:
         self._timeout = timeout
 
     async def _get(self, path: str) -> dict:
-        url = f"{self._base_url}/api/{path.lstrip('/')}"
+        # Guardia SSRF: valida lo schema/userinfo/host e risolve+pinna l'IP.
+        try:
+            pinned_ip, host, port = validate_base_url(self._base_url)
+        except UnsafeUrlError as exc:
+            # Messaggio SANITIZZATO: niente dettaglio dell'URL non sicuro.
+            raise ReachabilityError("destinazione non sicura") from exc
+        # Connetti all'IP pinnato (anti DNS-rebinding); l'hostname originale resta
+        # per l'header Host e per SNI/verifica cert TLS.
+        conn_host = f"[{pinned_ip}]" if ":" in pinned_ip else pinned_ip
+        netloc = conn_host if port is None else f"{conn_host}:{port}"
+        base_path = urlsplit(self._base_url).path.rstrip("/")
+        url = f"https://{netloc}{base_path}/api/{path.lstrip('/')}"
         try:
             async with httpx.AsyncClient(
-                verify=self._verify, timeout=self._timeout, auth=self._auth
+                verify=self._verify,
+                timeout=self._timeout,
+                auth=self._auth,
+                follow_redirects=False,
             ) as client:
-                resp = await client.get(url)
+                resp = await client.get(
+                    url, headers={"Host": host}, extensions={"sni_hostname": host}
+                )
         except httpx.HTTPError as exc:  # ConnectError/Timeout/TLS/etc.
-            raise ReachabilityError(str(exc)) from exc
+            raise ReachabilityError("device non raggiungibile") from exc
         if resp.status_code in (401, 403):
             raise AuthError(f"auth failed: HTTP {resp.status_code}")
         if resp.status_code >= 400:
-            raise ApiError(resp.status_code, resp.text[:200])
+            # NON includere il body upstream nell'errore.
+            raise ApiError(resp.status_code)
         try:
             return resp.json()
         except ValueError as exc:
-            raise ParseError(str(exc)) from exc
+            raise ParseError("risposta non interpretabile") from exc
 
     async def get_firmware_status(self) -> dict:
         return await self._get("core/firmware/status")

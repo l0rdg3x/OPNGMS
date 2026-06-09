@@ -10,7 +10,7 @@ from app.connectors.opnsense.client import (
     ReachabilityError,
 )
 
-BASE = "https://fw.test"
+BASE = "https://203.0.113.10"
 FW_URL = f"{BASE}/api/core/firmware/status"
 
 

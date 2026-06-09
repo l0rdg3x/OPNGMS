@@ -1,7 +1,20 @@
 import uuid
 from datetime import datetime
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_base_url_syntax(v: str) -> str:
+    # Controllo SINTATTICO (NO DNS): https-only, niente userinfo, host presente.
+    parts = urlsplit(v)
+    if parts.scheme != "https":
+        raise ValueError("base_url deve usare https")
+    if parts.username or parts.password:
+        raise ValueError("base_url non deve contenere credenziali")
+    if not parts.hostname:
+        raise ValueError("base_url deve avere un host")
+    return v
 
 
 class DeviceIn(BaseModel):
@@ -14,6 +27,11 @@ class DeviceIn(BaseModel):
     site: str | None = None
     tags: list[str] = Field(default_factory=list)
 
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, v: str) -> str:
+        return _validate_base_url_syntax(v)
+
 
 class DeviceUpdateIn(BaseModel):
     name: str | None = None
@@ -22,6 +40,13 @@ class DeviceUpdateIn(BaseModel):
     tls_fingerprint: str | None = None
     site: str | None = None
     tags: list[str] | None = None
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        return _validate_base_url_syntax(v)
 
 
 class RotateSecretIn(BaseModel):

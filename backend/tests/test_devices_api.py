@@ -89,3 +89,15 @@ async def test_read_only_can_list_but_not_create(api_client, db_engine):
         headers=CSRF,
     )
     assert denied.status_code == 403
+
+
+async def test_create_device_rejects_non_https_base_url(api_client, db_engine):
+    tenant_id = await _seed_admin_member(db_engine)
+    _override_prober()
+    await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345"})
+    resp = await api_client.post(
+        f"/api/tenants/{tenant_id}/devices",
+        json={"name": "x", "base_url": "http://127.0.0.1", "api_key": "k", "api_secret": "s"},
+        headers=CSRF,
+    )
+    assert resp.status_code == 422  # rifiutato dal validatore di schema (non-https)
