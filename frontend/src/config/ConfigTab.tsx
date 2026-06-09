@@ -1,6 +1,7 @@
 import { Alert, Loader, Stack, Text } from "@mantine/core";
 import { useT } from "../i18n";
 import { CapabilitiesPanel } from "./CapabilitiesPanel";
+import { ChangesPanel } from "./ChangesPanel";
 import { ConfigTree } from "./ConfigTree";
 import { useConfigCapabilities, useConfigModel } from "./hooks";
 
@@ -19,6 +20,7 @@ export function ConfigTab({ deviceId }: { deviceId: string }) {
     <Stack>
       {caps.data && <CapabilitiesPanel inv={caps.data} />}
       {model.data && <ConfigTree root={model.data} />}
+      <ChangesPanel deviceId={deviceId} />
     </Stack>
   );
 }
