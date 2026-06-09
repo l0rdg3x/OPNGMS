@@ -61,6 +61,37 @@ async def test_metrics_endpoint_returns_series(api_client, db_engine):
     assert body["last"][0]["value"] == 42.0
 
 
+async def test_metrics_naive_from_does_not_500(api_client, db_engine):
+    """Un `from` naive (senza Z/offset) non deve provocare 500.
+
+    Pydantic v2 produce un datetime naive; il confronto con `now` (tz-aware)
+    solleverebbe TypeError -> HTTP 500. Il fix normalizza i naive a UTC.
+    Atteso 200; con un `from` naive che precede la metrica seminata (recente),
+    la serie deve includere il punto.
+    """
+    tid = await _login_superadmin(api_client, db_engine)
+    did = await _insert_device(db_engine, tid)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(
+            text(
+                "INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
+                "VALUES (:t, :d, 'cpu.load', '', :tid, 42.0)"
+            ),
+            {"t": datetime.now(timezone.utc), "d": did, "tid": tid},
+        )
+        await s.commit()
+    r = await api_client.get(
+        f"/api/tenants/{tid}/devices/{did}/metrics",
+        params={"metric": "cpu.load", "from": "2026-01-01T00:00:00"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["metric"] == "cpu.load"
+    # `from` naive (2026-01-01, ben prima della metrica recente) -> punto incluso.
+    assert body["points"][0]["value"] == 42.0
+
+
 async def test_health_endpoint_counts(api_client, db_engine):
     tid = await _login_superadmin(api_client, db_engine)
     await _insert_device(db_engine, tid, name="fw1", status="reachable")

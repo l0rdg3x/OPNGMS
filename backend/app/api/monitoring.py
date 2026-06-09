@@ -19,6 +19,18 @@ from app.schemas.metric import MetricSeriesOut
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["monitoring"])
 
 
+def _ensure_utc(dt: datetime | None) -> datetime | None:
+    """Normalizza a UTC un datetime naive (assume UTC).
+
+    I timestamp metrici sono `timestamptz`: per una console interna e' ragionevole
+    assumere UTC sui valori senza timezone, evitando TypeError nei confronti tra
+    datetime naive e tz-aware (che altrimenti darebbero un 500).
+    """
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 @router.get("/devices/{device_id}/metrics", response_model=MetricSeriesOut)
 async def get_device_metrics(
     tenant_id: uuid.UUID,
@@ -31,6 +43,10 @@ async def get_device_metrics(
     session: AsyncSession = Depends(get_session),
 ) -> MetricSeriesOut:
     now = datetime.now(timezone.utc)
+    # Normalizza a UTC i datetime naive (es. ?from=2026-01-01T00:00:00 senza Z)
+    # prima di calcolare frm/end e dei confronti: evita il TypeError naive-vs-aware.
+    from_ = _ensure_utc(from_)
+    to = _ensure_utc(to)
     frm = from_ or (now - timedelta(hours=24))
     end = to or now
     bucket = timedelta(seconds=bucket_seconds) if bucket_seconds is not None else None
