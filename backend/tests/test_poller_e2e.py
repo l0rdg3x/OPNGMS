@@ -17,6 +17,15 @@ class FakeClient:
     async def get_firmware_status(self):
         return {"product_version": "24.7"}
 
+    async def get_interfaces(self):
+        return []
+
+    async def get_gateways(self):
+        return []
+
+    async def get_vpn_status(self):
+        return []
+
 
 class FailClient:
     async def get_system_info(self):
@@ -24,6 +33,15 @@ class FailClient:
 
     async def get_firmware_status(self):
         return {}
+
+    async def get_interfaces(self):
+        return []
+
+    async def get_gateways(self):
+        return []
+
+    async def get_vpn_status(self):
+        return []
 
 
 async def _make_device(db_engine):

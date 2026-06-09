@@ -99,6 +99,69 @@ class OpnsenseClient:
             "uptime_seconds": int(data.get("uptime_seconds", 0)),
         }
 
+    @staticmethod
+    def _num(v) -> float:
+        """Estrae il primo float da una stringa tipo '12.3 ms' / '0.0 %' / numero.
+
+        NOTA: il formato esatto dei campi delay/loss/bytes è DA VERIFICARE contro
+        un OPNsense reale; la regex è difensiva per gestire varianti di stringa.
+        """
+        import re
+
+        if isinstance(v, (int, float)):
+            return float(v)
+        m = re.search(r"[-+]?\d*\.?\d+", str(v or ""))
+        return float(m.group()) if m else 0.0
+
+    async def get_interfaces(self) -> list[dict]:
+        """Statistiche per interfaccia di rete.
+
+        NOTA: endpoint `diagnostics/interface/getInterfaceStatistics` e i campi
+        bytes_received/bytes_transmitted sono DA VERIFICARE su un OPNsense reale.
+        """
+        data = await self._get("diagnostics/interface/getInterfaceStatistics")
+        out = []
+        for it in data.get("interfaces", []):
+            out.append({
+                "name": it.get("name", ""),
+                "up": it.get("status") == "up",
+                "bytes_in": self._num(it.get("bytes_received")),
+                "bytes_out": self._num(it.get("bytes_transmitted")),
+            })
+        return out
+
+    async def get_gateways(self) -> list[dict]:
+        """Stato dei gateway (RTT, packet-loss).
+
+        NOTA: endpoint `routes/gateway/status`, chiave `items`, e i campi
+        delay/loss (con unità " ms"/" %") sono DA VERIFICARE su un OPNsense reale.
+        Gateway è down solo se status in {"down", "force_down"}.
+        """
+        data = await self._get("routes/gateway/status")
+        out = []
+        for g in data.get("items", []):
+            status = str(g.get("status", "")).lower()
+            out.append({
+                "name": g.get("name", ""),
+                "up": status not in ("down", "force_down"),
+                "rtt_ms": self._num(g.get("delay")),
+                "loss_pct": self._num(g.get("loss")),
+            })
+        return out
+
+    async def get_vpn_status(self) -> list[dict]:
+        """Stato dei tunnel WireGuard.
+
+        NOTA: endpoint `wireguard/service/show` e la chiave `tunnels` con campo
+        `connected` sono DA VERIFICARE su un OPNsense reale. OpenVPN usa un endpoint
+        diverso (non ancora implementato).
+        """
+        data = await self._get("wireguard/service/show")
+        return [
+            {"name": t.get("name", ""), "up": bool(t.get("connected"))}
+            for t in data.get("tunnels", [])
+        ]
+
     async def test_connection(self) -> str | None:
         """Verifica raggiungibilità+credenziali; ritorna la versione firmware o None.
 
