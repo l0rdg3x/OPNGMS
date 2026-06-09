@@ -166,6 +166,12 @@ async def create_config_change(
     ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
     session: AsyncSession = Depends(get_session),
 ) -> ConfigChange:
+    # Cross-tenant guard: the worker applies changes as the DB owner (RLS bypassed)
+    # and loads the device by id, so a change must never be created for a device the
+    # caller cannot see. Under RLS this lookup returns None for another tenant's device.
+    device = await session.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     change = await create_change(
         session,
         tenant_id=tenant_id,

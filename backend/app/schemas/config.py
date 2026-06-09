@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -18,7 +19,7 @@ class ConfigSnapshotOut(BaseModel):
 
 class ConfigChangeIn(BaseModel):
     kind: str
-    operation: str
+    operation: Literal["add", "set", "delete"]  # fail-fast 422 on an invalid operation
     target: str = ""
     payload: dict = {}
 

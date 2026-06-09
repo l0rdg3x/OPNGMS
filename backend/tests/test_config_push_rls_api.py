@@ -62,6 +62,41 @@ async def _seed_change(s, tenant_id, device_id, target):
     return cid
 
 
+async def test_create_change_cross_tenant_device_is_404(app_role_api_client, db_engine):
+    """Cross-tenant authorization gap closed: A cannot create a config_change for B's device.
+
+    The apply job runs in the worker as the DB owner (RLS bypassed) and loads the device
+    by id, so create MUST refuse a device the caller cannot see. Tenant A POSTs a change
+    targeting B's device under A's tenant path: the RLS-scoped device lookup returns None
+    -> 404, and NO config_changes row is created for B's device.
+    """
+    ta, tb = await _setup(app_role_api_client, db_engine)
+
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        dev_a = await _seed_device(s, ta, "fw-a")
+        dev_b = await _seed_device(s, tb, "fw-b")
+        await s.commit()
+
+    # A (under its own tenant path) tries to create a change for B's device -> 404.
+    r = await app_role_api_client.post(
+        f"/api/tenants/{ta}/devices/{dev_b}/config/changes",
+        json={"kind": "alias", "operation": "set", "target": "alias-x", "payload": {}},
+        headers=CSRF,
+    )
+    assert r.status_code == 404
+
+    # Assert no config_changes row exists for B's device (as owner, bypassing RLS).
+    async with factory() as s:
+        count = (
+            await s.execute(
+                text("SELECT count(*) FROM config_changes WHERE device_id = :d"),
+                {"d": dev_b},
+            )
+        ).scalar_one()
+        assert count == 0
+
+
 async def test_config_changes_isolated_via_api(app_role_api_client, db_engine):
     """End-to-end config-change isolation across three levels of proof:
 
