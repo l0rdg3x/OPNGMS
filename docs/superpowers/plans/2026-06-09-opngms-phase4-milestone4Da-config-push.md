@@ -752,3 +752,27 @@ git commit -m "docs: technical debt milestone 4D-a"
 - The apply job takes a per-device advisory lock, re-checks `canonical_hash` (staleness → `conflict`, no clobber), runs the **dry-run** apply (no real mutation), audits every step, and enqueues a snapshot refresh.
 - Everything is tenant-scoped + RLS-isolated and gated by `CONFIG_PUSH`; isolation/RBAC proven by tests.
 - Suite green + `alembic check` clean.
+
+---
+
+## Technical debt (4D-a) — consolidated from reviews
+
+- **Real push gated off**: `apply_alias` is dry-run only; **4D-b** verifies the OPNsense alias endpoints
+  against a real device and flips `dry_run` off behind a config/flag.
+- **OPNsense alias endpoints TO VERIFY**: `firewall/alias/{add,set,del}Item` + `reconfigure` + payload.
+- **Preview is local-only**: shows operation + payload, not the current alias value nor a device-side
+  validation; enrich from the snapshot / device dry-run in 4D-b.
+- **Enqueuer opens a pool per call** (`app/core/queue.py`): cache a singleton ARQ pool (app lifespan)
+  if volume grows.
+- **Advisory lock auto-released at commit**: the apply runs in one transaction; if apply work later
+  spans multiple commits, switch to a session-level lock + explicit unlock.
+- **Write-only secrets not yet exercised**: aliases carry no secrets; secret-bearing kinds (4D-d)
+  must encrypt sensitive payload fields + "leave blank to keep" on apply.
+- **No rollback/undo**: a prior snapshot exists for manual restore; an automated undo is a later feature.
+- **`ConfigChangeOut` hides payload/result**: a detail endpoint exposing the (secret-safe) result is a
+  later nicety.
+- **`ApiError(0, ...)` for an unknown alias operation** (connector): a status_code of 0 is semantically
+  odd but pragmatically useful (caught as `OpnsenseError` by the apply job → `failed`, no crash). The
+  schema now also rejects bad operations with `Literal` 422 at create time.
+- *(Resolved in review)* Cross-tenant `create` is now rejected (404 — device not visible under the
+  tenant's RLS), closing a latent cross-tenant push escalation.
