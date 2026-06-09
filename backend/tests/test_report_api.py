@@ -108,6 +108,24 @@ async def test_report_data_not_remotely_fetched(api_client, db_engine):
     assert r.content[:5] == b"%PDF-"
 
 
+async def test_generate_report_rejects_oversized_range(api_client, db_engine):
+    """A range wider than MAX_RANGE_DAYS is rejected with 400 (bounds aggregation cost)."""
+    tid = await _login_superadmin(api_client, db_engine)
+    base = await _seed(db_engine, tid)
+    body = {"from": (base - timedelta(days=120)).isoformat(), "to": base.isoformat()}
+    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=CSRF)
+    assert r.status_code == 400
+
+
+async def test_generate_report_rejects_inverted_range(api_client, db_engine):
+    """`to` must be after `from` -> 400."""
+    tid = await _login_superadmin(api_client, db_engine)
+    base = await _seed(db_engine, tid)
+    body = {"from": (base + timedelta(hours=1)).isoformat(), "to": (base - timedelta(hours=1)).isoformat()}
+    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=CSRF)
+    assert r.status_code == 400
+
+
 async def test_report_is_tenant_isolated_under_rls(db_engine):
     """Under the real opngms_app role (RLS), tenant A's report HTML must not contain tenant B's IDS signature."""
     factory = async_sessionmaker(db_engine, expire_on_commit=False)

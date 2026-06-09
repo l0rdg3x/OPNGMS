@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
@@ -8,7 +8,7 @@ from app.core.deps import TenantContext, enforce_csrf, require_tenant
 from app.core.rbac import Action
 from app.schemas.report import ReportRequest
 from app.services.audit import AuditService
-from app.services.reporting.service import ReportService
+from app.services.reporting.service import ReportRangeError, ReportService
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["reports"])
 
@@ -21,13 +21,16 @@ async def generate_report(
     ctx: TenantContext = Depends(require_tenant(Action.REPORT_GENERATE)),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    pdf = await ReportService(session, tenant_id).build_report(
-        tenant_name=ctx.tenant.name,
-        frm=payload.from_,
-        to=payload.to,
-        timezone_name=payload.timezone,
-        owner=None,
-    )
+    try:
+        pdf = await ReportService(session, tenant_id).build_report(
+            tenant_name=ctx.tenant.name,
+            frm=payload.from_,
+            to=payload.to,
+            timezone_name=payload.timezone,
+            owner=None,
+        )
+    except ReportRangeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     await AuditService(session).record(
         actor_user_id=ctx.user.id,
         tenant_id=tenant_id,
