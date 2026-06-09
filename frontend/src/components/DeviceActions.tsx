@@ -36,7 +36,7 @@ export function DeviceActions({ tenantId, deviceId }: { tenantId: string; device
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["devices", tenantId] });
-      navigate("/");
+      navigate("/devices");
     },
     onError: () => notifications.show({ color: "red", message: "Eliminazione fallita" }),
   });

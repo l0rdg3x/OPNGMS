@@ -16,6 +16,7 @@ interface TenantState {
   loading: boolean;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const TenantContext = createContext<TenantState>({
   tenants: [],
   activeId: null,

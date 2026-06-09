@@ -23,7 +23,11 @@ describe("AppShell", () => {
       http.get("/api/me/tenants", () =>
         HttpResponse.json([{ id: "t1", name: "Alpha", slug: "alpha", role: "operator" }]),
       ),
-      http.get("/api/tenants/t1/devices", () => HttpResponse.json([])),
+      // La landing route "/" ora monta OverviewPage, che interroga /health e /alerts.
+      http.get("/api/tenants/t1/health", () =>
+        HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
+      ),
+      http.get("/api/tenants/t1/alerts", () => HttpResponse.json([])),
     );
     renderWithProviders(withAuth(<AppShell />));
     expect(await screen.findByText("op@x.io")).toBeInTheDocument();

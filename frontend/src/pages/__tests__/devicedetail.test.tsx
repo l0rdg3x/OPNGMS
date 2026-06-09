@@ -51,6 +51,38 @@ describe("DeviceDetailPage", () => {
     await waitFor(() => expect(screen.getByText(/reachable/i)).toBeInTheDocument());
   });
 
+  it("mostra la sezione salute con grafici e selettore range", async () => {
+    server.use(
+      http.get("/api/tenants/t1/devices/d1", () => HttpResponse.json(device)),
+      http.get("/api/tenants/t1/devices/d1/metrics", ({ request }) => {
+        const url = new URL(request.url);
+        const metric = url.searchParams.get("metric");
+        return HttpResponse.json({
+          metric,
+          points: [
+            { time: "2026-06-09T12:00:00Z", label: "", value: 12 },
+            { time: "2026-06-09T12:05:00Z", label: "", value: 18 },
+          ],
+          last: [{ time: "2026-06-09T12:05:00Z", label: "", value: 18 }],
+        });
+      }),
+    );
+    renderWithProviders(
+      withTenant(
+        <Routes>
+          <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
+        </Routes>,
+      ),
+      { route: "/devices/d1" },
+    );
+    // i titoli dei grafici della sezione salute compaiono
+    expect(await screen.findByText(/CPU/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Memoria/i)).toBeInTheDocument();
+    // selettore range presente (SegmentedControl Mantine → input radio + label;
+    // il testo "24h" è in uno <span> dentro la label)
+    expect(screen.getByText("24h")).toBeInTheDocument();
+  });
+
   it("deletes the device", async () => {
     let deleted = false;
     server.use(
@@ -64,7 +96,7 @@ describe("DeviceDetailPage", () => {
       withTenant(
         <Routes>
           <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
-          <Route path="/" element={<div>home</div>} />
+          <Route path="/devices" element={<div>device list</div>} />
         </Routes>,
       ),
       { route: "/devices/d1" },

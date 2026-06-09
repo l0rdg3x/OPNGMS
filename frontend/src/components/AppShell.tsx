@@ -4,6 +4,8 @@ import { NavLink as RouterNavLink, Route, Routes, useNavigate } from "react-rout
 import { api } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { TenantProvider } from "../tenant/TenantProvider";
+import { OverviewPage } from "../pages/OverviewPage";
+import { AlertsPage } from "../pages/AlertsPage";
 import { DevicesPage } from "../pages/DevicesPage";
 import { DeviceDetailPage } from "../pages/DeviceDetailPage";
 import { TenantSwitcher } from "./TenantSwitcher";
@@ -36,12 +38,16 @@ export function AppShell() {
           </Group>
         </MantineAppShell.Header>
         <MantineAppShell.Navbar p="sm">
-          <NavLink component={RouterNavLink} to="/" label="Device" />
+          <NavLink component={RouterNavLink} to="/" label="Overview" />
+          <NavLink component={RouterNavLink} to="/devices" label="Device" />
+          <NavLink component={RouterNavLink} to="/alerts" label="Alert" />
         </MantineAppShell.Navbar>
         <MantineAppShell.Main>
           <Routes>
-            <Route path="/" element={<DevicesPage />} />
+            <Route path="/" element={<OverviewPage />} />
+            <Route path="/devices" element={<DevicesPage />} />
             <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
           </Routes>
         </MantineAppShell.Main>
       </MantineAppShell>
