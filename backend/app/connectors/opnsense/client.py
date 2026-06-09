@@ -111,6 +111,22 @@ class OpnsenseClient:
     async def get_firmware_status(self) -> dict:
         return await self._get("core/firmware/status")
 
+    async def get_plugin_info(self) -> dict:
+        """Installed plugins + product version, for capability discovery.
+
+        NOTE: endpoint `core/firmware/info` and payload shape TO VERIFY against a real
+        OPNsense device. Defensive toward key variants.
+        """
+        data = await self._get("core/firmware/info")
+        packages = data.get("package", data.get("plugin", []))
+        plugins = [
+            p.get("name", "")
+            for p in packages
+            if str(p.get("installed", "")) in ("1", "true", "True") and p.get("name")
+        ]
+        version = data.get("product_version") or (data.get("product") or {}).get("product_version", "")
+        return {"product_version": version, "plugins": plugins}
+
     async def get_system_info(self) -> dict:
         """CPU/mem/disk/uptime. NOTE: endpoint+fields TO BE VERIFIED against a real OPNsense."""
         data = await self._get("diagnostics/system/systemInformation")
