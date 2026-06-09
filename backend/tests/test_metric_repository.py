@@ -114,6 +114,41 @@ async def test_series_and_last_empty_when_no_data(db_engine, two_tenants):
     assert last == []
 
 
+async def _seed_four(db_engine, tenant_id, device_id):
+    """4 metriche cpu.load (label '') a minuti crescenti con valori 10,20,30,40."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:  # owner -> bypassa RLS
+        for i, v in enumerate((10.0, 20.0, 30.0, 40.0)):
+            await s.execute(
+                text(
+                    "INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
+                    "VALUES (:t, :d, 'cpu.load', '', :tid, :v)"
+                ),
+                {"t": base + timedelta(minutes=i), "d": device_id, "tid": tenant_id, "v": v},
+            )
+        await s.commit()
+    return base
+
+
+async def test_series_truncates_to_most_recent_points(db_engine, two_tenants, monkeypatch):
+    # Con MAX_POINTS=2 e 4 punti (10,20,30,40), la serie raw deve restituire i 2 PIU'
+    # RECENTI (30,40) in ordine crescente, non i 2 piu' vecchi (10,20).
+    monkeypatch.setattr("app.repositories.metric.MAX_POINTS", 2)
+    tenant_a, _ = two_tenants
+    device_id = uuid.uuid4()
+    base = await _seed_four(db_engine, tenant_a, device_id)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(text(f"SET ROLE {APP_ROLE}"))
+        await set_tenant_context(s, tenant_a)
+        repo = MetricRepository(s, tenant_a)
+        points = await repo.series(
+            device_id, "cpu.load", base - timedelta(minutes=1), base + timedelta(minutes=10), None
+        )
+    assert [p.value for p in points] == [30.0, 40.0]
+
+
 async def test_series_bucket_downsamples(db_engine, two_tenants):
     tenant_a, _ = two_tenants
     device_id = uuid.uuid4()

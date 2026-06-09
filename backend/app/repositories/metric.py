@@ -50,16 +50,19 @@ class MetricRepository:
                 "GROUP BY point_time, label ORDER BY point_time, label"
             )
         else:
-            # Cap difensivo: senza bucket limitiamo le righe raw a MAX_POINTS
-            # (ORDER BY time ASC + LIMIT) per non restituire serie illimitate.
+            # Cap difensivo: senza bucket limitiamo le righe raw a MAX_POINTS,
+            # selezionando i più recenti entro MAX_POINTS, presentati in ordine crescente.
             params["limit"] = MAX_POINTS
             sql = text(
-                "SELECT time AS point_time, label, value AS point_value "
-                "FROM metrics "
-                "WHERE tenant_id = :tid AND device_id = :did AND metric = :metric "
-                "  AND time >= :frm AND time < :to "
-                "ORDER BY time, label "
-                "LIMIT :limit"
+                "SELECT point_time, label, point_value FROM ("
+                "  SELECT time AS point_time, label, value AS point_value "
+                "  FROM metrics "
+                "  WHERE tenant_id = :tid AND device_id = :did AND metric = :metric "
+                "    AND time >= :frm AND time < :to "
+                "  ORDER BY time DESC "
+                "  LIMIT :limit"
+                ") sub "
+                "ORDER BY point_time, label"
             )
         rows = (await self.session.execute(sql, params)).all()
         return self._to_points(rows)
