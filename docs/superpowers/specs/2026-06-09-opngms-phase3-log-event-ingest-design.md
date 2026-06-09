@@ -4,7 +4,7 @@
 - **Stato:** Approvato (design); l'utente ha delegato le decisioni e autorizzato a procedere
 - **Fase:** 3 di 5 della roadmap OPNGMS
 - **Dipende da:** Fase 1 (Foundation+Auth+Device) e Fase 2 (Monitoring: poller, TimescaleDB, ARQ, RLS) in `main`
-- **Abilita:** Fase 5 (Reporting PDF stile SGMS — Attacchi, Siti visitati)
+- **Abilita:** Fase 5 (Reporting PDF — Attacchi, Siti visitati)
 
 ---
 
@@ -13,7 +13,7 @@
 La **Fase 3** dà a OPNGMS l'**ingest di log/eventi** dalla flotta OPNsense: gli eventi di sicurezza
 (alert IDS/IPS Suricata) e di navigazione (query DNS) vengono raccolti, normalizzati e memorizzati
 come serie temporali, per alimentare i **report periodici** della Fase 5 (le sezioni "Attacks" e
-"Web Activity / siti visitati" del modello SonicWall SGMS).
+"Web Activity / siti visitati").
 
 A differenza della Fase 2 (stato/salute corrente via *polling*), qui raccogliamo **cronologie di
 eventi discreti**. Il PDF e la visualizzazione ricca restano Fase 5; la Fase 3 si ferma a
@@ -127,7 +127,7 @@ Sotto `/api/tenants/{tenant_id}/...`, gated da `require_tenant(DEVICE_VIEW)` + t
 - `GET .../events?source=&device_id=&from=&to=&limit=` → lista eventi paginata (più recenti prima),
   con cap difensivo sul `limit` (come l'endpoint metriche 2C).
 - `GET .../events/top?source=&field=src_ip|name&from=&to=&limit=` → aggregazione top-N per campo
-  (prefigura le tabelle del report SGMS: top initiators / signatures / siti). Conteggio per valore.
+  (prefigura le tabelle del report Fase 5: top initiators / signatures / siti). Conteggio per valore.
 
 ## 8. Scomposizione in milestone
 1. **3A — Storage + framework ingest + Suricata**: hypertable `events` + RLS + migrazione; tabella

@@ -13,7 +13,7 @@ La **Fase 2** dà a OPNGMS il monitoraggio di stato/salute della flotta OPNsense
 **polling** che, su cadenza, interroga ogni device via la sua REST API, raccoglie metriche, le
 memorizza come serie temporali, aggiorna lo stato, genera alert, e le espone via API e dashboard.
 
-I **log/eventi** (per i report stile SonicWall) sono la Fase 3 — qui ci occupiamo dello *stato*
+I **log/eventi** (per i report della Fase 5) sono la Fase 3 — qui ci occupiamo dello *stato*
 (polling), non delle *cronologie di eventi* (syslog).
 
 ## 2. Decisioni di design (brainstorming Fase 2)

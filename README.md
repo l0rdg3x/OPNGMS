@@ -1,9 +1,8 @@
 # OPNGMS — OPNsense Global Management System
 
 A centralized, multi-tenant console for MSPs that manage and monitor a fleet of **OPNsense**
-firewalls — modeled on the SonicWall/Dell Global Management System (GMS/SGMS). Device inventory,
-health and network monitoring, alerting, and — on the roadmap — log/event ingest, configuration
-push, and per-customer PDF reporting.
+firewalls from a single pane of glass. Device inventory, health and network monitoring, alerting,
+and — on the roadmap — log/event ingest, configuration push, and per-customer PDF reporting.
 
 > **Status:** Phases 1 (Foundation & Inventory) and 2 (Monitoring) are **complete**; Phase 3
 > (Log/Event ingest) is **in progress** (milestones 3A — Suricata — and 3B — DNS — done; 3C query API
@@ -162,7 +161,7 @@ npm run lint        # ESLint
 | **2 — Monitoring** | 2A poller core · 2B network metrics + alerting · 2C metrics/health/alert API + RLS · 2D dashboard frontend | ✅ Done |
 | **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS ✅ · 3C query API | 🔄 In progress (3A, 3B ✅) |
 | **4 — Config push** | Push configuration to devices | ⬜ Planned |
-| **5 — PDF reporting** | Per-customer SonicWall SGMS-style reports (attacks, sites visited, bandwidth) | ⬜ Planned |
+| **5 — PDF reporting** | Per-customer PDF reports (attacks, sites visited, bandwidth) | ⬜ Planned |
 | **Deploy** | Multi-stage Dockerfile + production docker-compose for the whole stack | ⬜ End of project |
 
 Design specs and implementation plans for each milestone live in

@@ -10,8 +10,7 @@
 ## 1. Contesto
 
 **OPNGMS** (OPNsense Global Management System) è una console centralizzata per gestire e
-monitorare una flotta di firewall **OPNsense** da un unico pannello, sul modello del
-**SonicWall Global Management System (GMS)**.
+monitorare una flotta di firewall **OPNsense** da un unico pannello.
 
 **Audience:** MSP (Managed Service Provider) che gestiscono gli OPNsense di **clienti
 diversi**, i cui dati devono restare **isolati** tra loro. Multi-tenancy, RBAC e audit log
@@ -32,7 +31,7 @@ Decise durante il brainstorming e vincolanti per le fasi successive:
 | Stack | **Backend Python/FastAPI** (async) + **frontend React/TypeScript**; Postgres come DB |
 | Scope monitoraggio | Salute/stato essenziali **+ ingest di log/eventi** finalizzato a futuri report |
 | Scope config | Backup/drift + **push device-by-device** (alias + regole firewall) |
-| Obiettivo reporting | Report PDF settimanali/mensili per cliente in stile SonicWall (attacchi, siti visitati, banda) — **fase successiva**, ma lo storage eventi va modellato fin da subito per renderlo possibile |
+| Obiettivo reporting | Report PDF settimanali/mensili per cliente (attacchi, siti visitati, banda) — **fase successiva**, ma lo storage eventi va modellato fin da subito per renderlo possibile |
 
 ## 3. Roadmap (le 5 fasi)
 
@@ -281,6 +280,6 @@ TDD sulle invarianti critiche:
 
 - **Fonte dati "siti visitati"** (Fase 3/5): Suricata per gli attacchi è chiaro; per i siti
   visitati le opzioni sono log DNS Unbound (dominio, leggero), Squid proxy (URL completi),
-  o Zenarmor/Sensei (visibilità app/web/utente, la più vicina a SonicWall ma plugin pesante).
+  o Zenarmor/Sensei (visibilità app/web/utente, la più completa ma plugin pesante).
   Da decidere nella fase di ingest/reporting.
 - **Libreria UI** (Mantine vs shadcn/ui): da decidere in fase di piano.
