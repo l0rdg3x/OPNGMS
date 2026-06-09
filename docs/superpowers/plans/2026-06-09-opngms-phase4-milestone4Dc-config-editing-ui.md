@@ -403,3 +403,20 @@ git commit -m "docs: technical debt milestone 4D-c"
 - The Config tab shows a Pending-changes panel; an operator can propose an alias change, preview it (secret-safe), schedule it immediately or for a date/time, and cancel it; status badges reflect the pipeline.
 - Read-only users don't see the editing actions; a 403 is handled gracefully; no secret value in the DOM.
 - Tenant-scoped; frontend suite (Vitest) green; `npm run build` + `npm run lint` clean.
+
+---
+
+## Technical debt (4D-c)
+
+- **Real push gated off** (4D-b): the pipeline is dry-run; the UI shows `applied`(dry-run)/`conflict`.
+- **Alias type/content shape TO VERIFY** against the real OPNsense alias API (4D-b).
+- **No live status polling**: the panel refetches on action; add `refetchInterval` for live status as the
+  worker applies scheduled changes.
+- **Conflict UX**: a `conflict` status shows a badge only; a "re-baseline & retry" flow is a later add.
+- **ChangesPanel only renders with a config snapshot** (ConfigTab empty-state otherwise): acceptable
+  (a baseline is needed to propose); show changes even without a snapshot later if needed.
+- **Preview type loose** (`/preview` is a free-form dict): a typed preview schema would tighten it.
+- **`withTenant` test helper duplicated** across `changespanel`/`proposealiasmodal`/`changesactions`/`configtab`
+  tests: extract into `src/test/` once a fourth+ consumer lands.
+- **DateTimePicker calendar path not E2E-tested** in jsdom (the immediate "Apply now" → `scheduled_at:null`
+  path is tested; the picked-date → ISO path is unit-correct but the calendar interaction is skipped).
