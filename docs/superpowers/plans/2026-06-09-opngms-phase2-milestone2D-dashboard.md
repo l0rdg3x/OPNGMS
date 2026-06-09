@@ -958,3 +958,22 @@ git commit -m "docs: debito tecnico milestone 2D"
 - Tutto tenant-scoped (cambio tenant rifetcha), con loading/error/empty-state.
 - Suite Vitest verde; `npm run build` (tsc) e `npm run lint` puliti.
 - **La Fase 2 è completa**: poller → storage → API → dashboard.
+
+---
+
+## Debito tecnico (2D) — consolidato dalle review
+
+- **Nessun auto-refresh dei grafici/alert**: i dati si fetchano on-load/cambio-range. Aggiungere
+  `refetchInterval` (es. 60s) per un aggiornamento live in un secondo momento.
+- **Stati loading/error per-grafico assenti** (review Task 4): durante il fetch ogni `MetricChart`
+  mostra l'empty-state "Nessun dato ancora" (non distingue loading da vuoto, né gestisce l'errore
+  della singola metrica). Aggiungere skeleton/error per-grafico quando si raffina la UX.
+- **Range fissi (1h/24h/7d)**: niente date-picker custom. Aggiungere range arbitrari se richiesto.
+- **Formattazione unità grezza**: i traffici interfaccia sono in bytes assoluti (contatori), non
+  rate (bytes/s); valutare derivata/normalizzazione MB e tooltip formattati nella UI.
+- **Tabella alert duplicata** (review Task 5): `OverviewPage` e `AlertsPage` ripetono la tabella
+  alert (differiscono per la colonna "Risolto"). Estraibile in un componente condiviso.
+- **Asserzioni grafici limitate**: i test verificano transform + presenza titoli/empty-state, non i
+  path SVG (limite jsdom/Recharts). Un test e2e (Playwright) coprirebbe il rendering reale.
+- **`gateway.up`/`vpn.up`/`iface.up` come serie 0/1**: graficati come linee; valutare badge/heatmap
+  di stato invece di un line chart per le metriche booleane.
