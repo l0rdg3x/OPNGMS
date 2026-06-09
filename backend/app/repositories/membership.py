@@ -20,3 +20,9 @@ class MembershipRepository:
             select(Membership).where(Membership.tenant_id == tenant_id)
         )
         return list(result.scalars().all())
+
+    async def list_for_user(self, user_id: uuid.UUID):
+        result = await self.session.execute(
+            select(Membership).where(Membership.user_id == user_id)
+        )
+        return list(result.scalars().all())
