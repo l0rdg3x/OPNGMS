@@ -1,38 +1,38 @@
-# OPNGMS Fase 2 · Milestone 2A — Infra + Storage + Poller Core — Implementation Plan
+# OPNGMS Phase 2 · Milestone 2A — Infra + Storage + Poller Core — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Far fluire le metriche di salute essenziale (up/down, CPU/mem/disco, uptime, firmware) di ciascun device dentro una hypertable TimescaleDB, raccolte da un worker ARQ su cadenza, con aggiornamento dello stato del device.
+**Goal:** Flow essential health metrics (up/down, CPU/mem/disk, uptime, firmware) for each device into a TimescaleDB hypertable, collected by an ARQ worker on a schedule, with device status updates.
 
-**Architecture:** Postgres diventa **TimescaleDB** (estensione); le metriche vivono nell'hypertable `metrics`. Un **worker ARQ** (processo `python -m app.worker`, connesso come owner — bypassa la RLS) ogni N secondi accoda un `poll_device(id)` per device; i worker caricano il device, decifrano i segreti, interrogano via `OpnsenseClient.get_system_info()`+`get_firmware_status()`, scrivono le metriche e aggiornano `Device.status/last_seen/firmware_version`. La logica di raccolta è in un service `collect_and_store(session, device, client)` iniettabile/testabile a parte dall'orchestrazione ARQ.
+**Architecture:** Postgres becomes **TimescaleDB** (extension); metrics live in the `metrics` hypertable. An **ARQ worker** (process `python -m app.worker`, connected as owner — bypasses RLS) every N seconds enqueues a `poll_device(id)` per device; workers load the device, decrypt secrets, query via `OpnsenseClient.get_system_info()`+`get_firmware_status()`, write metrics, and update `Device.status/last_seen/firmware_version`. Collection logic is in a `collect_and_store(session, device, client)` service, injectable/testable separately from ARQ orchestration.
 
-**Tech Stack:** Python 3.12+, FastAPI/SQLAlchemy async, **TimescaleDB** (Postgres+estensione), **ARQ + Redis**, httpx, pytest + respx.
+**Tech Stack:** Python 3.12+, FastAPI/SQLAlchemy async, **TimescaleDB** (Postgres+extension), **ARQ + Redis**, httpx, pytest + respx.
 
 ---
 
-## Riferimento spec
-Implementa le sez. 4-6, 9(2A) dello spec `docs/superpowers/specs/2026-06-09-opngms-phase2-monitoring-design.md` (storage metriche, poller, connector system-info). La RLS sull'hypertable, le metriche di rete, l'alerting e l'API sono milestone 2B/2C.
+## Spec reference
+Implements sections 4-6, 9(2A) of the spec `docs/superpowers/specs/2026-06-09-opngms-phase2-monitoring-design.md` (metric storage, poller, system-info connector). RLS on the hypertable, network metrics, alerting, and the API are milestones 2B/2C.
 
-## Decisioni di sequenziamento
-- **RLS sulla hypertable `metrics`: rimandata alla 2C** (dove arriva l'API di lettura + il test di isolamento). In 2A `metrics` è una hypertable semplice; il poller scrive come owner. Non aggiungere `metrics` a `TENANT_TABLES` in questa milestone.
-- **Timestamp per ciclo:** il poller usa UN `now` per device-poll-cycle → tutte le righe di quel ciclo condividono `time`, con `(metric,label)` distinti → la PK `(time, device_id, metric, label)` regge senza collisioni.
+## Sequencing decisions
+- **RLS on the `metrics` hypertable: deferred to 2C** (where the read API + isolation test arrive). In 2A `metrics` is a plain hypertable; the poller writes as owner. Do NOT add `metrics` to `TENANT_TABLES` in this milestone.
+- **Timestamp per cycle:** the poller uses ONE `now` per device-poll-cycle → all rows of that cycle share `time`, with distinct `(metric,label)` → the PK `(time, device_id, metric, label)` holds without collisions.
 
-## Struttura file
+## File structure
 ```
 backend/
-  docker-compose.yml          # MODIFY: image TimescaleDB, servizi redis + worker
+  docker-compose.yml          # MODIFY: TimescaleDB image, redis + worker services
   pyproject.toml              # MODIFY: arq, redis
   .env.example                # MODIFY: REDIS_URL, POLL_INTERVAL_SECONDS, ADMIN_DATABASE_URL
   app/
     core/config.py            # MODIFY: redis_url, poll_interval_seconds, admin_database_url
-    models/metric.py          # NEW: Metric (hypertable, PK composita)
+    models/metric.py          # NEW: Metric (hypertable, composite PK)
     models/__init__.py        # MODIFY: export Metric
     connectors/opnsense/client.py  # MODIFY: get_system_info()
     services/monitoring.py    # NEW: collect_and_store(session, device, client)
     worker.py                 # NEW: ARQ WorkerSettings + poll_device + enqueue_device_polls
   migrations/versions/0005_timescale_metrics.py  # NEW
   tests/
-    conftest.py               # MODIFY: extension timescaledb + create_hypertable nel DB di test
+    conftest.py               # MODIFY: timescaledb extension + create_hypertable in test DB
     test_metric_model.py
     test_connector_system_info.py
     test_monitoring.py
@@ -41,11 +41,11 @@ backend/
 
 ---
 
-## Task 1: Infra — TimescaleDB + Redis + worker nel compose + deps
+## Task 1: Infra — TimescaleDB + Redis + worker in compose + deps
 
 **Files:** Modify `backend/docker-compose.yml`, `backend/pyproject.toml`, `backend/.env.example`, `backend/app/core/config.py`
 
-- [ ] **Step 1: docker-compose** — in `backend/docker-compose.yml` cambia l'immagine del servizio `db` e aggiungi `redis` + `worker`:
+- [ ] **Step 1: docker-compose** — in `backend/docker-compose.yml` change the `db` service image and add `redis` + `worker`:
 ```yaml
 services:
   db:
@@ -77,46 +77,46 @@ services:
 volumes:
   opngms_pg:
 ```
-(Il servizio `worker` di produzione lo aggiungeremo quando il worker esiste, in fondo a questa milestone — per ora bastano db+redis per sviluppo/test.)
+(The production `worker` service will be added once the worker exists, at the end of this milestone — for now db+redis are sufficient for development/test.)
 
-- [ ] **Step 2: deps** — in `backend/pyproject.toml` aggiungi a `[project.dependencies]`: `"arq>=0.26"`, `"redis>=5.0"`. Poi `cd backend && .venv/bin/pip install -e ".[dev]"`.
+- [ ] **Step 2: deps** — in `backend/pyproject.toml` add to `[project.dependencies]`: `"arq>=0.26"`, `"redis>=5.0"`. Then `cd backend && .venv/bin/pip install -e ".[dev]"`.
 
-- [ ] **Step 3: config** — in `backend/app/core/config.py` aggiungi a `Settings`:
+- [ ] **Step 3: config** — in `backend/app/core/config.py` add to `Settings`:
 ```python
-    admin_database_url: str | None = None  # owner, per il worker (bypassa RLS)
+    admin_database_url: str | None = None  # owner, for the worker (bypasses RLS)
     redis_url: str = "redis://localhost:6379"
     poll_interval_seconds: int = 60
 ```
 
-- [ ] **Step 4: .env.example** — aggiungi:
+- [ ] **Step 4: .env.example** — add:
 ```bash
 ADMIN_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms
 REDIS_URL=redis://localhost:6379
 POLL_INTERVAL_SECONDS=60
 ```
-Aggiungi `REDIS_URL`/`ADMIN_DATABASE_URL` ai default di `conftest.py` se non presenti (per i test del worker), via `os.environ.setdefault` in cima alla conftest.
+Add `REDIS_URL`/`ADMIN_DATABASE_URL` to conftest.py defaults if not present (for worker tests), via `os.environ.setdefault` at the top of conftest.
 
-- [ ] **Step 5: recreate Postgres con TimescaleDB + verifica**
+- [ ] **Step 5: recreate Postgres with TimescaleDB + verify**
 ```bash
 cd /home/l0rdg3x/coding/OPNGMS/backend
 docker compose down
 docker compose up -d db redis
-# Attendi healthy:
+# Wait for healthy:
 docker compose ps
-# Verifica l'estensione disponibile + crea su entrambi i DB:
+# Verify available extension + create on both DBs:
 docker compose exec -T db psql -U opngms -d opngms -c "CREATE EXTENSION IF NOT EXISTS timescaledb; SELECT extversion FROM pg_extension WHERE extname='timescaledb';"
 docker compose exec -T db psql -U opngms -c "CREATE DATABASE opngms_test;" || true
 docker compose exec -T db psql -U opngms -d opngms_test -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 docker compose exec -T redis redis-cli ping
 ```
 Expected: `timescaledb` extension version printed; `redis-cli ping` → `PONG`.
-⚠️ Se il container `db` NON parte sul volume esistente (creato da postgres:16), il fix è ricreare il volume (dati di sviluppo, non preziosi): `docker compose down -v && docker compose up -d db redis && make createtestdb` e poi ri-applicare le migrazioni esistenti (`ALEMBIC_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms .venv/bin/alembic upgrade head`). REPORT se è stato necessario.
+⚠️ If the `db` container does NOT start on the existing volume (created by postgres:16), the fix is to recreate the volume (development data, not precious): `docker compose down -v && docker compose up -d db redis && make createtestdb` and then re-apply existing migrations (`ALEMBIC_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms .venv/bin/alembic upgrade head`). REPORT if this was necessary.
 
 - [ ] **Step 6: commit**
 ```bash
 cd /home/l0rdg3x/coding/OPNGMS
 git add backend/docker-compose.yml backend/pyproject.toml backend/.env.example backend/app/core/config.py backend/tests/conftest.py
-git commit -m "chore(backend): TimescaleDB + Redis nel compose, deps arq/redis, config worker"
+git commit -m "chore(backend): TimescaleDB + Redis in compose, arq/redis deps, worker config"
 ```
 
 ---
@@ -160,7 +160,7 @@ Run: `cd /home/l0rdg3x/coding/OPNGMS/backend && .venv/bin/python -m pytest tests
 - [ ] **Step 2: Implement** — add to `OpnsenseClient` in `backend/app/connectors/opnsense/client.py`:
 ```python
     async def get_system_info(self) -> dict:
-        """CPU/mem/disco/uptime. NOTA: endpoint+campi DA VERIFICARE su un OPNsense reale."""
+        """CPU/mem/disk/uptime. NOTE: endpoint+fields TO BE VERIFIED on a real OPNsense device."""
         data = await self._get("diagnostics/system/systemInformation")
         return {
             "cpu_pct": float((data.get("cpu") or {}).get("used", 0.0)),
@@ -175,13 +175,13 @@ Run: `cd /home/l0rdg3x/coding/OPNGMS/backend && .venv/bin/python -m pytest tests
 ```bash
 cd /home/l0rdg3x/coding/OPNGMS/backend && .venv/bin/python -m pytest tests/test_connector_system_info.py -v
 git add backend/app/connectors/opnsense/client.py backend/tests/test_connector_system_info.py
-git commit -m "feat(backend): OpnsenseClient.get_system_info (cpu/mem/disco/uptime)"
+git commit -m "feat(backend): OpnsenseClient.get_system_info (cpu/mem/disk/uptime)"
 ```
 Expected: PASS.
 
 ---
 
-## Task 3: Modello `Metric` + migrazione 0005 (hypertable)
+## Task 3: `Metric` model + migration 0005 (hypertable)
 
 **Files:** Create `backend/app/models/metric.py`, `backend/migrations/versions/0005_timescale_metrics.py`; Modify `backend/app/models/__init__.py`, `backend/tests/conftest.py`; Create `backend/tests/test_metric_model.py`
 
@@ -213,7 +213,7 @@ from app.models.base import Base
 class Metric(Base):
     __tablename__ = "metrics"
 
-    # PK composita che INCLUDE la colonna di partizionamento `time` (richiesto da Timescale).
+    # Composite PK that INCLUDES the partitioning column `time` (required by Timescale).
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     metric: Mapped[str] = mapped_column(String, primary_key=True)
@@ -225,7 +225,7 @@ Add to `backend/app/models/__init__.py`: import `Metric`, add to `__all__`.
 
 - [ ] **Step 3: Migration** — `backend/migrations/versions/0005_timescale_metrics.py`:
 ```python
-"""TimescaleDB: estensione + hypertable metrics + retention"""
+"""TimescaleDB: extension + metrics hypertable + retention"""
 
 import sqlalchemy as sa
 from alembic import op
@@ -254,7 +254,7 @@ def upgrade() -> None:
         "metrics",
         ["tenant_id", "device_id", "metric", sa.text("time DESC")],
     )
-    # Retention: droppa i raw oltre N giorni (default 30; configurabile in seguito).
+    # Retention: drops raw data older than N days (default 30; configurable later).
     op.execute("SELECT add_retention_policy('metrics', INTERVAL '30 days')")
 
 
@@ -262,17 +262,17 @@ def downgrade() -> None:
     op.execute("SELECT remove_retention_policy('metrics', if_exists => true)")
     op.drop_table("metrics")
 ```
-NOTE: `alembic check` non sarà "pulito" su `metrics` perché autogenerate non conosce `create_hypertable`/retention (sono chiamate funzione, non DDL che il modello rappresenta). NON aggiungere `metrics` all'autogenerate-compare se causa rumore; va bene che la migrazione 0005 sia hand-written e che il modello rappresenti solo la tabella base. Verifica invece a runtime (Step 5) che la hypertable esista.
+NOTE: `alembic check` will not be "clean" on `metrics` because autogenerate does not know about `create_hypertable`/retention (these are function calls, not DDL that the model represents). Do NOT add `metrics` to autogenerate-compare if it causes noise; it is fine for migration 0005 to be hand-written and the model to represent only the base table. Instead verify at runtime (Step 5) that the hypertable exists.
 
-- [ ] **Step 4: conftest — extension + hypertable nel DB di test** — in `backend/tests/conftest.py`, nel fixture `db_engine`, DOPO `create_all` e PRIMA delle altre statement, assicurati l'estensione e converti `metrics` in hypertable (read the file; integrate):
+- [ ] **Step 4: conftest — extension + hypertable in test DB** — in `backend/tests/conftest.py`, in the `db_engine` fixture, AFTER `create_all` and BEFORE other statements, ensure the extension and convert `metrics` to a hypertable (read the file; integrate):
 ```python
-        # TimescaleDB: estensione + converti metrics in hypertable (per i test che scrivono metriche)
+        # TimescaleDB: extension + convert metrics to hypertable (for tests that write metrics)
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb"))
-        await conn.run_sync(Base.metadata.drop_all)   # (già presente)
-        await conn.run_sync(Base.metadata.create_all) # (già presente — crea anche metrics)
+        await conn.run_sync(Base.metadata.drop_all)   # (already present)
+        await conn.run_sync(Base.metadata.create_all) # (already present — also creates metrics)
         await conn.execute(text("SELECT create_hypertable('metrics', 'time', if_not_exists => true)"))
 ```
-IMPORTANT: l'estensione va creata PRIMA di `create_hypertable`. Metti `CREATE EXTENSION` prima del blocco create_all/hypertable. Se `create_extension` richiede privilegi, l'owner `opngms` (superuser) li ha. Adatta l'ordine reale delle statement nella conftest e REPORT.
+IMPORTANT: the extension must be created BEFORE `create_hypertable`. Put `CREATE EXTENSION` before the create_all/hypertable block. If `create_extension` requires privileges, the owner `opngms` (superuser) has them. Adapt the actual order of statements in conftest and REPORT.
 
 - [ ] **Step 5: Apply migration + verify hypertable + tests**
 ```bash
@@ -287,12 +287,12 @@ Expected: hypertable `metrics` listed; model test passes; full suite green (the 
 - [ ] **Step 6: commit**
 ```bash
 git add backend/app/models/metric.py backend/app/models/__init__.py backend/migrations/versions/0005_timescale_metrics.py backend/tests/conftest.py backend/tests/test_metric_model.py
-git commit -m "feat(backend): hypertable metrics TimescaleDB (modello + migrazione 0005)"
+git commit -m "feat(backend): TimescaleDB metrics hypertable (model + migration 0005)"
 ```
 
 ---
 
-## Task 4: Service `collect_and_store` (raccolta + scrittura metriche + update stato)
+## Task 4: Service `collect_and_store` (collection + metric write + status update)
 
 **Files:** Create `backend/app/services/monitoring.py`, `backend/tests/test_monitoring.py`
 
@@ -386,10 +386,10 @@ def _metric(now, device, name, value, label=""):
 async def collect_and_store(
     session: AsyncSession, device: Device, client, now: datetime
 ) -> None:
-    """Pollla un device, scrive le metriche di salute, aggiorna lo stato.
+    """Poll a device, write health metrics, update status.
 
-    Non solleva sugli errori del connector: marca il device 'unverified' (la rete
-    irraggiungibile non deve far fallire l'intero ciclo). `client` è iniettabile (test).
+    Does not raise on connector errors: marks the device 'unverified' (an
+    unreachable network must not fail the entire cycle). `client` is injectable (test).
     """
     try:
         info = await client.get_system_info()
@@ -417,13 +417,13 @@ async def collect_and_store(
 ```bash
 cd /home/l0rdg3x/coding/OPNGMS/backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_monitoring.py -v
 git add backend/app/services/monitoring.py backend/tests/test_monitoring.py
-git commit -m "feat(backend): collect_and_store (metriche salute + update stato device)"
+git commit -m "feat(backend): collect_and_store (health metrics + device status update)"
 ```
 Expected: PASS.
 
 ---
 
-## Task 5: Worker ARQ (`poll_device` + cron enqueue) + servizio worker compose
+## Task 5: ARQ worker (`poll_device` + cron enqueue) + worker compose service
 
 **Files:** Create `backend/app/worker.py`, `backend/tests/test_worker_config.py`; Modify `backend/docker-compose.yml`
 
@@ -435,7 +435,7 @@ from app.worker import WorkerSettings, enqueue_device_polls, poll_device
 def test_worker_settings_register_functions_and_cron():
     fn_names = {getattr(f, "__name__", getattr(f, "name", "")) for f in WorkerSettings.functions}
     assert "poll_device" in fn_names
-    assert WorkerSettings.cron_jobs  # almeno un cron job (enqueue)
+    assert WorkerSettings.cron_jobs  # at least one cron job (enqueue)
     assert callable(poll_device) and callable(enqueue_device_polls)
 ```
 Run → FAIL.
@@ -463,7 +463,7 @@ def _owner_url() -> str:
 
 
 async def enqueue_device_polls(ctx: dict) -> int:
-    """Cron: accoda un poll_device per ogni device. Ritorna il numero accodato."""
+    """Cron: enqueues a poll_device for every device. Returns the count enqueued."""
     factory = ctx["session_factory"]
     redis = ctx["redis"]
     async with factory() as session:
@@ -474,7 +474,7 @@ async def enqueue_device_polls(ctx: dict) -> int:
 
 
 async def poll_device(ctx: dict, device_id: str) -> str:
-    """Job: pollla un singolo device e salva metriche+stato."""
+    """Job: polls a single device and saves metrics+status."""
     factory = ctx["session_factory"]
     async with factory() as session:
         device = await session.get(Device, uuid.UUID(device_id))
@@ -506,7 +506,7 @@ class WorkerSettings:
     cron_jobs = [
         cron(
             enqueue_device_polls,
-            second={0},  # ogni minuto al secondo 0 (cadenza base; raffinabile)
+            second={0},  # every minute at second 0 (base cadence; refinable)
         )
     ]
     on_startup = on_startup
@@ -541,13 +541,13 @@ cd /home/l0rdg3x/coding/OPNGMS/backend
 .venv/bin/python -m pytest tests/test_worker_config.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/app/worker.py backend/tests/test_worker_config.py backend/docker-compose.yml backend/Dockerfile 2>/dev/null
-git commit -m "feat(backend): worker ARQ (poll_device + cron enqueue) + servizio worker compose"
+git commit -m "feat(backend): ARQ worker (poll_device + cron enqueue) + worker compose service"
 ```
 Expected: worker config test passes; full suite green.
 
 ---
 
-## Task 6: Smoke end-to-end del poller (fake client → metriche in TimescaleDB)
+## Task 6: Poller end-to-end smoke (fake client → metrics in TimescaleDB)
 
 **Files:** Create `backend/tests/test_poller_e2e.py`
 
@@ -584,7 +584,7 @@ async def test_two_polls_produce_two_time_buckets(db_engine):
             {"i": did, "t": tid},
         )
         await s.commit()
-    # due cicli con timestamp diversi
+    # two cycles with different timestamps
     for offset in (0, 1):
         async with factory() as s:
             device = await s.get(Device, did)
@@ -597,7 +597,7 @@ async def test_two_polls_produce_two_time_buckets(db_engine):
                 select(func.count()).select_from(Metric).where(Metric.device_id == did, Metric.metric == "cpu.pct")
             )
         ).scalar_one()
-        assert cpu_points == 2  # due campionamenti distinti nella hypertable
+        assert cpu_points == 2  # two distinct samples in the hypertable
 ```
 
 - [ ] **Step 2: Run whole suite + commit**
@@ -606,59 +606,59 @@ cd /home/l0rdg3x/coding/OPNGMS/backend
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_poller_e2e.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/tests/test_poller_e2e.py
-git commit -m "test(backend): smoke e2e poller (due cicli → due punti nella hypertable)"
+git commit -m "test(backend): poller e2e smoke (two cycles → two points in hypertable)"
 ```
 Expected: full suite green; the hypertable accumulates time-series points across polls.
 
 ---
 
-## Self-review (mappatura spec → task)
-- **Spec §3-4 (infra+storage)** → Task 1 (TimescaleDB+Redis), Task 3 (hypertable metrics + retention).
-- **Spec §5 (poller ARQ)** → Task 5 (worker, cron enqueue, poll_device), Task 4 (collect_and_store).
-- **Spec §6 (connector)** → Task 2 (get_system_info; rete=2B).
-- **Definizione di fatto 2A** (un device pollato → metriche nell'hypertable + stato aggiornato) →
+## Self-review (spec → task mapping)
+- **Spec §3-4 (infra+storage)** → Task 1 (TimescaleDB+Redis), Task 3 (metrics hypertable + retention).
+- **Spec §5 (ARQ poller)** → Task 5 (worker, cron enqueue, poll_device), Task 4 (collect_and_store).
+- **Spec §6 (connector)** → Task 2 (get_system_info; network=2B).
+- **2A definition of done** (a device polled → metrics in hypertable + status updated) →
   Task 4 + Task 6.
-- **Rimandato per design:** RLS su metrics + isolamento read (2C); metriche di rete + alerting (2B);
+- **Deferred by design:** RLS on metrics + read isolation (2C); network metrics + alerting (2B);
   API + dashboard (2C/2D).
 
-**Note di scope / debito:**
-- RLS sull'hypertable `metrics` arriva in 2C (col read-path); in 2A il poller scrive come owner.
-- Endpoint OPNsense `get_system_info` (`diagnostics/system/systemInformation`) e mapping campi DA
-  VERIFICARE; mockati con respx.
-- Worker compose service dipende da un `Dockerfile` backend — se assente, worker eseguibile in
-  locale via `arq app.worker.WorkerSettings` (vedi Task 5 Step 3).
-- `alembic check` non sarà pulito su `metrics` (create_hypertable/retention non sono DDL-modello);
-  verifica a runtime che la hypertable esista (Task 3 Step 5).
+**Scope notes / debt:**
+- RLS on the `metrics` hypertable arrives in 2C (with the read path); in 2A the poller writes as owner.
+- OPNsense endpoint `get_system_info` (`diagnostics/system/systemInformation`) and field mapping TO BE
+  VERIFIED; mocked with respx.
+- Compose worker service depends on a backend `Dockerfile` — if absent, worker is runnable locally
+  via `arq app.worker.WorkerSettings` (see Task 5 Step 3).
+- `alembic check` will not be clean on `metrics` (create_hypertable/retention are not DDL-model);
+  verify at runtime that the hypertable exists (Task 3 Step 5).
 
-**Placeholder scan:** ogni step ha codice/comando concreto. Le incertezze (endpoint OPNsense, API ARQ
-esatta) sono esplicite e isolate dietro contratti pinnati dai test.
+**Placeholder scan:** every step has concrete code/commands. Uncertainties (OPNsense endpoint,
+exact ARQ API) are explicit and isolated behind contracts pinned by tests.
 **Type consistency:** `collect_and_store(session, device, client, now)`, `Metric(time, device_id,
 tenant_id, metric, label, value)`, `OpnsenseClient.get_system_info()`, `WorkerSettings.{functions,
-cron_jobs}`, `poll_device(ctx, device_id)` coerenti tra i Task 2-6.
+cron_jobs}`, `poll_device(ctx, device_id)` consistent across Tasks 2-6.
 
 ---
 
-## Debito tecnico (dalla review olistica finale — READY TO MERGE)
+## Technical debt (from final holistic review — READY TO MERGE)
 
-Zero issue Critical/Important. Multi-tenancy strutturale (metrica eredita `tenant_id` dal device),
-resilienza corretta, segreti come Fase 1, separazione owner-vs-app pulita, `alembic check` pulito.
-Da tracciare (in gran parte per 2B/2C):
+Zero Critical/Important issues. Structural multi-tenancy (metric inherits `tenant_id` from device),
+correct resilience, secrets as in Phase 1, clean owner-vs-app separation, clean `alembic check`.
+To track (largely for 2B/2C):
 
-1. **RLS su `metrics` (2C):** aggiungere `metrics` a `TENANT_TABLES`, ENABLE/FORCE + policy, e
-   verificare la propagazione ai chunk Timescale. ⚠️ `grant_app_role_statements` concede già a
-   `opngms_app` DML su TUTTE le tabelle public (inclusa `metrics`) → la RLS è ciò che fermerà le
-   letture cross-tenant: deve atterrare INSIEME all'API di lettura in 2C.
-2. **API di lettura metriche + test isolamento cross-tenant (2C).**
-3. **Metriche di rete + alerting (2B):** `get_interfaces`/`get_gateways`/`get_vpn_status`, tabella
-   `alerts`, motore open/resolve sui cambi di stato.
+1. **RLS on `metrics` (2C):** add `metrics` to `TENANT_TABLES`, ENABLE/FORCE + policy, and
+   verify propagation to Timescale chunks. ⚠️ `grant_app_role_statements` already grants `opngms_app`
+   DML on ALL public tables (including `metrics`) → RLS is what will stop cross-tenant reads: it must
+   land TOGETHER with the read API in 2C.
+2. **Metrics read API + cross-tenant isolation test (2C).**
+3. **Network metrics + alerting (2B):** `get_interfaces`/`get_gateways`/`get_vpn_status`, `alerts`
+   table, open/resolve engine on state changes.
 4. **Continuous aggregate `metrics_5m` + rollup (2C).**
-5. **Tuning ARQ (2B):** impostare `max_jobs` esplicito (bound concorrenza verso le API OPNsense) e
-   valutare `retry`/backoff espliciti su `poll_device` (oggi default arq: `max_tries=5`).
-6. **Nessuna CI** (`.github/workflows/` assente): Dockerfile + servizio worker non buildati/testati
-   in CI; il deploy di produzione (vedi memoria) ci si appoggerà.
-7. **Endpoint OPNsense `get_system_info` + nomi campi DA VERIFICARE** contro un device reale (come
+5. **ARQ tuning (2B):** set explicit `max_jobs` (bound concurrency toward OPNsense APIs) and
+   consider explicit `retry`/backoff on `poll_device` (today arq default: `max_tries=5`).
+6. **No CI** (`.github/workflows/` absent): Dockerfile + worker service not built/tested in CI;
+   the production deployment (see memory) will depend on it.
+7. **OPNsense `get_system_info` endpoint + field names TO BE VERIFIED** against a real device (like
    `core/firmware/status`/`product_version`).
-8. **Stato `unreachable`** documentato ma mai scritto dal poller — decidere se distinguere
-   hard-unreachable da `unverified`.
-9. **`collect_and_store` indicizza `info[...]` direttamente** (accoppiamento stretto col contratto
-   di `get_system_info`; co-locati, rischio basso).
+8. **`unreachable` state** documented but never written by the poller — decide whether to
+   distinguish hard-unreachable from `unverified`.
+9. **`collect_and_store` indexes `info[...]` directly** (tight coupling with `get_system_info`
+   contract; co-located, low risk).

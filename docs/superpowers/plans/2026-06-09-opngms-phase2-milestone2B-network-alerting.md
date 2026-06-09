@@ -1,38 +1,38 @@
-# OPNGMS Fase 2 · Milestone 2B — Metriche di rete + Alerting — Implementation Plan
+# OPNGMS Phase 2 · Milestone 2B — Network Metrics + Alerting — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Estendere il poller per raccogliere le metriche di rete (interfacce, gateway, tunnel VPN) e generare/risolvere alert sui cambi di stato (device giù, gateway giù).
+**Goal:** Extend the poller to collect network metrics (interfaces, gateways, VPN tunnels) and generate/resolve alerts on state changes (device down, gateway down).
 
-**Architecture:** Il connector guadagna `get_interfaces`/`get_gateways`/`get_vpn_status` (un metodo per gruppo, normalizzati, **endpoint da verificare**, mockati respx). `collect_and_store` ora raccoglie anche le metriche di rete (scritte nell'hypertable con `label` = nome interfaccia/gateway/tunnel) e ritorna uno stato (`PollState`) consumato da un nuovo `evaluate_alerts(session, device, state)`, che **riconcilia** gli alert: apre un alert se la condizione down è vera e non c'è già un alert aperto, lo risolve quando la condizione rientra. Tabella `alerts` relazionale (no hypertable). Il poller scrive come owner; RLS su `alerts` (come per `metrics`) è rinviata a 2C col read-path.
+**Architecture:** The connector gains `get_interfaces`/`get_gateways`/`get_vpn_status` (one method per group, normalised, **endpoints to verify**, mocked with respx). `collect_and_store` now also collects network metrics (written to the hypertable with `label` = interface/gateway/tunnel name) and returns a state (`PollState`) consumed by a new `evaluate_alerts(session, device, state)`, which **reconciles** alerts: opens an alert if the down condition is true and no open alert exists, resolves it when the condition clears. Relational `alerts` table (not a hypertable). The poller writes as owner; RLS on `alerts` (as for `metrics`) is deferred to 2C with the read path.
 
-**Tech Stack:** come 2A (FastAPI/SQLAlchemy async, TimescaleDB, ARQ, httpx, respx, pytest).
+**Tech Stack:** same as 2A (FastAPI/SQLAlchemy async, TimescaleDB, ARQ, httpx, respx, pytest).
 
 ---
 
-## Riferimento spec
-Implementa §4.2 (alerts), §6 (connector rete), §9-2B dello spec
+## Spec reference
+Implements §4.2 (alerts), §6 (network connector), §9-2B of the spec
 `docs/superpowers/specs/2026-06-09-opngms-phase2-monitoring-design.md`.
 
-## Decisioni di sequenziamento
-- **RLS su `alerts`: rimandata a 2C** (col read API), coerente con la scelta su `metrics` in 2A. In
-  2B `alerts` è una tabella semplice; il poller scrive come owner.
-- **Alerting idempotente per riconciliazione:** non serve lo stato precedente — `evaluate_alerts`
-  confronta la condizione corrente con gli alert *aperti* e apre/risolve di conseguenza.
+## Sequencing decisions
+- **RLS on `alerts`: deferred to 2C** (with read API), consistent with the `metrics` choice in 2A. In
+  2B `alerts` is a plain table; the poller writes as owner.
+- **Idempotent alerting via reconciliation:** no previous state needed — `evaluate_alerts`
+  compares the current condition with *open* alerts and opens/resolves accordingly.
 
-## Struttura file
+## File structure
 ```
 backend/app/
   connectors/opnsense/client.py   # MODIFY: get_interfaces/get_gateways/get_vpn_status
-  services/monitoring.py          # MODIFY: collect_and_store raccoglie rete + ritorna PollState
-  services/alerting.py            # NEW: evaluate_alerts (riconciliazione device.down/gateway.down)
+  services/monitoring.py          # MODIFY: collect_and_store collects network + returns PollState
+  services/alerting.py            # NEW: evaluate_alerts (device.down/gateway.down reconciliation)
   models/alert.py                 # NEW
   models/__init__.py              # MODIFY: export Alert
-  worker.py                       # MODIFY: poll_device chiama evaluate_alerts
+  worker.py                       # MODIFY: poll_device calls evaluate_alerts
   migrations/versions/0006_alerts.py  # NEW
 backend/tests/
   test_connector_network.py
-  test_monitoring_network.py      # (+ aggiorna FakeClient esistenti)
+  test_monitoring_network.py      # (+ update existing FakeClients)
   test_alert_model.py
   test_alerting.py
   test_2b_integration.py
@@ -93,11 +93,11 @@ async def test_get_vpn_status():
 ```
 Run: `cd backend && .venv/bin/python -m pytest tests/test_connector_network.py -v` → FAIL.
 
-- [ ] **Step 2: Implement** — add to `OpnsenseClient` (helpers for the noisy parsing; all go through `self._get`, so SSRF guard + error normalization apply). NOTE: endpoint paths + field names **DA VERIFICARE** contro un OPNsense reale:
+- [ ] **Step 2: Implement** — add to `OpnsenseClient` (helpers for the noisy parsing; all go through `self._get`, so SSRF guard + error normalization apply). NOTE: endpoint paths + field names **TO BE VERIFIED** against a real OPNsense device:
 ```python
     @staticmethod
     def _num(v) -> float:
-        """Estrae il primo float da una stringa tipo '12.3 ms' / '0.0 %' / numero."""
+        """Extracts the first float from a string like '12.3 ms' / '0.0 %' / a number."""
         import re
 
         if isinstance(v, (int, float)):
@@ -124,7 +124,7 @@ Run: `cd backend && .venv/bin/python -m pytest tests/test_connector_network.py -
             status = str(g.get("status", "")).lower()
             out.append({
                 "name": g.get("name", ""),
-                "up": status not in ("down", "force_down"),  # 'none'/''/'delay' = su; 'down' = giù
+                "up": status not in ("down", "force_down"),  # 'none'/''/'delay' = up; 'down' = down
                 "rtt_ms": self._num(g.get("delay")),
                 "loss_pct": self._num(g.get("loss")),
             })
@@ -149,11 +149,11 @@ Expected: 3 new pass; full suite green (101 passed: 98 + 3).
 
 ---
 
-## Task 2: collect_and_store raccoglie le metriche di rete + ritorna PollState
+## Task 2: collect_and_store collects network metrics + returns PollState
 
 **Files:** Modify `backend/app/services/monitoring.py`, `backend/tests/test_monitoring.py`, `backend/tests/test_poller_e2e.py`; Create `backend/tests/test_monitoring_network.py`
 
-- [ ] **Step 1: Update existing FakeClients** — i `FakeClient` in `tests/test_monitoring.py` e `tests/test_poller_e2e.py` ora devono avere anche i 3 metodi di rete (altrimenti `collect_and_store` fallisce con AttributeError). Aggiungi a OGNI FakeClient (read the files, add the methods):
+- [ ] **Step 1: Update existing FakeClients** — the `FakeClient` in `tests/test_monitoring.py` and `tests/test_poller_e2e.py` now need the 3 network methods as well (otherwise `collect_and_store` fails with AttributeError). Add to EVERY FakeClient (read the files, add the methods):
 ```python
     async def get_interfaces(self):
         return [{"name": "igb0", "up": True, "bytes_in": 100.0, "bytes_out": 200.0}]
@@ -164,7 +164,7 @@ Expected: 3 new pass; full suite green (101 passed: 98 + 3).
     async def get_vpn_status(self):
         return [{"name": "wg0", "up": True}]
 ```
-(Il `FailClient` in test_poller_e2e raises in get_system_info, quindi non arriva alla rete — ma per sicurezza aggiungi anche lì i metodi che ritornano `[]`.)
+(The `FailClient` in test_poller_e2e raises in get_system_info, so it never reaches the network — but as a safety measure add the methods there too, returning `[]`.)
 
 - [ ] **Step 2: Failing test** — `backend/tests/test_monitoring_network.py`:
 ```python
@@ -219,13 +219,13 @@ async def test_network_metrics_written_with_labels(db_engine):
         assert labeled[("iface.bytes_in", "igb0")] == 100.0
         assert labeled[("gateway.up", "WAN_GW")] == 0.0
         assert labeled[("vpn.up", "wg0")] == 1.0
-    # collect_and_store ora ritorna uno stato con i gateway (per l'alerting)
+    # collect_and_store now returns a state with gateways (for alerting)
     assert state.reachable is True
     assert any(g["name"] == "WAN_GW" and g["up"] is False for g in state.gateways)
 ```
 Run → FAIL.
 
-- [ ] **Step 3: Implement** — in `backend/app/services/monitoring.py`, aggiungi un `PollState` e estendi `collect_and_store` per raccogliere la rete e ritornare lo stato:
+- [ ] **Step 3: Implement** — in `backend/app/services/monitoring.py`, add a `PollState` and extend `collect_and_store` to collect network data and return state:
 ```python
 from dataclasses import dataclass, field
 
@@ -271,20 +271,20 @@ async def collect_and_store(session, device, client, now) -> PollState:
     await session.flush()
     return PollState(reachable=True, gateways=gateways)
 ```
-NOTE: `collect_and_store` ora RITORNA `PollState` (prima `None`). I test esistenti che ignorano il valore continuano a passare; il poller (Task 5) userà il ritorno.
+NOTE: `collect_and_store` now RETURNS `PollState` (previously `None`). Existing tests that ignore the return value continue to pass; the poller (Task 5) will use the return.
 
 - [ ] **Step 4: Run + commit**
 ```bash
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_monitoring_network.py tests/test_monitoring.py tests/test_poller_e2e.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/app/services/monitoring.py backend/tests/test_monitoring.py backend/tests/test_poller_e2e.py backend/tests/test_monitoring_network.py
-git commit -m "feat(backend): collect_and_store raccoglie metriche rete + ritorna PollState"
+git commit -m "feat(backend): collect_and_store collects network metrics + returns PollState"
 ```
 Expected: new + updated tests pass; full suite green.
 
 ---
 
-## Task 3: Modello Alert + migrazione 0006
+## Task 3: Alert model + migration 0006
 
 **Files:** Create `backend/app/models/alert.py`, `backend/migrations/versions/0006_alerts.py`; Modify `backend/app/models/__init__.py`; Create `backend/tests/test_alert_model.py`
 
@@ -330,7 +330,7 @@ Add `Alert` to `backend/app/models/__init__.py`.
 
 - [ ] **Step 3: Migration** — `backend/migrations/versions/0006_alerts.py`:
 ```python
-"""alerts table + indice unico parziale sull'alert attivo"""
+"""alerts table + partial unique index on active alert"""
 
 import sqlalchemy as sa
 from alembic import op
@@ -359,7 +359,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_alerts_tenant_id", "alerts", ["tenant_id"])
     op.create_index("ix_alerts_device_id", "alerts", ["device_id"])
-    # Un solo alert ATTIVO per (device, type, label):
+    # One active alert per (device, type, label):
     op.create_index(
         "uq_alerts_active",
         "alerts",
@@ -372,7 +372,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("alerts")
 ```
-NOTE: il `default=dict` Python sul modello + `server_default '{}'::jsonb` sulla migrazione (come per audit_log). L'indice parziale unico va dichiarato anche sul MODELLO per tenere `alembic check` pulito — aggiungi a `Alert.__table_args__`:
+NOTE: the Python `default=dict` on the model + `server_default '{}'::jsonb` on the migration (as for audit_log). The partial unique index must also be declared on the MODEL to keep `alembic check` clean — add to `Alert.__table_args__`:
 ```python
 from sqlalchemy import Index, text
     __table_args__ = (
@@ -380,7 +380,7 @@ from sqlalchemy import Index, text
               postgresql_where=text("resolved_at IS NULL")),
     )
 ```
-(gli indici `ix_alerts_tenant_id`/`ix_alerts_device_id` vengono da `index=True` sui campi.)
+(the `ix_alerts_tenant_id`/`ix_alerts_device_id` indexes come from `index=True` on the fields.)
 
 - [ ] **Step 4: Apply + verify alembic check + tests**
 ```bash
@@ -390,12 +390,12 @@ ALEMBIC_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms .v
 .venv/bin/python -m pytest tests/test_alert_model.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 ```
-Expected: upgrade ok; **alembic check pulito** (partial unique index declared on model); model test passes; full suite green. Verify downgrade/upgrade on test DB.
+Expected: upgrade ok; **alembic check clean** (partial unique index declared on model); model test passes; full suite green. Verify downgrade/upgrade on test DB.
 
 - [ ] **Step 5: commit**
 ```bash
 git add backend/app/models/alert.py backend/app/models/__init__.py backend/migrations/versions/0006_alerts.py backend/tests/test_alert_model.py
-git commit -m "feat(backend): tabella alerts (modello + migrazione 0006, unico attivo per device/type/label)"
+git commit -m "feat(backend): alerts table (model + migration 0006, unique active per device/type/label)"
 ```
 
 ---
@@ -435,7 +435,7 @@ async def _active(s, did):
 async def test_device_down_opens_then_resolves(db_engine):
     tid, did = await _device(db_engine)
     f = async_sessionmaker(db_engine, expire_on_commit=False)
-    # 1) device irraggiungibile -> apre device.down
+    # 1) device unreachable -> opens device.down
     async with f() as s:
         device = await s.get(Device, did)
         await evaluate_alerts(s, device, PollState(reachable=False))
@@ -443,14 +443,14 @@ async def test_device_down_opens_then_resolves(db_engine):
     async with f() as s:
         active = await _active(s, did)
         assert [a.type for a in active] == ["device.down"]
-    # 2) di nuovo irraggiungibile -> NON duplica
+    # 2) unreachable again -> does NOT duplicate
     async with f() as s:
         device = await s.get(Device, did)
         await evaluate_alerts(s, device, PollState(reachable=False))
         await s.commit()
     async with f() as s:
         assert len(await _active(s, did)) == 1
-    # 3) torna su -> risolve
+    # 3) comes back up -> resolves
     async with f() as s:
         device = await s.get(Device, did)
         await evaluate_alerts(s, device, PollState(reachable=True))
@@ -501,10 +501,10 @@ def _open(device: Device, type_: str, label: str = "") -> Alert:
 
 
 async def evaluate_alerts(session: AsyncSession, device: Device, state: PollState) -> None:
-    """Riconcilia gli alert con lo stato corrente: apre i down nuovi, risolve i rientrati.
+    """Reconciles alerts with current state: opens new downs, resolves cleared ones.
 
-    Idempotente: usa SOLO lo stato corrente + gli alert aperti (vincolo unico parziale
-    impedisce comunque i duplicati su (device, type, label)).
+    Idempotent: uses ONLY current state + open alerts (partial unique constraint
+    also prevents duplicates on (device, type, label)).
     """
     now = datetime.now(timezone.utc)
     open_alerts = await _open_alerts(session, device)
@@ -516,13 +516,13 @@ async def evaluate_alerts(session: AsyncSession, device: Device, state: PollStat
     elif state.reachable and key in open_alerts:
         open_alerts[key].resolved_at = now
 
-    # gateway.down (label = nome gateway), valutato solo se il device è raggiungibile
+    # gateway.down (label = gateway name), only evaluated if device is reachable
     if state.reachable:
         down_now = {g["name"] for g in state.gateways if not g["up"]}
         for name in down_now:
             if ("gateway.down", name) not in open_alerts:
                 session.add(_open(device, "gateway.down", name))
-        # risolvi gli alert gateway.down i cui gateway sono tornati su / non più down
+        # resolve gateway.down alerts whose gateways are back up / no longer down
         for (type_, label), alert in open_alerts.items():
             if type_ == "gateway.down" and label not in down_now:
                 alert.resolved_at = now
@@ -535,17 +535,17 @@ async def evaluate_alerts(session: AsyncSession, device: Device, state: PollStat
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_alerting.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/app/services/alerting.py backend/tests/test_alerting.py
-git commit -m "feat(backend): evaluate_alerts (device.down + gateway.down, riconciliazione idempotente)"
+git commit -m "feat(backend): evaluate_alerts (device.down + gateway.down, idempotent reconciliation)"
 ```
 Expected: alerting tests pass; full suite green.
 
 ---
 
-## Task 5: Wire poll_device → evaluate_alerts + integrazione
+## Task 5: Wire poll_device → evaluate_alerts + integration
 
 **Files:** Modify `backend/app/worker.py`; Create `backend/tests/test_2b_integration.py`
 
-- [ ] **Step 1: Wire** — in `backend/app/worker.py`, `poll_device` ora cattura il `PollState` ritornato da `collect_and_store` e chiama `evaluate_alerts` PRIMA del commit:
+- [ ] **Step 1: Wire** — in `backend/app/worker.py`, `poll_device` now captures the `PollState` returned by `collect_and_store` and calls `evaluate_alerts` BEFORE the commit:
 ```python
         state = await collect_and_store(session, device, client, now=datetime.now(timezone.utc))
         from app.services.alerting import evaluate_alerts
@@ -553,7 +553,7 @@ Expected: alerting tests pass; full suite green.
         await session.commit()
         return device.status
 ```
-(import `evaluate_alerts` a livello modulo, in cima, è preferibile — adatta.)
+(importing `evaluate_alerts` at module level at the top is preferable — adapt accordingly.)
 
 - [ ] **Step 2: Integration test** — `backend/tests/test_2b_integration.py`:
 ```python
@@ -600,56 +600,55 @@ async def test_poll_collects_and_opens_gateway_alert(db_engine):
 cd backend && TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest tests/test_2b_integration.py tests/test_worker_config.py -v
 TEST_DATABASE_URL=postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test .venv/bin/python -m pytest -q
 git add backend/app/worker.py backend/tests/test_2b_integration.py
-git commit -m "feat(backend): poll_device valuta gli alert dopo la raccolta (integrazione 2B)"
+git commit -m "feat(backend): poll_device evaluates alerts after collection (2B integration)"
 ```
 Expected: integration test passes; full suite green.
 
 ---
 
-## Self-review (mappatura spec → task)
-- **Spec §6 (connector rete)** → Task 1.
-- **Spec §4.1 (metriche rete con label)** → Task 2.
-- **Spec §4.2 (alerts) + §9-2B (motore alert)** → Task 3 (modello/migrazione), Task 4 (evaluate_alerts),
-  Task 5 (wiring poller).
-- **Rimandato (per design):** RLS su `alerts` + API alert (2C); soglie configurabili, notifiche
+## Self-review (spec → task mapping)
+- **Spec §6 (network connector)** → Task 1.
+- **Spec §4.1 (network metrics with label)** → Task 2.
+- **Spec §4.2 (alerts) + §9-2B (alert engine)** → Task 3 (model/migration), Task 4 (evaluate_alerts),
+  Task 5 (poller wiring).
+- **Deferred (by design):** RLS on `alerts` + alerts API (2C); configurable thresholds, notifications
   (post-MVP).
 
-**Note di scope / debito:**
-- RLS su `alerts` → 2C (col read API); in 2B il poller scrive come owner.
-- Endpoint OPNsense rete (`diagnostics/interface/getInterfaceStatistics`, `routes/gateway/status`,
-  `wireguard/service/show`) + nomi campi **DA VERIFICARE** contro un device reale; mockati respx.
-- Solo WireGuard in `get_vpn_status` per l'MVP (OpenVPN/IPsec aggiungibili come ulteriori chiamate).
-- `evaluate_alerts` riconcilia per stato corrente; un gateway che SPARISCE dalla lista (non più
-  riportato) → il suo alert resta aperto (edge raro; si può estendere risolvendo i gateway assenti).
+**Scope notes / debt:**
+- RLS on `alerts` → 2C (with read API); in 2B the poller writes as owner.
+- OPNsense network endpoints (`diagnostics/interface/getInterfaceStatistics`, `routes/gateway/status`,
+  `wireguard/service/show`) + field names **TO BE VERIFIED** against a real device; mocked with respx.
+- Only WireGuard in `get_vpn_status` for MVP (OpenVPN/IPsec can be added as further calls).
+- `evaluate_alerts` reconciles by current state; a gateway that DISAPPEARS from the list (no longer
+  reported) → its alert stays open (rare edge case; can be extended by resolving absent gateways).
 
-**Placeholder scan:** ogni step ha codice/comando concreto. Le incertezze (endpoint OPNsense) sono
-esplicite e isolate dietro contratti pinnati dai test.
+**Placeholder scan:** every step has concrete code/commands. Uncertainties (OPNsense endpoints) are
+explicit and isolated behind contracts pinned by tests.
 **Type consistency:** `collect_and_store(...) -> PollState(reachable, gateways)`, `evaluate_alerts(
 session, device, state)`, `Alert(tenant_id, device_id, type, label, severity, opened_at,
-resolved_at, details)`, metriche `iface.*`/`gateway.*`/`vpn.up` con `label`, coerenti tra i Task 1-5.
+resolved_at, details)`, metrics `iface.*`/`gateway.*`/`vpn.up` with `label`, consistent across Tasks 1-5.
 
 ---
 
-## Debito tecnico (dalla review olistica finale — READY TO MERGE)
+## Technical debt (from final holistic review — READY TO MERGE)
 
-Zero issue Critical/Important. Alert engine corretto e idempotente (guardia app + indice parziale
-concordi), multi-tenancy strutturale (metrica/alert ereditano `tenant_id` dal device), resilienza
-ok, connector confine unico difensivo, `alembic check` pulito. Da tracciare:
+Zero Critical/Important issues. Correct and idempotent alert engine (app guard + partial index agree),
+structural multi-tenancy (metric/alert inherit `tenant_id` from device), correct resilience,
+connector as single defensive boundary, clean `alembic check`. To track:
 
-1. **RLS su `alerts` e `metrics` (2C):** entrambe fuori da `TENANT_TABLES` (solo `devices`); il
-   worker scrive come owner (intenzionale), ma la RLS deve atterrare in 2C PRIMA di qualsiasi
-   read-path user-facing.
-2. **Read API + test isolamento cross-tenant (2C):** `GET .../metrics`, `.../health`,
-   `.../alerts?active=` con negativi che provano l'isolamento sotto RLS.
-3. **Endpoint OPNsense DA VERIFICARE** contro un device reale (interfacce/gateway/VPN + formati
-   stringa di `_num` + `product_version`).
-4. **Canali di notifica alert** (email/webhook su open/resolve) — assenti.
-5. **Soglie configurabili + alert su soglia metrica** (CPU/mem/disco/loss/RTT) — oggi solo
-   device.down/gateway.down hard-coded.
-6. **OpenVPN/IPsec** in `get_vpn_status` (oggi solo WireGuard).
-7. **Nomi entità vuoti:** skippare/deduplicare interfacce/gateway con `name=""` per evitare
-   collisioni PK/unique.
-8. **Dedup job per-device** (`_job_id` in `enqueue_device_polls`) e/o gestione graziosa
-   dell'`IntegrityError` sull'insert alert, per rendere i poll sovrapposti un no-op pulito.
-9. **`device.status = "unreachable"`** citato nel commento ma mai scritto — decidere se
-   distinguerlo da `unverified`.
+1. **RLS on `alerts` and `metrics` (2C):** both outside `TENANT_TABLES` (only `devices`); the
+   worker writes as owner (intentional), but RLS must land in 2C BEFORE any user-facing read path.
+2. **Read API + cross-tenant isolation test (2C):** `GET .../metrics`, `.../health`,
+   `.../alerts?active=` with negatives proving isolation under RLS.
+3. **OPNsense endpoints TO BE VERIFIED** against a real device (interfaces/gateways/VPN + string
+   formats for `_num` + `product_version`).
+4. **Alert notification channels** (email/webhook on open/resolve) — absent.
+5. **Configurable thresholds + threshold-based metric alerts** (CPU/mem/disk/loss/RTT) — today only
+   device.down/gateway.down are hard-coded.
+6. **OpenVPN/IPsec** in `get_vpn_status` (today WireGuard only).
+7. **Empty entity names:** skip/deduplicate interfaces/gateways with `name=""` to avoid PK/unique
+   collisions.
+8. **Per-device job dedup** (`_job_id` in `enqueue_device_polls`) and/or graceful handling
+   of `IntegrityError` on alert insert, to make overlapping polls a clean no-op.
+9. **`device.status = "unreachable"`** mentioned in comments but never written — decide whether to
+   distinguish it from `unverified`.

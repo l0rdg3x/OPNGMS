@@ -1,44 +1,44 @@
-# OPNGMS Fase 1 · Milestone B — Auth, Sessioni, RBAC & Org-Admin — Implementation Plan
+# OPNGMS Phase 1 · Milestone B — Auth, Sessions, RBAC & Org-Admin — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Dare a OPNGMS l'autenticazione a sessione, il controllo accessi RBAC a 4 ruoli con audit log, il request-context che collega `app.current_tenant` (attivando finalmente la RLS a ogni richiesta), e il CRUD org-admin di tenant/utenti/membership — così la piattaforma diventa una verticale completa e protetta.
+**Goal:** Give OPNGMS session-based authentication, 4-role RBAC access control with audit log, the request-context that wires `app.current_tenant` (finally activating RLS on every request), and the org-admin CRUD for tenants/users/memberships — making the platform a fully protected vertical.
 
-**Architecture:** FastAPI async a strati. Auth a **sessione server-side** (tabella `sessions`, cookie `httpOnly`/`secure`/`SameSite=Lax`) con password **argon2**. CSRF mitigato da `SameSite=Lax` + header custom obbligatorio sulle mutazioni. Un **request-context** risolve l'utente dalla sessione e, per le rotte sotto `/api/tenants/{tenant_id}/...`, autorizza l'accesso (superadmin o membership) e imposta `app.current_tenant` (la RLS della Milestone A diventa così effettiva a runtime). Un **policy layer** RBAC valuta `(ruolo × azione)` su una matrice esplicita. Il primo superadmin si crea via **endpoint di setup one-time** disabilitato non appena esiste un utente.
+**Architecture:** Layered async FastAPI. **Server-side session** auth (`sessions` table, `httpOnly`/`secure`/`SameSite=Lax` cookie) with **argon2** password hashing. CSRF mitigated by `SameSite=Lax` + a mandatory custom header on mutations. A **request-context** resolves the user from the session and, for routes under `/api/tenants/{tenant_id}/...`, authorises access (superadmin or membership) and sets `app.current_tenant` (making Milestone A's RLS effective at runtime). An RBAC **policy layer** evaluates `(role x action)` against an explicit matrix. The first superadmin is created via a **one-time setup endpoint** disabled as soon as a user exists.
 
 **Tech Stack:** Python 3.12+, FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, argon2-cffi, pydantic v2, Postgres, pytest + httpx.
 
 ---
 
-## Riferimento spec
+## Spec reference
 
-Implementa le sezioni **8 (AuthN), 9 (RBAC + matrice), 10 (Audit)** dello spec
-`docs/superpowers/specs/2026-06-08-opngms-foundation-inventory-design.md`, più il
-request-context della sez. 7 (wiring `app.current_tenant`). Decisioni aggiuntive prese in
-sede di pianificazione: org-admin CRUD incluso qui; primo superadmin via endpoint di setup
-one-time; CSRF via `SameSite=Lax` + header custom.
+Implements sections **8 (AuthN), 9 (RBAC + matrix), 10 (Audit)** of the spec
+`docs/superpowers/specs/2026-06-08-opngms-foundation-inventory-design.md`, plus the
+request-context from sec. 7 (wiring `app.current_tenant`). Additional decisions made during
+planning: org-admin CRUD included here; first superadmin via one-time setup endpoint;
+CSRF via `SameSite=Lax` + custom header.
 
-## Prerequisiti (dalla Milestone A, già in `main`)
-- Modelli `User` (email, name, password_hash, is_superadmin, status, last_login), `Tenant`,
+## Prerequisites (from Milestone A, already in `main`)
+- Models `User` (email, name, password_hash, is_superadmin, status, last_login), `Tenant`,
   `Membership` (user_id, tenant_id, role), `Session` (id, user_id, created_at, expires_at),
   `AuditLog`, `Device`.
-- `app/core/db.py` con `get_session`, `set_tenant_context(session, tenant_id)`.
-- L'app si connette come ruolo non-superuser `opngms_app`; le tabelle di control-plane
-  (users/tenants/memberships/sessions/audit_log) NON sono sotto RLS, quindi sono leggibili/
-  scrivibili dall'app e vanno scoperte a livello service. Solo `devices` ha la RLS.
+- `app/core/db.py` with `get_session`, `set_tenant_context(session, tenant_id)`.
+- The app connects as the non-superuser role `opngms_app`; control-plane tables
+  (users/tenants/memberships/sessions/audit_log) are NOT under RLS, so they are readable/
+  writable by the app and must be filtered at the service layer. Only `devices` has RLS.
 
-## Struttura file (creati/modificati in questa milestone)
+## File structure (created/modified in this milestone)
 
 ```
 backend/
   app/
     core/
       security.py        # hash/verify password (argon2)
-      rbac.py            # ruoli, azioni, matrice permessi, can()
+      rbac.py            # roles, actions, permission matrix, can()
       deps.py            # dependency: get_current_user, csrf, tenant-context, require_*
-      cli.py             # (no) -> non usato (setup via endpoint)
+      cli.py             # (no) -> not used (setup via endpoint)
     models/
-      base.py            # + updated_at su TimestampMixin
+      base.py            # + updated_at on TimestampMixin
     schemas/             # NEW: pydantic I/O models
       __init__.py
       auth.py            # SetupIn, LoginIn, UserOut, MeOut
@@ -61,7 +61,7 @@ backend/
       memberships.py     # /api/tenants/{tenant_id}/memberships ... (superadmin|tenant_admin)
     main.py              # include routers, session/CSRF wiring
   migrations/versions/
-    0004_indexes_updated_at.py   # indici sessions/memberships/audit + updated_at
+    0004_indexes_updated_at.py   # indexes on sessions/memberships/audit + updated_at
   tests/
     test_security.py
     test_setup_endpoint.py
@@ -74,14 +74,14 @@ backend/
     test_users_api.py
     test_memberships_api.py
     test_b_integration.py
-    factories.py         # helper per creare user/tenant/membership nei test
+    factories.py         # helper to create user/tenant/membership in tests
 ```
 
 ---
 
-## Task 1: Migrazione 0004 — indici + `updated_at`
+## Task 1: Migration 0004 — indexes + `updated_at`
 
-Chiude parte del debito tecnico della Milestone A ora che arrivano query e mutazioni su queste tabelle.
+Closes part of the Milestone A technical debt now that queries and mutations arrive on these tables.
 
 **Files:**
 - Modify: `backend/app/models/base.py`
@@ -158,7 +158,7 @@ so `alembic check` stays clean.
 
 `backend/migrations/versions/0004_indexes_updated_at.py`:
 ```python
-"""indici (sessions/memberships/audit) + updated_at sulle tabelle con TimestampMixin"""
+"""indexes (sessions/memberships/audit) + updated_at on TimestampMixin tables"""
 
 import sqlalchemy as sa
 from alembic import op
@@ -168,7 +168,7 @@ down_revision = "0003"
 branch_labels = None
 depends_on = None
 
-# Tabelle che usano TimestampMixin (hanno created_at e ora updated_at).
+# Tables that use TimestampMixin (have created_at and now updated_at).
 _TIMESTAMP_TABLES = ["tenants", "users", "memberships", "devices"]
 
 
@@ -220,12 +220,12 @@ Expected: all green (12 passed).
 
 ```bash
 git add backend/app/models/base.py backend/migrations/versions/0004_indexes_updated_at.py backend/tests/test_migration_0004.py
-git commit -m "feat(backend): migrazione 0004 — indici + updated_at"
+git commit -m "feat(backend): migration 0004 — indexes + updated_at"
 ```
 
 ---
 
-## Task 2: Hashing password (argon2)
+## Task 2: Password hashing (argon2)
 
 **Files:**
 - Create: `backend/app/core/security.py`
@@ -240,13 +240,13 @@ from app.core.security import hash_password, verify_password
 
 def test_hash_then_verify_roundtrip():
     h = hash_password("s3cret-pw")
-    assert h != "s3cret-pw"  # non in chiaro
+    assert h != "s3cret-pw"  # not in plaintext
     assert verify_password("s3cret-pw", h) is True
     assert verify_password("wrong", h) is False
 
 
 def test_two_hashes_of_same_password_differ():
-    assert hash_password("x") != hash_password("x")  # salt casuale
+    assert hash_password("x") != hash_password("x")  # random salt
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -284,22 +284,22 @@ Expected: PASS (2 passed).
 
 ```bash
 git add backend/app/core/security.py backend/tests/test_security.py
-git commit -m "feat(backend): hashing password argon2 (security.py)"
+git commit -m "feat(backend): argon2 password hashing (security.py)"
 ```
 
 ---
 
-## Task 3: Test factories + schemas auth
+## Task 3: Test factories + auth schemas
 
 **Files:**
 - Create: `backend/tests/factories.py`
 - Create: `backend/app/schemas/__init__.py`, `backend/app/schemas/auth.py`
 
-Le factory creano dati nei test connettendosi come **owner** (per scrivere control-plane), riusando il `db_engine` della conftest (Milestone A). Gli schemas sono i modelli pydantic I/O.
+Factories create data in tests by connecting as **owner** (to write control-plane), reusing the `db_engine` from conftest (Milestone A). Schemas are the pydantic I/O models.
 
 - [ ] **Step 1: Write the schemas**
 
-`backend/app/schemas/__init__.py`: (vuoto)
+`backend/app/schemas/__init__.py`: (empty)
 
 `backend/app/schemas/auth.py`:
 ```python
@@ -384,22 +384,22 @@ Expected: `ok`.
 
 ```bash
 git add backend/app/schemas backend/tests/factories.py backend/pyproject.toml
-git commit -m "feat(backend): schemas auth + test factories (+ email-validator)"
+git commit -m "feat(backend): auth schemas + test factories (+ email-validator)"
 ```
 
 ---
 
-## Task 4: App-client di test + helper sessione
+## Task 4: Test app client + session helper
 
-Per testare endpoint HTTP serve un `AsyncClient` ASGI che condivida lo stesso engine/DB di test e applichi le migrazioni/RLS. Estendiamo la conftest con un client che fa override di `get_session` verso il DB di test.
+To test HTTP endpoints we need an ASGI `AsyncClient` that shares the same test engine/DB and applies migrations/RLS. We extend the conftest with a client that overrides `get_session` to point to the test DB.
 
 **Files:**
 - Modify: `backend/tests/conftest.py`
-- Modify: `backend/app/main.py` (montaggio router avverrà nei task successivi; qui solo assicuriamo che `app` usi `get_session` come dependency override-abile)
+- Modify: `backend/app/main.py` (router mounting happens in subsequent tasks; here we just ensure `app` uses `get_session` as an overridable dependency)
 
 - [ ] **Step 1: Add the `api_client` fixture**
 
-Aggiungi a `backend/tests/conftest.py`:
+Add to `backend/tests/conftest.py`:
 ```python
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -410,7 +410,7 @@ from app.main import app as fastapi_app
 
 @pytest.fixture
 async def api_client(db_engine):
-    """Client ASGI con get_session sovrascritto verso il DB di test (ruolo owner)."""
+    """ASGI client with get_session overridden to point to the test DB (owner role)."""
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
 
     async def _override_get_session():
@@ -419,7 +419,7 @@ async def api_client(db_engine):
 
     fastapi_app.dependency_overrides[get_session] = _override_get_session
     transport = ASGITransport(app=fastapi_app)
-    # base_url https:// così httpx memorizza i cookie `secure=True` (l'ASGITransport non fa TLS reale).
+    # base_url https:// so httpx stores `secure=True` cookies (ASGITransport does no real TLS).
     async with AsyncClient(transport=transport, base_url="https://test") as c:
         yield c
     fastapi_app.dependency_overrides.clear()
@@ -435,12 +435,12 @@ Expected: still green (no new tests yet; the fixture is unused so far).
 
 ```bash
 git add backend/tests/conftest.py
-git commit -m "test(backend): fixture api_client ASGI con get_session override"
+git commit -m "test(backend): ASGI api_client fixture with get_session override"
 ```
 
 ---
 
-## Task 5: Endpoint di setup one-time (primo superadmin)
+## Task 5: One-time setup endpoint (first superadmin)
 
 **Files:**
 - Create: `backend/app/api/__init__.py`, `backend/app/api/setup.py`
@@ -520,7 +520,7 @@ class UserRepository:
 
 - [ ] **Step 4: Implement the setup router**
 
-`backend/app/api/__init__.py`: (vuoto)
+`backend/app/api/__init__.py`: (empty)
 
 `backend/app/api/setup.py`:
 ```python
@@ -542,7 +542,7 @@ async def setup(payload: SetupIn, session: AsyncSession = Depends(get_session)) 
     if await repo.count() > 0:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Setup gia' completato: esiste gia' almeno un utente.",
+            detail="Setup already complete: at least one user exists.",
         )
     user = User(
         email=payload.email,
@@ -573,12 +573,12 @@ Expected: PASS (2 passed).
 
 ```bash
 git add backend/app/api backend/app/repositories/user.py backend/app/main.py backend/tests/test_setup_endpoint.py
-git commit -m "feat(backend): endpoint /api/setup one-time per il primo superadmin"
+git commit -m "feat(backend): /api/setup one-time endpoint for the first superadmin"
 ```
 
 ---
 
-## Task 6: Sessioni + login/logout/me + `get_current_user`
+## Task 6: Sessions + login/logout/me + `get_current_user`
 
 **Files:**
 - Create: `backend/app/services/auth.py`
@@ -709,14 +709,14 @@ async def get_current_user(
 ) -> User:
     raw = request.cookies.get(SESSION_COOKIE)
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Non autenticato")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         session_id = uuid.UUID(raw)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessione non valida")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
     user = await AuthService(session).get_user_for_session(session_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessione scaduta")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
     return user
 ```
 
@@ -745,7 +745,7 @@ async def login(
     user = await svc.authenticate(payload.email, payload.password)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenziali non valide"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
     settings = get_settings()
     sess = await svc.create_session(user, settings.session_ttl_hours)
@@ -804,21 +804,20 @@ NOTE: `secure=True` cookies are still returned over the ASGI transport (httpx re
 
 ```bash
 git add backend/app/services/auth.py backend/app/core/deps.py backend/app/api/auth.py backend/app/main.py backend/tests/test_auth.py
-git commit -m "feat(backend): sessioni + login/logout/me + get_current_user"
+git commit -m "feat(backend): sessions + login/logout/me + get_current_user"
 ```
 
 ---
 
-## Task 7: Enforcement CSRF sulle mutazioni
+## Task 7: CSRF enforcement on mutations
 
 **Files:**
 - Modify: `backend/app/core/deps.py`
 - Test: `backend/tests/test_csrf.py`
 
-Strategia: cookie `SameSite=Lax` (già impostato) + header custom `X-OPNGMS-CSRF` obbligatorio
-su tutte le richieste che cambiano stato (POST/PUT/PATCH/DELETE), TRANNE `/api/setup` e
-`/api/login` (che non hanno ancora una sessione / sono bootstrap). La dependency `enforce_csrf`
-viene applicata ai router protetti.
+Strategy: `SameSite=Lax` cookie (already set) + mandatory custom header `X-OPNGMS-CSRF` on all
+state-changing requests (POST/PUT/PATCH/DELETE), EXCEPT `/api/setup` and `/api/login` (which
+have no session yet / are bootstrap). The `enforce_csrf` dependency is applied to protected routers.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -833,7 +832,7 @@ async def _login(api_client):
 
 async def test_mutation_without_csrf_header_rejected(api_client):
     await _login(api_client)
-    # logout è una mutazione protetta: senza header -> 403
+    # logout is a protected mutation: without header -> 403
     resp = await api_client.post("/api/logout")
     assert resp.status_code == 403
 
@@ -861,7 +860,7 @@ async def enforce_csrf(request: Request) -> None:
         if not request.headers.get(CSRF_HEADER):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Header CSRF mancante",
+                detail="Missing CSRF header",
             )
 ```
 Apply it to the logout route in `backend/app/api/auth.py` by adding it to the dependencies:
@@ -881,12 +880,12 @@ Expected: PASS (note: `test_logout_clears_session` already sends the header).
 
 ```bash
 git add backend/app/core/deps.py backend/app/api/auth.py backend/tests/test_csrf.py
-git commit -m "feat(backend): enforcement CSRF (header custom sulle mutazioni)"
+git commit -m "feat(backend): CSRF enforcement (custom header on mutations)"
 ```
 
 ---
 
-## Task 8: RBAC — matrice + `can()`
+## Task 8: RBAC — matrix + `can()`
 
 **Files:**
 - Create: `backend/app/core/rbac.py`
@@ -910,7 +909,7 @@ from app.core.rbac import (
 @pytest.mark.parametrize(
     "is_superadmin,role,action,expected",
     [
-        # org-level: solo superadmin
+        # org-level: superadmin only
         (True, None, Action.TENANT_MANAGE, True),
         (False, TENANT_ADMIN, Action.TENANT_MANAGE, False),
         (False, TENANT_ADMIN, Action.USER_MANAGE, False),
@@ -919,12 +918,12 @@ from app.core.rbac import (
         (False, TENANT_ADMIN, Action.MEMBERSHIP_MANAGE, True),
         (False, OPERATOR, Action.MEMBERSHIP_MANAGE, False),
         (True, None, Action.MEMBERSHIP_MANAGE, True),
-        # device.view: tutti i ruoli del tenant
+        # device.view: all tenant roles
         (False, READ_ONLY, Action.DEVICE_VIEW, True),
         # device.write: tenant_admin + operator
         (False, OPERATOR, Action.DEVICE_WRITE, True),
         (False, READ_ONLY, Action.DEVICE_WRITE, False),
-        # audit.view: tutti
+        # audit.view: all
         (False, READ_ONLY, Action.AUDIT_VIEW, True),
     ],
 )
@@ -943,7 +942,7 @@ Expected: FAIL — `ModuleNotFoundError: app.core.rbac`.
 ```python
 import enum
 
-# Ruoli per-tenant (assegnati via Membership). 'superadmin' è un flag a livello utente.
+# Per-tenant roles (assigned via Membership). 'superadmin' is a user-level flag.
 TENANT_ADMIN = "tenant_admin"
 OPERATOR = "operator"
 READ_ONLY = "read_only"
@@ -951,7 +950,7 @@ TENANT_ROLES = {TENANT_ADMIN, OPERATOR, READ_ONLY}
 
 
 class Action(str, enum.Enum):
-    # org-level (solo superadmin)
+    # org-level (superadmin only)
     TENANT_MANAGE = "tenant.manage"
     USER_MANAGE = "user.manage"
     # tenant-level
@@ -961,10 +960,10 @@ class Action(str, enum.Enum):
     AUDIT_VIEW = "audit.view"
 
 
-# Azioni org-level: consentite SOLO al superadmin (nessun ruolo per-tenant le concede).
+# Org-level actions: allowed ONLY to superadmin (no per-tenant role grants them).
 _ORG_ACTIONS = {Action.TENANT_MANAGE, Action.USER_MANAGE}
 
-# Azioni tenant-level -> ruoli che le concedono (oltre al superadmin, sempre ammesso).
+# Tenant-level actions -> roles that grant them (besides superadmin, always allowed).
 _TENANT_MATRIX: dict[Action, set[str]] = {
     Action.MEMBERSHIP_MANAGE: {TENANT_ADMIN},
     Action.DEVICE_VIEW: {TENANT_ADMIN, OPERATOR, READ_ONLY},
@@ -990,7 +989,7 @@ Expected: PASS (all parametrized cases).
 
 ```bash
 git add backend/app/core/rbac.py backend/tests/test_rbac_matrix.py
-git commit -m "feat(backend): matrice RBAC + can() (4 ruoli)"
+git commit -m "feat(backend): RBAC matrix + can() (4 roles)"
 ```
 
 ---
@@ -1095,7 +1094,7 @@ git commit -m "feat(backend): AuditService.record"
 
 ---
 
-## Task 10: Tenants API (superadmin) + dependency `require_org`
+## Task 10: Tenants API (superadmin) + `require_org` dependency
 
 **Files:**
 - Create: `backend/app/schemas/tenant.py`, `backend/app/repositories/tenant.py`, `backend/app/api/tenants.py`
@@ -1119,17 +1118,17 @@ CSRF = {"X-OPNGMS-CSRF": "1"}
 async def test_superadmin_can_create_and_list_tenants(api_client):
     await _login_superadmin(api_client)
     created = await api_client.post(
-        "/api/tenants", json={"name": "Cliente A", "slug": "cliente-a"}, headers=CSRF
+        "/api/tenants", json={"name": "Client A", "slug": "client-a"}, headers=CSRF
     )
     assert created.status_code == 201
-    assert created.json()["slug"] == "cliente-a"
+    assert created.json()["slug"] == "client-a"
     listed = await api_client.get("/api/tenants")
     assert listed.status_code == 200
-    assert any(t["slug"] == "cliente-a" for t in listed.json())
+    assert any(t["slug"] == "client-a" for t in listed.json())
 
 
 async def test_non_superadmin_cannot_create_tenant(api_client, db_engine):
-    # crea un utente non-superadmin direttamente, poi fai login
+    # create a non-superadmin user directly, then login
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     from tests.factories import make_user
@@ -1216,7 +1215,7 @@ def require_org(action: Action):
     async def _dep(user: "User" = Depends(get_current_user)) -> "User":
         if not can(is_superadmin=user.is_superadmin, role=None, action=action):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Permesso negato"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
             )
         return user
 
@@ -1294,7 +1293,7 @@ Expected: PASS (3 passed).
 
 ```bash
 git add backend/app/schemas/tenant.py backend/app/repositories/tenant.py backend/app/api/tenants.py backend/app/core/deps.py backend/app/main.py backend/tests/test_tenants_api.py
-git commit -m "feat(backend): API tenants (superadmin) + require_org + audit"
+git commit -m "feat(backend): tenants API (superadmin) + require_org + audit"
 ```
 
 ---
@@ -1410,7 +1409,7 @@ async def create_user(
 ) -> User:
     repo = UserRepository(session)
     if await repo.get_by_email(payload.email) is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email gia' in uso")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
     new_user = await repo.add(
         User(
             email=payload.email,
@@ -1448,21 +1447,21 @@ Expected: PASS (2 passed).
 
 ```bash
 git add backend/app/schemas/user.py backend/app/api/users.py backend/app/main.py backend/tests/test_users_api.py
-git commit -m "feat(backend): API users (superadmin) + audit"
+git commit -m "feat(backend): users API (superadmin) + audit"
 ```
 
 ---
 
-## Task 12: Request-context per tenant + Memberships API (wiring RLS)
+## Task 12: Tenant request-context + Memberships API (RLS wiring)
 
 **Files:**
 - Create: `backend/app/schemas/membership.py`, `backend/app/repositories/membership.py`, `backend/app/api/memberships.py`
 - Modify: `backend/app/core/deps.py`, `backend/app/main.py`
 - Test: `backend/tests/test_tenant_context.py`, `backend/tests/test_memberships_api.py`
 
-Questo è il task che **collega `app.current_tenant`**: la dependency `tenant_context` risolve il
-tenant dal path, autorizza (superadmin o membership), imposta la GUC (RLS attiva) e fornisce il
-ruolo effettivo per i controlli RBAC.
+This is the task that **wires `app.current_tenant`**: the `tenant_context` dependency resolves the
+tenant from the path, authorises (superadmin or membership), sets the GUC (RLS active) and provides
+the effective role for RBAC checks.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1491,7 +1490,7 @@ async def _seed(db_engine):
 async def test_member_can_access_tenant_scope(api_client, db_engine):
     tenant_id = await _seed(db_engine)
     await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345"})
-    # membership listing è una rotta tenant-scoped: il membro tenant_admin può vederla
+    # membership listing is a tenant-scoped route: the tenant_admin member can access it
     resp = await api_client.get(f"/api/tenants/{tenant_id}/memberships")
     assert resp.status_code == 200
 
@@ -1580,7 +1579,7 @@ from app.models.tenant import Tenant
 class TenantContext:
     tenant: Tenant
     user: User
-    role: str | None  # None per superadmin senza membership
+    role: str | None  # None for superadmin without membership
 
 
 async def tenant_context(
@@ -1590,7 +1589,7 @@ async def tenant_context(
 ) -> TenantContext:
     tenant = await session.get(Tenant, tenant_id)
     if tenant is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant inesistente")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     role: str | None = None
     if not user.is_superadmin:
         result = await session.execute(
@@ -1601,10 +1600,10 @@ async def tenant_context(
         membership = result.scalar_one_or_none()
         if membership is None:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Accesso al tenant negato"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Tenant access denied"
             )
         role = membership.role
-    # Wiring RLS: imposta app.current_tenant per questa transazione.
+    # RLS wiring: set app.current_tenant for this transaction.
     await set_tenant_context(session, tenant_id)
     return TenantContext(tenant=tenant, user=user, role=role)
 
@@ -1613,7 +1612,7 @@ def require_tenant(action: Action):
     async def _dep(ctx: TenantContext = Depends(tenant_context)) -> TenantContext:
         if not can(is_superadmin=ctx.user.is_superadmin, role=ctx.role, action=action):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Permesso negato"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
             )
         return ctx
 
@@ -1745,12 +1744,12 @@ Expected: PASS (5 passed).
 
 ```bash
 git add backend/app/schemas/membership.py backend/app/repositories/membership.py backend/app/api/memberships.py backend/app/core/deps.py backend/app/main.py backend/tests/test_tenant_context.py backend/tests/test_memberships_api.py
-git commit -m "feat(backend): request-context tenant (wiring RLS) + API memberships"
+git commit -m "feat(backend): tenant request-context (RLS wiring) + memberships API"
 ```
 
 ---
 
-## Task 13: Integrazione end-to-end + verifica suite
+## Task 13: End-to-end integration + suite verification
 
 **Files:**
 - Create: `backend/tests/test_b_integration.py`
@@ -1763,41 +1762,41 @@ CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 async def test_full_admin_flow(api_client):
-    # 1. setup primo superadmin
+    # 1. setup first superadmin
     await api_client.post(
         "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
     )
     # 2. login superadmin
     await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
-    # 3. crea tenant
+    # 3. create tenant
     t = await api_client.post(
         "/api/tenants", json={"name": "Acme", "slug": "acme"}, headers=CSRF
     )
     tenant_id = t.json()["id"]
-    # 4. crea utente operatore
+    # 4. create operator user
     u = await api_client.post(
         "/api/users",
         json={"email": "op@x.io", "name": "Op", "password": "pw12345", "is_superadmin": False},
         headers=CSRF,
     )
     user_id = u.json()["id"]
-    # 5. assegna membership operator
+    # 5. assign operator membership
     m = await api_client.post(
         f"/api/tenants/{tenant_id}/memberships",
         json={"user_id": user_id, "role": "operator"},
         headers=CSRF,
     )
     assert m.status_code == 201
-    # 6. logout superadmin, login operatore
+    # 6. logout superadmin, login operator
     await api_client.post("/api/logout", headers=CSRF)
     await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
-    # 7. l'operatore NON può creare tenant (org-level)
+    # 7. operator CANNOT create tenant (org-level)
     denied = await api_client.post(
         "/api/tenants", json={"name": "X", "slug": "x"}, headers=CSRF
     )
     assert denied.status_code == 403
-    # 8. ma può accedere allo scope del proprio tenant (membership) — list memberships
-    #    operator NON ha membership.manage, quindi 403 atteso qui (verifica RBAC fine)
+    # 8. but can access their tenant scope (membership) — list memberships
+    #    operator does NOT have membership.manage, so 403 expected here (fine-grained RBAC check)
     ms = await api_client.get(f"/api/tenants/{tenant_id}/memberships")
     assert ms.status_code == 403
 ```
@@ -1811,59 +1810,57 @@ Expected: all green (Milestone A's 11 + Milestone B's new tests).
 
 ```bash
 git add backend/tests/test_b_integration.py
-git commit -m "test(backend): integrazione end-to-end Milestone B"
+git commit -m "test(backend): Milestone B end-to-end integration"
 ```
 
 ---
 
-## Self-review (mappatura spec → task)
+## Self-review (spec → task mapping)
 
-- **Spec §8 AuthN** (sessioni, argon2, login/logout/me) → Task 2 (argon2), Task 6 (sessioni +
-  endpoint). Cookie `httpOnly`/`secure`/`SameSite=Lax`.
-- **Spec §9 RBAC** (4 ruoli, matrice, policy layer) → Task 8 (matrice + `can`), Task 10/11
-  (`require_org`), Task 12 (`require_tenant` + context). Matrice testata come tabella di casi.
-- **Spec §10 Audit** → Task 9 (`AuditService`), invocato in create tenant/user/membership.
-- **Spec §7 wiring RLS** (`app.current_tenant`) → Task 12: `tenant_context` chiama
-  `set_tenant_context`, autorizza membership/superadmin, e la RLS della Milestone A diventa
-  effettiva sulle rotte tenant-scoped.
-- **Decisioni di pianificazione:** org-admin CRUD incluso (Task 10/11/12); primo superadmin via
-  `/api/setup` one-time (Task 5, guardia conteggio utenti); CSRF via header custom (Task 7).
-- **Debito tecnico Milestone A** chiuso qui: indici sessions/memberships/audit + `updated_at`
+- **Spec §8 AuthN** (sessions, argon2, login/logout/me) → Task 2 (argon2), Task 6 (sessions +
+  endpoints). Cookie `httpOnly`/`secure`/`SameSite=Lax`.
+- **Spec §9 RBAC** (4 roles, matrix, policy layer) → Task 8 (matrix + `can`), Task 10/11
+  (`require_org`), Task 12 (`require_tenant` + context). Matrix tested as a parametrized case table.
+- **Spec §10 Audit** → Task 9 (`AuditService`), invoked on create tenant/user/membership.
+- **Spec §7 RLS wiring** (`app.current_tenant`) → Task 12: `tenant_context` calls
+  `set_tenant_context`, authorises membership/superadmin, and Milestone A's RLS becomes
+  effective on tenant-scoped routes.
+- **Planning decisions:** org-admin CRUD included (Task 10/11/12); first superadmin via
+  `/api/setup` one-time (Task 5, user count guard); CSRF via custom header (Task 7).
+- **Milestone A technical debt** closed here: indexes sessions/memberships/audit + `updated_at`
   (Task 1).
 
-**Note di scope (fuori Milestone B, per design):** modifica/eliminazione (PATCH/DELETE) di
-tenant/utenti/membership oltre il create/list sono volutamente minimali in questa milestone (si
-aggiungono quando servono, YAGNI); rate-limiting/lockout login e SSO/2FA restano per dopo;
-device e onboarding sono Milestone C. La rotazione/cleanup delle sessioni scadute (job) è
-tracciata ma non implementata (gli indici su `expires_at` sono pronti).
+**Scope notes (outside Milestone B by design):** PATCH/DELETE on tenant/users/membership beyond
+create/list are intentionally minimal in this milestone (add when needed, YAGNI); rate-limiting/
+login lockout and SSO/2FA remain for later; devices and onboarding are Milestone C. Expired session
+rotation/cleanup (job) is tracked but not implemented (index on `expires_at` is ready).
 
-**Placeholder scan:** nessun TBD/TODO; ogni step ha codice o comando concreto.
+**Placeholder scan:** no TBD/TODO; every step has concrete code or a command.
 **Type consistency:** `can(is_superadmin, role, action)`, `Action.*`, `TenantContext(tenant,
 user, role)`, `require_org(action)`, `require_tenant(action)`, `enforce_csrf`, `SESSION_COOKIE`,
-`get_current_user`, `AuditService.record(...)` usati in modo coerente tra i Task 6-13.
+`get_current_user`, `AuditService.record(...)` used consistently across Tasks 6-13.
 
 ---
 
-## Debito tecnico da affrontare nella Milestone C (dalla review olistica finale)
+## Technical debt to address in Milestone C (from final holistic review)
 
-La review finale ha dato **READY WITH MINOR NOTES**: zero issue Critical/Important, modello di
-autorizzazione solido e applicato in modo consistente su ogni endpoint. Aggiunti in corsa
-durante la milestone: Task 14 (handler globale `IntegrityError`→409) e Task 15 (audit
-login/logout per conformità spec §10 + rimozione import duplicato). Restano da tracciare:
+The final review gave **READY WITH MINOR NOTES**: zero Critical/Important issues, solid
+authorization model applied consistently across every endpoint. Added during the milestone:
+Task 14 (global `IntegrityError`→409 handler) and Task 15 (login/logout audit for spec §10
+compliance + removal of duplicate import). Remaining items to track:
 
-1. **Nessun update/delete** per tenant/utenti/membership — solo create/list (YAGNI; aggiungere
-   PATCH/DELETE quando serviranno).
-2. **Nessun rate-limiting / lockout sul login** — oggi l'unico freno al brute-force è il costo
-   argon2.
-3. **Nessun job di cleanup delle sessioni scadute** — controllate alla lettura ma mai rimosse
-   (l'indice `ix_sessions_expires_at` è già pronto).
-4. **Nessuna paginazione** sugli endpoint di list (`/api/tenants`, `/api/users`,
-   `/api/tenants/{id}/memberships`) — full scan, ok all'attuale scala MVP.
-5. **CSRF a sola presenza** dell'header (pattern custom-header + `SameSite=Lax`) — valutare un
-   token CSRF per-sessione e assicurarsi che la **CORS** resti chiusa (non ancora configurata).
-6. **Nessuna rotazione sessione / nessun "logout di tutte le sessioni"** — più sessioni
-   concorrenti per utente senza percorso di revoca admin.
-7. ⚠️ **`set_tenant_context` è transaction-scoped** (`is_local=true`): sound finché c'è una sola
-   transazione per richiesta. La Milestone C, quando aggiunge le query sui device sotto RLS, NON
-   deve fare commit a metà richiesta e poi interrogare i device (perderebbe silenziosamente il
-   contesto → zero righe, fail-closed, ma trappola di correttezza). Aggiungere un guard/commento.
+1. **No update/delete** for tenant/users/membership — create/list only (YAGNI; add
+   PATCH/DELETE when needed).
+2. **No rate-limiting / login lockout** — today the only brute-force deterrent is the argon2 cost.
+3. **No expired session cleanup job** — checked on read but never deleted
+   (the `ix_sessions_expires_at` index is already in place).
+4. **No pagination** on list endpoints (`/api/tenants`, `/api/users`,
+   `/api/tenants/{id}/memberships`) — full scan, acceptable at current MVP scale.
+5. **CSRF by header presence only** (custom-header + `SameSite=Lax` pattern) — consider a
+   per-session CSRF token and ensure **CORS** remains closed (not yet configured).
+6. **No session rotation / no "logout all sessions"** — multiple concurrent sessions per user
+   with no admin revocation path.
+7. **`set_tenant_context` is transaction-scoped** (`is_local=true`): sound as long as there is
+   one transaction per request. Milestone C, when it adds device queries under RLS, must NOT
+   commit mid-request and then query devices (would silently lose context → zero rows, fail-closed,
+   but a correctness trap). Add a guard/comment.
