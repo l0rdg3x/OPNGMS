@@ -110,6 +110,36 @@ describe("ProposeAliasModal", () => {
     });
   });
 
+  it("does not call onClose when the server returns an error", async () => {
+    const onClose = vi.fn();
+
+    server.use(
+      http.post(CHANGES_URL, () => {
+        return HttpResponse.json({ detail: "forbidden" }, { status: 403 });
+      }),
+    );
+
+    renderWithProviders(
+      withTenant(
+        <ProposeAliasModal deviceId="d1" opened={true} onClose={onClose} />,
+      ),
+    );
+
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: "blocked_alias" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /create/i }));
+
+    // The button loading state transitions: pending → idle (after rejection)
+    // Wait for the mutation to settle — create button is no longer loading
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /create/i })).not.toBeDisabled();
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("trims and filters blank lines from content", async () => {
     const onClose = vi.fn();
     let capturedBody: unknown;

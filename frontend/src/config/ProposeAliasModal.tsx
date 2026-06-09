@@ -1,5 +1,6 @@
 import { Button, Modal, SegmentedControl, Select, Stack, TextInput, Textarea } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { notifications } from "@mantine/notifications";
 import { useT } from "../i18n";
 import { useCreateChange } from "./changeHooks";
 
@@ -24,18 +25,19 @@ export function ProposeAliasModal({
   });
 
   async function submit(v: typeof form.values) {
-    const content = v.content
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    await create.mutateAsync({
-      kind: "alias",
-      operation: v.operation,
-      target: v.name,
-      payload: { name: v.name, type: v.type, content },
-    });
-    form.reset();
-    onClose();
+    const content = v.content.split("\n").map((s) => s.trim()).filter(Boolean);
+    try {
+      await create.mutateAsync({
+        kind: "alias",
+        operation: v.operation,
+        target: v.name,
+        payload: { name: v.name, type: v.type, content },
+      });
+      form.reset();
+      onClose();
+    } catch {
+      notifications.show({ color: "red", message: t.errors.configChangeAction });
+    }
   }
 
   return (
@@ -57,6 +59,8 @@ export function ProposeAliasModal({
           />
           <Select
             label={t.config.changes.type}
+            required
+            allowDeselect={false}
             data={["host", "network", "port", "url"]}
             {...form.getInputProps("type")}
           />
