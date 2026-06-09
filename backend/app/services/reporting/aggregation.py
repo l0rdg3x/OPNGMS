@@ -11,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.event import EventRepository
 from app.schemas.event import EventTopRow
 
-# Validated TimescaleDB time_bucket widths (still bound via CAST, never string-formatted into SQL).
+# Allowlist of TimescaleDB time_bucket widths. `bucket` is interpolated into the SQL only after
+# being checked against this set (asyncpg cannot bind a Python str as a PG interval), so the
+# allowlist — not parameter binding — is what makes the interpolation injection-safe.
 _BUCKETS = ("1 hour", "6 hours", "1 day")
 
 
