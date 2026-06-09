@@ -45,10 +45,23 @@ describe("ChangesPanel", () => {
     expect(screen.getByText("alias")).toBeInTheDocument();
     // status badge
     expect(screen.getByText("draft")).toBeInTheDocument();
+    // scheduled column header is always present
+    expect(screen.getByText("Scheduled")).toBeInTheDocument();
     // propose button visible for an editor role
     expect(
       screen.getByRole("button", { name: /propose alias change/i }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the error alert when the changes endpoint returns a server error", async () => {
+    server.use(
+      http.get(CHANGES_URL, () =>
+        HttpResponse.json({ detail: "boom" }, { status: 500 }),
+      ),
+    );
+    renderWithProviders(withTenant(<ChangesPanel deviceId="d1" />, "tenant_admin"));
+
+    expect(await screen.findByText("Failed to load changes")).toBeInTheDocument();
   });
 
   it("hides the propose button for a read_only tenant", async () => {

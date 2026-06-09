@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -186,6 +187,8 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
           </Button>
         )}
       </Group>
+      {q.isLoading && <Loader size="sm" />}
+      {q.isError && <Alert color="red">{t.errors.configChangesLoad}</Alert>}
       {q.data && q.data.length === 0 && (
         <Text c="dimmed">{t.config.changes.none}</Text>
       )}
@@ -197,6 +200,7 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
               <Table.Th>{t.config.changes.colOperation}</Table.Th>
               <Table.Th>{t.config.changes.colTarget}</Table.Th>
               <Table.Th>{t.config.changes.colStatus}</Table.Th>
+              <Table.Th>{t.config.changes.colScheduled}</Table.Th>
               {canEdit && <Table.Th />}
             </Table.Tr>
           </Table.Thead>
@@ -211,6 +215,7 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
                     {c.status}
                   </Badge>
                 </Table.Td>
+                <Table.Td>{c.scheduled_at ?? "—"}</Table.Td>
                 {canEdit && (
                   <Table.Td>
                     {ACTIONABLE.has(c.status) && (
