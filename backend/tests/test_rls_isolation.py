@@ -34,6 +34,13 @@ def test_rls_statements_cover_metrics_and_alerts():
         assert f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY" in sql
 
 
+def test_rls_statements_cover_events():
+    assert "events" in TENANT_TABLES
+    sql = "\n".join(enable_rls_statements())
+    assert "ALTER TABLE events ENABLE ROW LEVEL SECURITY" in sql
+    assert "ALTER TABLE events FORCE ROW LEVEL SECURITY" in sql
+
+
 def test_disable_rls_statements_tear_down_policy():
     sql = "\n".join(disable_rls_statements())
     assert "DROP POLICY IF EXISTS" in sql
@@ -159,5 +166,38 @@ async def test_metrics_alerts_isolated_cross_tenant(db_engine, two_tenants):
             # nessun contesto -> fail-closed su entrambe
             assert (await s2.execute(text("SELECT value FROM metrics"))).scalars().all() == []
             assert (await s2.execute(text("SELECT id FROM alerts"))).scalars().all() == []
+    finally:
+        await engine.dispose()
+
+
+async def test_events_isolated_cross_tenant(db_engine, two_tenants):
+    import os
+    import uuid as _uuid
+    from datetime import datetime, timezone
+
+    tenant_a, tenant_b = two_tenants
+    owner = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with owner() as s:  # owner bypassa RLS, inserisce per entrambi
+        for tid, key in ((tenant_a, "a"), (tenant_b, "b")):
+            await s.execute(
+                text(
+                    "INSERT INTO events (time, device_id, source, event_key, tenant_id, name) "
+                    "VALUES (:t, :d, 'ids', :k, :tid, 'sig')"
+                ),
+                {"t": datetime.now(timezone.utc), "d": _uuid.uuid4(), "k": key, "tid": tid},
+            )
+        await s.commit()
+
+    base_url = make_url(os.environ["TEST_DATABASE_URL"])
+    app_url = base_url.set(username=APP_ROLE, password=APP_ROLE_PASSWORD)
+    engine = make_engine(app_url.render_as_string(hide_password=False))
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            await set_tenant_context(s, tenant_a)
+            keys = (await s.execute(text("SELECT event_key FROM events"))).scalars().all()
+            assert keys == ["a"]  # solo il tenant A; la RLS esclude B (query raw senza filtro tenant)
+        async with factory() as s2:
+            assert (await s2.execute(text("SELECT event_key FROM events"))).scalars().all() == []
     finally:
         await engine.dispose()

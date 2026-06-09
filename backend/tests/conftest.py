@@ -59,6 +59,7 @@ async def db_engine():
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("SELECT create_hypertable('metrics', 'time', if_not_exists => true)"))
+        await conn.execute(text("SELECT create_hypertable('events', 'time', if_not_exists => true)"))
         for stmt in enable_rls_statements():
             await conn.execute(text(stmt))
         # Create the non-superuser app role and grant it data-table privileges,
