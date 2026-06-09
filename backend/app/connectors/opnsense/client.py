@@ -200,6 +200,37 @@ class OpnsenseClient:
             })
         return out
 
+    async def get_dns_events(self, since: datetime | None = None) -> list[dict]:
+        """Query DNS (Unbound) normalizzate → "siti visitati".
+
+        NOTA: endpoint `unbound/diagnostics/queries` e formato del payload DA VERIFICARE
+        su un OPNsense reale — è la sorgente più incerta (vedi debito 3A). Difensivo verso
+        varianti di chiave. `since` è un hint: filtro fine e dedup avvengono a valle.
+        """
+        data = await self._get("unbound/diagnostics/queries")
+        out: list[dict] = []
+        for r in data.get("rows", data.get("queries", [])):
+            ts = self._parse_ts(r.get("timestamp", r.get("time")))
+            client_ip = r.get("client") or r.get("client_ip") or ""
+            domain = r.get("domain") or r.get("query") or r.get("name") or ""
+            action = r.get("action", "")  # allowed | blocked
+            # event_key discriminante: id stabile se presente, altrimenti hash del contenuto.
+            key = r.get("query_id") or r.get("id") or r.get("_id") or self._event_key(
+                ts, client_ip, domain, action
+            )
+            out.append({
+                "time": ts,
+                "category": "query",
+                "src_ip": client_ip,
+                "dst_ip": "",
+                "name": domain,
+                "severity": "",
+                "action": action,
+                "event_key": str(key),
+                "attributes": r,
+            })
+        return out
+
     @staticmethod
     def _parse_ts(value) -> datetime:
         """Ritorna sempre un datetime tz-aware (naive -> UTC; non-parsabile -> now UTC)."""
