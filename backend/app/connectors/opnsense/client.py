@@ -53,13 +53,16 @@ class OpnsenseClient:
         self._verify = verify_tls
         self._timeout = timeout
 
-    async def _request(self, path: str) -> httpx.Response:
-        """SSRF-guarded GET toward the device API; the single guarded HTTP boundary.
+    async def _request(
+        self, path: str, method: str = "GET", json: dict | None = None
+    ) -> httpx.Response:
+        """SSRF-guarded request toward the device API; the single guarded HTTP boundary.
 
         Validates the URL, pins the resolved IP (anti DNS-rebinding), keeps the
         original hostname for the Host header + SNI, and maps transport/status
         errors to the connector exceptions. Returns the raw response; callers
-        decide how to interpret the body (JSON vs raw text).
+        decide how to interpret the body (JSON vs raw text). Defaults to GET;
+        callers may pass method="POST" with a JSON body for mutations.
         """
         # SSRF guard: validate the scheme/userinfo/host and resolve+pin the IP.
         try:
@@ -80,8 +83,12 @@ class OpnsenseClient:
                 auth=self._auth,
                 follow_redirects=False,
             ) as client:
-                resp = await client.get(
-                    url, headers={"Host": host}, extensions={"sni_hostname": host}
+                resp = await client.request(
+                    method,
+                    url,
+                    headers={"Host": host},
+                    extensions={"sni_hostname": host},
+                    json=json,
                 )
         except httpx.HTTPError as exc:  # ConnectError/Timeout/TLS/etc.
             raise ReachabilityError("device unreachable") from exc
@@ -98,6 +105,33 @@ class OpnsenseClient:
             return resp.json()
         except ValueError as exc:
             raise ParseError("response not interpretable") from exc
+
+    async def _post(self, path: str, json: dict) -> dict:
+        resp = await self._request(path, "POST", json)
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise ParseError("response not interpretable") from exc
+
+    async def apply_alias(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
+        """Apply a firewall alias change. dry_run=True (default) performs NO mutation.
+
+        NOTE: endpoints `firewall/alias/{addItem,setItem,delItem}` + `firewall/alias/reconfigure`
+        and the payload shape are TO BE VERIFIED against a real OPNsense device (4D-b). Goes
+        through the single SSRF-guarded HTTP boundary.
+        """
+        if dry_run:
+            return {"dry_run": True, "operation": operation, "target": payload.get("name", "")}
+        endpoints = {
+            "add": "firewall/alias/addItem",
+            "set": "firewall/alias/setItem",
+            "delete": "firewall/alias/delItem",
+        }
+        if operation not in endpoints:
+            raise ApiError(0, f"unknown alias operation: {operation}")
+        res = await self._post(endpoints[operation], {"alias": payload})
+        await self._post("firewall/alias/reconfigure", {})
+        return {"dry_run": False, "result": res}
 
     async def get_config_backup(self) -> str:
         """Download the raw config.xml as text.
