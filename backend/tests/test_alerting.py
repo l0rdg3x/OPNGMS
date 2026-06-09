@@ -64,3 +64,39 @@ async def test_gateway_down_opens_and_resolves(db_engine):
         await s.commit()
     async with f() as s:
         assert await _active(s, did) == []
+
+
+async def test_unreachable_device_does_not_touch_gateway_alerts(db_engine):
+    """Quando il device è irraggiungibile non valutiamo i gateway: un alert gateway.down aperto resta."""
+    tid, did = await _device(db_engine)
+    f = async_sessionmaker(db_engine, expire_on_commit=False)
+    # apri un gateway.down (device reachable)
+    async with f() as s:
+        device = await s.get(Device, did)
+        await evaluate_alerts(s, device, PollState(reachable=True, gateways=[{"name": "WAN_GW", "up": False}]))
+        await s.commit()
+    # device diventa irraggiungibile -> il gateway.down NON viene risolto, ma si apre device.down
+    async with f() as s:
+        device = await s.get(Device, did)
+        await evaluate_alerts(s, device, PollState(reachable=False))
+        await s.commit()
+    async with f() as s:
+        active = {(a.type, a.label) for a in await _active(s, did)}
+        assert ("gateway.down", "WAN_GW") in active
+        assert ("device.down", "") in active
+
+
+async def test_vanished_gateway_is_resolved(db_engine):
+    """Un gateway non più riportato (device reachable) viene trattato come rientrato."""
+    tid, did = await _device(db_engine)
+    f = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with f() as s:
+        device = await s.get(Device, did)
+        await evaluate_alerts(s, device, PollState(reachable=True, gateways=[{"name": "WAN_GW", "up": False}]))
+        await s.commit()
+    async with f() as s:
+        device = await s.get(Device, did)
+        await evaluate_alerts(s, device, PollState(reachable=True, gateways=[]))  # gateway sparito
+        await s.commit()
+    async with f() as s:
+        assert await _active(s, did) == []

@@ -10,6 +10,7 @@ from app.connectors.opnsense.client import OpnsenseClient
 from app.core import crypto
 from app.core.config import get_settings
 from app.models.device import Device
+from app.services.alerting import evaluate_alerts
 from app.services.monitoring import collect_and_store
 
 
@@ -42,7 +43,8 @@ async def poll_device(ctx: dict, device_id: str) -> str:
             crypto.decrypt(device.api_secret_enc),
             verify_tls=device.verify_tls,
         )
-        await collect_and_store(session, device, client, now=datetime.now(timezone.utc))
+        state = await collect_and_store(session, device, client, now=datetime.now(timezone.utc))
+        await evaluate_alerts(session, device, state)
         await session.commit()
         return device.status
 
