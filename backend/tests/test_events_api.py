@@ -103,6 +103,49 @@ async def test_events_endpoint_naive_from_does_not_500(api_client, db_engine):
     assert len(r.json()) == 3
 
 
+async def _seed_top_events(db_engine, tenant_id, device_id):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        seed = [("1.1.1.1", "a"), ("1.1.1.1", "b"), ("2.2.2.2", "c")]
+        for i, (ip, key) in enumerate(seed):
+            await s.execute(
+                text(
+                    "INSERT INTO events (time, device_id, source, event_key, tenant_id, src_ip, name) "
+                    "VALUES (:t, :d, 'ids', :k, :tid, :ip, 'sig')"
+                ),
+                {"t": base, "d": device_id, "k": key, "tid": tenant_id, "ip": ip},
+            )
+        await s.commit()
+
+
+async def test_events_top_ranks_by_field(api_client, db_engine):
+    tid = await _login_superadmin(api_client, db_engine)
+    did = await _insert_device(db_engine, tid)
+    await _seed_top_events(db_engine, tid, did)
+    r = await api_client.get(f"/api/tenants/{tid}/events/top", params={"field": "src_ip"})
+    assert r.status_code == 200
+    body = r.json()
+    # most frequent first
+    assert [(e["value"], e["count"]) for e in body] == [("1.1.1.1", 2), ("2.2.2.2", 1)]
+
+
+async def test_events_top_rejects_non_whitelisted_field(api_client, db_engine):
+    tid = await _login_superadmin(api_client, db_engine)
+    r = await api_client.get(f"/api/tenants/{tid}/events/top", params={"field": "bogus"})
+    assert r.status_code == 400
+
+
+async def test_events_top_rejects_injection_field(api_client, db_engine):
+    """An injection string as `field` is rejected by the allowlist (400), before the repository."""
+    tid = await _login_superadmin(api_client, db_engine)
+    r = await api_client.get(
+        f"/api/tenants/{tid}/events/top",
+        params={"field": "tenant_id; DROP TABLE events"},
+    )
+    assert r.status_code == 400
+
+
 async def test_events_requires_auth(api_client, db_engine):
     tid = await _login_superadmin(api_client, db_engine)
     # new client without a session cookie

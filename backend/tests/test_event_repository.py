@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -67,3 +68,40 @@ async def test_list_respects_limit(db_engine, two_tenants):
             source=None, device_id=None, frm=None, to=None, limit=2
         )
     assert len(rows) == 2  # the 2 most recent
+
+
+async def test_top_counts_by_field(db_engine, two_tenants):
+    tenant_a, _ = two_tenants
+    device_id = uuid.uuid4()
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:  # owner
+        seed = [("1.1.1.1", "a"), ("1.1.1.1", "b"), ("2.2.2.2", "c")]
+        for i, (ip, key) in enumerate(seed):
+            await s.execute(
+                text(
+                    "INSERT INTO events (time, device_id, source, event_key, tenant_id, src_ip, name) "
+                    "VALUES (:t, :d, 'ids', :k, :tid, :ip, 'sig')"
+                ),
+                {"t": base, "d": device_id, "k": key, "tid": tenant_a, "ip": ip},
+            )
+        await s.commit()
+    async with factory() as s:
+        await s.execute(text(f"SET ROLE {APP_ROLE}"))
+        await set_tenant_context(s, tenant_a)
+        rows = await EventRepository(s, tenant_a).top(
+            field="src_ip", source=None, frm=None, to=None, limit=10
+        )
+    assert [(r.value, r.count) for r in rows] == [("1.1.1.1", 2), ("2.2.2.2", 1)]
+
+
+async def test_top_rejects_non_whitelisted_field(db_engine, two_tenants):
+    tenant_a, _ = two_tenants
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(text(f"SET ROLE {APP_ROLE}"))
+        await set_tenant_context(s, tenant_a)
+        with pytest.raises(ValueError):
+            await EventRepository(s, tenant_a).top(
+                field="tenant_id; DROP TABLE events", source=None, frm=None, to=None, limit=10
+            )
