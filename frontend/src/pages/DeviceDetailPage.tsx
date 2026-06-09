@@ -1,8 +1,9 @@
-import { Badge, Card, Stack, Text, Title } from "@mantine/core";
+import { Badge, Card, Stack, Tabs, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { DeviceActions } from "../components/DeviceActions";
+import { ConfigTab } from "../config/ConfigTab";
 import { useT } from "../i18n";
 import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
 import { useTenant } from "../tenant/useTenant";
@@ -25,13 +26,29 @@ export function DeviceDetailPage() {
   return (
     <Stack>
       <Title order={3}>{device.name}</Title>
-      <Card withBorder>
-        <Text>{t.deviceDetail.url}: {device.base_url}</Text>
-        <Text component="div">{t.deviceDetail.status}: <Badge>{device.status}</Badge></Text>
-        <Text>{t.deviceDetail.firmware}: {device.firmware_version ?? t.common.none}</Text>
-      </Card>
-      {deviceId && <DeviceHealthSection deviceId={deviceId} />}
-      {activeId && deviceId && <DeviceActions tenantId={activeId} deviceId={deviceId} />}
+      <Tabs defaultValue="info">
+        <Tabs.List>
+          <Tabs.Tab value="info">{t.config.tabInfo}</Tabs.Tab>
+          <Tabs.Tab value="health">{t.config.tabHealth}</Tabs.Tab>
+          <Tabs.Tab value="config">{t.config.tabConfig}</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="info" pt="md">
+          <Card withBorder>
+            <Text>{t.deviceDetail.url}: {device.base_url}</Text>
+            <Text component="div">{t.deviceDetail.status}: <Badge>{device.status}</Badge></Text>
+            <Text>{t.deviceDetail.firmware}: {device.firmware_version ?? t.common.none}</Text>
+          </Card>
+          {activeId && deviceId && (
+            <DeviceActions tenantId={activeId} deviceId={deviceId} />
+          )}
+        </Tabs.Panel>
+        <Tabs.Panel value="health" pt="md">
+          {deviceId && <DeviceHealthSection deviceId={deviceId} />}
+        </Tabs.Panel>
+        <Tabs.Panel value="config" pt="md">
+          {deviceId && <ConfigTab deviceId={deviceId} />}
+        </Tabs.Panel>
+      </Tabs>
     </Stack>
   );
 }
