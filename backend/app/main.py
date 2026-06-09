@@ -9,6 +9,7 @@ from app.api.events import router as events_router
 from app.api.me_tenants import router as me_tenants_router
 from app.api.memberships import router as memberships_router
 from app.api.monitoring import router as monitoring_router
+from app.api.reports import router as reports_router
 from app.api.setup import router as setup_router
 from app.api.tenants import router as tenants_router
 from app.api.users import router as users_router
@@ -25,6 +26,7 @@ app.include_router(me_tenants_router)
 app.include_router(monitoring_router)
 app.include_router(events_router)
 app.include_router(config_router)
+app.include_router(reports_router)
 
 
 @app.exception_handler(IntegrityError)
