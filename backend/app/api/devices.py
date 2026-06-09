@@ -10,7 +10,7 @@ from app.core.deps import TenantContext, enforce_csrf, require_tenant
 from app.core.rbac import Action
 from app.models.device import Device
 from app.repositories.device import DeviceRepository
-from app.schemas.device import DeviceIn, DeviceOut
+from app.schemas.device import DeviceIn, DeviceOut, DeviceUpdateIn
 from app.services.audit import AuditService
 from app.services.onboarding import Prober, get_prober
 
@@ -85,3 +85,63 @@ async def create_device(
     )
     await session.commit()
     return device
+
+
+@router.patch("/{device_id}", response_model=DeviceOut, dependencies=[Depends(enforce_csrf)])
+async def update_device(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    payload: DeviceUpdateIn,
+    request: Request,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_WRITE)),
+    session: AsyncSession = Depends(get_session),
+) -> Device:
+    repo = DeviceRepository(session, tenant_id)
+    device = await repo.get(device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+    changes = payload.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        setattr(device, field, value)
+    await session.flush()
+    await session.refresh(device)
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="device.update",
+        target_type="device",
+        target_id=str(device.id),
+        ip=request.client.host if request.client else None,
+        details=changes,
+    )
+    await session.commit()
+    return device
+
+
+@router.delete(
+    "/{device_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def delete_device(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    request: Request,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_WRITE)),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    repo = DeviceRepository(session, tenant_id)
+    device = await repo.get(device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device inesistente")
+    await repo.delete(device)
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="device.delete",
+        target_type="device",
+        target_id=str(device_id),
+        ip=request.client.host if request.client else None,
+        details={},
+    )
+    await session.commit()
