@@ -54,6 +54,66 @@ async def test_last_returns_latest_per_label(db_engine, two_tenants):
     assert [p.value for p in last] == [30.0]
 
 
+async def _seed_multi_label(db_engine, tenant_id, device_id):
+    """Inserisce 2 timestamp per ciascuna di 2 label (igb0, igb1)."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    rows = [
+        ("igb0", 0, 10.0),
+        ("igb0", 1, 11.0),  # ultimo per igb0
+        ("igb1", 0, 20.0),
+        ("igb1", 1, 21.0),  # ultimo per igb1
+    ]
+    async with factory() as s:  # owner -> bypassa RLS
+        for label, minute, value in rows:
+            await s.execute(
+                text(
+                    "INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
+                    "VALUES (:t, :d, 'if.bytes', :lbl, :tid, :v)"
+                ),
+                {
+                    "t": base + timedelta(minutes=minute),
+                    "d": device_id,
+                    "lbl": label,
+                    "tid": tenant_id,
+                    "v": value,
+                },
+            )
+        await s.commit()
+    return base
+
+
+async def test_last_returns_latest_per_distinct_label(db_engine, two_tenants):
+    tenant_a, _ = two_tenants
+    device_id = uuid.uuid4()
+    await _seed_multi_label(db_engine, tenant_a, device_id)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(text(f"SET ROLE {APP_ROLE}"))
+        await set_tenant_context(s, tenant_a)
+        repo = MetricRepository(s, tenant_a)
+        last = await repo.last(device_id, "if.bytes")
+    # Ordina per label per stabilità: ultimo valore di CIASCUNA label (DISTINCT ON).
+    by_label = {p.label: p.value for p in last}
+    assert sorted(by_label) == ["igb0", "igb1"]
+    assert by_label == {"igb0": 11.0, "igb1": 21.0}
+
+
+async def test_series_and_last_empty_when_no_data(db_engine, two_tenants):
+    tenant_a, _ = two_tenants
+    device_id = uuid.uuid4()  # nessun dato per questo device
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(text(f"SET ROLE {APP_ROLE}"))
+        await set_tenant_context(s, tenant_a)
+        repo = MetricRepository(s, tenant_a)
+        frm = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+        series = await repo.series(device_id, "cpu.load", frm, frm + timedelta(hours=1), None)
+        last = await repo.last(device_id, "cpu.load")
+    assert series == []
+    assert last == []
+
+
 async def test_series_bucket_downsamples(db_engine, two_tenants):
     tenant_a, _ = two_tenants
     device_id = uuid.uuid4()
