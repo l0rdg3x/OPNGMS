@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 from app.api.auth import router as auth_router
 from app.api.memberships import router as memberships_router
@@ -13,6 +15,18 @@ app.include_router(auth_router)
 app.include_router(tenants_router)
 app.include_router(users_router)
 app.include_router(memberships_router)
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
+    sqlstate = getattr(getattr(exc, "orig", None), "sqlstate", None)
+    if sqlstate == "23505":  # unique_violation
+        detail = "Conflitto: la risorsa esiste gia' (vincolo di unicita')."
+    elif sqlstate == "23503":  # foreign_key_violation
+        detail = "Conflitto: riferimento a una risorsa inesistente."
+    else:
+        detail = "Conflitto: violazione di integrita' dei dati."
+    return JSONResponse(status_code=409, content={"detail": detail})
 
 
 @app.get("/healthz")
