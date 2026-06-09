@@ -1011,3 +1011,39 @@ git commit -m "docs: debito tecnico milestone 2C"
 - `GET /alerts` ritorna gli alert (attivi o storici).
 - Tutti gli endpoint sono tenant-scoped (`require_tenant(DEVICE_VIEW)`) e isolati dalla RLS — un test via connessione `opngms_app` reale lo dimostra cross-tenant.
 - Suite verde + `alembic check` pulito.
+
+---
+
+## Debito tecnico (2C) — consolidato dalle review
+
+**Performance / scala**
+- **Continuous aggregate `metrics_5m` deferita**: il downsampling è on-the-fly (`time_bucket()`).
+  A scala maggiore o per i report a lungo periodo (Fase 5), materializzare la CAGG + retention
+  differenziata (raw 30g, CAGG più lunga) come da spec §4.1. Da rivalutare in 2D o Fase 5.
+- **Troncamento silenzioso dei punti più recenti** (review Task 2): la query serie senza `bucket`
+  applica `ORDER BY time ASC LIMIT MAX_POINTS` (cap difensivo a 5000). Se la serie supera il cap,
+  vengono restituiti i punti **più vecchi**, troncando la coda recente, senza alcun flag di
+  troncamento nella risposta. Per la dashboard (2D) valutare: troncare i più recenti invece dei
+  più vecchi, o esporre un flag `truncated`, o rendere `bucket` obbligatorio oltre N giorni.
+- **`bucket` come secondi interi**: l'API accetta `bucket` in secondi. Se la 2D necessita di
+  bucket "naturali" (5m/1h/1d allineati), valutare un parametro enumerato.
+
+**Modello dati / contratto**
+- **`alerts.details` passthrough JSONB aperto** (review Task 3): `AlertOut.details` espone il JSONB
+  così com'è a chiunque abbia `DEVICE_VIEW` (entro il proprio tenant — la frontiera cross-tenant è
+  garantita dalla RLS). Oggi nessun leak: il poller (`alerting.py`) non scrive mai `details`
+  (sempre `{}`). Governance lato-write: PRIMA che il poller popoli `details`, decidere cosa è lecito
+  scrivervi (mai segreti/PII) e valutare un modello tipizzato con whitelist invece di `dict` aperto.
+- **Divergenza ORM↔migrazione su `alerts.details`** (review Task 1): il modello `Alert.details` ha
+  `default=dict` (Python) ma niente `server_default`, mentre la migrazione 0006 ha
+  `server_default '{}'::jsonb`. In test (schema da `create_all`) gli INSERT raw devono passare
+  `details` esplicito. Allineare il modello aggiungendo `server_default` (non rilevato da
+  `alembic check` perché `compare_server_default` non è attivo).
+- **Nomi metrica non validati**: `metric` è una stringa libera; un set enumerato/registro delle
+  metriche note migliorerebbe la DX dell'API (e abiliterebbe validazione 422).
+
+**Test (nice-to-have)**
+- **DRY dei seed di test** (review Task 5): i blocchi di INSERT raw per `metrics`/`alerts` e il
+  setup superadmin/login sono duplicati tra `test_monitoring_api.py`, `test_monitoring_rls_api.py`
+  e `test_devices_rls_api.py`. Estrarre `make_metric`/`make_alert` + helper login in
+  `factories.py`/`conftest.py` quando il duplicato cresce.
