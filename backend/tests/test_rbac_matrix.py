@@ -42,3 +42,10 @@ from app.core.rbac import (
 )
 def test_permission_matrix(is_superadmin, role, action, expected):
     assert can(is_superadmin=is_superadmin, role=role, action=action) is expected
+
+
+def test_report_generate_grants():
+    assert can(is_superadmin=False, role=TENANT_ADMIN, action=Action.REPORT_GENERATE)
+    assert can(is_superadmin=False, role=OPERATOR, action=Action.REPORT_GENERATE)
+    assert not can(is_superadmin=False, role=READ_ONLY, action=Action.REPORT_GENERATE)
+    assert can(is_superadmin=True, role=None, action=Action.REPORT_GENERATE)
