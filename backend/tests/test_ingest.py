@@ -10,14 +10,21 @@ from app.services.ingest import ingest_events
 
 
 class FakeClient:
-    def __init__(self, alerts, fail=False):
-        self._alerts = alerts
-        self._fail = fail
+    def __init__(self, alerts=None, dns=None, fail_ids=False, fail_dns=False):
+        self._alerts = alerts or []
+        self._dns = dns or []
+        self._fail_ids = fail_ids
+        self._fail_dns = fail_dns
 
     async def get_ids_alerts(self, since=None):
-        if self._fail:
+        if self._fail_ids:
             raise ReachabilityError("boom")
         return self._alerts
+
+    async def get_dns_events(self, since=None):
+        if self._fail_dns:
+            raise ReachabilityError("boom")
+        return self._dns
 
 
 def _alert(ts, key, src="10.0.0.5", name="ET SCAN"):
@@ -85,6 +92,59 @@ async def test_ingest_resilient_to_source_error(db_engine, two_tenants):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         device = await s.get(Device, did)
-        n = await ingest_events(s, device, FakeClient([], fail=True), now)  # source solleva
+        n = await ingest_events(s, device, FakeClient(fail_ids=True), now)  # source solleva
         await s.commit()
     assert n == 0  # nessun crash, zero eventi
+
+
+def _dns(ts, key, client="10.0.0.20", domain="example.com", action="allowed"):
+    return {
+        "time": ts, "category": "query", "src_ip": client, "dst_ip": "",
+        "name": domain, "severity": "", "action": action, "event_key": key, "attributes": {},
+    }
+
+
+async def test_ingest_dns_writes_events(db_engine, two_tenants):
+    tenant_a, _ = two_tenants
+    did = await _device(db_engine, tenant_a)
+    now = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        device = await s.get(Device, did)
+        n = await ingest_events(s, device, FakeClient(dns=[_dns(now, "d1")]), now)
+        await s.commit()
+    assert n == 1
+    async with factory() as s:
+        src = (await s.execute(text("SELECT source FROM events WHERE source='dns'"))).scalars().all()
+    assert src == ["dns"]
+
+
+async def test_ingest_both_sources_in_one_run(db_engine, two_tenants):
+    tenant_a, _ = two_tenants
+    did = await _device(db_engine, tenant_a)
+    now = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        device = await s.get(Device, did)
+        n = await ingest_events(s, device, FakeClient(alerts=[_alert(now, "k1")], dns=[_dns(now, "d1")]), now)
+        await s.commit()
+    assert n == 2  # 1 ids + 1 dns
+    async with factory() as s:
+        srcs = (await s.execute(text("SELECT source FROM events ORDER BY source"))).scalars().all()
+    assert srcs == ["dns", "ids"]
+
+
+async def test_ingest_dns_fails_ids_succeeds(db_engine, two_tenants):
+    tenant_a, _ = two_tenants
+    did = await _device(db_engine, tenant_a)
+    now = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        device = await s.get(Device, did)
+        # DNS solleva, IDS riesce: la resilienza per-source garantisce che IDS venga comunque ingerito
+        n = await ingest_events(s, device, FakeClient(alerts=[_alert(now, "k1")], fail_dns=True), now)
+        await s.commit()
+    assert n == 1
+    async with factory() as s:
+        srcs = (await s.execute(text("SELECT source FROM events"))).scalars().all()
+    assert srcs == ["ids"]
