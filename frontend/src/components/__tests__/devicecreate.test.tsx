@@ -24,6 +24,7 @@ describe("DeviceCreateModal", () => {
     await userEvent.type(screen.getByLabelText(/api secret/i), "s");
     await userEvent.click(screen.getByRole("button", { name: /salva/i }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(posted?.base_url).toBe("https://fw1");
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    expect((posted as { base_url?: string } | null)?.base_url).toBe("https://fw1");
   });
 });

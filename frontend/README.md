@@ -1,73 +1,29 @@
-# React + TypeScript + Vite
+# OPNGMS Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Console web React per OPNGMS (Fase 1 · Milestone D): login a sessione, app shell con tenant
+switcher, e gestione device (lista, dettaglio, onboarding, test-connection, elimina).
 
-Currently, two official plugins are available:
+## Stack
+Vite + React + TypeScript, Mantine (UI), React Router, TanStack Query, client API tipizzato
+(openapi-fetch) generato da OpenAPI, test Vitest + Testing Library + MSW.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Sviluppo
+1. `npm install`
+2. Genera il client API dal backend (richiede il venv del backend): `npm run gen:api`
+3. Avvia il backend su :8000 (`cd ../backend && .venv/bin/uvicorn app.main:app`)
+4. `npm run dev` → http://localhost:5173 (il dev server fa da proxy `/api` → :8000)
 
-## React Compiler
+L'auth è a cookie httpOnly: il frontend deriva lo stato da `GET /api/me` e invia il cookie con
+`credentials: 'include'`; l'header CSRF `X-OPNGMS-CSRF` è aggiunto automaticamente sulle mutazioni.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Test e build
+- Test: `npm run test`
+- Build di produzione: `npm run build` (type-check + bundle in `dist/`)
 
-## Expanding the ESLint configuration
+## Rigenerare il client API
+Dopo modifiche all'API backend: `npm run gen:api` (riesporta `openapi.json` + `src/api/schema.d.ts`).
+Se i tipi divergono dal backend, è perché va rigenerato.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Scope (Milestone D)
+Focalizzato: login + shell + gestione device. L'UI org-admin (tenant/utenti/membership) e le UI di
+edit/rotate-secret sono follow-up.
