@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { DeviceActions } from "../components/DeviceActions";
+import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
 import { useTenant } from "../tenant/useTenant";
 
 export function DeviceDetailPage() {
@@ -27,6 +28,7 @@ export function DeviceDetailPage() {
         <Text component="div">Stato: <Badge>{device.status}</Badge></Text>
         <Text>Firmware: {device.firmware_version ?? "—"}</Text>
       </Card>
+      {deviceId && <DeviceHealthSection deviceId={deviceId} />}
       {activeId && deviceId && <DeviceActions tenantId={activeId} deviceId={deviceId} />}
     </Stack>
   );
