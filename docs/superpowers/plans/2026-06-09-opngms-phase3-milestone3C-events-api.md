@@ -468,3 +468,20 @@ git commit -m "docs: technical debt milestone 3C"
   test proves cross-tenant isolation (app filter + RLS).
 - Suite green + `alembic check` clean.
 - **With 3C, Phase 3 is complete**: ingest (IDS + DNS) → storage → query API.
+
+---
+
+## Technical debt (3C) — consolidated from reviews
+
+- **Offset/keyset pagination missing**: `GET /events` returns the most recent `limit` rows (cap
+  `MAX_EVENTS=1000`). For deep history, add keyset pagination (`before`/`after` cursor on `time`).
+- **`top` over the full retention window**: aggregation scans raw rows; for large windows a
+  TimescaleDB continuous aggregate (Phase 5) would be cheaper.
+- **`field`/`source` not enumerated at the schema level**: validated against allowlists in code, so
+  an invalid value returns 400 (our check) rather than Pydantic 422. Consider typed enums for OpenAPI
+  documentation and 422 validation.
+- **`top` uses the list cap** (review Task 2): `EventRepository.top` clamps with `min(limit,
+  MAX_EVENTS=1000)` instead of a dedicated top-N cap. Harmless because the endpoint enforces
+  `le=100`, but a direct repo call could exceed 100. Cosmetic.
+- **`attributes` exposed raw in `EventOut`**: the full normalized record is returned; it is the
+  tenant's own data (RLS-isolated), but consider trimming to needed fields for report endpoints.
