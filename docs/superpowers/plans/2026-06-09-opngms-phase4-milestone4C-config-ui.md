@@ -521,3 +521,21 @@ git commit -m "docs: technical debt milestone 4C"
 - Loading/error/empty (no-snapshot 404) states handled; tenant-scoped (tenant change refetches).
 - No secret value appears in the DOM; everything read-only.
 - Frontend suite (Vitest) green; `npm run build` + `npm run lint` clean.
+
+---
+
+## Technical debt (4C) — consolidated from reviews
+
+- **No tree search/filter / virtualization**: large configs render fully; add a path/tag filter and
+  virtualization if a config grows large.
+- **Default-expansion depth fixed (2 levels)**: could be smarter (expand to first leaf, remember state).
+- **Configured-vs-available not cross-linked**: the panel lists configured sections and available
+  capabilities separately; a future improvement maps a capability to whether its area is configured
+  (configured vs available-not-yet badge).
+- **Sensitive container rendering**: a sensitive *container* (4B subtree redaction) shows a lock at the
+  node and its children carry null values; correct (no secret) but the UX could collapse/annotate it.
+- **No manual "backup now"**: the tab shows the latest daily snapshot; an on-demand backup trigger
+  button is a later nicety.
+- **Collapse assertion at root only**: in jsdom, Mantine `Collapse` keeps children mounted, so the
+  expand/collapse test asserts on the root toggle (`aria-expanded`/chevron). A Playwright e2e would
+  cover nested toggling in a real browser.
