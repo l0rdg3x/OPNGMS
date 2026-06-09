@@ -766,3 +766,28 @@ git commit -m "docs: debito tecnico milestone 3A"
 - `ingest_events` scrive gli eventi IDS, avanza il cursore, è idempotente e resiliente agli errori di source.
 - Il worker espone il cron `enqueue_event_ingests` + il job `ingest_device_events`.
 - Suite verde + `alembic check` pulito.
+
+---
+
+## Debito tecnico (3A) — consolidato dalle review
+
+- **Endpoint OPNsense IDS DA VERIFICARE**: `ids/service/queryAlerts` e il formato del payload sono
+  plausibili ma non confermati su un device reale. Il connettore è difensivo verso varianti di chiave;
+  da rifinire col device reale (probabilmente POST/paginazione/filtro server-side per `since`).
+- **`since` solo client-side**: l'ingest filtra `time > last_time` lato client dopo il fetch; senza
+  filtro/paginazione server-side si rifetcha la finestra recente ad ogni run (la dedup evita duplicati
+  ma c'è rilavoro). Aggiungere il filtro server-side quando l'endpoint reale è noto. (`since` è
+  accettato dal connettore ma ignorato — review Task 2.)
+- **Niente overlap δ sul cursore**: eventi in arrivo tardivo con `time <= last_time` non visti prima
+  verrebbero saltati. Accettabile per report periodici; valutare un piccolo overlap + dedup.
+- **Cadenza ingest fissa (5 min)**: il cron usa un set di minuti fisso; rendere
+  `INGEST_INTERVAL_SECONDS` configurabile (oggi hardcoded).
+- **Compressione hypertable assente**: solo retention 90g. Aggiungere compression policy Timescale per
+  il volume eventi.
+- **`event_key` hash del contenuto** quando la sorgente non dà un id stabile: due eventi *davvero*
+  identici allo stesso istante collassano in uno (accettabile, dedup voluta). Preferire l'id sorgente
+  quando disponibile (già fatto: `alert_id`/`_id` → fallback hash).
+- **`_normalize` accede a `r["time"]`/`r["event_key"]` con indicizzazione hard** (review Task 3): un
+  cambio di contratto del connettore darebbe KeyError. Accettabile (fail-fast su payload malformato).
+- **`now` non usato in `ingest_events`**: mantenuto in firma per omogeneità col poller; valutare se
+  usarlo per il watermark o rimuoverlo.
