@@ -21,6 +21,8 @@ dependencies = [
     "arq>=0.26",
     "redis>=5.0",
     "defusedxml>=0.7",
+    "jinja2>=3.1",
+    "weasyprint>=62",
 ]
 
 [project.optional-dependencies]

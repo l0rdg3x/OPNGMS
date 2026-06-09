@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <style>{{ css }}</style>
+</head>
+<body>
+  <div class="tz-meta" data-tz="{{ ctx.timezone }}" data-owner="{{ ctx.owner or '—' }}"></div>
+
+  <section class="title-page">
+    <h1>{{ ctx.title }}</h1>
+    <div class="tenant">{{ ctx.tenant_name }}</div>
+    <div class="range">{{ ctx.range_from.strftime('%Y-%m-%d') }} – {{ ctx.range_to.strftime('%Y-%m-%d') }}</div>
+  </section>
+
+  <section class="toc">
+    <h2>Table of contents</h2>
+    <ol>
+      {% for name in ctx.toc %}<li>{{ name }}</li>{% endfor %}
+    </ol>
+  </section>
+
+  {% for section in ctx.sections %}
+  <section class="device-section">
+    <h2>{{ section.device_name }}</h2>
+    {% if section.attacks %}
+    <h3>Attacks</h3>
+    <div class="chart">{{ Markup(section.attacks.timeline_svg) }}</div>
+    {% for tbl in section.attacks.tables %}
+    <table class="ranked">
+      <caption>{{ tbl.title }}</caption>
+      <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th></tr></thead>
+      <tbody>
+        {% for value, count in tbl.rows %}<tr><td>{{ value }}</td><td>{{ count }}</td></tr>{% endfor %}
+        {% if not tbl.rows %}<tr><td colspan="2">No data</td></tr>{% endif %}
+      </tbody>
+    </table>
+    {% endfor %}
+    {% endif %}
+  </section>
+  {% endfor %}
+</body>
+</html>

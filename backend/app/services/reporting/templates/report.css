@@ -1,0 +1,21 @@
+@page {
+  size: A4;
+  margin: 2cm 1.5cm 2cm 1.5cm;
+  @bottom-left { content: "Report generated for timezone " string(tz); font-size: 8pt; color: #666; }
+  @bottom-center { content: "Report owner: " string(owner); font-size: 8pt; color: #666; }
+  @bottom-right { content: "Page " counter(page) " / " counter(pages); font-size: 8pt; color: #666; }
+}
+body { font-family: sans-serif; color: #1a1a1a; font-size: 10pt; }
+.tz-meta { string-set: tz attr(data-tz), owner attr(data-owner); }
+.title-page { text-align: center; padding-top: 6cm; page-break-after: always; }
+.title-page h1 { font-size: 26pt; margin-bottom: .4cm; }
+.title-page .range { color: #555; font-size: 12pt; }
+.toc { page-break-after: always; }
+.toc h2 { font-size: 16pt; }
+.device-section { page-break-before: always; }
+.device-section h2 { border-bottom: 2px solid #333; padding-bottom: 4px; }
+table.ranked { border-collapse: collapse; width: 100%; margin: 6px 0 14px; }
+table.ranked caption { text-align: left; font-weight: bold; font-size: 10pt; margin-bottom: 3px; }
+table.ranked th, table.ranked td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; font-size: 9pt; }
+table.ranked th { background: #f0f0f0; }
+.chart { margin: 8px 0; }

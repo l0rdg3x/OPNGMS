@@ -991,6 +991,21 @@ git commit -m "feat(reporting): on-demand generate API (REPORT_GENERATE+CSRF+aud
 
 ---
 
+## Technical debt (5A)
+
+- **Per-device aggregation**: the Attacks block aggregates the tenant's IDS events for the range, not
+  yet filtered per device (5B adds `device_id` filtering to `aggregation.top`/`timeline`).
+- **WeasyPrint system libs**: pango/cairo/gdk-pixbuf/libffi must be in the runtime image — wire into the
+  **Deploy** milestone Dockerfile.
+- **Sections 5B–5C**: Web Activity / Bandwidth / Up-Down (5B) and Applications / Web Filter / threat-level
+  (5C) are stubs/absent; the template frame is ready.
+- **White-label**: branding uses placeholders (tenant name, owner=None); 5D adds the per-tenant config.
+- **No persistence**: 5A returns the PDF inline; storage + history + scheduled cron is 5E.
+- **Range cap** `MAX_RANGE_DAYS=92` is enforced (oversized/inverted ranges → HTTP 400); a future nicety is
+  to clamp-and-warn instead of reject, and to make the cap configurable per tenant.
+
+---
+
 ## Definition of "Done" (5A)
 - `POST /api/tenants/{tenant_id}/reports` returns a valid PDF with a title page, TOC, a real **Attacks**
   section per firewall (timeline SVG + Top Attempts/Targets/Initiators tables), and a footer (page

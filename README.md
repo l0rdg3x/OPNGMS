@@ -5,9 +5,10 @@ firewalls from a single pane of glass. Device inventory, health and network moni
 and — on the roadmap — log/event ingest, configuration push, and per-customer PDF reporting.
 
 > **Status:** Phases 1 (Foundation & Inventory), 2 (Monitoring), and 3 (Log/Event ingest) are
-> **complete**; Phase 4 (Config management) is **in progress** (4A — backup + drift — 4B — config model
-> + capability discovery — 4C — firewall-aware config UI — 4D-a — change/push pipeline (dry-run) — and
-> 4D-c — config editing UI — done). See [Roadmap & status](#roadmap--status).
+> **complete**; Phase 4 (Config management) is **in progress** (4A backup + drift, 4B config model +
+> capability discovery, 4C firewall-aware config UI, 4D-a change/push pipeline (dry-run), 4D-c config
+> editing UI — done); Phase 5 (PDF reporting) has **started** (5A — reporting engine + on-demand generate
+> API — done). See [Roadmap & status](#roadmap--status).
 
 ---
 
@@ -60,7 +61,8 @@ Tenant isolation is **structural**: shared schema + `tenant_id` + Postgres **Row
 | Backend | Python 3.12+, FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, Pydantic v2 |
 | Storage | TimescaleDB (Postgres 16 + extension), hypertables for metrics and events, RLS |
 | Queue/worker | ARQ 0.28 + Redis |
-| Security | argon2 (passwords), Fernet (device secrets), Postgres RLS, SSRF guard |
+| Security | argon2 (passwords), Fernet (device secrets), Postgres RLS, SSRF guard, defusedxml |
+| Reporting | WeasyPrint (HTML/CSS → PDF) + Jinja2 (autoescape) + hand-built SVG charts |
 | Frontend | Vite, React 19, TypeScript, Mantine v9 (+ Mantine Charts), TanStack Query, React Router |
 | Testing | pytest + pytest-asyncio + respx (backend); Vitest + Testing Library + MSW (frontend) |
 
@@ -162,7 +164,7 @@ npm run lint        # ESLint
 | **2 — Monitoring** | 2A poller core · 2B network metrics + alerting · 2C metrics/health/alert API + RLS · 2D dashboard frontend | ✅ Done |
 | **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS ✅ · 3C query API ✅ | ✅ Done |
 | **4 — Config management** | Versioned, encrypted config backup + drift detection (schema-agnostic, RLS). 4A backup+drift ✅ · 4B config model + capability ✅ · 4C firewall-aware UI ✅ · 4D edit + push (4D-a pipeline ✅, dry-run · 4D-c editing UI ✅) | 🔄 In progress (4A–4C, 4D-a, 4D-c ✅) |
-| **5 — PDF reporting** | Per-customer PDF reports (attacks, sites visited, bandwidth) | ⬜ Planned |
+| **5 — PDF reporting** | Per-customer white-label PDF reports (attacks, sites visited, bandwidth). 5A reporting engine (WeasyPrint + Jinja2 + SVG charts, tenant-scoped aggregation, on-demand generate API, Attacks section) ✅ · 5B web/bandwidth/status · 5C applications/web-filter · 5D white-label config · 5E scheduled + history | 🔄 In progress (5A ✅) |
 | **Deploy** | Multi-stage Dockerfile + production docker-compose for the whole stack | ⬜ End of project |
 
 Design specs and implementation plans for each milestone live in

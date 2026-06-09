@@ -1,0 +1,101 @@
+import os
+import uuid
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from app.core.db import make_engine, set_tenant_context
+from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
+from app.services.reporting.aggregation import ReportAggregator, pick_bucket
+from tests.factories import make_tenant
+
+
+def test_pick_bucket_by_span():
+    assert pick_bucket(timedelta(days=1)) == "1 hour"
+    assert pick_bucket(timedelta(days=10)) == "6 hours"
+    assert pick_bucket(timedelta(days=40)) == "1 day"
+
+
+async def _seed(db_engine, tenant_id, device_id, names):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        for i, name in enumerate(names):
+            await s.execute(
+                text(
+                    "INSERT INTO events (time, device_id, source, event_key, tenant_id, name, src_ip, dst_ip) "
+                    "VALUES (:t, :d, 'ids', :k, :tid, :name, '10.0.0.5', '8.8.8.8')"
+                ),
+                {"t": base + timedelta(minutes=i), "d": device_id, "k": f"k{i}",
+                 "tid": tenant_id, "name": name},
+            )
+        await s.commit()
+    return base
+
+
+async def test_top_and_timeline(db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        t = await make_tenant(s, slug="acme")
+        await s.commit()
+        tid = t.id
+    did = uuid.uuid4()
+    async with factory() as s:
+        await s.execute(
+            text(
+                "INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                "VALUES (:id, :t, 'fw1', 'https://x', ''::bytea, ''::bytea, true, 'reachable', '{}')"
+            ),
+            {"id": did, "t": tid},
+        )
+        await s.commit()
+    base = await _seed(db_engine, tid, did, ["ET SCAN", "ET SCAN", "ET POLICY"])
+
+    async with factory() as s:
+        agg = ReportAggregator(s, tid)
+        devices = await agg.devices()
+        assert [d.name for d in devices] == ["fw1"]
+        top = await agg.top(field="name", frm=base - timedelta(hours=1), to=base + timedelta(hours=1))
+        assert (top[0].value, top[0].count) == ("ET SCAN", 2)
+        tl = await agg.timeline(frm=base - timedelta(hours=1), to=base + timedelta(hours=1), bucket="1 hour")
+        assert sum(c for _, c in tl) == 3
+
+
+async def test_aggregator_is_tenant_isolated_under_rls(db_engine):
+    # Seed two tenants + a device + distinct IDS events each, as owner (bypasses RLS).
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    ta, tb = uuid.uuid4(), uuid.uuid4()
+    da, db_ = uuid.uuid4(), uuid.uuid4()
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        for tid, slug in [(ta, "a"), (tb, "b")]:
+            await s.execute(text("INSERT INTO tenants (id, name, slug, status) VALUES (:id, :slug, :slug, 'active')"),
+                            {"id": tid, "slug": slug})
+        for tid, did, name in [(ta, da, "A-SIG"), (tb, db_, "B-SIG")]:
+            await s.execute(
+                text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                     "VALUES (:id, :t, :n, 'https://x', ''::bytea, ''::bytea, true, 'reachable', '{}')"),
+                {"id": did, "t": tid, "n": f"fw-{name}"})
+            await s.execute(
+                text("INSERT INTO events (time, device_id, source, event_key, tenant_id, name, src_ip, dst_ip) "
+                     "VALUES (:t, :d, 'ids', 'k', :tid, :name, '10.0.0.1', '8.8.8.8')"),
+                {"t": base, "d": did, "tid": tid, "name": name})
+        await s.commit()
+
+    # Connect as the REAL opngms_app role (RLS active), context on tenant A, run the aggregator.
+    app_url = make_url(os.environ["TEST_DATABASE_URL"]).set(username=APP_ROLE, password=APP_ROLE_PASSWORD)
+    engine = make_engine(app_url.render_as_string(hide_password=False))
+    try:
+        f2 = async_sessionmaker(engine, expire_on_commit=False)
+        async with f2() as s:
+            await set_tenant_context(s, ta)
+            agg = ReportAggregator(s, ta)
+            top = await agg.top(field="name", frm=base - timedelta(hours=1), to=base + timedelta(hours=1))
+            names = [r.value for r in top]
+            assert "A-SIG" in names
+            assert "B-SIG" not in names               # RLS hides tenant B
+            assert [d.name for d in await agg.devices()] == ["fw-A-SIG"]
+    finally:
+        await engine.dispose()
