@@ -1,0 +1,47 @@
+from app.services.config_model import build_tree, is_sensitive
+
+XML = (
+    "<opnsense>"
+    "<revision><time>1</time></revision>"
+    "<system><hostname>fw1</hostname>"
+    "<user><name>root</name><password>topsecret</password></user></system>"
+    "<interfaces><wan><if>igb0</if></wan><lan><if>igb1</if></lan></interfaces>"
+    "</opnsense>"
+)
+
+
+def test_is_sensitive():
+    assert is_sensitive("password") and is_sensitive("api_key") and is_sensitive("PrivateKey")
+    assert not is_sensitive("hostname") and not is_sensitive("if")
+
+
+def test_build_tree_structure_and_order():
+    root = build_tree(XML)
+    assert root["tag"] == "opnsense"
+    # <revision> stripped; order preserved
+    top = [c["tag"] for c in root["children"]]
+    assert top == ["system", "interfaces"]
+    system = root["children"][0]
+    hostname = system["children"][0]
+    assert hostname["path"] == "opnsense/system/hostname"
+    assert hostname["value"] == "fw1"
+    assert hostname["sensitive"] is False
+
+
+def test_sensitive_value_is_redacted_and_never_emitted():
+    root = build_tree(XML)
+    import json
+    blob = json.dumps(root)
+    assert "topsecret" not in blob  # secret never appears anywhere
+    # locate the password node
+    user = root["children"][0]["children"][1]
+    pw = [c for c in user["children"] if c["tag"] == "password"][0]
+    assert pw["sensitive"] is True and pw["value"] is None
+
+
+def test_rejects_hostile_xml():
+    import pytest
+
+    bomb = '<?xml version="1.0"?><!DOCTYPE l [<!ENTITY a "x"><!ENTITY b "&a;&a;">]><opnsense><x>&b;</x></opnsense>'
+    with pytest.raises(Exception):
+        build_tree(bomb)
