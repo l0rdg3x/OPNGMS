@@ -35,7 +35,7 @@ async def create_user(
 ) -> User:
     repo = UserRepository(session)
     if await repo.get_by_email(payload.email) is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email gia' in uso")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
     new_user = await repo.add(
         User(
             email=payload.email,

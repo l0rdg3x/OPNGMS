@@ -11,7 +11,7 @@ from app.repositories.alert import AlertRepository
 
 async def _seed_alerts(db_engine, tenant_id, device_id):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as s:  # owner -> bypassa RLS
+    async with factory() as s:  # owner -> bypasses RLS
         await s.execute(
             text(
                 "INSERT INTO alerts "

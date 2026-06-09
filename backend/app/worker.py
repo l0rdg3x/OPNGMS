@@ -21,7 +21,7 @@ def _owner_url() -> str:
 
 
 async def enqueue_device_polls(ctx: dict) -> int:
-    """Cron: accoda un poll_device per ogni device. Ritorna il numero accodato."""
+    """Cron: enqueue a poll_device for each device. Returns the number enqueued."""
     factory = ctx["session_factory"]
     redis = ctx["redis"]
     async with factory() as session:
@@ -32,7 +32,7 @@ async def enqueue_device_polls(ctx: dict) -> int:
 
 
 async def poll_device(ctx: dict, device_id: str) -> str:
-    """Job: pollla un singolo device e salva metriche+stato."""
+    """Job: poll a single device and save metrics+status."""
     factory = ctx["session_factory"]
     async with factory() as session:
         device = await session.get(Device, uuid.UUID(device_id))
@@ -51,7 +51,7 @@ async def poll_device(ctx: dict, device_id: str) -> str:
 
 
 async def enqueue_event_ingests(ctx: dict) -> int:
-    """Cron: accoda un ingest_device_events per ogni device."""
+    """Cron: enqueue an ingest_device_events for each device."""
     factory = ctx["session_factory"]
     redis = ctx["redis"]
     async with factory() as session:
@@ -62,7 +62,7 @@ async def enqueue_event_ingests(ctx: dict) -> int:
 
 
 async def ingest_device_events(ctx: dict, device_id: str) -> int:
-    """Job: ingerisce gli eventi (IDS) di un singolo device."""
+    """Job: ingest the events (IDS) of a single device."""
     factory = ctx["session_factory"]
     async with factory() as session:
         device = await session.get(Device, uuid.UUID(device_id))
@@ -92,8 +92,8 @@ async def on_shutdown(ctx: dict) -> None:
 class WorkerSettings:
     functions = [poll_device, ingest_device_events]
     cron_jobs = [
-        cron(enqueue_device_polls, second={0}),  # metriche, ogni minuto al secondo 0
-        cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # eventi, ogni 5 minuti
+        cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
+        cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # events, every 5 minutes
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

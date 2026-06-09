@@ -9,10 +9,9 @@ down_revision = "0001"
 branch_labels = None
 depends_on = None
 
-# A questo punto della cronologia esiste solo `devices`; metrics/alerts vengono
-# create dopo (0005/0006) e abilitate alla RLS dalla 0007. Fissiamo qui il
-# sottoinsieme cosi' che la migrazione resti stabile anche quando TENANT_TABLES
-# cresce.
+# At this point in history only `devices` exists; metrics/alerts are created
+# later (0005/0006) and RLS-enabled by 0007. We pin the subset here so that
+# the migration stays stable even when TENANT_TABLES grows.
 _TABLES = ["devices"]
 
 

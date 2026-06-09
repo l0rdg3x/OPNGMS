@@ -20,11 +20,11 @@ router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["monitoring"])
 
 
 def _ensure_utc(dt: datetime | None) -> datetime | None:
-    """Normalizza a UTC un datetime naive (assume UTC).
+    """Normalize a naive datetime to UTC (assumes UTC).
 
-    I timestamp metrici sono `timestamptz`: per una console interna e' ragionevole
-    assumere UTC sui valori senza timezone, evitando TypeError nei confronti tra
-    datetime naive e tz-aware (che altrimenti darebbero un 500).
+    The metric timestamps are `timestamptz`: for an internal console it is reasonable
+    to assume UTC for values without a timezone, avoiding a TypeError in comparisons
+    between naive and tz-aware datetimes (which would otherwise yield a 500).
     """
     if dt is not None and dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
@@ -35,7 +35,7 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
 async def get_device_metrics(
     tenant_id: uuid.UUID,
     device_id: uuid.UUID,
-    metric: str = Query(..., description="Nome metrica, es. 'cpu.load'"),
+    metric: str = Query(..., description="Metric name, e.g. 'cpu.load'"),
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = Query(None),
     bucket_seconds: int | None = Query(None, alias="bucket", ge=1),
@@ -43,8 +43,8 @@ async def get_device_metrics(
     session: AsyncSession = Depends(get_session),
 ) -> MetricSeriesOut:
     now = datetime.now(timezone.utc)
-    # Normalizza a UTC i datetime naive (es. ?from=2026-01-01T00:00:00 senza Z)
-    # prima di calcolare frm/end e dei confronti: evita il TypeError naive-vs-aware.
+    # Normalize naive datetimes to UTC (e.g. ?from=2026-01-01T00:00:00 without Z)
+    # before computing frm/end and the comparisons: avoids the naive-vs-aware TypeError.
     from_ = _ensure_utc(from_)
     to = _ensure_utc(to)
     frm = from_ or (now - timedelta(hours=24))
@@ -53,12 +53,12 @@ async def get_device_metrics(
     if frm >= end:
         raise HTTPException(
             status_code=400,
-            detail="Intervallo non valido: 'from' deve precedere 'to'",
+            detail="Invalid interval: 'from' must precede 'to'",
         )
     if bucket is not None and (end - frm) / bucket > MAX_POINTS:
         raise HTTPException(
             status_code=400,
-            detail=f"Troppi punti richiesti: intervallo/bucket supera {MAX_POINTS}",
+            detail=f"Too many points requested: interval/bucket exceeds {MAX_POINTS}",
         )
     repo = MetricRepository(session, tenant_id)
     points = await repo.series(device_id, metric, frm, end, bucket)
@@ -69,7 +69,7 @@ async def get_device_metrics(
 @router.get("/alerts", response_model=list[AlertOut])
 async def list_alerts(
     tenant_id: uuid.UUID,
-    active: bool = Query(True, description="Solo alert attivi (resolved_at IS NULL)"),
+    active: bool = Query(True, description="Active alerts only (resolved_at IS NULL)"),
     ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
     session: AsyncSession = Depends(get_session),
 ) -> list[AlertOut]:

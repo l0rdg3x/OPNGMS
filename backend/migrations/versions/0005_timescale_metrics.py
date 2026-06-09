@@ -1,4 +1,4 @@
-"""TimescaleDB: estensione + hypertable metrics + retention"""
+"""TimescaleDB: extension + metrics hypertable + retention"""
 
 import sqlalchemy as sa
 from alembic import op

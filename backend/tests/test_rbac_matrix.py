@@ -23,7 +23,7 @@ from app.core.rbac import (
         (False, OPERATOR, Action.DEVICE_WRITE, True),
         (False, READ_ONLY, Action.DEVICE_WRITE, False),
         (False, READ_ONLY, Action.AUDIT_VIEW, True),
-        # Hardening: nessun ruolo tenant può eseguire azioni org-level (anti-escalation)
+        # Hardening: no tenant role can perform org-level actions (anti-escalation)
         (False, OPERATOR, Action.TENANT_MANAGE, False),
         (False, READ_ONLY, Action.TENANT_MANAGE, False),
         (False, OPERATOR, Action.USER_MANAGE, False),

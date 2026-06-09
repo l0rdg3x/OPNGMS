@@ -14,7 +14,7 @@ down_revision = "0002"
 branch_labels = None
 depends_on = None
 
-# Solo `devices` esiste a questo punto: metrics/alerts arrivano dopo (0005/0006).
+# Only `devices` exists at this point: metrics/alerts come later (0005/0006).
 _TABLES = ["devices"]
 
 

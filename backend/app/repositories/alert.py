@@ -8,7 +8,7 @@ from app.models.alert import Alert
 
 
 class AlertRepository:
-    """Letture alert per tenant. Doppio isolamento: filtro tenant_id + RLS."""
+    """Per-tenant alert reads. Two isolation layers: tenant_id filter + RLS."""
 
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID) -> None:
         self.session = session

@@ -12,7 +12,7 @@ def test_public_ip_allowed():
 
 
 def test_private_ip_allowed():
-    # RFC1918 è PERMESSO (firewall su rete di management)
+    # RFC1918 is ALLOWED (firewall on management network)
     ip, host, port = validate_base_url("https://10.0.0.5")
     assert ip == "10.0.0.5"
 
@@ -36,7 +36,7 @@ def test_dangerous_ip_blocked(url):
     [
         "http://203.0.113.10",            # non-https
         "https://user:pass@203.0.113.10", # userinfo
-        "ftp://203.0.113.10",             # schema
+        "ftp://203.0.113.10",             # scheme
     ],
 )
 def test_bad_scheme_or_userinfo_blocked(url):
@@ -45,7 +45,7 @@ def test_bad_scheme_or_userinfo_blocked(url):
 
 
 def test_hostname_resolving_to_loopback_blocked(monkeypatch):
-    # DNS-rebinding-style: un hostname che risolve a 127.0.0.1 deve essere bloccato
+    # DNS-rebinding-style: a hostname that resolves to 127.0.0.1 must be blocked
     def fake_getaddrinfo(host, port, *a, **k):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
 

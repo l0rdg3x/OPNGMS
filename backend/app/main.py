@@ -27,11 +27,11 @@ app.include_router(monitoring_router)
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
     sqlstate = getattr(getattr(exc, "orig", None), "sqlstate", None)
     if sqlstate == "23505":  # unique_violation
-        detail = "Conflitto: la risorsa esiste gia' (vincolo di unicita')."
+        detail = "Conflict: the resource already exists (uniqueness constraint)."
     elif sqlstate == "23503":  # foreign_key_violation
-        detail = "Conflitto: riferimento a una risorsa inesistente."
+        detail = "Conflict: reference to a nonexistent resource."
     else:
-        detail = "Conflitto: violazione di integrita' dei dati."
+        detail = "Conflict: data integrity violation."
     return JSONResponse(status_code=409, content={"detail": detail})
 
 

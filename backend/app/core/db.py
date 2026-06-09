@@ -37,7 +37,7 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 async def set_tenant_context(session: AsyncSession, tenant_id: uuid.UUID) -> None:
-    """Imposta app.current_tenant per la transazione corrente (pilota la RLS)."""
+    """Set app.current_tenant for the current transaction (drives RLS)."""
     await session.execute(
         text("SELECT set_config('app.current_tenant', :tid, true)"),
         {"tid": str(tenant_id)},

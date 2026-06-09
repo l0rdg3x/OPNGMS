@@ -1,4 +1,4 @@
-"""alerts table + indice unico parziale sull'alert attivo"""
+"""alerts table + partial unique index on the active alert"""
 
 import sqlalchemy as sa
 from alembic import op

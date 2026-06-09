@@ -20,10 +20,10 @@ def _open(device: Device, type_: str, label: str = "") -> Alert:
 
 
 async def evaluate_alerts(session: AsyncSession, device: Device, state: PollState) -> None:
-    """Riconcilia gli alert con lo stato corrente: apre i down nuovi, risolve i rientrati.
+    """Reconcile the alerts with the current state: open new downs, resolve recovered ones.
 
-    Idempotente: usa SOLO lo stato corrente + gli alert aperti (il vincolo unico parziale
-    impedisce comunque i duplicati su (device, type, label)).
+    Idempotent: uses ONLY the current state + the open alerts (the partial unique constraint
+    prevents duplicates on (device, type, label) anyway).
     """
     now = datetime.now(timezone.utc)
     open_alerts = await _open_alerts(session, device)

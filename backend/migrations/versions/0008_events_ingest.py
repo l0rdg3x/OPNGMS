@@ -1,4 +1,4 @@
-"""events hypertable + ingest_cursors + RLS su events"""
+"""events hypertable + ingest_cursors + RLS on events"""
 
 import sqlalchemy as sa
 from alembic import op
@@ -39,7 +39,7 @@ def upgrade() -> None:
     )
     op.execute("SELECT add_retention_policy('events', INTERVAL '90 days')")
 
-    # ingest_cursors (stato worker, no RLS)
+    # ingest_cursors (worker state, no RLS)
     op.create_table(
         "ingest_cursors",
         sa.Column("device_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -51,14 +51,14 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("device_id", "source"),
     )
 
-    # RLS su events + grant a opngms_app (con propagazione ai chunk Timescale)
+    # RLS on events + grant to opngms_app (with propagation to the Timescale chunks)
     op.execute("ALTER TABLE events ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE events FORCE ROW LEVEL SECURITY")
     op.execute(policy_create_statement("events"))
     for stmt in grant_app_role_statements():
         op.execute(stmt)
-    op.execute(f"GRANT SELECT ON events TO {APP_ROLE}")  # propaga ai chunk dell'hypertable
-    # ingest_cursors non è user-facing: nessuna RLS.
+    op.execute(f"GRANT SELECT ON events TO {APP_ROLE}")  # propagates to the hypertable chunks
+    # ingest_cursors is not user-facing: no RLS.
 
 
 def downgrade() -> None:

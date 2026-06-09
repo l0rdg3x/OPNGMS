@@ -10,8 +10,8 @@ from app.models.base import Base, UUIDPKMixin
 
 class Alert(UUIDPKMixin, Base):
     __tablename__ = "alerts"
-    # Un solo alert ATTIVO per (device, type, label) — indice unico parziale, dichiarato
-    # sul modello per tenere alembic check pulito.
+    # Only one ACTIVE alert per (device, type, label) — partial unique index, declared
+    # on the model to keep the alembic check clean.
     __table_args__ = (
         Index(
             "uq_alerts_active",

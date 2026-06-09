@@ -16,11 +16,11 @@ target_metadata = Base.metadata
 
 
 def _include_object(obj, name, type_, reflected, compare_to):
-    """Esclude dall'autogenerate gli oggetti interni di TimescaleDB.
+    """Exclude TimescaleDB internal objects from autogenerate.
 
-    `create_hypertable` crea automaticamente un indice `<table>_<timecol>_idx` (es.
-    `metrics_time_idx`) che non è nel modello; e gli oggetti vivono in `_timescaledb_internal`.
-    Senza questo filtro alembic check segnalerebbe drift spurio.
+    `create_hypertable` automatically creates an index `<table>_<timecol>_idx` (e.g.
+    `metrics_time_idx`) that is not in the model; and the objects live in `_timescaledb_internal`.
+    Without this filter, alembic check would report spurious drift.
     """
     if type_ == "index" and name and name.endswith("_time_idx"):
         return False

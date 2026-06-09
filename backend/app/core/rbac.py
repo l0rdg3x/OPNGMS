@@ -1,6 +1,6 @@
 import enum
 
-# Ruoli per-tenant (assegnati via Membership). 'superadmin' è un flag a livello utente.
+# Per-tenant roles (assigned via Membership). 'superadmin' is a user-level flag.
 TENANT_ADMIN = "tenant_admin"
 OPERATOR = "operator"
 READ_ONLY = "read_only"
@@ -8,7 +8,7 @@ TENANT_ROLES = {TENANT_ADMIN, OPERATOR, READ_ONLY}
 
 
 class Action(str, enum.Enum):
-    # org-level (solo superadmin)
+    # org-level (superadmin only)
     TENANT_MANAGE = "tenant.manage"
     USER_MANAGE = "user.manage"
     # tenant-level
@@ -18,10 +18,10 @@ class Action(str, enum.Enum):
     AUDIT_VIEW = "audit.view"
 
 
-# Azioni org-level: consentite SOLO al superadmin (nessun ruolo per-tenant le concede).
+# Org-level actions: allowed ONLY to the superadmin (no per-tenant role grants them).
 _ORG_ACTIONS = {Action.TENANT_MANAGE, Action.USER_MANAGE}
 
-# Azioni tenant-level -> ruoli che le concedono (oltre al superadmin, sempre ammesso).
+# Tenant-level actions -> roles that grant them (besides the superadmin, always allowed).
 _TENANT_MATRIX: dict[Action, set[str]] = {
     Action.MEMBERSHIP_MANAGE: {TENANT_ADMIN},
     Action.DEVICE_VIEW: {TENANT_ADMIN, OPERATOR, READ_ONLY},

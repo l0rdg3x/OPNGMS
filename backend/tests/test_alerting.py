@@ -67,15 +67,15 @@ async def test_gateway_down_opens_and_resolves(db_engine):
 
 
 async def test_unreachable_device_does_not_touch_gateway_alerts(db_engine):
-    """Quando il device è irraggiungibile non valutiamo i gateway: un alert gateway.down aperto resta."""
+    """When the device is unreachable we do not evaluate the gateways: an open gateway.down alert stays."""
     tid, did = await _device(db_engine)
     f = async_sessionmaker(db_engine, expire_on_commit=False)
-    # apri un gateway.down (device reachable)
+    # open a gateway.down (device reachable)
     async with f() as s:
         device = await s.get(Device, did)
         await evaluate_alerts(s, device, PollState(reachable=True, gateways=[{"name": "WAN_GW", "up": False}]))
         await s.commit()
-    # device diventa irraggiungibile -> il gateway.down NON viene risolto, ma si apre device.down
+    # device becomes unreachable -> the gateway.down is NOT resolved, but device.down opens
     async with f() as s:
         device = await s.get(Device, did)
         await evaluate_alerts(s, device, PollState(reachable=False))
@@ -87,7 +87,7 @@ async def test_unreachable_device_does_not_touch_gateway_alerts(db_engine):
 
 
 async def test_vanished_gateway_is_resolved(db_engine):
-    """Un gateway non più riportato (device reachable) viene trattato come rientrato."""
+    """A gateway no longer reported (device reachable) is treated as recovered."""
     tid, did = await _device(db_engine)
     f = async_sessionmaker(db_engine, expire_on_commit=False)
     async with f() as s:

@@ -1,4 +1,4 @@
-"""RLS su metrics + alerts; grant a opngms_app (con propagazione ai chunk Timescale)"""
+"""RLS on metrics + alerts; grant to opngms_app (with propagation to the Timescale chunks)"""
 
 from alembic import op
 
@@ -18,21 +18,21 @@ def upgrade() -> None:
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
         op.execute(policy_create_statement(table))
-    # Le tabelle metrics/alerts sono state create DOPO il GRANT ON ALL TABLES della 0003:
-    # ri-eseguiamo i grant ora che esistono. Su `metrics` (hypertable) il GRANT esplicito
-    # fa propagare il privilegio ai chunk TimescaleDB (esistenti e futuri).
+    # The metrics/alerts tables were created AFTER the GRANT ON ALL TABLES of 0003:
+    # we re-run the grants now that they exist. On `metrics` (hypertable) the explicit GRANT
+    # propagates the privilege to the TimescaleDB chunks (existing and future).
     for stmt in grant_app_role_statements():
         op.execute(stmt)
-    # GRANT esplicito solo su `metrics`: serve a propagare il privilegio ai chunk
-    # dell'hypertable TimescaleDB. `alerts` NON ha un grant esplicito perche' non e'
-    # una hypertable: e' gia' coperta dal GRANT ON ALL TABLES qui sopra.
+    # Explicit GRANT only on `metrics`: needed to propagate the privilege to the
+    # TimescaleDB hypertable chunks. `alerts` has NO explicit grant because it is not
+    # a hypertable: it is already covered by the GRANT ON ALL TABLES above.
     op.execute(f"GRANT SELECT ON metrics TO {APP_ROLE}")
 
 
 def downgrade() -> None:
-    # Revoca simmetrica rispetto all'upgrade: l'upgrade ha concesso DML su tutte le
-    # tabelle (incluse metrics/alerts) via GRANT ON ALL TABLES + SELECT esplicito su
-    # metrics. Qui revochiamo tutto prima di disabilitare la RLS.
+    # Symmetric revoke with respect to the upgrade: the upgrade granted DML on all
+    # tables (including metrics/alerts) via GRANT ON ALL TABLES + explicit SELECT on
+    # metrics. Here we revoke everything before disabling RLS.
     op.execute(f"REVOKE SELECT, INSERT, UPDATE, DELETE ON metrics, alerts FROM {APP_ROLE}")
     for table in _NEW_TABLES:
         op.execute(f"DROP POLICY IF EXISTS {POLICY_NAME} ON {table}")

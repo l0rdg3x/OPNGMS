@@ -4,14 +4,14 @@ from urllib.parse import urlsplit
 
 
 class UnsafeUrlError(Exception):
-    """base_url rifiutato dalla guardia SSRF."""
+    """base_url rejected by the SSRF guard."""
 
 
 def _blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    # unwrap IPv4-mapped IPv6 (es. ::ffff:127.0.0.1)
+    # unwrap IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
         ip = ip.ipv4_mapped
-    # BLOCCA i target mai-legittimi; PERMETTE gli IP privati (RFC1918) per i firewall mgmt.
+    # BLOCK never-legitimate targets; ALLOW private IPs (RFC1918) for mgmt firewalls.
     return (
         ip.is_loopback        # 127.0.0.0/8, ::1
         or ip.is_link_local   # 169.254.0.0/16 (metadata cloud!), fe80::/10
@@ -27,29 +27,29 @@ def _resolve(host: str, port: int) -> set[str]:
 
 
 def validate_base_url(base_url: str) -> tuple[str, str, int | None]:
-    """Valida e risolve base_url contro la SSRF. Ritorna (pinned_ip, hostname, port|None).
+    """Validate and resolve base_url against SSRF. Returns (pinned_ip, hostname, port|None).
 
-    Solleva UnsafeUrlError se: schema != https, userinfo presente, host mancante,
-    risoluzione fallita, o QUALSIASI indirizzo risolto è loopback/link-local/
-    unspecified/multicast/reserved. Pinna il primo IP validato (anti DNS-rebinding).
+    Raises UnsafeUrlError if: scheme != https, userinfo present, host missing,
+    resolution failed, or ANY resolved address is loopback/link-local/
+    unspecified/multicast/reserved. Pins the first validated IP (anti DNS-rebinding).
     """
     parts = urlsplit(base_url)
     if parts.scheme != "https":
-        raise UnsafeUrlError("solo https consentito")
+        raise UnsafeUrlError("only https allowed")
     if parts.username or parts.password:
-        raise UnsafeUrlError("credenziali nell'URL non consentite")
+        raise UnsafeUrlError("credentials in the URL not allowed")
     host = parts.hostname
     if not host:
-        raise UnsafeUrlError("host mancante")
-    port = parts.port  # None se non specificato
+        raise UnsafeUrlError("missing host")
+    port = parts.port  # None if not specified
     try:
         addrs = _resolve(host, port or 443)
     except socket.gaierror as exc:
-        raise UnsafeUrlError("risoluzione DNS fallita") from exc
+        raise UnsafeUrlError("DNS resolution failed") from exc
     if not addrs:
-        raise UnsafeUrlError("nessun indirizzo risolto")
+        raise UnsafeUrlError("no resolved address")
     for raw in addrs:
         if _blocked(ipaddress.ip_address(raw)):
-            raise UnsafeUrlError("indirizzo di destinazione non consentito")
-    pinned = sorted(addrs)[0]  # tutti validati; pinna il primo (deterministico)
+            raise UnsafeUrlError("destination address not allowed")
+    pinned = sorted(addrs)[0]  # all validated; pin the first (deterministic)
     return pinned, host, port

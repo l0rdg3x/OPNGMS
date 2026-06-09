@@ -30,13 +30,13 @@ async def test_get_dns_events_normalizes():
     assert e["category"] == "query"
     assert e["dst_ip"] == ""
     assert e["severity"] == ""
-    assert e["event_key"]                    # id sorgente o hash
+    assert e["event_key"]                    # source id or hash
     assert e["time"].tzinfo is not None      # tz-aware
 
 
 @respx.mock
 async def test_get_dns_events_key_variants_and_empty():
-    # varianti di chiave + fallback hash + payload vuoto
+    # key variants + hash fallback + empty payload
     payload = {
         "queries": [
             {"time": "2026-06-09T13:00:00Z", "client_ip": "10.0.0.21", "query": "blocked.test", "action": "blocked"}
@@ -50,7 +50,7 @@ async def test_get_dns_events_key_variants_and_empty():
     assert out[0]["src_ip"] == "10.0.0.21"
     assert out[0]["name"] == "blocked.test"
     assert out[0]["action"] == "blocked"
-    assert out[0]["event_key"]  # hash del contenuto (nessun id)
+    assert out[0]["event_key"]  # content hash (no id)
 
     respx.get(url__regex=r".*/api/unbound/diagnostics/queries.*").mock(
         return_value=httpx.Response(200, json={})

@@ -8,9 +8,9 @@ from app.models.device import Device
 
 
 class DeviceRepository:
-    """Accesso ai device già scoperto per tenant a livello applicativo.
+    """Application-level scoped access to devices already discovered, per tenant.
 
-    Doppio livello di isolamento: il filtro `tenant_id` qui + la RLS Postgres.
+    Two isolation layers: the `tenant_id` filter here + Postgres RLS.
     """
 
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID) -> None:
