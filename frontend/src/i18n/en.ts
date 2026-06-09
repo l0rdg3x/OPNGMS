@@ -97,6 +97,8 @@ export const en = {
     fleetHealthLoad: "Failed to load fleet health",
     alertsLoad: "Failed to load alerts",
     metricsLoad: "Failed to load metrics",
+    configModelLoad: "Failed to load configuration",
+    configCapabilitiesLoad: "Failed to load capabilities",
   },
 } as const;
 

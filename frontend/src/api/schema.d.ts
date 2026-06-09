@@ -265,6 +265,138 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Events */
+        get: operations["list_events_api_tenants__tenant_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/events/top": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Top Events */
+        get: operations["top_events_api_tenants__tenant_id__events_top_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Snapshots */
+        get: operations["list_snapshots_api_tenants__tenant_id__devices__device_id__config_snapshots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Config Drift */
+        get: operations["config_drift_api_tenants__tenant_id__devices__device_id__config_drift_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Config Diff */
+        get: operations["config_diff_api_tenants__tenant_id__devices__device_id__config_diff_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Config Model
+         * @description Schema-agnostic navigable tree of the device's latest config.
+         *
+         *     Decrypted + parsed server-side; sensitive leaf values are redacted by build_tree
+         *     (sensitive=True, value=None) and never emitted in the response.
+         */
+        get: operations["config_model_api_tenants__tenant_id__devices__device_id__config_model_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Config Capabilities
+         * @description Per-device capability inventory: empirical (from the latest config) + live probe.
+         *
+         *     Builds an OpnsenseClient and probes installed plugins/version; on ANY connector or
+         *     credential error it degrades gracefully to empirical-only (no available_capabilities),
+         *     so the endpoint stays useful even when the device is unreachable.
+         */
+        get: operations["config_capabilities_api_tenants__tenant_id__devices__device_id__config_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -315,6 +447,57 @@ export interface components {
             details: {
                 [key: string]: unknown;
             };
+        };
+        /** Capability */
+        Capability: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Area */
+            area: string;
+        };
+        /** CapabilityInventory */
+        CapabilityInventory: {
+            /** Opnsense Version */
+            opnsense_version: string;
+            /** Interfaces */
+            interfaces: components["schemas"]["Interface"][];
+            /** Configured Sections */
+            configured_sections: string[];
+            /** Available Capabilities */
+            available_capabilities: components["schemas"]["Capability"][];
+        };
+        /** ConfigDiffEntry */
+        ConfigDiffEntry: {
+            /** Path */
+            path: string;
+            /** Change */
+            change: string;
+        };
+        /** ConfigSnapshotOut */
+        ConfigSnapshotOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Taken At
+             * Format: date-time
+             */
+            taken_at: string;
+            /** Canonical Hash */
+            canonical_hash: string;
+            /** Opnsense Version */
+            opnsense_version: string;
+            /** Size Bytes */
+            size_bytes: number;
         };
         /** DeviceIn */
         DeviceIn: {
@@ -394,6 +577,53 @@ export interface components {
             /** Tags */
             tags?: string[] | null;
         };
+        /** DriftSummary */
+        DriftSummary: {
+            /** Version Count */
+            version_count: number;
+            /** Latest Taken At */
+            latest_taken_at: string | null;
+            /** Changed Since Previous */
+            changed_since_previous: boolean;
+        };
+        /** EventOut */
+        EventOut: {
+            /**
+             * Time
+             * Format: date-time
+             */
+            time: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Source */
+            source: string;
+            /** Category */
+            category: string;
+            /** Src Ip */
+            src_ip: string;
+            /** Dst Ip */
+            dst_ip: string;
+            /** Name */
+            name: string;
+            /** Severity */
+            severity: string;
+            /** Action */
+            action: string;
+            /** Attributes */
+            attributes: {
+                [key: string]: unknown;
+            };
+        };
+        /** EventTopRow */
+        EventTopRow: {
+            /** Value */
+            value: string;
+            /** Count */
+            count: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -409,6 +639,15 @@ export interface components {
             };
             /** Active Alerts */
             active_alerts: number;
+        };
+        /** Interface */
+        Interface: {
+            /** Name */
+            name: string;
+            /** Nic */
+            nic: string;
+            /** Description */
+            description: string;
         };
         /** LoginIn */
         LoginIn: {
@@ -1234,6 +1473,246 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_events_api_tenants__tenant_id__events_get: {
+        parameters: {
+            query?: {
+                source?: string | null;
+                device_id?: string | null;
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    top_events_api_tenants__tenant_id__events_top_get: {
+        parameters: {
+            query: {
+                /** @description Column to aggregate by */
+                field: string;
+                source?: string | null;
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventTopRow"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_snapshots_api_tenants__tenant_id__devices__device_id__config_snapshots_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigSnapshotOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    config_drift_api_tenants__tenant_id__devices__device_id__config_drift_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriftSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    config_diff_api_tenants__tenant_id__devices__device_id__config_diff_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigDiffEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    config_model_api_tenants__tenant_id__devices__device_id__config_model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    config_capabilities_api_tenants__tenant_id__devices__device_id__config_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilityInventory"];
                 };
             };
             /** @description Validation Error */
