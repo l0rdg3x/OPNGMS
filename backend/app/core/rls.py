@@ -4,7 +4,7 @@ Fonte unica usata sia dalle migrazioni sia dalla conftest dei test, cosi' le
 policy applicate in produzione e in test non possono divergere.
 """
 
-TENANT_TABLES: list[str] = ["devices", "metrics", "alerts"]
+TENANT_TABLES: list[str] = ["devices", "metrics", "alerts", "events"]
 
 POLICY_NAME = "tenant_isolation"
 
