@@ -318,3 +318,20 @@ git commit -m "docs: debito tecnico milestone 3B"
 - La source `"dns"` è attiva nell'ingest: gli eventi DNS finiscono in `events` (`source='dns'`), con la stessa idempotenza/dedup degli IDS.
 - IDS e DNS coesistono in un singolo run; l'errore di una sorgente non blocca l'altra (test).
 - Suite verde (nessun test 3A rotto dal `FakeClient` aggiornato).
+
+---
+
+## Debito tecnico (3B) — consolidato dalle review
+
+- **Endpoint DNS DA VERIFICARE (sorgente più incerta)**: `unbound/diagnostics/queries` e il payload
+  sono plausibili ma non confermati. Se OPNsense non espone i log DNS via API in modo usabile, valutare
+  una sorgente alternativa (Zenarmor, export periodico) o syslog push per il DNS.
+- **`since` non onorato anche per DNS** (come IDS): filtro client-side + dedup; rifinire col device reale.
+- **Niente `dst_ip`/resolver per DNS** (`dst_ip=""`): se servisse il resolver upstream nei report,
+  mapparlo dagli `attributes`.
+- **Collasso di query DNS identiche ravvicinate** senza id sorgente (stesso ts+client+dominio+action →
+  stesso hash → dedup le fonde): per i conteggi "hits per sito" potrebbe sottostimare. Valutare un
+  contatore o l'id sorgente quando disponibile.
+- **Cursore DNS non riverificato nei nuovi test** (review Task 2): l'avanzamento cursore per `source='dns'`
+  è coperto solo indirettamente (la logica cursore è generica e già provata in 3A). Aggiungere
+  un'asserzione esplicita se si vuole alzare la copertura.
