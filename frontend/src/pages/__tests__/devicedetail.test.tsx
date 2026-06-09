@@ -75,6 +75,9 @@ describe("DeviceDetailPage", () => {
       ),
       { route: "/devices/d1" },
     );
+    // the Health tab is not active by default -> activate it first so the panel mounts
+    await screen.findByRole("heading", { name: "fw1" });
+    await userEvent.click(screen.getByRole("tab", { name: /Health/i }));
     // the health section chart titles appear
     expect(await screen.findByText(/CPU/i)).toBeInTheDocument();
     expect(await screen.findByText(/Memory/i)).toBeInTheDocument();

@@ -79,6 +79,19 @@ export const en = {
     totalDevices: "Total devices",
     activeAlerts: "Active alerts",
   },
+  config: {
+    tabInfo: "Info",
+    tabHealth: "Health",
+    tabConfig: "Config",
+    capabilities: "Capabilities",
+    version: "OPNsense version",
+    interfaces: "Interfaces",
+    configuredSections: "Configured sections",
+    available: "Available capabilities",
+    hidden: "hidden",
+    noConfigYet: "No configuration captured yet",
+    nic: "NIC",
+  },
   deviceHealth: {
     title: "Health",
     cpu: "CPU",
@@ -97,6 +110,8 @@ export const en = {
     fleetHealthLoad: "Failed to load fleet health",
     alertsLoad: "Failed to load alerts",
     metricsLoad: "Failed to load metrics",
+    configModelLoad: "Failed to load configuration",
+    configCapabilitiesLoad: "Failed to load capabilities",
   },
 } as const;
 
