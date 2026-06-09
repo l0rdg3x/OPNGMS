@@ -41,6 +41,13 @@ def test_rls_statements_cover_events():
     assert "ALTER TABLE events FORCE ROW LEVEL SECURITY" in sql
 
 
+def test_rls_statements_cover_config_snapshots():
+    assert "config_snapshots" in TENANT_TABLES
+    sql = "\n".join(enable_rls_statements())
+    assert "ALTER TABLE config_snapshots ENABLE ROW LEVEL SECURITY" in sql
+    assert "ALTER TABLE config_snapshots FORCE ROW LEVEL SECURITY" in sql
+
+
 def test_disable_rls_statements_tear_down_policy():
     sql = "\n".join(disable_rls_statements())
     assert "DROP POLICY IF EXISTS" in sql
@@ -199,5 +206,41 @@ async def test_events_isolated_cross_tenant(db_engine, two_tenants):
             assert keys == ["a"]  # only tenant A; RLS excludes B (raw query without tenant filter)
         async with factory() as s2:
             assert (await s2.execute(text("SELECT event_key FROM events"))).scalars().all() == []
+    finally:
+        await engine.dispose()
+
+
+async def test_config_snapshots_isolated_cross_tenant(db_engine, two_tenants):
+    import os
+    import uuid as _uuid
+
+    tenant_a, tenant_b = two_tenants
+    owner = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with owner() as s:  # owner bypasses RLS
+        # device_id must reference an existing device (FK). two_tenants seeds fw-a/fw-b.
+        for tid, name, h in ((tenant_a, "fw-a", "a"), (tenant_b, "fw-b", "b")):
+            did = (
+                await s.execute(text("SELECT id FROM devices WHERE name = :n"), {"n": name})
+            ).scalar_one()
+            await s.execute(
+                text(
+                    "INSERT INTO config_snapshots (id, tenant_id, device_id, canonical_hash, content_enc) "
+                    "VALUES (:id, :tid, :did, :h, '\\x00'::bytea)"
+                ),
+                {"id": _uuid.uuid4(), "tid": tid, "did": did, "h": h},
+            )
+        await s.commit()
+
+    base_url = make_url(os.environ["TEST_DATABASE_URL"])
+    app_url = base_url.set(username=APP_ROLE, password=APP_ROLE_PASSWORD)
+    engine = make_engine(app_url.render_as_string(hide_password=False))
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            await set_tenant_context(s, tenant_a)
+            hs = (await s.execute(text("SELECT canonical_hash FROM config_snapshots"))).scalars().all()
+            assert hs == ["a"]  # RLS hides B (raw query, no tenant filter)
+        async with factory() as s2:
+            assert (await s2.execute(text("SELECT canonical_hash FROM config_snapshots"))).scalars().all() == []
     finally:
         await engine.dispose()
