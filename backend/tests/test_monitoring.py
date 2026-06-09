@@ -16,6 +16,15 @@ class FakeClient:
     async def get_firmware_status(self):
         return {"product_version": "24.7"}
 
+    async def get_interfaces(self):
+        return [{"name": "igb0", "up": True, "bytes_in": 100.0, "bytes_out": 200.0}]
+
+    async def get_gateways(self):
+        return [{"name": "WAN_GW", "up": True, "rtt_ms": 5.0, "loss_pct": 0.0}]
+
+    async def get_vpn_status(self):
+        return [{"name": "wg0", "up": True}]
+
 
 async def _make_device(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
