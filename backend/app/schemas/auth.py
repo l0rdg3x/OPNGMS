@@ -15,6 +15,8 @@ class LoginIn(BaseModel):
 
 
 class MeOut(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: uuid.UUID
     email: EmailStr
     name: str
