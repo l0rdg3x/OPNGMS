@@ -4,9 +4,8 @@ A centralized, multi-tenant console for MSPs that manage and monitor a fleet of 
 firewalls from a single pane of glass. Device inventory, health and network monitoring, alerting,
 and — on the roadmap — log/event ingest, configuration push, and per-customer PDF reporting.
 
-> **Status:** Phases 1 (Foundation & Inventory) and 2 (Monitoring) are **complete**; Phase 3
-> (Log/Event ingest) is **in progress** (milestones 3A — Suricata — and 3B — DNS — done; 3C query API
-> next). See [Roadmap & status](#roadmap--status).
+> **Status:** Phases 1 (Foundation & Inventory), 2 (Monitoring), and 3 (Log/Event ingest) are
+> **complete**. Phase 4 (Config push) is next. See [Roadmap & status](#roadmap--status).
 
 ---
 
@@ -159,7 +158,7 @@ npm run lint        # ESLint
 | **1 — Foundation & Inventory** | Scaffold, auth/RBAC, org admin, devices/secrets/onboarding, frontend shell | ✅ Done |
 | **SSRF hardening** | SSRF guard on the OPNsense connector | ✅ Done |
 | **2 — Monitoring** | 2A poller core · 2B network metrics + alerting · 2C metrics/health/alert API + RLS · 2D dashboard frontend | ✅ Done |
-| **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS ✅ · 3C query API | 🔄 In progress (3A, 3B ✅) |
+| **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS ✅ · 3C query API ✅ | ✅ Done |
 | **4 — Config push** | Push configuration to devices | ⬜ Planned |
 | **5 — PDF reporting** | Per-customer PDF reports (attacks, sites visited, bandwidth) | ⬜ Planned |
 | **Deploy** | Multi-stage Dockerfile + production docker-compose for the whole stack | ⬜ End of project |
