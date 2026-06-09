@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     session_secret: str
     master_key: str  # Fernet key urlsafe-base64 (usata dalla Milestone C)
     session_ttl_hours: int = 12
+    admin_database_url: str | None = None  # owner, per il worker (bypassa RLS)
+    redis_url: str = "redis://localhost:6379"
+    poll_interval_seconds: int = 60
 
 
 @lru_cache

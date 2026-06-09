@@ -8,6 +8,8 @@ os.environ.setdefault(
 )
 os.environ.setdefault("SESSION_SECRET", "test-session-secret")
 os.environ.setdefault("MASTER_KEY", Fernet.generate_key().decode())
+os.environ.setdefault("ADMIN_DATABASE_URL", "postgresql+asyncpg://opngms:opngms@localhost:5432/opngms")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
 
 import pytest
 from httpx import ASGITransport, AsyncClient

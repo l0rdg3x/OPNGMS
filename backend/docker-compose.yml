@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: timescale/timescaledb:2.17.2-pg16
     environment:
       POSTGRES_USER: opngms
       POSTGRES_PASSWORD: opngms
@@ -11,6 +11,16 @@ services:
       - opngms_pg:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U opngms"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
