@@ -12,6 +12,7 @@ os.environ.setdefault("MASTER_KEY", Fernet.generate_key().decode())
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.db import get_session, make_engine, set_tenant_context
@@ -126,3 +127,22 @@ async def api_client(db_engine):
     async with AsyncClient(transport=transport, base_url="https://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def app_role_api_client(db_engine):
+    """Come api_client, ma la sessione si connette come opngms_app (non-superuser) -> RLS attiva."""
+    app_url = make_url(TEST_DB_URL).set(username="opngms_app", password="opngms_app")
+    engine = make_engine(app_url.render_as_string(hide_password=False))
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def _override_get_session():
+        async with factory() as s:
+            yield s
+
+    app.dependency_overrides[get_session] = _override_get_session
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="https://test") as c:
+        yield c
+    app.dependency_overrides.clear()
+    await engine.dispose()
