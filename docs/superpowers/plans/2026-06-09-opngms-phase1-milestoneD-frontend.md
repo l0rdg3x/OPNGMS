@@ -1144,3 +1144,23 @@ task che li introduce e completati nel task dedicato — nessun TODO lasciato ap
 **Type consistency:** `api.GET/POST/PATCH/DELETE` con `params.path.{tenant_id,device_id}`,
 `useAuth()/{me,loading,refresh}`, `useTenant()/{tenants,activeId,setActiveId}`, MSW handlers
 allineati ai path reali, coerenti tra i Task 2-7.
+
+---
+
+## Debito tecnico (dalla review olistica finale — READY WITH MINOR NOTES)
+
+Zero issue Critical/Important. Sicurezza frontend solida (auth a fonte unica, cookie httpOnly mai
+letto lato client, CSRF esatto, segreti write-only, isolamento tenant via query key). Da tracciare:
+
+1. **Niente loading/error UI** su lista/dettaglio device (il dettaglio rende `null` finché i dati
+   non arrivano) — aggiungere skeleton/stati d'errore.
+2. **Niente dialog di conferma sull'elimina** — l'azione distruttiva parte con un click solo.
+3. **UI org-admin** (tenant/utenti/membership) rinviata (scope focalizzato).
+4. **UI edit-device e rotate-secret** rinviate (gli endpoint backend `PATCH` e `/rotate-secret`
+   esistono ma il frontend non li usa ancora).
+5. **Nessun e2e Playwright** — solo test componente/integrazione (Vitest+RTL+MSW).
+6. **`schema.d.ts`/`openapi.json` generati** — rigenerare con `npm run gen:api` a ogni cambio API.
+7. **3 errori ESLint** (context+component nello stesso file → fast-refresh; reference triple-slash
+   di vitest) — fixare (separare i context) o cablare lint nella CI; oggi fuori dal gate build/test.
+8. **Bundle unico ~535 kB** (Vite avvisa >500 kB) — valutare code-splitting.
+9. **`activeId` non persistito** tra i reload (riparte da `tenants[0]`).
