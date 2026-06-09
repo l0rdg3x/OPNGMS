@@ -1841,3 +1841,29 @@ tracciata ma non implementata (gli indici su `expires_at` sono pronti).
 **Type consistency:** `can(is_superadmin, role, action)`, `Action.*`, `TenantContext(tenant,
 user, role)`, `require_org(action)`, `require_tenant(action)`, `enforce_csrf`, `SESSION_COOKIE`,
 `get_current_user`, `AuditService.record(...)` usati in modo coerente tra i Task 6-13.
+
+---
+
+## Debito tecnico da affrontare nella Milestone C (dalla review olistica finale)
+
+La review finale ha dato **READY WITH MINOR NOTES**: zero issue Critical/Important, modello di
+autorizzazione solido e applicato in modo consistente su ogni endpoint. Aggiunti in corsa
+durante la milestone: Task 14 (handler globale `IntegrityError`→409) e Task 15 (audit
+login/logout per conformità spec §10 + rimozione import duplicato). Restano da tracciare:
+
+1. **Nessun update/delete** per tenant/utenti/membership — solo create/list (YAGNI; aggiungere
+   PATCH/DELETE quando serviranno).
+2. **Nessun rate-limiting / lockout sul login** — oggi l'unico freno al brute-force è il costo
+   argon2.
+3. **Nessun job di cleanup delle sessioni scadute** — controllate alla lettura ma mai rimosse
+   (l'indice `ix_sessions_expires_at` è già pronto).
+4. **Nessuna paginazione** sugli endpoint di list (`/api/tenants`, `/api/users`,
+   `/api/tenants/{id}/memberships`) — full scan, ok all'attuale scala MVP.
+5. **CSRF a sola presenza** dell'header (pattern custom-header + `SameSite=Lax`) — valutare un
+   token CSRF per-sessione e assicurarsi che la **CORS** resti chiusa (non ancora configurata).
+6. **Nessuna rotazione sessione / nessun "logout di tutte le sessioni"** — più sessioni
+   concorrenti per utente senza percorso di revoca admin.
+7. ⚠️ **`set_tenant_context` è transaction-scoped** (`is_local=true`): sound finché c'è una sola
+   transazione per richiesta. La Milestone C, quando aggiunge le query sui device sotto RLS, NON
+   deve fare commit a metà richiesta e poi interrogare i device (perderebbe silenziosamente il
+   contesto → zero righe, fail-closed, ma trappola di correttezza). Aggiungere un guard/commento.
