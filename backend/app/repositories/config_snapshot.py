@@ -25,6 +25,11 @@ class ConfigSnapshotRepository:
         )
         return (await self.session.execute(stmt)).scalars().all()
 
+    async def latest(self, device_id: uuid.UUID) -> ConfigSnapshot | None:
+        """The device's newest snapshot (tenant-scoped + RLS), or None."""
+        rows = await self.list(device_id)
+        return rows[0] if rows else None
+
     async def get(self, snapshot_id: uuid.UUID) -> ConfigSnapshot | None:
         stmt = select(ConfigSnapshot).where(
             ConfigSnapshot.id == snapshot_id,

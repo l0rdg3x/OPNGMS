@@ -25,3 +25,22 @@ class DriftSummary(BaseModel):
     version_count: int
     latest_taken_at: datetime | None
     changed_since_previous: bool
+
+
+class Interface(BaseModel):
+    name: str
+    nic: str
+    description: str
+
+
+class Capability(BaseModel):
+    id: str
+    label: str
+    area: str
+
+
+class CapabilityInventory(BaseModel):
+    opnsense_version: str
+    interfaces: list[Interface]
+    configured_sections: list[str]
+    available_capabilities: list[Capability]
