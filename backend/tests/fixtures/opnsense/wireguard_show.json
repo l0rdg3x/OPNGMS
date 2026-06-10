@@ -1,1 +1,1 @@
-{"total":1,"rowCount":1,"current":1,"rows":[{"name":"wg0 (peer1)","connected":true,"latest-handshake":"1718050000"}]}
+{"total":1,"rowCount":1,"current":1,"rows":[{"if":"wg0","type":"interface","public-key":"testPublicKeyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","listen-port":"51820","fwmark":"off","endpoint":"203.0.113.7:51820","status":"up","name":"wg-site-a","latest-handshake-age":"15s","latest-handshake-epoch":"1718050000","peer-status":"online","ifname":"wg-site-a"}]}
