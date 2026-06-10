@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from app.connectors.opnsense import parsers
 from app.connectors.opnsense.url_safety import UnsafeUrlError, validate_base_url
 
 
@@ -176,14 +177,12 @@ class OpnsenseClient:
         return {"product_version": version, "plugins": plugins}
 
     async def get_system_info(self) -> dict:
-        """CPU/mem/disk/uptime. NOTE: endpoint+fields TO BE VERIFIED against a real OPNsense."""
-        data = await self._get("diagnostics/system/systemInformation")
-        return {
-            "cpu_pct": float((data.get("cpu") or {}).get("used", 0.0)),
-            "mem_pct": float((data.get("memory") or {}).get("used_pct", 0.0)),
-            "disk_pct": float((data.get("disk") or {}).get("used_pct", 0.0)),
-            "uptime_seconds": int(data.get("uptime_seconds", 0)),
-        }
+        """CPU/mem/disk/uptime, aggregated from four diagnostics endpoints (26.1.9)."""
+        resources = await self._get("diagnostics/system/systemResources")
+        disk = await self._get("diagnostics/system/systemDisk")
+        time = await self._get("diagnostics/system/systemTime")
+        cputype = await self._get("diagnostics/cpu_usage/getCPUType")
+        return parsers.parse_system_info(resources, disk, time, cputype)
 
     @staticmethod
     def _num(v) -> float:
