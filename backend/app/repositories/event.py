@@ -39,17 +39,18 @@ class EventRepository:
         self.session = session
         self.tenant_id = tenant_id
 
-    async def list(
+    def _filter_clauses(
         self,
+        params: dict,
         *,
         source: str | None,
         device_id: uuid.UUID | None,
         frm: datetime | None,
         to: datetime | None,
-        limit: int,
-    ) -> list[EventOut]:
+    ) -> list[str]:
+        """Build the shared tenant/source/device/time WHERE clauses, mutating ``params``."""
         clauses = ["tenant_id = :tid"]
-        params: dict = {"tid": self.tenant_id, "limit": min(limit, MAX_EVENTS)}
+        params["tid"] = self.tenant_id
         if source is not None:
             clauses.append("source = :source")
             params["source"] = source
@@ -62,6 +63,19 @@ class EventRepository:
         if to is not None:
             clauses.append("time < :to")
             params["to"] = to
+        return clauses
+
+    async def list(
+        self,
+        *,
+        source: str | None,
+        device_id: uuid.UUID | None,
+        frm: datetime | None,
+        to: datetime | None,
+        limit: int,
+    ) -> list[EventOut]:
+        params: dict = {"limit": min(limit, MAX_EVENTS)}
+        clauses = self._filter_clauses(params, source=source, device_id=device_id, frm=frm, to=to)
         where = " AND ".join(clauses)
         sql = text(
             f"SELECT {_LIST_COLUMNS} FROM events WHERE {where} "
@@ -81,20 +95,8 @@ class EventRepository:
         limit: int,
     ) -> tuple[list[EventOut], str | None]:
         n = min(limit, MAX_EVENTS)
-        clauses = ["tenant_id = :tid"]
-        params: dict = {"tid": self.tenant_id, "limit": n}
-        if source is not None:
-            clauses.append("source = :source")
-            params["source"] = source
-        if device_id is not None:
-            clauses.append("device_id = :did")
-            params["did"] = device_id
-        if frm is not None:
-            clauses.append("time >= :frm")
-            params["frm"] = frm
-        if to is not None:
-            clauses.append("time < :to")
-            params["to"] = to
+        params: dict = {"limit": n}
+        clauses = self._filter_clauses(params, source=source, device_id=device_id, frm=frm, to=to)
         if after is not None:
             c_time, c_did, c_source, c_ek = decode_cursor(after)
             clauses.append("(time, device_id, source, event_key) < (:c_time, :c_did, :c_source, :c_ek)")
