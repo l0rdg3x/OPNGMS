@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     cors_allow_origins: str = ""  # comma-separated; empty = CORS disabled (same-origin)
     login_max_attempts: int = 5
     login_lockout_window_seconds: int = 900
+    # Worker cron cadences (configurable; see app/worker.py).
+    ingest_every_minutes: int = 5  # event ingest cadence (1..30)
+    config_backup_hour: int = 3  # daily config backup hour (UTC, 0..23)
+    report_weekday: str = "mon"  # weekly report day (mon..sun)
+    report_hour: int = 4  # weekly report hour (UTC, 0..23)
+    session_cleanup_minute: int = 0  # expired-session cleanup minute-of-hour (hourly)
 
 
 @lru_cache

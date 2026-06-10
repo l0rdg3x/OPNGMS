@@ -218,15 +218,25 @@ async def on_shutdown(ctx: dict) -> None:
     await ctx["engine"].dispose()
 
 
+_settings = get_settings()
+# Event-ingest cadence: every N minutes (clamped to 1..30 so the range step is valid).
+_ingest_step = min(30, max(1, _settings.ingest_every_minutes))
+
+
 class WorkerSettings:
     functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, generate_tenant_report]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
-        cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # events, every 5 minutes
-        cron(enqueue_config_backups, hour={3}, minute={0}),  # config, daily ~03:00
-        cron(enqueue_scheduled_reports, weekday="mon", hour={4}, minute={0}),  # weekly reports, Monday ~04:00
-        cron(cleanup_expired_sessions, minute={0}),  # hourly: reap expired/idle sessions
+        cron(enqueue_event_ingests, minute=set(range(0, 60, _ingest_step))),  # events, every N minutes
+        cron(enqueue_config_backups, hour={_settings.config_backup_hour}, minute={0}),  # config, daily
+        cron(
+            enqueue_scheduled_reports,
+            weekday=_settings.report_weekday,
+            hour={_settings.report_hour},
+            minute={0},
+        ),  # weekly reports
+        cron(cleanup_expired_sessions, minute={_settings.session_cleanup_minute}),  # hourly: reap sessions
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
-    redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
+    redis_settings = RedisSettings.from_dsn(_settings.redis_url)
