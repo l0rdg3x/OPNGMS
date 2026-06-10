@@ -1,4 +1,8 @@
-# Automated dependency-update PRs (complements pip-audit / npm audit). Weekly, capped to limit PR noise.
+# Automated dependency-update PRs (complements pip-audit / npm audit). Weekly.
+# Grouping strategy: bundle only low-risk MINOR + PATCH bumps into one combined PR per
+# ecosystem (fewer PRs => fewer notification emails), while every MAJOR update still comes
+# as its own individual PR so it can be evaluated / accepted / rejected on its own (full
+# granularity where it matters — e.g. a breaking bump like redis 8). Capped to limit open PRs.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -7,6 +11,14 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: [dependencies, backend]
+    groups:
+      backend-minor:
+        update-types: [minor, patch]
+    ignore:
+      # arq pins redis[hiredis]<6, so redis >= 6 is unusable until arq raises its cap.
+      # (Dependabot proposed redis 8 in PR #22, which failed to resolve — keep redis 5.x.)
+      - dependency-name: "redis"
+        versions: [">=6"]
 
   - package-ecosystem: npm
     directory: /frontend
@@ -14,21 +26,33 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: [dependencies, frontend]
+    groups:
+      frontend-minor:
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     labels: [dependencies, ci]
+    groups:
+      actions-minor:
+        update-types: [minor, patch]
 
   - package-ecosystem: docker
     directory: /backend
     schedule:
       interval: weekly
     labels: [dependencies, docker]
+    groups:
+      docker-backend-minor:
+        update-types: [minor, patch]
 
   - package-ecosystem: docker
     directory: /frontend
     schedule:
       interval: weekly
     labels: [dependencies, docker]
+    groups:
+      docker-frontend-minor:
+        update-types: [minor, patch]
