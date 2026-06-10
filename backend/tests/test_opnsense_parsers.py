@@ -78,3 +78,19 @@ def test_parse_interfaces_tolerates_malformed_shape():
 def test_parse_gateways_force_down_is_down():
     out = parsers.parse_gateways({"items": [{"name": "G3", "status": "force_down"}]})
     assert out[0]["up"] is False
+
+
+def test_parse_firmware_version_from_product_subtree():
+    # firmware/status: version is under product.product_version (no top-level field)
+    assert parsers.parse_firmware_version(load("firmware_status.json")) == "26.1.9"
+    # firmware/info: top-level product_version present
+    assert parsers.parse_firmware_version(load("firmware_info.json")) == "26.1.9"
+    assert parsers.parse_firmware_version({}) == ""
+
+
+def test_parse_plugins_reads_plugin_array_not_package():
+    out = parsers.parse_plugins(load("firmware_info.json"))
+    assert out["product_version"] == "26.1.9"
+    assert out["plugins"] == ["os-wireguard"]   # installed "1" from the `plugin` array
+    assert "base" not in out["plugins"]          # `package` array is ignored
+    assert "os-theme-cicada" not in out["plugins"]  # installed "0"

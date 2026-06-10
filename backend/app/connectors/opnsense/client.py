@@ -158,23 +158,15 @@ class OpnsenseClient:
         return resp.text
 
     async def get_firmware_status(self) -> dict:
-        return await self._get("core/firmware/status")
+        """Connection test + firmware version. Normalizes the version to the top level so
+        callers (monitoring) read `.get("product_version")` regardless of the raw nesting."""
+        data = await self._get("core/firmware/status")
+        return {"product_version": parsers.parse_firmware_version(data)}
 
     async def get_plugin_info(self) -> dict:
-        """Installed plugins + product version, for capability discovery.
-
-        NOTE: endpoint `core/firmware/info` and payload shape TO VERIFY against a real
-        OPNsense device. Defensive toward key variants.
-        """
+        """Installed plugins + product version, for capability discovery."""
         data = await self._get("core/firmware/info")
-        packages = data.get("package", data.get("plugin", []))
-        plugins = [
-            p.get("name", "")
-            for p in packages
-            if str(p.get("installed", "")) in ("1", "true", "True") and p.get("name")
-        ]
-        version = data.get("product_version") or (data.get("product") or {}).get("product_version", "")
-        return {"product_version": version, "plugins": plugins}
+        return parsers.parse_plugins(data)
 
     async def get_system_info(self) -> dict:
         """CPU/mem/disk/uptime, aggregated from four diagnostics endpoints (26.1.9)."""
@@ -299,13 +291,9 @@ class OpnsenseClient:
         return h.hexdigest()
 
     async def test_connection(self) -> str | None:
-        """Verify reachability+credentials; returns the firmware version or None.
+        """Verify reachability+credentials; return the firmware version or None.
 
         Raises AuthError/ReachabilityError/ApiError/ParseError on problems.
         """
         data = await self.get_firmware_status()
-        # Field TO BE VERIFIED against a real OPNsense (the exact name may differ).
-        version = data.get("product_version")
-        if version is None and isinstance(data.get("product"), dict):
-            version = data["product"].get("product_version")
-        return version
+        return data.get("product_version") or None

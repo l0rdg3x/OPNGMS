@@ -129,3 +129,25 @@ def parse_vpn(data: dict) -> list[dict]:
             up = bool(hs) and hs != "0"
         out.append({"name": name, "up": up})
     return out
+
+
+def parse_firmware_version(data: dict) -> str:
+    """Version from top-level `product_version` (firmware/info) or `product.product_version`
+    (firmware/status). Empty string if absent."""
+    data = data or {}
+    v = data.get("product_version")
+    if not v and isinstance(data.get("product"), dict):
+        v = data["product"].get("product_version")
+    return v or ""
+
+
+def parse_plugins(info: dict) -> dict:
+    """firmware/info -> {product_version, plugins}. Reads the `plugin` array (OPNsense
+    plugins) and keeps only installed ones — NOT the much larger `package` array."""
+    info = info or {}
+    plugins = [
+        p.get("name", "")
+        for p in info.get("plugin", []) or []
+        if str(p.get("installed", "")) in ("1", "true", "True") and p.get("name")
+    ]
+    return {"product_version": parse_firmware_version(info), "plugins": plugins}
