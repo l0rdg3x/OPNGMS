@@ -45,6 +45,7 @@ async def poll_device(ctx: dict, device_id: str) -> str:
             crypto.decrypt(device.api_key_enc),
             crypto.decrypt(device.api_secret_enc),
             verify_tls=device.verify_tls,
+            tls_fingerprint=device.tls_fingerprint,
         )
         state = await collect_and_store(session, device, client, now=datetime.now(timezone.utc))
         await evaluate_alerts(session, device, state)
@@ -75,6 +76,7 @@ async def ingest_device_events(ctx: dict, device_id: str) -> int:
             crypto.decrypt(device.api_key_enc),
             crypto.decrypt(device.api_secret_enc),
             verify_tls=device.verify_tls,
+            tls_fingerprint=device.tls_fingerprint,
         )
         n = await ingest_events(session, device, client, now=datetime.now(timezone.utc))
         await session.commit()
@@ -104,6 +106,7 @@ async def backup_device_config(ctx: dict, device_id: str) -> bool:
             crypto.decrypt(device.api_key_enc),
             crypto.decrypt(device.api_secret_enc),
             verify_tls=device.verify_tls,
+            tls_fingerprint=device.tls_fingerprint,
         )
         created = await backup_config(session, device, client)
         await session.commit()
@@ -128,6 +131,7 @@ async def apply_config_change(ctx: dict, change_id: str) -> str:
             crypto.decrypt(device.api_key_enc),
             crypto.decrypt(device.api_secret_enc),
             verify_tls=device.verify_tls,
+            tls_fingerprint=device.tls_fingerprint,
         )
         status = await apply_change(
             session, change, client, now=datetime.now(timezone.utc)

@@ -133,6 +133,19 @@ Add `import ssl` and `import asyncio` at the top of `client.py` if not present. 
 
 ---
 
+## Technical debt (SEC-2)
+
+### 1. Extra TLS handshake per request (pre-flight cost)
+The connector builds a new `httpx.AsyncClient` for every request, and when a fingerprint is pinned it also opens a raw `asyncio` TLS connection to retrieve the peer cert — meaning **two** TLS handshakes occur for every API call. This is a known architectural debt: a verify-once / session-cache approach (connect once, record the fingerprint, reuse the connection or a short-lived cache keyed on `(host, ip, port)`) would cut the per-request overhead to ~zero. Deferred to a later optimisation milestone.
+
+### 2. Fingerprint provisioning UX (TOFU capture)
+Operators have no ergonomic way to obtain the SHA-256 fingerprint of a self-signed device cert in order to pin it. The test-connection endpoint currently returns only `{status, firmware_version, error}`. The immediate follow-up is to **display the observed fingerprint in the test-connection response** when `verify_tls=False` and no fingerprint is currently stored, so operators can copy it and set it via a PATCH — or alternatively implement a Trust-On-First-Use (TOFU) capture that stores the first-seen fingerprint automatically and prompts for confirmation. Without this UX, the pinning feature is difficult to use in practice.
+
+### 3. No test-connection validation of fingerprint format
+The `tls_fingerprint` field is accepted as a free-form string; `normalize_fingerprint` handles several formats at verify time, but there is no up-front schema validation (regex/length check) in the Pydantic schema. A well-formed SHA-256 hex or `sha256:` prefixed string can be enforced at ingest time to give operators a clear error on typos.
+
+---
+
 ## Definition of "Done" (SEC-2)
 - `verify_tls=False` + a pinned fingerprint → the connector verifies the device cert before sending creds
   and aborts (sanitized) on mismatch; `verify_tls=False` + no fingerprint → still accepts self-signed;

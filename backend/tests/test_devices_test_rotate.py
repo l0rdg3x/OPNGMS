@@ -51,6 +51,56 @@ async def test_test_connection_endpoint(api_client, db_engine):
     assert resp.json()["firmware_version"] == "24.7"
 
 
+async def test_test_connection_threads_fingerprint(api_client, db_engine):
+    """The test-connection endpoint must forward device.tls_fingerprint to the prober."""
+    from app.main import app
+    from app.services.onboarding import ProbeResult, get_prober
+
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        t = await make_tenant(s, slug="acme2")
+        admin = await make_user(s, email="tb@x.io", password="pw12345")
+        await make_membership(s, user_id=admin.id, tenant_id=t.id, role="tenant_admin")
+        await s.commit()
+        tenant_id = t.id
+
+    captured: dict = {}
+
+    async def _capturing_prober(*a, **k):
+        captured.update(k)
+        return ProbeResult(reachable=True, firmware_version="24.7", error=None)
+
+    app.dependency_overrides[get_prober] = lambda: _capturing_prober
+    await api_client.post("/api/login", json={"email": "tb@x.io", "password": "pw12345"})
+
+    # Create device with a tls_fingerprint and verify_tls=False
+    fp = "aa" * 32  # 64 hex chars = valid SHA-256 fingerprint
+    r = await api_client.post(
+        f"/api/tenants/{tenant_id}/devices",
+        json={
+            "name": "pinned-fw",
+            "base_url": "https://fw2",
+            "api_key": "k0",
+            "api_secret": "s0",
+            "verify_tls": False,
+            "tls_fingerprint": fp,
+        },
+        headers=CSRF,
+    )
+    assert r.status_code == 201
+    device_id = r.json()["id"]
+    captured.clear()
+
+    resp = await api_client.post(
+        f"/api/tenants/{tenant_id}/devices/{device_id}/test-connection", headers=CSRF
+    )
+    assert resp.status_code == 200
+    assert captured.get("tls_fingerprint") == fp, (
+        f"prober received tls_fingerprint={captured.get('tls_fingerprint')!r}, expected {fp!r}"
+    )
+    assert captured.get("verify_tls") is False
+
+
 async def test_rotate_secret_changes_ciphertext(api_client, db_engine):
     from app.core import crypto
 

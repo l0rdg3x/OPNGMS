@@ -137,6 +137,7 @@ async def config_capabilities(
                 crypto.decrypt(device.api_key_enc),
                 crypto.decrypt(device.api_secret_enc),
                 verify_tls=device.verify_tls,
+                tls_fingerprint=device.tls_fingerprint,
             )
             plugin_info = await client.get_plugin_info()
         except (OpnsenseError, InvalidToken):
