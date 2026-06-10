@@ -1,14 +1,17 @@
 import { Button, Group, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useT } from "../i18n";
+import { ConfirmModal } from "./ConfirmModal";
 
 export function DeviceActions({ tenantId, deviceId }: { tenantId: string; deviceId: string }) {
   const t = useT();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const pathParams = { params: { path: { tenant_id: tenantId, device_id: deviceId } } } as const;
 
   const test = useMutation({
@@ -46,9 +49,31 @@ export function DeviceActions({ tenantId, deviceId }: { tenantId: string; device
   return (
     <>
       <Group mt="md">
-        <Button onClick={() => test.mutate()} loading={test.isPending}>{t.deviceActions.testConnection}</Button>
-        <Button color="red" variant="light" onClick={() => remove.mutate()}>{t.deviceActions.delete}</Button>
+        <Button onClick={() => test.mutate()} loading={test.isPending}>
+          {t.deviceActions.testConnection}
+        </Button>
+        <Button
+          color="red"
+          variant="light"
+          onClick={() => setConfirmOpen(true)}
+          data-testid="btn-delete"
+        >
+          {t.deviceActions.delete}
+        </Button>
       </Group>
+
+      <ConfirmModal
+        opened={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          remove.mutate();
+        }}
+        title={t.confirm.deleteDevice}
+        body={t.confirm.deleteDeviceBody}
+        loading={remove.isPending}
+      />
+
       {test.data && (
         <Text data-testid="test-result">
           {t.deviceActions.testResult}: {test.data.status}
