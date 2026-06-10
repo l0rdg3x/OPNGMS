@@ -73,16 +73,21 @@ def line_chart(
     parts.append(f'<line x1="{x0}" y1="{_MT}" x2="{x0}" y2="{y0}" stroke="#999" stroke-width="1" />')
     parts.append(f'<line x1="{x0}" y1="{y0}" x2="{x0 + plot_w}" y2="{y0}" stroke="#999" stroke-width="1" />')
 
-    # X tick labels (thin to ~6 to avoid crowding; always label the last point).
+    # X tick labels (thin to ~6 to avoid crowding; always label the last point). Anchor the first
+    # label at its left and the last at its right so they don't bleed over the Y labels / past the
+    # right edge; suppress a penultimate label that would collide with the last.
     max_labels = 6
     every = max(1, (n + max_labels - 1) // max_labels)
     for i, (lab, _v) in enumerate(points):
         if i % every != 0 and i != n - 1:
             continue
+        if i != n - 1 and (n - 1 - i) < every:
+            continue  # too close to the always-shown last label
+        anchor = "start" if i == 0 else ("end" if i == n - 1 else "middle")
         x = x0 + i * step
         parts.append(
             f'<text x="{x:.1f}" y="{y0 + 12}" font-size="7" fill="#666" '
-            f'text-anchor="middle">{escape(lab)}</text>'
+            f'text-anchor="{anchor}">{escape(lab)}</text>'
         )
 
     # Data polyline + point markers.
