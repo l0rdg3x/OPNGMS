@@ -152,8 +152,8 @@ async def build_context(
             [(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in tl],
             width=520,
             height=140,
-            y_label="Attempts",
-            x_label="Time",
+            y_label=t.axis_attempts,
+            x_label=t.axis_time,
             empty_text=t.no_data,
         )
         top_attempts = await aggregator.top(field="name", frm=frm, to=to, device_id=dev.id)
@@ -162,21 +162,21 @@ async def build_context(
         attacks = AttacksBlock(
             timeline_svg=svg,
             tables=[
-                RankedTable("Top Attempts", ("Signature", "Count"), [(r.value, r.count) for r in top_attempts]),
-                RankedTable("Top Targets", ("Target", "Count"), [(r.value, r.count) for r in top_targets]),
-                RankedTable("Top Initiators", ("Initiator", "Count"), [(r.value, r.count) for r in top_initiators]),
+                RankedTable(t.t_top_attempts, (t.col_signature, t.col_count), [(r.value, r.count) for r in top_attempts]),
+                RankedTable(t.t_top_targets, (t.col_target, t.col_count), [(r.value, r.count) for r in top_targets]),
+                RankedTable(t.t_top_initiators, (t.col_initiator, t.col_count), [(r.value, r.count) for r in top_initiators]),
             ],
         )
 
         # --- Web Activity (DNS) ---
         dns_tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="dns", device_id=dev.id)
         web = WebActivityBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140, y_label="DNS lookups", x_label="Time", empty_text=t.no_data),
-            top_sites=RankedTable("Top Sites", ("Site", "Hits"),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140, y_label=t.axis_dns, x_label=t.axis_time, empty_text=t.no_data),
+            top_sites=RankedTable(t.t_top_sites, (t.col_site, t.col_hits),
                                   [(r.value, r.count) for r in await aggregator.top(field="name", source="dns", frm=frm, to=to, device_id=dev.id)]),
-            top_initiators=RankedTable("Top Initiators", ("Initiator", "Hits"),
+            top_initiators=RankedTable(t.t_top_initiators, (t.col_initiator, t.col_hits),
                                        [(r.value, r.count) for r in await aggregator.top(field="src_ip", source="dns", frm=frm, to=to, device_id=dev.id)]),
-            top_blocked=RankedTable("Top Blocked", ("Domain", "Blocks"),
+            top_blocked=RankedTable(t.t_top_blocked, (t.col_domain, t.col_blocks),
                                     [(r.value, r.count) for r in await aggregator.top_blocked_domains(frm=frm, to=to, device_id=dev.id)]),
         )
 
@@ -184,20 +184,22 @@ async def build_context(
         bw_tl = await aggregator.bandwidth_timeline(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         tin, tout = await aggregator.bandwidth_totals(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         bandwidth = BandwidthBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140, y_label="Data / period", x_label="Time", y_format=human_bytes, empty_text=t.no_data),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140, y_label=t.axis_data, x_label=t.axis_time, y_format=human_bytes, empty_text=t.no_data),
             total_in=human_bytes(tin), total_out=human_bytes(tout),
         )
 
         # --- Up/Down status ---
         av_series, uptime = await aggregator.availability_series(frm=frm, to=to, bucket=bucket, device_id=dev.id)
+        def _ud(v: float) -> str:  # locale-aware updown formatter (closes over t)
+            return t.status_up if v >= 0.99 else (t.status_down if v <= 0.01 else "")
         status = StatusBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80, y_label="Status", x_label="Time", y_format=_updown_fmt, empty_text=t.no_data),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80, y_label=t.axis_status, x_label=t.axis_time, y_format=_ud, empty_text=t.no_data),
             uptime_pct=round(uptime, 1),
         )
 
         # --- Applications + Web Filter (deterministic MOCK; labeled as sample data in the template) ---
-        applications = applications_block(dev.name)
-        web_filter = web_filter_block(dev.name)
+        applications = applications_block(dev.name, t)
+        web_filter = web_filter_block(dev.name, t)
 
         sections.append(DeviceSection(
             device_name=dev.name, attacks=attacks, web=web, bandwidth=bandwidth, status=status,
