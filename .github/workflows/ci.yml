@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend ──────────────────────────────────────────────────────────────────
+  # Runs the full pytest suite against a live TimescaleDB instance.
+  # WeasyPrint system libs (pango/cairo) are installed to match the Dockerfile.
+  backend:
+    name: Backend tests (Python 3.14 + TimescaleDB)
+    runs-on: ubuntu-latest
+
+    services:
+      timescaledb:
+        image: timescale/timescaledb:2.17.2-pg16
+        env:
+          POSTGRES_USER: opngms
+          POSTGRES_PASSWORD: opngms
+          POSTGRES_DB: opngms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opngms -d opngms_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test
+      ADMIN_DATABASE_URL: postgresql+asyncpg://opngms:opngms@localhost:5432/opngms_test
+      SESSION_SECRET: ci-secret
+      # Valid 32-byte urlsafe-base64 Fernet key (generated for CI; not used in prod)
+      MASTER_KEY: "LafHffA5c4feuY3PFgnzdCjCE6Z3uEKhbZOgyS_x81o="
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # WeasyPrint runtime dependencies — matches the backend Dockerfile exactly.
+      - name: Install WeasyPrint system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 \
+            libpangocairo-1.0-0 \
+            libcairo2 \
+            libgdk-pixbuf-2.0-0 \
+            libffi8 \
+            shared-mime-info \
+            fonts-dejavu-core
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install backend dependencies + pip-audit
+        run: |
+          pip install --upgrade pip
+          pip install -e backend[dev] pip-audit
+
+      - name: Run pytest
+        run: cd backend && python -m pytest -q
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  # Installs Node 20, runs tests, build, and lint for the React/Vite frontend.
+  frontend:
+    name: Frontend (Node 20 — test, build, lint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: cd frontend && npm ci --legacy-peer-deps
+
+      - name: Test
+        run: cd frontend && npm test
+
+      - name: Build
+        run: cd frontend && npm run build
+
+      - name: Lint
+        run: cd frontend && npm run lint
+
+  # ── Dependency audit ─────────────────────────────────────────────────────────
+  # Runs scripts/security_audit.sh: pip-audit (backend) + npm audit (frontend).
+  # Fails the workflow if any real app-dependency vulnerability is found.
+  audit:
+    name: Dependency audit (pip-audit + npm audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Install backend deps so pip-audit can inspect the resolved dependency tree.
+      - name: Install backend dependencies
+        run: pip install -e backend[dev]
+
+      # Install frontend deps so npm audit has the full lockfile context.
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci --legacy-peer-deps
+
+      - name: Run security audit
+        run: bash scripts/security_audit.sh

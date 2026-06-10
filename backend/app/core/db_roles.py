@@ -6,10 +6,15 @@ owner/superuser. Single source used both by migration 0003 and by the tests'
 conftest.
 """
 
+import os
+
 APP_ROLE = "opngms_app"
-# MVP/local: in production change it with `ALTER ROLE opngms_app PASSWORD '...'`
-# AND UPDATE DATABASE_URL accordingly (the app connects with these credentials).
-APP_ROLE_PASSWORD = "opngms_app"
+# Password read from env so production can inject a strong secret without code changes.
+# The dev/test default is preserved when the env var is absent.
+# In production: set APP_ROLE_PASSWORD to a strong random value in your .env (no single
+# quotes — the value is interpolated directly into SQL DDL) and ensure DATABASE_URL uses
+# the same password.
+APP_ROLE_PASSWORD = os.getenv("APP_ROLE_PASSWORD", "opngms_app")
 
 
 def create_app_role_statements() -> list[str]:

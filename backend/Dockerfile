@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Upgrade pip first to close the pip-audit finding (pip 26.1.1 → ≥26.1.2).
+RUN pip install --no-cache-dir --upgrade pip
+
 # Install the package (non-editable). Dependencies (uvicorn, arq, alembic, weasyprint, …) come from pyproject.
 COPY pyproject.toml ./
 COPY app ./app
