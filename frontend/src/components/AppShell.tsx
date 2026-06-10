@@ -1,19 +1,22 @@
-import { AppShell as MantineAppShell, Button, Group, NavLink, Text } from "@mantine/core";
+import { AppShell as MantineAppShell, Button, Group, Loader, NavLink, Text } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { NavLink as RouterNavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { useT } from "../i18n";
 import { TenantProvider } from "../tenant/TenantProvider";
 import { useTenant } from "../tenant/useTenant";
-import { OverviewPage } from "../pages/OverviewPage";
-import { AlertsPage } from "../pages/AlertsPage";
-import { DevicesPage } from "../pages/DevicesPage";
-import { DeviceDetailPage } from "../pages/DeviceDetailPage";
-import { ReportSettingsPage } from "../pages/ReportSettingsPage";
-import { ReportsPage } from "../pages/ReportsPage";
-import { SessionsPage } from "../security/SessionsPage";
 import { TenantSwitcher } from "./TenantSwitcher";
+
+// Heavy inner pages are lazy-loaded to split the initial JS bundle.
+const OverviewPage = lazy(() => import("../pages/OverviewPage").then((m) => ({ default: m.OverviewPage })));
+const AlertsPage = lazy(() => import("../pages/AlertsPage").then((m) => ({ default: m.AlertsPage })));
+const DevicesPage = lazy(() => import("../pages/DevicesPage").then((m) => ({ default: m.DevicesPage })));
+const DeviceDetailPage = lazy(() => import("../pages/DeviceDetailPage").then((m) => ({ default: m.DeviceDetailPage })));
+const ReportsPage = lazy(() => import("../pages/ReportsPage").then((m) => ({ default: m.ReportsPage })));
+const ReportSettingsPage = lazy(() => import("../pages/ReportSettingsPage").then((m) => ({ default: m.ReportSettingsPage })));
+const SessionsPage = lazy(() => import("../security/SessionsPage").then((m) => ({ default: m.SessionsPage })));
 
 function AppShellNav() {
   const t = useT();
@@ -65,15 +68,17 @@ export function AppShell() {
           <AppShellNav />
         </MantineAppShell.Navbar>
         <MantineAppShell.Main>
-          <Routes>
-            <Route path="/" element={<OverviewPage />} />
-            <Route path="/devices" element={<DevicesPage />} />
-            <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
-            <Route path="/alerts" element={<AlertsPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/reports/settings" element={<ReportSettingsPage />} />
-            <Route path="/security/sessions" element={<SessionsPage />} />
-          </Routes>
+          <Suspense fallback={<Loader />}>
+            <Routes>
+              <Route path="/" element={<OverviewPage />} />
+              <Route path="/devices" element={<DevicesPage />} />
+              <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
+              <Route path="/alerts" element={<AlertsPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/reports/settings" element={<ReportSettingsPage />} />
+              <Route path="/security/sessions" element={<SessionsPage />} />
+            </Routes>
+          </Suspense>
         </MantineAppShell.Main>
       </MantineAppShell>
     </TenantProvider>
