@@ -195,9 +195,12 @@ The app is then served at `http://localhost/`. Notes:
 - **TLS certificate pinning (SEC-2):** opt-in per device — when a `tls_fingerprint` is set, the connector
   verifies the device's leaf-cert SHA-256 **before sending credentials** (MITM-resistant even with a
   self-signed cert). With no fingerprint, `verify_tls=false` stays permissive (self-signed accepted).
-- **Auth:** server-side sessions + CSRF header on mutations; argon2 password hashing; 4-role RBAC
-  (superadmin + tenant_admin/operator/read_only); **login rate-limiting** (lockout after N failures) +
-  failed-login auditing.
+- **Auth & sessions (SEC-3):** server-side sessions with **opaque tokens stored only as a SHA-256
+  hash** (a DB dump yields no usable sessions); **idle + absolute expiry**; **session rotation** on
+  login; **"log out everywhere"** + an active-sessions view; an hourly cron reaps expired/idle rows.
+  **Per-session CSRF token** validated (constant-time) on every mutation. argon2 password hashing;
+  4-role RBAC (superadmin + tenant_admin/operator/read_only); **login rate-limiting** (lockout after
+  N failures, fails closed) + failed-login auditing.
 - **Web hardening (SEC-1):** security response headers (CSP, HSTS, X-Frame-Options DENY, nosniff,
   Referrer-Policy, Permissions-Policy) on the API and the nginx SPA; **CORS closed by default**
   (opt-in via `cors_allow_origins`); the app-role DB password is env-configurable (`APP_ROLE_PASSWORD`).
@@ -219,7 +222,8 @@ The app is then served at `http://localhost/`. Notes:
 | **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS ✅ · 3C query API ✅ | ✅ Done |
 | **4 — Config management** | Versioned, encrypted config backup + drift detection (schema-agnostic, RLS). 4A backup+drift ✅ · 4B config model + capability ✅ · 4C firewall-aware UI ✅ · 4D edit + push (4D-a pipeline ✅, dry-run · 4D-c editing UI ✅) | 🔄 In progress (4A–4C, 4D-a, 4D-c ✅) |
 | **5 — PDF reporting** | Per-customer white-label PDF reports (attacks, sites visited, bandwidth). 5A reporting engine (WeasyPrint + Jinja2 + SVG charts, tenant-scoped aggregation, on-demand generate API, Attacks section) · 5B Web Activity (DNS) + Data Usage (bandwidth) + Up/Down status, per-firewall · 5C Applications + Web Filter (labeled sample data) with threat-level color coding · 5D per-tenant white-label config (title/owner/timezone + logo upload, settings UI) · 5E scheduled reports (weekly ARQ cron) + stored history + on-demand generate/download UI · 5F readability (labelled chart axes + units + plain-language section explanations for non-technical customers) · 5G weekly cadence + server-side report i18n (every string translatable, en fallback) · 5H per-tenant report language + full translations (en/it/es/fr/de/pt/nl) | ✅ Done |
-| **Deploy** | Production Dockerfiles (backend + WeasyPrint, frontend + nginx) + `docker-compose.prod.yml` for the whole stack (db, redis, migrate, api, worker, frontend) | ✅ Done |
+| **Deploy** | Production Dockerfiles (backend + WeasyPrint, frontend + nginx) + `docker-compose.prod.yml` for the whole stack (db, redis, migrate, api, worker, frontend); **reverse-proxy aware** (uvicorn proxy-headers + nginx X-Forwarded-*) | ✅ Done |
+| **Hardening** | SEC-1 web hardening (security headers/CORS, login rate-limit, vuln test suite + CI) · SEC-2 TLS fingerprint pinning · SEC-3 session lifecycle (SHA-256-hashed tokens, idle + absolute expiry, rotation, per-session CSRF, logout-all + active-sessions view, hourly cleanup cron) · GitHub security workflows (CodeQL, Dependabot, Trivy image scan, gitleaks, scheduled audit) · branch protection on `main` | ✅ Done |
 
 Design specs and implementation plans for each milestone live in
 [`docs/superpowers/`](docs/superpowers/).
