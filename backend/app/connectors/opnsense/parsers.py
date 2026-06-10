@@ -78,3 +78,51 @@ def parse_system_info(resources: dict, disk: dict, time: dict, cputype) -> dict:
         "disk_pct": disk_pct,
         "uptime_seconds": uptime_seconds,
     }
+
+
+def parse_interfaces(traffic: dict) -> list[dict]:
+    """diagnostics/traffic/interface -> [{name, up, bytes_in, bytes_out}].
+
+    `link state` is the FreeBSD enum (0=unknown, 1=down, 2=up); only "2" is up.
+    """
+    out = []
+    for v in (traffic or {}).get("interfaces", {}).values():
+        out.append({
+            "name": v.get("name", ""),
+            "up": str(v.get("link state")) == "2",
+            "bytes_in": num(v.get("bytes received")),
+            "bytes_out": num(v.get("bytes transmitted")),
+        })
+    return out
+
+
+def parse_gateways(data: dict) -> list[dict]:
+    """routes/gateway/status -> [{name, up, rtt_ms, loss_pct}]. '~'/units handled by num()."""
+    out = []
+    for g in (data or {}).get("items", []) or []:
+        status = str(g.get("status", "")).lower()
+        out.append({
+            "name": g.get("name", ""),
+            "up": status not in ("down", "force_down"),
+            "rtt_ms": num(g.get("delay")),
+            "loss_pct": num(g.get("loss")),
+        })
+    return out
+
+
+def _truthy(v) -> bool:
+    return v is True or str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
+def parse_vpn(data: dict) -> list[dict]:
+    """wireguard/service/show -> [{name, up}]. Envelope key is `rows` (not `tunnels`)."""
+    out = []
+    for row in (data or {}).get("rows", []) or []:
+        name = row.get("name") or row.get("instance") or row.get("if", "")
+        if "connected" in row:
+            up = _truthy(row.get("connected"))
+        else:
+            hs = str(row.get("latest-handshake", "")).strip()
+            up = bool(hs) and hs != "0"
+        out.append({"name": name, "up": up})
+    return out

@@ -199,53 +199,19 @@ class OpnsenseClient:
         return float(m.group()) if m else 0.0
 
     async def get_interfaces(self) -> list[dict]:
-        """Per-network-interface statistics.
-
-        NOTE: the `diagnostics/interface/getInterfaceStatistics` endpoint and the
-        bytes_received/bytes_transmitted fields are TO BE VERIFIED against a real OPNsense.
-        """
-        data = await self._get("diagnostics/interface/getInterfaceStatistics")
-        out = []
-        for it in data.get("interfaces", []):
-            out.append({
-                "name": it.get("name", ""),
-                "up": it.get("status") == "up",
-                "bytes_in": self._num(it.get("bytes_received")),
-                "bytes_out": self._num(it.get("bytes_transmitted")),
-            })
-        return out
+        """Per-interface bytes + up flag (diagnostics/traffic/interface)."""
+        data = await self._get("diagnostics/traffic/interface")
+        return parsers.parse_interfaces(data)
 
     async def get_gateways(self) -> list[dict]:
-        """Gateway status (RTT, packet-loss).
-
-        NOTE: the `routes/gateway/status` endpoint, the `items` key, and the
-        delay/loss fields (with " ms"/" %" units) are TO BE VERIFIED against a real OPNsense.
-        A gateway is down only if status is in {"down", "force_down"}.
-        """
+        """Gateway RTT / packet-loss / up (routes/gateway/status)."""
         data = await self._get("routes/gateway/status")
-        out = []
-        for g in data.get("items", []):
-            status = str(g.get("status", "")).lower()
-            out.append({
-                "name": g.get("name", ""),
-                "up": status not in ("down", "force_down"),
-                "rtt_ms": self._num(g.get("delay")),
-                "loss_pct": self._num(g.get("loss")),
-            })
-        return out
+        return parsers.parse_gateways(data)
 
     async def get_vpn_status(self) -> list[dict]:
-        """WireGuard tunnel status.
-
-        NOTE: the `wireguard/service/show` endpoint and the `tunnels` key with the
-        `connected` field are TO BE VERIFIED against a real OPNsense. OpenVPN uses a
-        different endpoint (not yet implemented).
-        """
+        """WireGuard tunnel/peer status (wireguard/service/show; envelope key `rows`)."""
         data = await self._get("wireguard/service/show")
-        return [
-            {"name": t.get("name", ""), "up": bool(t.get("connected"))}
-            for t in data.get("tunnels", [])
-        ]
+        return parsers.parse_vpn(data)
 
     async def get_ids_alerts(self, since: datetime | None = None) -> list[dict]:
         """Normalized Suricata IDS/IPS alerts.

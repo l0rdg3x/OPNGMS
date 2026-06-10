@@ -39,3 +39,30 @@ def test_parse_system_info_against_real_fixtures():
     assert info["disk_pct"] == 1.0       # used_pct of mountpoint "/"
     assert info["uptime_seconds"] == 674  # 00:11:14
     assert info["cpu_pct"] == 6.0        # load1m 0.12 / 2 cores * 100
+
+
+def test_parse_interfaces_link_state_up():
+    out = parsers.parse_interfaces(load("traffic_interface.json"))
+    by = {i["name"]: i for i in out}
+    assert by["WAN"]["up"] is True        # link state "2"
+    assert by["WAN"]["bytes_in"] == 394684.0
+    assert by["WAN"]["bytes_out"] == 5116981.0
+    assert by["LAN"]["up"] is False       # link state "0" (unknown / no carrier)
+
+
+def test_parse_gateways_tilde_and_status():
+    out = parsers.parse_gateways(load("gateway_status.json"))
+    by = {g["name"]: g for g in out}
+    assert by["WAN_DHCP"]["up"] is True   # status "none" is up
+    assert by["WAN_DHCP"]["rtt_ms"] == 0.0   # "~" -> 0.0
+    assert by["WAN_DHCP"]["loss_pct"] == 0.0
+    # a down gateway:
+    down = parsers.parse_gateways({"items": [
+        {"name": "G2", "status": "down", "delay": "12.3 ms", "loss": "100.0 %"}]})
+    assert down[0]["up"] is False and down[0]["rtt_ms"] == 12.3 and down[0]["loss_pct"] == 100.0
+
+
+def test_parse_vpn_reads_rows():
+    assert parsers.parse_vpn(load("wireguard_show_empty.json")) == []
+    out = parsers.parse_vpn(load("wireguard_show.json"))
+    assert out == [{"name": "wg0 (peer1)", "up": True}]
