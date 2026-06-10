@@ -1,8 +1,34 @@
-FROM python:3.12-slim
+# OPNGMS backend image — used for three services (api / worker / migrate), differing only by command.
+# Pinned to 3.14 to match the development/test runtime (the code relies on PEP 649 deferred annotation
+# evaluation, the default in 3.14; on 3.12 an eagerly-evaluated annotation like `-> list[EventTopRow]`
+# clashes with the `list` method on EventRepository).
+FROM python:3.14-slim
+
+# WeasyPrint runtime dependencies (pango/cairo/gdk-pixbuf) for PDF report rendering (Phase 5).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 \
+        libpangocairo-1.0-0 \
+        libcairo2 \
+        libgdk-pixbuf-2.0-0 \
+        libffi8 \
+        shared-mime-info \
+        fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
+# Install the package (non-editable). Dependencies (uvicorn, arq, alembic, weasyprint, …) come from pyproject.
 COPY pyproject.toml ./
 COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini ./
-RUN pip install --no-cache-dir -e .
-CMD ["arq", "app.worker.WorkerSettings"]
+RUN pip install --no-cache-dir .
+
+# Run as a non-root user (defense-in-depth).
+RUN useradd --create-home --uid 10001 opngms && chown -R opngms:opngms /app
+USER opngms
+
+EXPOSE 8000
+
+# Default command = the API. The worker and migrate services override this in compose.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
