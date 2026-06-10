@@ -66,6 +66,56 @@
     <p class="summary">Uptime: {{ section.status.uptime_pct }}%</p>
     {% endif %}
 
+    {% if section.applications %}
+    <h3>Applications</h3>
+    <p class="sample-note">Sample data — application visibility not yet ingested.</p>
+    <div class="chart">{{ Markup(section.applications.timeline_svg) }}</div>
+    {% for tbl in [section.applications.top_detected, section.applications.top_blocked, section.applications.top_categories] %}
+    <table class="ranked">
+      <caption>{{ tbl.title }}</caption>
+      <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th><th>Threat</th></tr></thead>
+      <tbody>
+        {% for row in tbl.rows %}
+        <tr><td>{{ row.label }}</td><td>{{ row.count }}</td>
+            <td><span class="threat threat-{{ row.level }}">{{ row.level }}</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endfor %}
+    <table class="ranked">
+      <caption>{{ section.applications.top_initiators.title }}</caption>
+      <thead><tr><th>{{ section.applications.top_initiators.columns[0] }}</th><th>{{ section.applications.top_initiators.columns[1] }}</th></tr></thead>
+      <tbody>
+        {% for value, count in section.applications.top_initiators.rows %}<tr><td>{{ value }}</td><td>{{ count }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if section.web_filter %}
+    <h3>Web Filter</h3>
+    <p class="sample-note">Sample data — content categorization not yet ingested.</p>
+    <div class="chart">{{ Markup(section.web_filter.timeline_svg) }}</div>
+    <table class="ranked">
+      <caption>{{ section.web_filter.top_categories.title }}</caption>
+      <thead><tr><th>{{ section.web_filter.top_categories.columns[0] }}</th><th>{{ section.web_filter.top_categories.columns[1] }}</th><th>Threat</th></tr></thead>
+      <tbody>
+        {% for row in section.web_filter.top_categories.rows %}
+        <tr><td>{{ row.label }}</td><td>{{ row.count }}</td>
+            <td><span class="threat threat-{{ row.level }}">{{ row.level }}</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% for tbl in [section.web_filter.top_sites, section.web_filter.top_initiators] %}
+    <table class="ranked">
+      <caption>{{ tbl.title }}</caption>
+      <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th></tr></thead>
+      <tbody>
+        {% for value, count in tbl.rows %}<tr><td>{{ value }}</td><td>{{ count }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endfor %}
+    {% endif %}
+
   </section>
   {% endfor %}
 </body>

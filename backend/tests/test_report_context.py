@@ -50,6 +50,31 @@ async def test_build_context_includes_attacks_section(db_engine):
     assert "<svg" in html                # timeline chart embedded
 
 
+async def test_build_context_includes_applications_and_web_filter(db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        t = await make_tenant(s, slug="acme")
+        await s.commit()
+        tid = t.id
+    from sqlalchemy import text
+    did = uuid.uuid4()
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        await s.execute(text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                             "VALUES (:id,:t,'fw-edge','https://x',''::bytea,''::bytea,true,'reachable','{}')"), {"id": did, "t": tid})
+        await s.commit()
+    async with factory() as s:
+        agg = ReportAggregator(s, tid)
+        ctx = await build_context(agg, tenant_name="Acme", timezone_name="UTC", owner=None,
+                                  frm=base - timedelta(hours=1), to=base + timedelta(hours=1))
+    sec = ctx.sections[0]
+    assert sec.applications is not None and sec.web_filter is not None
+    html = render_html(ctx)
+    assert "Applications" in html and "Web Filter" in html
+    assert "Sample data" in html                 # honesty caption
+    assert "threat-high" in html or "threat-low" in html or "threat-guarded" in html
+
+
 async def test_build_context_includes_web_bandwidth_status(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:

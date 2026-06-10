@@ -112,6 +112,7 @@ from datetime import timezone as _tz  # noqa: E402
 
 from app.services.reporting.aggregation import ReportAggregator, pick_bucket  # noqa: E402
 from app.services.reporting.charts import line_chart  # noqa: E402
+from app.services.reporting.mock_sections import applications_block, web_filter_block  # noqa: E402
 
 
 async def build_context(
@@ -174,7 +175,14 @@ async def build_context(
             uptime_pct=round(uptime, 1),
         )
 
-        sections.append(DeviceSection(device_name=dev.name, attacks=attacks, web=web, bandwidth=bandwidth, status=status))
+        # --- Applications + Web Filter (deterministic MOCK; labeled as sample data in the template) ---
+        applications = applications_block(dev.name)
+        web_filter = web_filter_block(dev.name)
+
+        sections.append(DeviceSection(
+            device_name=dev.name, attacks=attacks, web=web, bandwidth=bandwidth, status=status,
+            applications=applications, web_filter=web_filter,
+        ))
 
     return ReportContext(
         tenant_name=tenant_name,
