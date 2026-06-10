@@ -68,10 +68,11 @@ class ReportService:
         self.session = session
         self.tenant_id = tenant_id
 
-    async def build_html(self, *, tenant_name: str, frm: datetime, to: datetime, locale: str = "en") -> str:
+    async def build_html(self, *, tenant_name: str, frm: datetime, to: datetime, locale: str | None = None) -> str:
         frm, to = _ensure_utc(frm), _ensure_utc(to)
         _validate_range(frm, to)
         settings = await ReportSettingsRepository(self.session, self.tenant_id).get_or_default()
+        effective = locale or settings.language or "en"
         ctx_logo = logo_data_uri(settings.logo, settings.logo_mime)
         agg = ReportAggregator(self.session, self.tenant_id)
         ctx = await build_context(
@@ -83,10 +84,10 @@ class ReportService:
             to=to,
             title=settings.title,
             logo_data_uri=ctx_logo,
-            locale=locale,
+            locale=effective,
         )
         return render_html(ctx)
 
-    async def build_report(self, *, tenant_name: str, frm: datetime, to: datetime, locale: str = "en") -> bytes:
+    async def build_report(self, *, tenant_name: str, frm: datetime, to: datetime, locale: str | None = None) -> bytes:
         html = await self.build_html(tenant_name=tenant_name, frm=frm, to=to, locale=locale)
         return html_to_pdf(html)

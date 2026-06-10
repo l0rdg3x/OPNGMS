@@ -28,14 +28,16 @@ class ReportSettingsRepository:
             title="Security & Activity Report",
             owner="",
             timezone="UTC",
+            language="en",
         )
 
-    async def upsert(self, *, title: str, owner: str, timezone: str) -> ReportSettings:
+    async def upsert(self, *, title: str, owner: str, timezone: str, language: str = "en") -> ReportSettings:
         row = await self.get()
         if row is None:
             row = ReportSettings(tenant_id=self.tenant_id)
             self.session.add(row)
         row.title, row.owner, row.timezone = title, owner, timezone
+        row.language = language
         await self.session.flush()
         return row
 

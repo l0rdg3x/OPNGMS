@@ -10,8 +10,9 @@ from app.repositories.generated_report import GeneratedReportRepository
 from app.repositories.report_settings import ReportSettingsRepository
 from app.schemas.generated_report import GeneratedReportOut
 from app.schemas.report import ReportRequest
-from app.schemas.report_settings import ReportSettingsIn, ReportSettingsOut
+from app.schemas.report_settings import ReportLanguageOut, ReportSettingsIn, ReportSettingsOut
 from app.services.audit import AuditService
+from app.services.reporting.i18n import REPORT_LOCALES, available_locales
 from app.services.reporting.service import (
     MAX_LOGO_BYTES,
     ReportRangeError,
@@ -29,6 +30,7 @@ def _settings_to_out(settings) -> ReportSettingsOut:
         timezone=settings.timezone,
         has_logo=settings.logo is not None,
         logo_mime=settings.logo_mime,
+        language=settings.language,
     )
 
 
@@ -110,6 +112,14 @@ async def download_generated_report(
     )
 
 
+@router.get("/reports/languages", response_model=list[ReportLanguageOut])
+async def get_report_languages(
+    tenant_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+) -> list[ReportLanguageOut]:
+    return [ReportLanguageOut(code=c, name=n) for c, n in available_locales()]
+
+
 @router.get("/reports/settings")
 async def get_report_settings(
     tenant_id: uuid.UUID,
@@ -129,8 +139,12 @@ async def update_report_settings(
     ctx: TenantContext = Depends(require_tenant(Action.REPORT_CONFIG)),
     session: AsyncSession = Depends(get_session),
 ) -> ReportSettingsOut:
+    if body.language not in REPORT_LOCALES:
+        raise HTTPException(status_code=400, detail="unsupported language")
     repo = ReportSettingsRepository(session, tenant_id)
-    settings = await repo.upsert(title=body.title, owner=body.owner, timezone=body.timezone)
+    settings = await repo.upsert(
+        title=body.title, owner=body.owner, timezone=body.timezone, language=body.language
+    )
     await AuditService(session).record(
         actor_user_id=ctx.user.id,
         tenant_id=tenant_id,
@@ -138,7 +152,12 @@ async def update_report_settings(
         target_type="report_settings",
         target_id=str(tenant_id),
         ip=request.client.host if request.client else None,
-        details={"title": body.title, "owner": body.owner, "timezone": body.timezone},
+        details={
+            "title": body.title,
+            "owner": body.owner,
+            "timezone": body.timezone,
+            "language": body.language,
+        },
     )
     # Capture response within the same transaction before commit (keeps RLS context active).
     out = _settings_to_out(settings)

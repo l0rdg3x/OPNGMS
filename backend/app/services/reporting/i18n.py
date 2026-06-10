@@ -68,6 +68,17 @@ _EN: dict[str, str] = {
 
 REPORT_LOCALES: dict[str, dict[str, str]] = {"en": _EN}
 
+LANGUAGE_NAMES: dict[str, str] = {
+    "en": "English", "it": "Italiano", "es": "Español", "fr": "Français",
+    "de": "Deutsch", "pt": "Português", "nl": "Nederlands",
+}
+
+
+def available_locales() -> list[tuple[str, str]]:
+    # (code, display name) for every locale that has a dict, en first.
+    codes = sorted(REPORT_LOCALES.keys(), key=lambda c: (c != "en", c))
+    return [(c, LANGUAGE_NAMES.get(c, c)) for c in codes]
+
 
 class ReportText:
     """Attribute/dict access to report strings (already merged with the en fallback)."""
