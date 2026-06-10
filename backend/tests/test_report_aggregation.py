@@ -138,6 +138,32 @@ async def test_bandwidth_timeline_and_totals_reset_safe(db_engine):
         assert ti >= 0 and to_ >= 0
 
 
+async def test_availability_series_marks_gaps_down(db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        t = await make_tenant(s, slug="acme")
+        await s.commit()
+        tid = t.id
+    from sqlalchemy import text
+    did = uuid.uuid4()
+    base = datetime(2026, 6, 9, 0, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        await s.execute(text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                             "VALUES (:id,:t,'fw','https://x',''::bytea,''::bytea,true,'reachable','{}')"), {"id": did, "t": tid})
+        # cpu.pct present in hour 0 and hour 2, absent in hour 1 and 3 (gaps -> down)
+        for h in (0, 2):
+            await s.execute(text("INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
+                                 "VALUES (:t,:d,'cpu.pct','',:tid,5.0)"),
+                            {"t": base + timedelta(hours=h, minutes=10), "d": did, "tid": tid})
+        await s.commit()
+    async with factory() as s:
+        agg = ReportAggregator(s, tid)
+        series, uptime = await agg.availability_series(frm=base, to=base + timedelta(hours=4), bucket="1 hour", device_id=did)
+        ups = [v for _, v in series]
+        assert ups == [1, 0, 1, 0]
+        assert round(uptime) == 50
+
+
 async def test_aggregator_is_tenant_isolated_under_rls(db_engine):
     # Seed two tenants + a device + distinct IDS events each, as owner (bypasses RLS).
     factory = async_sessionmaker(db_engine, expire_on_commit=False)

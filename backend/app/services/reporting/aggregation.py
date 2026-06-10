@@ -154,3 +154,26 @@ class ReportAggregator:
         rows = (await self.session.execute(sql, params)).all()
         by_metric = {r.metric: float(r.total) for r in rows}
         return by_metric.get("iface.bytes_in", 0.0), by_metric.get("iface.bytes_out", 0.0)
+
+    async def availability_series(
+        self, *, frm: datetime, to: datetime, bucket: str, device_id: uuid.UUID,
+    ) -> tuple[list[tuple[datetime, int]], float]:
+        """Per-bucket up(1)/down(0) from successful-poll presence (cpu.pct), plus uptime %."""
+        delta = _bucket_delta(bucket)
+        sql = text(
+            "SELECT time_bucket(:bucket, time) AS b, count(*) AS c "
+            "FROM metrics WHERE tenant_id = :tid AND device_id = :did AND metric = 'cpu.pct' "
+            "AND time >= :frm AND time < :to GROUP BY b"
+        )
+        rows = (await self.session.execute(
+            sql, {"bucket": delta, "tid": self.tenant_id, "did": device_id, "frm": frm, "to": to}
+        )).all()
+        present = [r.b for r in rows]  # bucket starts that had a poll
+        series: list[tuple[datetime, int]] = []
+        cur = frm
+        while cur < to:
+            up = any(cur <= b < cur + delta for b in present)
+            series.append((cur, 1 if up else 0))
+            cur = cur + delta
+        uptime = (sum(v for _, v in series) / len(series) * 100.0) if series else 0.0
+        return series, uptime
