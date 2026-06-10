@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { notifications } from "@mantine/notifications";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -147,6 +148,27 @@ describe("ReportSettingsPage — tenant_admin", () => {
     await userEvent.click(uploadBtn);
 
     await waitFor(() => expect(logoFetchCalled).toHaveBeenCalled());
+  });
+
+  it("surfaces a red notification when saving returns 403", async () => {
+    const showSpy = vi.spyOn(notifications, "show");
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      http.put(SETTINGS_URL, () => HttpResponse.json({}, { status: 403 })),
+    );
+
+    renderWithProviders(withTenant(<ReportSettingsPage />, "tenant_admin"));
+
+    await userEvent.click(await screen.findByTestId("btn-save"));
+
+    await waitFor(() =>
+      expect(showSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "red" }),
+      ),
+    );
+    // the page does not crash; the form is still present
+    expect(screen.getByTestId("btn-save")).toBeInTheDocument();
+    showSpy.mockRestore();
   });
 });
 
