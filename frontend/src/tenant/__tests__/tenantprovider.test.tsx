@@ -26,26 +26,34 @@ const localStorageStub = (() => {
 })();
 vi.stubGlobal("localStorage", localStorageStub);
 
-let capturedSetActiveId: ((id: string) => void) | null = null;
+/** Renders the active tenant id and exposes a button to switch to a given tenant id. */
+function TenantSwitchButton({ targetId }: { targetId: string }) {
+  const { setActiveId } = useTenant();
+  return (
+    <button onClick={() => setActiveId(targetId)} data-testid="switch-btn">
+      switch
+    </button>
+  );
+}
 
-function TenantDisplay() {
-  const { activeId, setActiveId } = useTenant();
-  capturedSetActiveId = setActiveId;
+function TenantActiveDisplay() {
+  const { activeId } = useTenant();
   return <div data-testid="active-id">{activeId ?? "none"}</div>;
 }
 
-function Wrapper() {
+function Wrapper({ switchTarget }: { switchTarget?: string }) {
   return (
     <TenantProvider>
-      <TenantDisplay />
+      <TenantActiveDisplay />
+      {switchTarget && <TenantSwitchButton targetId={switchTarget} />}
     </TenantProvider>
   );
 }
 
+
 describe("TenantProvider – localStorage persistence", () => {
   beforeEach(() => {
     localStorageStub.clear();
-    capturedSetActiveId = null;
   });
 
   it("restores the persisted tenant id on mount", async () => {
@@ -63,15 +71,15 @@ describe("TenantProvider – localStorage persistence", () => {
   it("persists to localStorage when setActiveId is called", async () => {
     server.use(http.get("/api/me/tenants", () => HttpResponse.json(TENANTS)));
 
-    renderWithProviders(<Wrapper />);
+    renderWithProviders(<Wrapper switchTarget="t2" />);
 
-    // Wait for tenants to load; default will be t1
+    // Wait for tenants to load
     await waitFor(() =>
       expect(screen.getByTestId("active-id")).toHaveTextContent("t1"),
     );
 
-    // Directly call the setter captured from the hook
-    act(() => capturedSetActiveId!("t2"));
+    // Switch to t2 via the button (calls setActiveId("t2") in an event handler)
+    act(() => screen.getByTestId("switch-btn").click());
 
     await waitFor(() => expect(localStorageStub.getItem(LS_KEY)).toBe("t2"));
     expect(screen.getByTestId("active-id")).toHaveTextContent("t2");

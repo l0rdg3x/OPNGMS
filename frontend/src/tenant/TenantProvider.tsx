@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useEffect, useState } from "react";
+import { createContext, type ReactNode, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 
@@ -46,7 +46,7 @@ export const TenantContext = createContext<TenantState>({
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   // Initialise from localStorage so the selection survives page reloads.
-  const [activeId, setActiveIdState] = useState<string | null>(readPersistedId);
+  const [storedId, setStoredId] = useState<string | null>(readPersistedId);
 
   const { data, isLoading } = useQuery({
     queryKey: ["my-tenants"],
@@ -55,24 +55,25 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       return (data as MyTenant[]) ?? [];
     },
   });
-  const tenants = data ?? [];
-
-  // Validate the persisted id once the tenant list arrives; fall back to the
-  // first available tenant if the stored id is no longer in the list.
-  useEffect(() => {
-    if (isLoading || tenants.length === 0) return;
-    if (activeId && tenants.some((t) => t.id === activeId)) return; // still valid
-    const fallback = tenants[0]?.id ?? null;
-    setActiveIdState(fallback);
-    if (fallback) persistId(fallback);
-  }, [isLoading, tenants, activeId]);
+  const tenants = useMemo(() => data ?? [], [data]);
 
   function setActiveId(id: string) {
     persistId(id);
-    setActiveIdState(id);
+    setStoredId(id);
   }
 
-  const effectiveActive = activeId ?? tenants[0]?.id ?? null;
+  // Validate the stored id once the tenant list is known.
+  // Derive the effective active id without setState-in-effect: if the stored
+  // id is not in the list we fall back to the first tenant.  We also update
+  // localStorage to reflect the fallback (pure side-effect, not a re-render).
+  const effectiveActive = useMemo(() => {
+    if (isLoading || tenants.length === 0) return storedId ?? null;
+    if (storedId && tenants.some((t) => t.id === storedId)) return storedId;
+    const fallback = tenants[0]?.id ?? null;
+    if (fallback) persistId(fallback);
+    return fallback;
+  }, [isLoading, tenants, storedId]);
+
   return (
     <TenantContext.Provider
       value={{ tenants, activeId: effectiveActive, setActiveId, loading: isLoading }}
