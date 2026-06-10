@@ -10,6 +10,7 @@ export const en = {
     overview: "Overview",
     devices: "Devices",
     alerts: "Alerts",
+    reportSettings: "Report settings",
   },
   login: {
     title: "OPNGMS",
@@ -130,6 +131,24 @@ export const en = {
   chart: {
     noData: "No data yet",
   },
+  reports: {
+    settings: {
+      pageTitle: "Report settings",
+      title: "Report title",
+      owner: "Owner",
+      timezone: "Timezone",
+      logo: "Logo",
+      upload: "Upload logo",
+      remove: "Remove logo",
+      save: "Save settings",
+      adminsOnly: "Reporting settings are available to tenant admins only.",
+      saved: "Report settings saved.",
+      logoUploaded: "Logo uploaded.",
+      logoRemoved: "Logo removed.",
+      hasLogo: "Logo uploaded",
+      noLogo: "No logo",
+    },
+  },
   errors: {
     fleetHealthLoad: "Failed to load fleet health",
     alertsLoad: "Failed to load alerts",
@@ -138,6 +157,8 @@ export const en = {
     configCapabilitiesLoad: "Failed to load capabilities",
     configChangesLoad: "Failed to load changes",
     configChangeAction: "Action failed (you may lack permission)",
+    reportSettingsLoad: "Failed to load report settings",
+    reportSettingsAction: "Report settings action failed",
   },
 } as const;
 
