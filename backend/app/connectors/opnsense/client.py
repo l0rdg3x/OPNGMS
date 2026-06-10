@@ -1,13 +1,15 @@
 import asyncio
-import hashlib
 import ssl
-from datetime import datetime, timezone
+from datetime import datetime
 from urllib.parse import urlsplit
 
 import httpx
 
 from app.connectors.opnsense import parsers
 from app.connectors.opnsense.url_safety import UnsafeUrlError, validate_base_url
+
+# Rows requested from the paged IDS/DNS query endpoints (dedup happens downstream).
+MAX_QUERY_ROWS = 500
 
 
 class OpnsenseError(Exception):
@@ -176,20 +178,6 @@ class OpnsenseClient:
         cputype = await self._get("diagnostics/cpu_usage/getCPUType")
         return parsers.parse_system_info(resources, disk, time, cputype)
 
-    @staticmethod
-    def _num(v) -> float:
-        """Extract the first float from a string like '12.3 ms' / '0.0 %' / a number.
-
-        NOTE: the exact format of the delay/loss/bytes fields is TO BE VERIFIED against
-        a real OPNsense; the regex is defensive to handle string variants.
-        """
-        import re
-
-        if isinstance(v, (int, float)):
-            return float(v)
-        m = re.search(r"[-+]?\d*\.?\d+", str(v or ""))
-        return float(m.group()) if m else 0.0
-
     async def get_interfaces(self) -> list[dict]:
         """Per-interface bytes + up flag (diagnostics/traffic/interface)."""
         data = await self._get("diagnostics/traffic/interface")
@@ -206,89 +194,21 @@ class OpnsenseClient:
         return parsers.parse_vpn(data)
 
     async def get_ids_alerts(self, since: datetime | None = None) -> list[dict]:
-        """Normalized Suricata IDS/IPS alerts.
+        """Normalized Suricata IDS/IPS alerts. queryAlerts is POST (GET returns a bare []).
 
-        NOTE: the `ids/service/queryAlerts` endpoint and the payload format are TO BE
-        VERIFIED against a real OPNsense. Defensive toward key variants. `since` is a hint:
-        the fine filtering and the deduplication happen downstream (cursor + ON CONFLICT).
-        """
-        data = await self._get("ids/service/queryAlerts")
-        out: list[dict] = []
-        for r in data.get("rows", data.get("alerts", [])):
-            alert = r.get("alert", {}) if isinstance(r.get("alert"), dict) else {}
-            ts = self._parse_ts(r.get("timestamp"))
-            name = alert.get("signature") or r.get("signature") or ""
-            src = r.get("src_ip", "")
-            dst = r.get("dest_ip", r.get("dst_ip", ""))
-            action = alert.get("action", r.get("action", ""))
-            severity = str(alert.get("severity", r.get("severity", "")))
-            # DISCRIMINATING event_key: stable source id if present,
-            # OTHERWISE a hash of the content (ts+src+dst+signature+severity) so as
-            # NOT to collapse distinct events that share the same signature.
-            key = r.get("alert_id") or r.get("_id") or self._event_key(
-                ts, src, dst, name, severity
-            )
-            out.append({
-                "time": ts,
-                "category": "alert",
-                "src_ip": src,
-                "dst_ip": dst,
-                "name": name,
-                "severity": severity,
-                "action": action,
-                "event_key": str(key),
-                "attributes": r,
-            })
-        return out
+        `since` is a hint: fine filtering + dedup happen downstream (cursor + ON CONFLICT)."""
+        data = await self._post(
+            "ids/service/queryAlerts",
+            {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""},
+        )
+        return parsers.parse_ids_rows(data)
 
     async def get_dns_events(self, since: datetime | None = None) -> list[dict]:
-        """Normalized DNS queries (Unbound) → "visited sites".
-
-        NOTE: the `unbound/diagnostics/queries` endpoint and the payload format are TO BE
-        VERIFIED against a real OPNsense — it is the most uncertain source (see debt 3A).
-        Defensive toward key variants. `since` is a hint: fine filtering and dedup happen
-        downstream.
-        """
-        data = await self._get("unbound/diagnostics/queries")
-        out: list[dict] = []
-        for r in data.get("rows", data.get("queries", [])):
-            ts = self._parse_ts(r.get("timestamp", r.get("time")))
-            client_ip = r.get("client") or r.get("client_ip") or ""
-            domain = r.get("domain") or r.get("query") or r.get("name") or ""
-            action = r.get("action", "")  # allowed | blocked
-            # discriminating event_key: stable id if present, otherwise a hash of the content.
-            key = r.get("query_id") or r.get("id") or r.get("_id") or self._event_key(
-                ts, client_ip, domain, action
-            )
-            out.append({
-                "time": ts,
-                "category": "query",
-                "src_ip": client_ip,
-                "dst_ip": "",
-                "name": domain,
-                "severity": "",
-                "action": action,
-                "event_key": str(key),
-                "attributes": r,
-            })
-        return out
-
-    @staticmethod
-    def _parse_ts(value) -> datetime:
-        """Always returns a tz-aware datetime (naive -> UTC; unparsable -> now UTC)."""
-        if isinstance(value, datetime):
-            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        try:
-            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError):
-            return datetime.now(timezone.utc)
-
-    @staticmethod
-    def _event_key(ts, *parts) -> str:
-        """Discriminating hash of the event content (no source id available)."""
-        h = hashlib.sha1("|".join([ts.isoformat(), *[str(p) for p in parts]]).encode())
-        return h.hexdigest()
+        """Normalized DNS queries -> "visited sites" (unbound/overview/searchQueries)."""
+        data = await self._get(
+            f"unbound/overview/searchQueries?current=1&rowCount={MAX_QUERY_ROWS}"
+        )
+        return parsers.parse_dns_rows(data)
 
     async def test_connection(self) -> str | None:
         """Verify reachability+credentials; return the firmware version or None.

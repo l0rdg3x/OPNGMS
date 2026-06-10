@@ -102,3 +102,45 @@ def test_parse_plugins_tolerates_malformed_plugin_field():
     assert parsers.parse_plugins({"plugin": {"a": 1}})["plugins"] == []  # dict, not list
     assert parsers.parse_plugins({})["plugins"] == []
     assert parsers.parse_plugins(None)["plugins"] == []
+
+
+import hashlib
+
+
+def test_parse_ids_rows_list_and_dict_and_keys():
+    # bare list edge (the empty GET used to crash .get()): must not raise
+    assert parsers.parse_ids_rows([]) == []
+    out = parsers.parse_ids_rows(load("ids_query_alerts.json"))
+    assert len(out) == 1
+    e = out[0]
+    assert e["src_ip"] == "192.168.1.50"
+    assert e["dst_ip"] == "8.8.8.8"        # dest_ip
+    assert e["name"] == "ET SCAN Nmap"     # alert.signature
+    assert e["severity"] == "2"
+    assert e["action"] == "allowed"
+    assert e["category"] == "alert"
+    assert e["event_key"] == "a1"          # stable alert_id
+    assert e["time"].tzinfo is not None
+
+
+def test_parse_ids_rows_hash_fallback_and_variants():
+    payload = {"alerts": [{
+        "timestamp": "2026-06-09T13:30:00Z", "src_ip": "10.0.0.7", "dst_ip": "8.8.8.8",
+        "signature": "ET POLICY DNS", "severity": 3, "action": "blocked"}]}
+    e = parsers.parse_ids_rows(payload)[0]
+    assert e["name"] == "ET POLICY DNS" and e["dst_ip"] == "8.8.8.8" and e["severity"] == "3"
+    expected = hashlib.sha1("|".join([
+        e["time"].isoformat(), "10.0.0.7", "8.8.8.8", "ET POLICY DNS", "3"]).encode()).hexdigest()
+    assert e["event_key"] == expected
+
+
+def test_parse_dns_rows():
+    assert parsers.parse_dns_rows([]) == []
+    out = parsers.parse_dns_rows(load("unbound_search_queries.json"))
+    e = out[0]
+    assert e["src_ip"] == "192.168.1.50"
+    assert e["name"] == "example.com"
+    assert e["action"] == "allowed"
+    assert e["category"] == "query"
+    assert e["dst_ip"] == "" and e["severity"] == ""
+    assert e["event_key"] and e["time"].tzinfo is not None

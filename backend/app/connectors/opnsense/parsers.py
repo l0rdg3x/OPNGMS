@@ -155,3 +155,56 @@ def parse_plugins(info: dict) -> dict:
         and p.get("name")
     ]
     return {"product_version": parse_firmware_version(info), "plugins": plugins}
+
+
+def _rows(data, *keys) -> list:
+    """Rows from a dict (first matching key holding a list) OR a bare list (the empty-GET
+    edge that used to crash `.get()`). Anything else -> []."""
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for k in keys:
+            if isinstance(data.get(k), list):
+                return data[k]
+    return []
+
+
+def parse_ids_rows(data) -> list[dict]:
+    """ids/service/queryAlerts (POST) rows -> normalized IDS events (eve.json shape).
+
+    Defensive toward key variants (alert.* nested or flat, dest_ip/dst_ip). event_key is a
+    stable source id when present, otherwise a discriminating content hash."""
+    out: list[dict] = []
+    for r in _rows(data, "rows", "alerts"):
+        alert = r.get("alert", {}) if isinstance(r.get("alert"), dict) else {}
+        ts = parse_ts(r.get("timestamp"))
+        name = alert.get("signature") or r.get("signature") or ""
+        src = r.get("src_ip", "")
+        dst = r.get("dest_ip", r.get("dst_ip", ""))
+        action = alert.get("action", r.get("action", ""))
+        severity = str(alert.get("severity", r.get("severity", "")))
+        key = r.get("alert_id") or r.get("_id") or event_key(ts, src, dst, name, severity)
+        out.append({
+            "time": ts, "category": "alert", "src_ip": src, "dst_ip": dst,
+            "name": name, "severity": severity, "action": action,
+            "event_key": str(key), "attributes": r,
+        })
+    return out
+
+
+def parse_dns_rows(data) -> list[dict]:
+    """unbound/overview/searchQueries rows -> normalized DNS "visited site" events."""
+    out: list[dict] = []
+    for r in _rows(data, "rows", "queries"):
+        ts = parse_ts(r.get("timestamp", r.get("time")))
+        client_ip = r.get("client") or r.get("client_ip") or ""
+        domain = r.get("domain") or r.get("query") or r.get("name") or ""
+        action = r.get("action", "")
+        key = r.get("query_id") or r.get("id") or r.get("_id") or event_key(
+            ts, client_ip, domain, action)
+        out.append({
+            "time": ts, "category": "query", "src_ip": client_ip, "dst_ip": "",
+            "name": domain, "severity": "", "action": action,
+            "event_key": str(key), "attributes": r,
+        })
+    return out
