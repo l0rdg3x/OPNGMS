@@ -63,6 +63,41 @@ async def test_top_and_timeline(db_engine):
         assert sum(c for _, c in tl) == 3
 
 
+async def test_top_supports_device_filter_and_blocked_domains(db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        t = await make_tenant(s, slug="acme")
+        await s.commit()
+        tid = t.id
+    from sqlalchemy import text
+    d1, d2 = uuid.uuid4(), uuid.uuid4()
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        for did in (d1, d2):
+            await s.execute(text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                                 "VALUES (:id,:t,'fw','https://x',''::bytea,''::bytea,true,'reachable','{}')"), {"id": did, "t": tid})
+        # DNS events: d1 -> a.com (allowed x2), bad.com (blocked); d2 -> c.com (allowed)
+        seed = [(d1,"a.com","allowed"),(d1,"a.com","allowed"),(d1,"bad.com","blocked"),(d2,"c.com","allowed")]
+        for i,(did,name,act) in enumerate(seed):
+            await s.execute(text("INSERT INTO events (time, device_id, source, event_key, tenant_id, name, src_ip, action) "
+                                 "VALUES (:t,:d,'dns',:k,:tid,:n,'10.0.0.1',:a)"),
+                            {"t": base, "d": did, "k": f"k{i}", "tid": tid, "n": name, "a": act})
+        await s.commit()
+    async with factory() as s:
+        agg = ReportAggregator(s, tid)
+        frm, to = base - timedelta(hours=1), base + timedelta(hours=1)
+        # device-scoped Top Sites for d1
+        sites = await agg.top(field="name", source="dns", frm=frm, to=to, device_id=d1)
+        assert ("a.com", 2) in [(r.value, r.count) for r in sites]
+        assert "c.com" not in [r.value for r in sites]   # d2's site excluded
+        # Top Blocked (device d1)
+        blocked = await agg.top_blocked_domains(frm=frm, to=to, device_id=d1)
+        assert [(r.value, r.count) for r in blocked] == [("bad.com", 1)]
+        # DNS timeline device-scoped
+        tl = await agg.timeline(frm=frm, to=to, bucket="1 hour", source="dns", device_id=d1)
+        assert sum(c for _, c in tl) == 3
+
+
 async def test_aggregator_is_tenant_isolated_under_rls(db_engine):
     # Seed two tenants + a device + distinct IDS events each, as owner (bypasses RLS).
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
