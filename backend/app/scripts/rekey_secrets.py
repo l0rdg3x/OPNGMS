@@ -41,7 +41,16 @@ async def rekey_all(factory) -> int:
 
 def _owner_url() -> str:
     s = get_settings()
-    return s.admin_database_url or s.database_url
+    # Require the owner URL explicitly: the app role (database_url) is NOBYPASSRLS, so without
+    # app.current_tenant set the RLS predicate matches zero rows and the script would silently
+    # re-key nothing ("re-keyed 0") — after which retiring the old key makes every secret
+    # undecryptable. Fail loudly instead.
+    if not s.admin_database_url:
+        raise RuntimeError(
+            "ADMIN_DATABASE_URL must be set (DB owner/superuser) for rekey_secrets to bypass RLS "
+            "and see every tenant's rows. Refusing to run as the RLS-restricted app role."
+        )
+    return s.admin_database_url
 
 
 async def _main() -> None:

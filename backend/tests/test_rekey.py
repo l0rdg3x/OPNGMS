@@ -42,8 +42,9 @@ async def test_rekey_reencrypts_device_secrets(factory, restore_env_rekey):
     os.environ["MASTER_KEY"] = old
     os.environ.pop("MASTER_KEY_OLD_KEYS", None)
     config_mod.get_settings.cache_clear()
-    tid, did = uuid.uuid4(), uuid.uuid4()
+    tid, did, sid = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     enc_key, enc_sec = crypto.encrypt("api-key"), crypto.encrypt("api-secret")
+    enc_content = crypto.encrypt_bytes(b"<config/>")  # config snapshot blob, under the OLD key
     async with factory() as s:
         await s.execute(text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,'T','t','active')"), {"i": tid})
         await s.execute(
@@ -53,18 +54,27 @@ async def test_rekey_reencrypts_device_secrets(factory, restore_env_rekey):
             ),
             {"i": did, "t": tid, "k": enc_key, "s": enc_sec},
         )
+        await s.execute(
+            text(
+                "INSERT INTO config_snapshots (id,tenant_id,device_id,canonical_hash,content_enc)"
+                " VALUES (:i,:t,:d,'h1',:c)"
+            ),
+            {"i": sid, "t": tid, "d": did, "c": enc_content},
+        )
         await s.commit()
     # Rotate: new primary, old kept for decryption.
     os.environ["MASTER_KEY"] = new
     os.environ["MASTER_KEY_OLD_KEYS"] = old
     config_mod.get_settings.cache_clear()
     n = await rekey_all(factory)
-    assert n >= 1
+    assert n >= 2  # device (1) + config snapshot (1)
     # Now the secrets must decrypt with the NEW key alone.
     os.environ["MASTER_KEY"] = new
     os.environ.pop("MASTER_KEY_OLD_KEYS", None)
     config_mod.get_settings.cache_clear()
     async with factory() as s:
         row = (await s.execute(text("SELECT api_key_enc, api_secret_enc FROM devices WHERE id=:i"), {"i": did})).one()
+        snap = (await s.execute(text("SELECT content_enc FROM config_snapshots WHERE id=:i"), {"i": sid})).one()
     assert crypto.decrypt(row.api_key_enc) == "api-key"
     assert crypto.decrypt(row.api_secret_enc) == "api-secret"
+    assert crypto.decrypt_bytes(snap.content_enc) == b"<config/>"
