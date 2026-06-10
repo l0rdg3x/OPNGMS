@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: every job only checks out the repo and runs tests/audits.
+permissions:
+  contents: read
+
 jobs:
   # ── Backend ──────────────────────────────────────────────────────────────────
   # Runs the full pytest suite against a live TimescaleDB instance.

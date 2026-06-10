@@ -25,9 +25,18 @@ def decode_cursor(cursor: str) -> tuple[datetime, _uuid.UUID, str, str]:
 # Defensive cap on the number of rows returned by the event list.
 MAX_EVENTS = 1000
 
-# Whitelist of columns allowed for top-N aggregation. The `field` becomes a SQL
-# column name (cannot be bound), so it MUST be validated against this set.
-TOP_FIELDS = frozenset({"src_ip", "dst_ip", "name", "action", "severity"})
+# Allow-list of columns for top-N aggregation. The column name becomes part of the SQL text (it
+# cannot be a bound parameter), so the request-supplied `field` is never interpolated directly:
+# it is used only as a key into this literal map, and the *value* (a source-code constant) is what
+# goes into the query — so the SQL is built exclusively from constants.
+_TOP_COLUMN = {
+    "src_ip": "src_ip",
+    "dst_ip": "dst_ip",
+    "name": "name",
+    "action": "action",
+    "severity": "severity",
+}
+TOP_FIELDS = frozenset(_TOP_COLUMN)
 
 _LIST_COLUMNS = "time, device_id, source, category, src_ip, dst_ip, name, severity, action, attributes"
 
@@ -123,9 +132,11 @@ class EventRepository:
         to: datetime | None,
         limit: int,
     ) -> list[EventTopRow]:
-        if field not in TOP_FIELDS:
+        col = _TOP_COLUMN.get(field)
+        if col is None:
             raise ValueError(f"field not allowed: {field}")
-        clauses = ["tenant_id = :tid", f"{field} <> ''"]
+        # `col` is a literal from _TOP_COLUMN (a source-code constant), never the raw request value.
+        clauses = ["tenant_id = :tid", f"{col} <> ''"]
         params: dict = {"tid": self.tenant_id, "limit": min(limit, MAX_EVENTS)}
         if source is not None:
             clauses.append("source = :source")
@@ -137,10 +148,9 @@ class EventRepository:
             clauses.append("time < :to")
             params["to"] = to
         where = " AND ".join(clauses)
-        # `field` is validated against TOP_FIELDS above (safe to interpolate).
         sql = text(
-            f"SELECT {field} AS value, count(*) AS count FROM events WHERE {where} "
-            f"GROUP BY {field} ORDER BY count DESC, value LIMIT :limit"
+            f"SELECT {col} AS value, count(*) AS count FROM events WHERE {where} "
+            f"GROUP BY {col} ORDER BY count DESC, value LIMIT :limit"
         )
         rows = (await self.session.execute(sql, params)).all()
         return [EventTopRow(value=str(r.value), count=int(r.count)) for r in rows]
