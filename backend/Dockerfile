@@ -4,8 +4,13 @@
 # clashes with the `list` method on EventRepository).
 FROM python:3.14-slim
 
-# WeasyPrint runtime dependencies (pango/cairo/gdk-pixbuf) for PDF report rendering (Phase 5).
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Apply Debian security updates to the (sometimes-stale) base image, then install the WeasyPrint
+# runtime dependencies (pango/cairo/gdk-pixbuf) for PDF report rendering (Phase 5). The `upgrade`
+# pulls base-image security patches at build time (e.g. the openssl deb13u2 fix for CVE-2026-45447)
+# so the image stays patched on every rebuild without chasing individual CVEs.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
         libpango-1.0-0 \
         libpangocairo-1.0-0 \
         libcairo2 \
