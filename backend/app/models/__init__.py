@@ -5,6 +5,7 @@ from app.models.config_change import ConfigChange
 from app.models.config_snapshot import ConfigSnapshot
 from app.models.device import Device
 from app.models.event import Event
+from app.models.generated_report import GeneratedReport
 from app.models.ingest_cursor import IngestCursor
 from app.models.membership import Membership
 from app.models.metric import Metric
@@ -21,6 +22,7 @@ __all__ = [
     "ConfigSnapshot",
     "Device",
     "Event",
+    "GeneratedReport",
     "IngestCursor",
     "Membership",
     "Metric",
