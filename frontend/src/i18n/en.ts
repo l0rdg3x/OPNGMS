@@ -156,6 +156,7 @@ export const en = {
       logo: "Logo",
       upload: "Upload logo",
       remove: "Remove logo",
+      language: "Report language",
       save: "Save settings",
       adminsOnly: "Reporting settings are available to tenant admins only.",
       saved: "Report settings saved.",

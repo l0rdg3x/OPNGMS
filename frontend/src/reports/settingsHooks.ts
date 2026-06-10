@@ -6,8 +6,10 @@ import { useTenant } from "../tenant/useTenant";
 
 type ReportSettingsOut = components["schemas"]["ReportSettingsOut"];
 type ReportSettingsIn = components["schemas"]["ReportSettingsIn"];
+type ReportLanguageOut = components["schemas"]["ReportLanguageOut"];
 
 const settingsKey = (tenantId: string | null) => ["report-settings", tenantId];
+const languagesKey = (tenantId: string | null) => ["report-languages", tenantId];
 
 export function useReportSettings() {
   const { activeId } = useTenant();
@@ -17,6 +19,22 @@ export function useReportSettings() {
     queryFn: async (): Promise<ReportSettingsOut> => {
       const { data, error } = await api.GET(
         "/api/tenants/{tenant_id}/reports/settings",
+        { params: { path: { tenant_id: activeId! } } },
+      );
+      if (error) throw new Error(en.errors.reportSettingsLoad);
+      return data!;
+    },
+  });
+}
+
+export function useReportLanguages() {
+  const { activeId } = useTenant();
+  return useQuery({
+    queryKey: languagesKey(activeId),
+    enabled: !!activeId,
+    queryFn: async (): Promise<ReportLanguageOut[]> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/reports/languages",
         { params: { path: { tenant_id: activeId! } } },
       );
       if (error) throw new Error(en.errors.reportSettingsLoad);

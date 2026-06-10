@@ -5,6 +5,7 @@ import {
   FileInput,
   Group,
   Loader,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -16,6 +17,7 @@ import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
 import {
   useDeleteLogo,
+  useReportLanguages,
   useReportSettings,
   useUpdateReportSettings,
   useUploadLogo,
@@ -41,6 +43,7 @@ function ReportSettingsForm() {
   const t = useT();
   const { activeId } = useTenant();
   const settingsQuery = useReportSettings();
+  const languagesQuery = useReportLanguages();
   const updateMutation = useUpdateReportSettings();
   const uploadLogoMutation = useUploadLogo();
   const deleteLogoMutation = useDeleteLogo();
@@ -54,6 +57,7 @@ function ReportSettingsForm() {
       title: "",
       owner: "",
       timezone: "UTC",
+      language: "en",
     },
   });
 
@@ -66,10 +70,16 @@ function ReportSettingsForm() {
         title: settingsQuery.data.title,
         owner: settingsQuery.data.owner,
         timezone: settingsQuery.data.timezone,
+        language: settingsQuery.data.language ?? "en",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsQuery.data]);
+
+  const languageOptions = (languagesQuery.data ?? []).map((l) => ({
+    value: l.code,
+    label: l.name,
+  }));
 
   async function handleSave() {
     try {
@@ -77,6 +87,7 @@ function ReportSettingsForm() {
         title: form.values.title,
         owner: form.values.owner,
         timezone: form.values.timezone,
+        language: form.values.language,
       });
       notifications.show({ message: t.reports.settings.saved });
     } catch {
@@ -132,6 +143,13 @@ function ReportSettingsForm() {
         label={t.reports.settings.timezone}
         {...form.getInputProps("timezone")}
         data-testid="field-timezone"
+      />
+
+      <Select
+        label={t.reports.settings.language}
+        data={languageOptions}
+        {...form.getInputProps("language")}
+        data-testid="field-language"
       />
 
       <Button
