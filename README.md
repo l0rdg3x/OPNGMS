@@ -198,7 +198,10 @@ The app is then served at `http://localhost/`. Notes:
 - **Continuous assurance:** a consolidated **application-security test suite**
   (`tests/test_security_suite.py` — CSRF, RLS isolation, SSRF, secret redaction, headers, rate-limit,
   SQL-injection allowlist, XXE) + a **dependency audit** (`scripts/security_audit.sh`: `pip-audit` +
-  `npm audit`) wired into **CI** (`.github/workflows/ci.yml`).
+  `npm audit`) wired into **CI** (`.github/workflows/ci.yml`). GitHub security workflows:
+  **CodeQL** (static analysis, Python + TS), **Dependabot** + **Dependency Review** (dependency updates +
+  PR gate), **Trivy** (container-image CVE scan), a **scheduled weekly audit**, and **gitleaks** (secret
+  scanning).
 
 ## Roadmap & status
 
