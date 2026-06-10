@@ -49,3 +49,11 @@ def test_report_generate_grants():
     assert can(is_superadmin=False, role=OPERATOR, action=Action.REPORT_GENERATE)
     assert not can(is_superadmin=False, role=READ_ONLY, action=Action.REPORT_GENERATE)
     assert can(is_superadmin=True, role=None, action=Action.REPORT_GENERATE)
+
+
+def test_report_config_grants():
+    # REPORT_CONFIG: granted to tenant_admin only; operator + read_only denied; superadmin allowed
+    assert can(is_superadmin=False, role=TENANT_ADMIN, action=Action.REPORT_CONFIG)
+    assert not can(is_superadmin=False, role=OPERATOR, action=Action.REPORT_CONFIG)
+    assert not can(is_superadmin=False, role=READ_ONLY, action=Action.REPORT_CONFIG)
+    assert can(is_superadmin=True, role=None, action=Action.REPORT_CONFIG)
