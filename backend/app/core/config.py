@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     test_database_url: str | None = None
     session_secret: str
     master_key: str  # Fernet key urlsafe-base64 (used by Milestone C)
+    master_key_old_keys: str = ""  # comma-separated retired Fernet keys, decryption-only (rotation)
     session_ttl_hours: int = 12
     session_idle_minutes: int = 120  # sliding/idle timeout, alongside the absolute session_ttl_hours
     admin_database_url: str | None = None  # owner, for the worker (bypasses RLS)
