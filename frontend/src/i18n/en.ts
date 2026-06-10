@@ -12,6 +12,7 @@ export const en = {
     alerts: "Alerts",
     reportSettings: "Report settings",
     reports: "Reports",
+    sessions: "Active sessions",
   },
   login: {
     title: "OPNGMS",
@@ -165,6 +166,18 @@ export const en = {
       hasLogo: "Logo uploaded",
       noLogo: "No logo",
     },
+  },
+  sessions: {
+    pageTitle: "Active sessions",
+    colLastSeen: "Last seen",
+    colCreated: "Created",
+    colExpires: "Expires",
+    colIp: "IP address",
+    colUserAgent: "User agent",
+    current: "Current",
+    logoutAll: "Log out everywhere",
+    loadError: "Failed to load sessions",
+    logoutAllError: "Failed to log out everywhere",
   },
   errors: {
     fleetHealthLoad: "Failed to load fleet health",
