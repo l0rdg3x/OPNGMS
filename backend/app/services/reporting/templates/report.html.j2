@@ -8,6 +8,7 @@
   <div class="tz-meta" data-tz="{{ ctx.timezone }}" data-owner="{{ ctx.owner or '—' }}"></div>
 
   <section class="title-page">
+    {% if ctx.logo_data_uri %}<img class="logo" src="{{ ctx.logo_data_uri }}" alt="logo" />{% endif %}
     <h1>{{ ctx.title }}</h1>
     <div class="tenant">{{ ctx.tenant_name }}</div>
     <div class="range">{{ ctx.range_from.strftime('%Y-%m-%d') }} – {{ ctx.range_to.strftime('%Y-%m-%d') }}</div>

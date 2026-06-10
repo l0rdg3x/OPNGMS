@@ -26,8 +26,6 @@ async def generate_report(
             tenant_name=ctx.tenant.name,
             frm=payload.from_,
             to=payload.to,
-            timezone_name=payload.timezone,
-            owner=None,
         )
     except ReportRangeError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

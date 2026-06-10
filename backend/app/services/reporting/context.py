@@ -102,6 +102,7 @@ class ReportContext:
     range_from: datetime
     range_to: datetime
     sections: list[DeviceSection] = field(default_factory=list)
+    logo_data_uri: str | None = None
 
     @property
     def toc(self) -> list[str]:
@@ -123,6 +124,7 @@ async def build_context(
     frm: datetime,
     to: datetime,
     title: str = "Security & Activity Report",
+    logo_data_uri: str | None = None,
 ) -> ReportContext:
     # Local import: mock_sections imports the dataclasses from this module, so importing it here
     # (rather than at module top) avoids a circular-import cycle and lets mock_sections be imported
@@ -195,4 +197,5 @@ async def build_context(
         range_from=frm,
         range_to=to,
         sections=sections,
+        logo_data_uri=logo_data_uri,
     )
