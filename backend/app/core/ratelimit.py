@@ -1,21 +1,45 @@
-"""In-process sliding-window limiter (per worker). Redis-backed is the multi-worker upgrade (debt)."""
+"""In-process sliding-window limiter (per worker). Redis-backed is the multi-worker upgrade (debt).
+
+Memory is bounded with LRU eviction so an attacker spraying unique keys (e.g. many distinct emails)
+cannot grow the key map without bound and exhaust memory. The authentication endpoint fails CLOSED on
+any limiter fault (see `app/api/auth.py`): for credential validation, brief unavailability is preferable
+to silently bypassing brute-force protection.
+"""
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from threading import Lock
+
+# Cap on the number of tracked (email|ip) keys. Beyond this, the least-recently-used keys are evicted.
+DEFAULT_MAX_KEYS = 50_000
 
 
 class SlidingWindowLimiter:
-    def __init__(self, max_attempts: int, window_seconds: int) -> None:
+    def __init__(
+        self, max_attempts: int, window_seconds: int, *, max_keys: int = DEFAULT_MAX_KEYS
+    ) -> None:
         self.max = max_attempts
         self.window = window_seconds
-        self._hits: dict[str, deque] = defaultdict(deque)
+        self.max_keys = max_keys
+        # OrderedDict gives O(1) LRU: most-recently-touched key moves to the end; eviction pops the front.
+        self._hits: "OrderedDict[str, deque]" = OrderedDict()
         self._lock = Lock()
+
+    def _touch(self, key: str) -> deque:
+        """Return the deque for `key` (creating it), mark it most-recently-used, and bound memory."""
+        dq = self._hits.get(key)
+        if dq is None:
+            dq = deque()
+            self._hits[key] = dq
+        self._hits.move_to_end(key)
+        while len(self._hits) > self.max_keys:
+            self._hits.popitem(last=False)  # evict the least-recently-used (never the key we just touched)
+        return dq
 
     def check(self, key: str, *, now: float | None = None) -> tuple[bool, int]:
         """(allowed, retry_after_seconds). Does not record; call record_failure on a failed attempt."""
         now = time.monotonic() if now is None else now
         with self._lock:
-            dq = self._hits[key]
+            dq = self._touch(key)
             while dq and dq[0] <= now - self.window:
                 dq.popleft()
             if len(dq) >= self.max:
@@ -25,7 +49,7 @@ class SlidingWindowLimiter:
     def record_failure(self, key: str, *, now: float | None = None) -> None:
         now = time.monotonic() if now is None else now
         with self._lock:
-            self._hits[key].append(now)
+            self._touch(key).append(now)
 
     def reset(self, key: str) -> None:
         with self._lock:

@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -11,6 +12,8 @@ from app.models.user import User
 from app.schemas.auth import LoginIn, MeOut
 from app.services.audit import AuditService
 from app.services.auth import AuthService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -28,11 +31,19 @@ async def login(
     ip = request.client.host if request.client else "?"
     key = f"{payload.email.lower()}|{ip}"
 
-    # Fail-OPEN: a limiter error must never deny everyone (it gates auth, it is not auth).
+    # Fail CLOSED on a limiter fault: this gates credential validation, so a transient limiter error
+    # must NOT silently disable brute-force protection. Brief 503 unavailability is the safer failure
+    # mode; the limiter is in-process + memory-bounded, so a fault here is a genuine (rare) defect we
+    # want to surface. Always log it so operators can detect a degraded defense.
     try:
         allowed, retry = login_limiter.check(key)
-    except Exception:  # noqa: BLE001 — defensive: degrade to "allowed" on any limiter fault
-        allowed, retry = True, 0
+    except Exception:  # noqa: BLE001
+        logger.error("login rate-limiter check failed; failing closed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Login temporarily unavailable",
+            headers={"Retry-After": "5"},
+        )
     if not allowed:
         raise HTTPException(
             status_code=429,
@@ -43,7 +54,10 @@ async def login(
     svc = AuthService(session)
     user = await svc.authenticate(payload.email, payload.password)
     if user is None:
-        login_limiter.record_failure(key)
+        try:
+            login_limiter.record_failure(key)
+        except Exception:  # noqa: BLE001 — never let a limiter fault turn a 401 into a 500
+            logger.error("login rate-limiter record_failure failed", exc_info=True)
         await AuditService(session).record(
             actor_user_id=None,
             tenant_id=None,
@@ -60,7 +74,10 @@ async def login(
 
     settings = get_settings()
     sess = await svc.create_session(user, settings.session_ttl_hours)
-    login_limiter.reset(key)
+    try:
+        login_limiter.reset(key)
+    except Exception:  # noqa: BLE001 — never let a limiter fault break a successful login
+        logger.error("login rate-limiter reset failed", exc_info=True)
     await AuditService(session).record(
         actor_user_id=user.id,
         tenant_id=None,
