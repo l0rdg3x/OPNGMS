@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import type { components } from "../api/schema";
+import { csrfToken } from "../api/csrf";
 import { en } from "../i18n/en";
 import { useTenant } from "../tenant/useTenant";
 
@@ -44,7 +45,7 @@ export function useGenerateReport() {
         method: "POST",
         credentials: "include",
         headers: {
-          "X-OPNGMS-CSRF": "1",
+          "X-OPNGMS-CSRF": csrfToken(),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ from, to }),

@@ -1,12 +1,13 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
+import { csrfToken } from "./csrf";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 const csrfMiddleware: Middleware = {
   onRequest({ request }) {
     if (MUTATING.has(request.method.toUpperCase())) {
-      request.headers.set("X-OPNGMS-CSRF", "1");
+      request.headers.set("X-OPNGMS-CSRF", csrfToken());
     }
     return request;
   },
