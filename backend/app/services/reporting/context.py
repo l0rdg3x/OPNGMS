@@ -111,6 +111,7 @@ class ReportContext:
     range_to: datetime
     sections: list[DeviceSection] = field(default_factory=list)
     logo_data_uri: str | None = None
+    t: "ReportText | None" = None
 
     @property
     def toc(self) -> list[str]:
@@ -121,6 +122,7 @@ from datetime import timezone as _tz  # noqa: E402
 
 from app.services.reporting.aggregation import ReportAggregator, pick_bucket  # noqa: E402
 from app.services.reporting.charts import line_chart  # noqa: E402
+from app.services.reporting.i18n import ReportText, report_text  # noqa: E402
 
 
 async def build_context(
@@ -133,11 +135,13 @@ async def build_context(
     to: datetime,
     title: str = "Security & Activity Report",
     logo_data_uri: str | None = None,
+    locale: str = "en",
 ) -> ReportContext:
     # Local import: mock_sections imports the dataclasses from this module, so importing it here
     # (rather than at module top) avoids a circular-import cycle and lets mock_sections be imported
     # standalone. Swapped for a real aggregator when app-id/category ingest lands.
     from app.services.reporting.mock_sections import applications_block, web_filter_block
+    t = report_text(locale)
     bucket = pick_bucket(to - frm)
     sections: list[DeviceSection] = []
     devices = await aggregator.devices()
@@ -150,6 +154,7 @@ async def build_context(
             height=140,
             y_label="Attempts",
             x_label="Time",
+            empty_text=t.no_data,
         )
         top_attempts = await aggregator.top(field="name", frm=frm, to=to, device_id=dev.id)
         top_targets = await aggregator.top(field="dst_ip", frm=frm, to=to, device_id=dev.id)
@@ -166,7 +171,7 @@ async def build_context(
         # --- Web Activity (DNS) ---
         dns_tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="dns", device_id=dev.id)
         web = WebActivityBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140, y_label="DNS lookups", x_label="Time"),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140, y_label="DNS lookups", x_label="Time", empty_text=t.no_data),
             top_sites=RankedTable("Top Sites", ("Site", "Hits"),
                                   [(r.value, r.count) for r in await aggregator.top(field="name", source="dns", frm=frm, to=to, device_id=dev.id)]),
             top_initiators=RankedTable("Top Initiators", ("Initiator", "Hits"),
@@ -179,14 +184,14 @@ async def build_context(
         bw_tl = await aggregator.bandwidth_timeline(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         tin, tout = await aggregator.bandwidth_totals(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         bandwidth = BandwidthBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140, y_label="Data / period", x_label="Time", y_format=human_bytes),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140, y_label="Data / period", x_label="Time", y_format=human_bytes, empty_text=t.no_data),
             total_in=human_bytes(tin), total_out=human_bytes(tout),
         )
 
         # --- Up/Down status ---
         av_series, uptime = await aggregator.availability_series(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         status = StatusBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80, y_label="Status", x_label="Time", y_format=_updown_fmt),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80, y_label="Status", x_label="Time", y_format=_updown_fmt, empty_text=t.no_data),
             uptime_pct=round(uptime, 1),
         )
 
@@ -208,4 +213,5 @@ async def build_context(
         range_to=to,
         sections=sections,
         logo_data_uri=logo_data_uri,
+        t=t,
     )

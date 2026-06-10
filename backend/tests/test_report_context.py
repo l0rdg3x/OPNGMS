@@ -106,6 +106,8 @@ async def test_build_context_includes_web_bandwidth_status(db_engine):
                                   frm=base - timedelta(hours=1), to=base + timedelta(hours=1))
     sec = ctx.sections[0]
     assert sec.web is not None and sec.bandwidth is not None and sec.status is not None
+    # Task 2: ctx.t must be populated
+    assert ctx.t is not None
     html = render_html(ctx)
     assert "Web Activity" in html and "example.org" in html and "tracker.bad" in html
     assert "Data Usage" in html
@@ -114,3 +116,9 @@ async def test_build_context_includes_web_bandwidth_status(db_engine):
     assert "DNS lookups" in html          # y_label on the web activity chart
     assert "Attempts</text>" in html      # y_label rendered in the attacks timeline SVG (not the table caption)
     assert "How much data flowed through" in html  # explanation paragraph for Data Usage
+    # Task 2: section titles come from ctx.t
+    assert "Attacks" in html
+    assert "Table of contents" in html
+    # Task 2: footer label attributes present in the HTML
+    assert 'data-ftz="Report generated for timezone"' in html
+    assert 'data-fpage="Page"' in html
