@@ -85,8 +85,11 @@ def parse_interfaces(traffic: dict) -> list[dict]:
 
     `link state` is the FreeBSD enum (0=unknown, 1=down, 2=up); only "2" is up.
     """
+    interfaces = (traffic or {}).get("interfaces")
+    if not isinstance(interfaces, dict):
+        return []
     out = []
-    for v in (traffic or {}).get("interfaces", {}).values():
+    for v in interfaces.values():
         out.append({
             "name": v.get("name", ""),
             "up": str(v.get("link state")) == "2",

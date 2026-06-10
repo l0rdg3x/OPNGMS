@@ -66,3 +66,15 @@ def test_parse_vpn_reads_rows():
     assert parsers.parse_vpn(load("wireguard_show_empty.json")) == []
     out = parsers.parse_vpn(load("wireguard_show.json"))
     assert out == [{"name": "wg0 (peer1)", "up": True}]
+
+
+def test_parse_interfaces_tolerates_malformed_shape():
+    assert parsers.parse_interfaces({"interfaces": None}) == []
+    assert parsers.parse_interfaces({"interfaces": []}) == []   # wrong type (list)
+    assert parsers.parse_interfaces({}) == []
+    assert parsers.parse_interfaces(None) == []
+
+
+def test_parse_gateways_force_down_is_down():
+    out = parsers.parse_gateways({"items": [{"name": "G3", "status": "force_down"}]})
+    assert out[0]["up"] is False
