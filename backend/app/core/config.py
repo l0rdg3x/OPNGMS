@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     admin_database_url: str | None = None  # owner, for the worker (bypasses RLS)
     redis_url: str = "redis://localhost:6379"
     poll_interval_seconds: int = 60
+    cors_allow_origins: str = ""  # comma-separated; empty = CORS disabled (same-origin)
 
 
 @lru_cache
