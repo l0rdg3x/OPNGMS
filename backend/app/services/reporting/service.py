@@ -6,7 +6,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from weasyprint import HTML, default_url_fetcher
+from weasyprint import HTML
+from weasyprint.urls import URLFetcher
 
 from app.repositories.report_settings import ReportSettingsRepository
 from app.services.reporting.aggregation import ReportAggregator
@@ -41,12 +42,10 @@ class ReportRangeError(ValueError):
     """Raised for an invalid report date range (the API maps this to HTTP 400)."""
 
 
-def _report_url_fetcher(url: str):
-    # Allow ONLY inline data: URIs (the embedded logo) — decoded inline, no network. Block every other
-    # scheme (http/https/file/ftp) to prevent SSRF. WeasyPrint routes data: through the fetcher too.
-    if url.startswith("data:"):
-        return default_url_fetcher(url)
-    raise ValueError(f"remote resource fetching is disabled in reports: {url!r}")
+# SSRF guard: allow ONLY inline `data:` URIs (the embedded logo) — decoded inline, no network. Every
+# other scheme (http/https/file/ftp) is refused by WeasyPrint's URLFetcher, preventing any outbound
+# request from report data. (URLFetcher replaces the deprecated default_url_fetcher delegation.)
+_report_url_fetcher = URLFetcher(allowed_protocols=["data"])
 
 
 def html_to_pdf(html: str) -> bytes:

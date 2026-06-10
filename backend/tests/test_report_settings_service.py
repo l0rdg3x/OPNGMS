@@ -114,17 +114,17 @@ def test_report_url_fetcher_allows_data_uri():
 
 
 def test_report_url_fetcher_blocks_http():
-    with pytest.raises(ValueError, match="remote resource fetching is disabled"):
+    with pytest.raises(ValueError, match="disallowed protocol"):
         _report_url_fetcher("http://169.254.169.254/latest/meta-data/")
 
 
 def test_report_url_fetcher_blocks_https():
-    with pytest.raises(ValueError, match="remote resource fetching is disabled"):
+    with pytest.raises(ValueError, match="disallowed protocol"):
         _report_url_fetcher("https://evil.example.com/x")
 
 
 def test_report_url_fetcher_blocks_file():
-    with pytest.raises(ValueError, match="remote resource fetching is disabled"):
+    with pytest.raises(ValueError, match="disallowed protocol"):
         _report_url_fetcher("file:///etc/passwd")
 
 
