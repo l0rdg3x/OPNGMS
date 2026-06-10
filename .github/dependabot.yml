@@ -1,6 +1,8 @@
-# Automated dependency-update PRs (complements pip-audit / npm audit). Weekly, grouped so
-# each ecosystem opens a SINGLE combined PR (fewer PRs => fewer notification emails),
-# capped to limit open PRs.
+# Automated dependency-update PRs (complements pip-audit / npm audit). Weekly.
+# Grouping strategy: bundle only low-risk MINOR + PATCH bumps into one combined PR per
+# ecosystem (fewer PRs => fewer notification emails), while every MAJOR update still comes
+# as its own individual PR so it can be evaluated / accepted / rejected on its own (full
+# granularity where it matters — e.g. a breaking bump like redis 8). Capped to limit open PRs.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -10,8 +12,8 @@ updates:
     open-pull-requests-limit: 5
     labels: [dependencies, backend]
     groups:
-      backend:
-        patterns: ["*"]
+      backend-minor:
+        update-types: [minor, patch]
     ignore:
       # arq pins redis[hiredis]<6, so redis >= 6 is unusable until arq raises its cap.
       # (Dependabot proposed redis 8 in PR #22, which failed to resolve — keep redis 5.x.)
@@ -25,8 +27,8 @@ updates:
     open-pull-requests-limit: 5
     labels: [dependencies, frontend]
     groups:
-      frontend:
-        patterns: ["*"]
+      frontend-minor:
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
@@ -34,8 +36,8 @@ updates:
       interval: weekly
     labels: [dependencies, ci]
     groups:
-      actions:
-        patterns: ["*"]
+      actions-minor:
+        update-types: [minor, patch]
 
   - package-ecosystem: docker
     directory: /backend
@@ -43,8 +45,8 @@ updates:
       interval: weekly
     labels: [dependencies, docker]
     groups:
-      docker-backend:
-        patterns: ["*"]
+      docker-backend-minor:
+        update-types: [minor, patch]
 
   - package-ecosystem: docker
     directory: /frontend
@@ -52,5 +54,5 @@ updates:
       interval: weekly
     labels: [dependencies, docker]
     groups:
-      docker-frontend:
-        patterns: ["*"]
+      docker-frontend-minor:
+        update-types: [minor, patch]
