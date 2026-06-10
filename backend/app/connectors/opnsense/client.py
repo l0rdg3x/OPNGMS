@@ -1,4 +1,6 @@
+import asyncio
 import hashlib
+import ssl
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
@@ -46,11 +48,13 @@ class OpnsenseClient:
         api_secret: str,
         *,
         verify_tls: bool = True,
+        tls_fingerprint: str | None = None,
         timeout: float = 10.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._auth = (api_key, api_secret)
         self._verify = verify_tls
+        self._fingerprint = tls_fingerprint
         self._timeout = timeout
 
     async def _request(
@@ -70,6 +74,16 @@ class OpnsenseClient:
         except UnsafeUrlError as exc:
             # SANITIZED message: no detail of the unsafe URL.
             raise ReachabilityError("unsafe destination") from exc
+        # TLS pinning (opt-in): when not doing CA verification but a fingerprint is pinned, verify the
+        # device cert BEFORE sending credentials. No fingerprint => permissive (self-signed) as before.
+        if not self._verify and self._fingerprint:
+            from app.connectors.opnsense.tls_pinning import PinMismatchError, verify_pinned
+            try:
+                await verify_pinned(host, pinned_ip, port or 443, self._fingerprint, timeout=self._timeout)
+            except PinMismatchError as exc:
+                raise ReachabilityError("certificate fingerprint mismatch") from exc
+            except (ssl.SSLError, OSError, asyncio.TimeoutError) as exc:
+                raise ReachabilityError("device unreachable") from exc
         # Connect to the pinned IP (anti DNS-rebinding); the original hostname remains
         # for the Host header and for SNI/TLS cert verification.
         conn_host = f"[{pinned_ip}]" if ":" in pinned_ip else pinned_ip
