@@ -174,6 +174,17 @@ async def generate_tenant_report(ctx: dict, tenant_id: str, frm: str, to: str, k
         return "stored"
 
 
+async def cleanup_expired_sessions(ctx: dict) -> str:
+    """Cron: delete expired/idle sessions. Returns a short status string."""
+    factory = ctx["session_factory"]
+    async with factory() as session:
+        from app.services.auth import AuthService  # local import avoids a cycle at module load
+
+        n = await AuthService(session).purge_expired(datetime.now(timezone.utc))
+        await session.commit()
+    return f"purged {n} expired sessions"
+
+
 def _prior_week(now: datetime) -> tuple[datetime, datetime]:
     # [Monday 00:00 of last week, Monday 00:00 of this week)
     this_week_start = (now - timedelta(days=now.weekday())).replace(
@@ -214,6 +225,7 @@ class WorkerSettings:
         cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # events, every 5 minutes
         cron(enqueue_config_backups, hour={3}, minute={0}),  # config, daily ~03:00
         cron(enqueue_scheduled_reports, weekday="mon", hour={4}, minute={0}),  # weekly reports, Monday ~04:00
+        cron(cleanup_expired_sessions, minute={0}),  # hourly: reap expired/idle sessions
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
