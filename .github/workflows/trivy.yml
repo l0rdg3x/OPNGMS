@@ -33,28 +33,31 @@ jobs:
       - name: Build image
         run: docker build -t "opngms-${{ matrix.name }}:scan" "${{ matrix.context }}"
 
-      # Authenticate to ghcr.io so Trivy pulls its vulnerability DB (ghcr.io/aquasecurity/trivy-db
-      # and trivy-java-db) as an authenticated request. Anonymous pulls hit GitHub Container Registry
-      # rate limits (TOOMANYREQUESTS) on busy public repos, which is what failed the scan step.
-      - name: Log in to ghcr.io for the Trivy DB
+      # Authenticate to ghcr.io so the Trivy scanner image pulls without hitting the anonymous
+      # GitHub Container Registry rate limit.
+      - name: Log in to ghcr.io
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Run Trivy from its official container image instead of aquasecurity/trivy-action. The
+      # action's internal setup-trivy step downloads the Trivy binary from GitHub release assets,
+      # which is rate-limited/flaky on public runners and was failing the job at install time
+      # ("found version: 0.65.0 ... exit code 1"). The container already ships the binary; the
+      # vulnerability DB is pulled from the GCR mirror (Trivy's default), so no ghcr DB rate limit.
+      # --exit-code 0 keeps findings non-fatal — results land in the Security tab via the SARIF upload.
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@v0.33.1  # valid inputs + SHA-pinned internal setup-trivy
-        with:
-          image-ref: "opngms-${{ matrix.name }}:scan"
-          format: sarif
-          output: "trivy-${{ matrix.name }}.sarif"
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-        env:
-          # Pin the DB sources explicitly to the authenticated ghcr.io path (defaults, made explicit).
-          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
-          TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${{ github.workspace }}:/out" \
+            ghcr.io/aquasecurity/trivy:0.65.0 image \
+            --format sarif --output "/out/trivy-${{ matrix.name }}.sarif" \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 \
+            --skip-version-check \
+            "opngms-${{ matrix.name }}:scan"
 
       - name: Upload SARIF
         if: always()
