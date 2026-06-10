@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, LargeBinary, String, func
+from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,7 +11,9 @@ from app.models.base import Base
 class ReportSettings(Base):
     __tablename__ = "report_settings"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True
+    )
     title: Mapped[str] = mapped_column(String, default="Security & Activity Report",
                                        server_default="Security & Activity Report")
     owner: Mapped[str] = mapped_column(String, default="", server_default="")

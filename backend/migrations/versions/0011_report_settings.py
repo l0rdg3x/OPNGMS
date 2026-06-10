@@ -23,6 +23,7 @@ def upgrade() -> None:
         sa.Column("logo", sa.LargeBinary(), nullable=True),
         sa.Column("logo_mime", sa.String(), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("tenant_id"),
     )
     op.execute("ALTER TABLE report_settings ENABLE ROW LEVEL SECURITY")
