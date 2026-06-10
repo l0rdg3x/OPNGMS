@@ -1,12 +1,15 @@
 import asyncio
-import hashlib
 import ssl
-from datetime import datetime, timezone
+from datetime import datetime
 from urllib.parse import urlsplit
 
 import httpx
 
+from app.connectors.opnsense import parsers
 from app.connectors.opnsense.url_safety import UnsafeUrlError, validate_base_url
+
+# Rows requested from the paged IDS/DNS query endpoints (dedup happens downstream).
+MAX_QUERY_ROWS = 500
 
 
 class OpnsenseError(Exception):
@@ -37,8 +40,10 @@ class OpnsenseClient:
     """Single HTTP boundary toward an OPNsense device.
 
     HTTP Basic auth (api_key as username, api_secret as password) over HTTPS.
-    NOTE: the exact endpoints are TO BE VERIFIED against a real OPNsense; here we use
-    `core/firmware/status` for the connection test + firmware version.
+    The read/telemetry endpoints are verified against a real OPNsense 26.1.9 and the raw
+    JSON is normalized by the pure functions in ``parsers``. The write path (``apply_alias``)
+    and ``get_config_backup`` remain unverified against hardware (out of scope, see the
+    connector design spec).
     """
 
     def __init__(
@@ -157,190 +162,60 @@ class OpnsenseClient:
         return resp.text
 
     async def get_firmware_status(self) -> dict:
-        return await self._get("core/firmware/status")
+        """Connection test + firmware version. Normalizes the version to the top level so
+        callers (monitoring) read `.get("product_version")` regardless of the raw nesting."""
+        data = await self._get("core/firmware/status")
+        return {"product_version": parsers.parse_firmware_version(data)}
 
     async def get_plugin_info(self) -> dict:
-        """Installed plugins + product version, for capability discovery.
-
-        NOTE: endpoint `core/firmware/info` and payload shape TO VERIFY against a real
-        OPNsense device. Defensive toward key variants.
-        """
+        """Installed plugins + product version, for capability discovery."""
         data = await self._get("core/firmware/info")
-        packages = data.get("package", data.get("plugin", []))
-        plugins = [
-            p.get("name", "")
-            for p in packages
-            if str(p.get("installed", "")) in ("1", "true", "True") and p.get("name")
-        ]
-        version = data.get("product_version") or (data.get("product") or {}).get("product_version", "")
-        return {"product_version": version, "plugins": plugins}
+        return parsers.parse_plugins(data)
 
     async def get_system_info(self) -> dict:
-        """CPU/mem/disk/uptime. NOTE: endpoint+fields TO BE VERIFIED against a real OPNsense."""
-        data = await self._get("diagnostics/system/systemInformation")
-        return {
-            "cpu_pct": float((data.get("cpu") or {}).get("used", 0.0)),
-            "mem_pct": float((data.get("memory") or {}).get("used_pct", 0.0)),
-            "disk_pct": float((data.get("disk") or {}).get("used_pct", 0.0)),
-            "uptime_seconds": int(data.get("uptime_seconds", 0)),
-        }
-
-    @staticmethod
-    def _num(v) -> float:
-        """Extract the first float from a string like '12.3 ms' / '0.0 %' / a number.
-
-        NOTE: the exact format of the delay/loss/bytes fields is TO BE VERIFIED against
-        a real OPNsense; the regex is defensive to handle string variants.
-        """
-        import re
-
-        if isinstance(v, (int, float)):
-            return float(v)
-        m = re.search(r"[-+]?\d*\.?\d+", str(v or ""))
-        return float(m.group()) if m else 0.0
+        """CPU/mem/disk/uptime, aggregated from four diagnostics endpoints (26.1.9)."""
+        resources = await self._get("diagnostics/system/systemResources")
+        disk = await self._get("diagnostics/system/systemDisk")
+        time = await self._get("diagnostics/system/systemTime")
+        cputype = await self._get("diagnostics/cpu_usage/getCPUType")
+        return parsers.parse_system_info(resources, disk, time, cputype)
 
     async def get_interfaces(self) -> list[dict]:
-        """Per-network-interface statistics.
-
-        NOTE: the `diagnostics/interface/getInterfaceStatistics` endpoint and the
-        bytes_received/bytes_transmitted fields are TO BE VERIFIED against a real OPNsense.
-        """
-        data = await self._get("diagnostics/interface/getInterfaceStatistics")
-        out = []
-        for it in data.get("interfaces", []):
-            out.append({
-                "name": it.get("name", ""),
-                "up": it.get("status") == "up",
-                "bytes_in": self._num(it.get("bytes_received")),
-                "bytes_out": self._num(it.get("bytes_transmitted")),
-            })
-        return out
+        """Per-interface bytes + up flag (diagnostics/traffic/interface)."""
+        data = await self._get("diagnostics/traffic/interface")
+        return parsers.parse_interfaces(data)
 
     async def get_gateways(self) -> list[dict]:
-        """Gateway status (RTT, packet-loss).
-
-        NOTE: the `routes/gateway/status` endpoint, the `items` key, and the
-        delay/loss fields (with " ms"/" %" units) are TO BE VERIFIED against a real OPNsense.
-        A gateway is down only if status is in {"down", "force_down"}.
-        """
+        """Gateway RTT / packet-loss / up (routes/gateway/status)."""
         data = await self._get("routes/gateway/status")
-        out = []
-        for g in data.get("items", []):
-            status = str(g.get("status", "")).lower()
-            out.append({
-                "name": g.get("name", ""),
-                "up": status not in ("down", "force_down"),
-                "rtt_ms": self._num(g.get("delay")),
-                "loss_pct": self._num(g.get("loss")),
-            })
-        return out
+        return parsers.parse_gateways(data)
 
     async def get_vpn_status(self) -> list[dict]:
-        """WireGuard tunnel status.
-
-        NOTE: the `wireguard/service/show` endpoint and the `tunnels` key with the
-        `connected` field are TO BE VERIFIED against a real OPNsense. OpenVPN uses a
-        different endpoint (not yet implemented).
-        """
+        """WireGuard tunnel/peer status (wireguard/service/show; envelope key `rows`)."""
         data = await self._get("wireguard/service/show")
-        return [
-            {"name": t.get("name", ""), "up": bool(t.get("connected"))}
-            for t in data.get("tunnels", [])
-        ]
+        return parsers.parse_vpn(data)
 
     async def get_ids_alerts(self, since: datetime | None = None) -> list[dict]:
-        """Normalized Suricata IDS/IPS alerts.
+        """Normalized Suricata IDS/IPS alerts. queryAlerts is POST (GET returns a bare []).
 
-        NOTE: the `ids/service/queryAlerts` endpoint and the payload format are TO BE
-        VERIFIED against a real OPNsense. Defensive toward key variants. `since` is a hint:
-        the fine filtering and the deduplication happen downstream (cursor + ON CONFLICT).
-        """
-        data = await self._get("ids/service/queryAlerts")
-        out: list[dict] = []
-        for r in data.get("rows", data.get("alerts", [])):
-            alert = r.get("alert", {}) if isinstance(r.get("alert"), dict) else {}
-            ts = self._parse_ts(r.get("timestamp"))
-            name = alert.get("signature") or r.get("signature") or ""
-            src = r.get("src_ip", "")
-            dst = r.get("dest_ip", r.get("dst_ip", ""))
-            action = alert.get("action", r.get("action", ""))
-            severity = str(alert.get("severity", r.get("severity", "")))
-            # DISCRIMINATING event_key: stable source id if present,
-            # OTHERWISE a hash of the content (ts+src+dst+signature+severity) so as
-            # NOT to collapse distinct events that share the same signature.
-            key = r.get("alert_id") or r.get("_id") or self._event_key(
-                ts, src, dst, name, severity
-            )
-            out.append({
-                "time": ts,
-                "category": "alert",
-                "src_ip": src,
-                "dst_ip": dst,
-                "name": name,
-                "severity": severity,
-                "action": action,
-                "event_key": str(key),
-                "attributes": r,
-            })
-        return out
+        `since` is a hint: fine filtering + dedup happen downstream (cursor + ON CONFLICT)."""
+        data = await self._post(
+            "ids/service/queryAlerts",
+            {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""},
+        )
+        return parsers.parse_ids_rows(data)
 
     async def get_dns_events(self, since: datetime | None = None) -> list[dict]:
-        """Normalized DNS queries (Unbound) → "visited sites".
-
-        NOTE: the `unbound/diagnostics/queries` endpoint and the payload format are TO BE
-        VERIFIED against a real OPNsense — it is the most uncertain source (see debt 3A).
-        Defensive toward key variants. `since` is a hint: fine filtering and dedup happen
-        downstream.
-        """
-        data = await self._get("unbound/diagnostics/queries")
-        out: list[dict] = []
-        for r in data.get("rows", data.get("queries", [])):
-            ts = self._parse_ts(r.get("timestamp", r.get("time")))
-            client_ip = r.get("client") or r.get("client_ip") or ""
-            domain = r.get("domain") or r.get("query") or r.get("name") or ""
-            action = r.get("action", "")  # allowed | blocked
-            # discriminating event_key: stable id if present, otherwise a hash of the content.
-            key = r.get("query_id") or r.get("id") or r.get("_id") or self._event_key(
-                ts, client_ip, domain, action
-            )
-            out.append({
-                "time": ts,
-                "category": "query",
-                "src_ip": client_ip,
-                "dst_ip": "",
-                "name": domain,
-                "severity": "",
-                "action": action,
-                "event_key": str(key),
-                "attributes": r,
-            })
-        return out
-
-    @staticmethod
-    def _parse_ts(value) -> datetime:
-        """Always returns a tz-aware datetime (naive -> UTC; unparsable -> now UTC)."""
-        if isinstance(value, datetime):
-            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        try:
-            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError):
-            return datetime.now(timezone.utc)
-
-    @staticmethod
-    def _event_key(ts, *parts) -> str:
-        """Discriminating hash of the event content (no source id available)."""
-        h = hashlib.sha1("|".join([ts.isoformat(), *[str(p) for p in parts]]).encode())
-        return h.hexdigest()
+        """Normalized DNS queries -> "visited sites" (unbound/overview/searchQueries)."""
+        data = await self._get(
+            f"unbound/overview/searchQueries?current=1&rowCount={MAX_QUERY_ROWS}"
+        )
+        return parsers.parse_dns_rows(data)
 
     async def test_connection(self) -> str | None:
-        """Verify reachability+credentials; returns the firmware version or None.
+        """Verify reachability+credentials; return the firmware version or None.
 
         Raises AuthError/ReachabilityError/ApiError/ParseError on problems.
         """
         data = await self.get_firmware_status()
-        # Field TO BE VERIFIED against a real OPNsense (the exact name may differ).
-        version = data.get("product_version")
-        if version is None and isinstance(data.get("product"), dict):
-            version = data["product"].get("product_version")
-        return version
+        return data.get("product_version") or None

@@ -1,0 +1,1 @@
+{"devices":[{"device":"zroot/ROOT/default","type":"zfs","blocks":"223G","used":"1.2G","available":"222G","used_pct":1,"mountpoint":"/"},{"device":"/dev/gpt/efiboot0","type":"msdosfs","used_pct":1,"mountpoint":"/boot/efi"},{"device":"zroot/tmp","type":"zfs","used_pct":0,"mountpoint":"/tmp"}]}

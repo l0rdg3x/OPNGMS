@@ -9,6 +9,7 @@ from app.connectors.opnsense.client import (
     ParseError,
     ReachabilityError,
 )
+from tests.opn_fixtures import load
 
 BASE = "https://203.0.113.10"
 FW_URL = f"{BASE}/api/core/firmware/status"
@@ -53,3 +54,11 @@ async def test_non_json_raises_parse_error():
     respx.get(FW_URL).mock(return_value=httpx.Response(200, text="not json"))
     with pytest.raises(ParseError):
         await OpnsenseClient(BASE, "key", "sec").test_connection()
+
+
+@respx.mock
+async def test_test_connection_reads_nested_firmware_version():
+    # Real core/firmware/status nests the version under product.product_version.
+    respx.get(FW_URL).mock(return_value=httpx.Response(200, json=load("firmware_status.json")))
+    version = await OpnsenseClient(BASE, "key", "sec").test_connection()
+    assert version == "26.1.9"
