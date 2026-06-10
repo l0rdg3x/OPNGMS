@@ -5,7 +5,7 @@
   <style>{{ css }}</style>
 </head>
 <body>
-  <div class="tz-meta" data-tz="{{ ctx.timezone }}" data-owner="{{ ctx.owner or '—' }}"></div>
+  <div class="tz-meta" data-tz="{{ ctx.timezone }}" data-owner="{{ ctx.owner or '—' }}" data-ftz="{{ ctx.t.footer_tz }}" data-fowner="{{ ctx.t.footer_owner }}" data-fpage="{{ ctx.t.footer_page }}" data-fof="{{ ctx.t.footer_of }}"></div>
 
   <section class="title-page">
     {% if ctx.logo_data_uri %}<img class="logo" src="{{ ctx.logo_data_uri }}" alt="logo" />{% endif %}
@@ -15,7 +15,7 @@
   </section>
 
   <section class="toc">
-    <h2>Table of contents</h2>
+    <h2>{{ ctx.t.toc_title }}</h2>
     <ol>
       {% for name in ctx.toc %}<li>{{ name }}</li>{% endfor %}
     </ol>
@@ -26,8 +26,8 @@
     <h2>{{ section.device_name }}</h2>
 
     {% if section.attacks %}
-    <h3>Attacks</h3>
-    <p class="explain">Attempted intrusions your firewall's threat detection blocked during this period. The chart shows how many attempts occurred over time; the tables list the most frequent attack types, which of your devices were targeted, and where the attempts came from.</p>
+    <h3>{{ ctx.t.attacks_title }}</h3>
+    <p class="explain">{{ ctx.t.attacks_explain }}</p>
     <div class="chart">{{ Markup(section.attacks.timeline_svg) }}</div>
     {% for tbl in section.attacks.tables %}
     <table class="ranked">
@@ -35,15 +35,15 @@
       <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th></tr></thead>
       <tbody>
         {% for value, count in tbl.rows %}<tr><td>{{ value }}</td><td>{{ count }}</td></tr>{% endfor %}
-        {% if not tbl.rows %}<tr><td colspan="2">No data</td></tr>{% endif %}
+        {% if not tbl.rows %}<tr><td colspan="2">{{ ctx.t.no_data }}</td></tr>{% endif %}
       </tbody>
     </table>
     {% endfor %}
     {% endif %}
 
     {% if section.web %}
-    <h3>Web Activity</h3>
-    <p class="explain">The websites and online services your network looked up. The chart shows lookup volume over time; the tables show the most-visited sites, the busiest devices, and the domains that were blocked.</p>
+    <h3>{{ ctx.t.web_title }}</h3>
+    <p class="explain">{{ ctx.t.web_explain }}</p>
     <div class="chart">{{ Markup(section.web.timeline_svg) }}</div>
     {% for tbl in [section.web.top_sites, section.web.top_initiators, section.web.top_blocked] %}
     <table class="ranked">
@@ -51,39 +51,39 @@
       <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th></tr></thead>
       <tbody>
         {% for value, count in tbl.rows %}<tr><td>{{ value }}</td><td>{{ count }}</td></tr>{% endfor %}
-        {% if not tbl.rows %}<tr><td colspan="2">No data</td></tr>{% endif %}
+        {% if not tbl.rows %}<tr><td colspan="2">{{ ctx.t.no_data }}</td></tr>{% endif %}
       </tbody>
     </table>
     {% endfor %}
     {% endif %}
 
     {% if section.bandwidth %}
-    <h3>Data Usage</h3>
-    <p class="explain">How much data flowed through your firewall over time (incoming plus outgoing). The totals below summarise the whole period.</p>
+    <h3>{{ ctx.t.data_title }}</h3>
+    <p class="explain">{{ ctx.t.data_explain }}</p>
     <div class="chart">{{ Markup(section.bandwidth.timeline_svg) }}</div>
-    <p class="summary">Total in: {{ section.bandwidth.total_in }} · Total out: {{ section.bandwidth.total_out }}</p>
+    <p class="summary">{{ ctx.t.total_in }}: {{ section.bandwidth.total_in }} · {{ ctx.t.total_out }}: {{ section.bandwidth.total_out }}</p>
     {% endif %}
 
     {% if section.status %}
-    <h3>Up/Down Status</h3>
-    <p class="explain">Whether this firewall was online and reachable over the period. 'Uptime' is the share of time it was online — higher is better.</p>
+    <h3>{{ ctx.t.status_title }}</h3>
+    <p class="explain">{{ ctx.t.status_explain }}</p>
     <div class="chart">{{ Markup(section.status.timeline_svg) }}</div>
-    <p class="summary">Uptime: {{ section.status.uptime_pct }}%</p>
+    <p class="summary">{{ ctx.t.uptime }}: {{ section.status.uptime_pct }}%</p>
     {% endif %}
 
     {% if section.applications %}
-    <h3>Applications</h3>
-    <p class="sample-note">Sample data — application visibility not yet ingested.</p>
-    <p class="explain">Applications seen on your network, each with a simple risk rating — green (Low), blue (Guarded), orange (High). These figures are sample data until application monitoring is enabled.</p>
+    <h3>{{ ctx.t.apps_title }}</h3>
+    <p class="sample-note">{{ ctx.t.apps_sample }}</p>
+    <p class="explain">{{ ctx.t.apps_explain }}</p>
     <div class="chart">{{ Markup(section.applications.timeline_svg) }}</div>
     {% for tbl in [section.applications.top_detected, section.applications.top_blocked, section.applications.top_categories] %}
     <table class="ranked">
       <caption>{{ tbl.title }}</caption>
-      <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th><th>Threat</th></tr></thead>
+      <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th><th>{{ ctx.t.threat }}</th></tr></thead>
       <tbody>
         {% for row in tbl.rows %}
         <tr><td>{{ row.label }}</td><td>{{ row.count }}</td>
-            <td><span class="threat threat-{{ row.level }}">{{ row.level }}</span></td></tr>
+            <td><span class="threat threat-{{ row.level }}">{{ ctx.t['threat_' ~ row.level] }}</span></td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -98,17 +98,17 @@
     {% endif %}
 
     {% if section.web_filter %}
-    <h3>Web Filter</h3>
-    <p class="sample-note">Sample data — content categorization not yet ingested.</p>
-    <p class="explain">Categories of web content requested from your network, each with a risk rating. These figures are sample data until content categorisation is enabled.</p>
+    <h3>{{ ctx.t.webfilter_title }}</h3>
+    <p class="sample-note">{{ ctx.t.webfilter_sample }}</p>
+    <p class="explain">{{ ctx.t.webfilter_explain }}</p>
     <div class="chart">{{ Markup(section.web_filter.timeline_svg) }}</div>
     <table class="ranked">
       <caption>{{ section.web_filter.top_categories.title }}</caption>
-      <thead><tr><th>{{ section.web_filter.top_categories.columns[0] }}</th><th>{{ section.web_filter.top_categories.columns[1] }}</th><th>Threat</th></tr></thead>
+      <thead><tr><th>{{ section.web_filter.top_categories.columns[0] }}</th><th>{{ section.web_filter.top_categories.columns[1] }}</th><th>{{ ctx.t.threat }}</th></tr></thead>
       <tbody>
         {% for row in section.web_filter.top_categories.rows %}
         <tr><td>{{ row.label }}</td><td>{{ row.count }}</td>
-            <td><span class="threat threat-{{ row.level }}">{{ row.level }}</span></td></tr>
+            <td><span class="threat threat-{{ row.level }}">{{ ctx.t['threat_' ~ row.level] }}</span></td></tr>
         {% endfor %}
       </tbody>
     </table>

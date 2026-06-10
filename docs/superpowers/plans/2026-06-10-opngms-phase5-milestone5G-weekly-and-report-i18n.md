@@ -225,6 +225,16 @@ git commit -m "feat(reporting): externalise ranked-table + axis strings to the r
 
 ---
 
+## Technical debt (5G) — recorded
+
+- Only the **en** locale exists. Adding a language = add a dict to `REPORT_LOCALES` in `report_i18n` and
+  wire `locale` selection. The engine already threads a `locale` param (default "en").
+- **Per-tenant language selection** (`report_settings.language` + a settings-UI picker) is the next step,
+  so an operator chooses the report locale (the frontend has no language picker yet either).
+- Date/number formatting is not localised (still ISO/Western); a real locale would localise those too.
+
+---
+
 ## Definition of "Done" (5G)
 - Scheduled reports run **weekly** (prior calendar week); no "monthly/month" wording remains for the schedule.
 - Every user-facing report string comes from `report_text(locale)`; en renders today's text; an unknown locale falls back to en; adding a locale = adding a dict. All escaped/secret-safe; backend suite green; a rendered sample still looks right.

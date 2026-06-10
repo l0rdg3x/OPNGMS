@@ -16,6 +16,7 @@ from app.services.reporting.context import (
     ThreatRow,
     WebFilterBlock,
 )
+from app.services.reporting.i18n import ReportText
 
 # Fixed palettes with a fixed threat level each (controlled enum values only).
 _APPS = [
@@ -49,9 +50,9 @@ def _counts(seed: int, n: int) -> list[int]:
     return [max(1, base // (i + 1) + (seed >> (i % 5)) % 7) for i in range(n)]
 
 
-def _timeline_svg(seed: int, *, height: int = 140, y_label: str = "Sessions") -> str:
+def _timeline_svg(seed: int, *, height: int = 140, y_label: str = "Sessions", x_label: str = "Time", empty_text: str = "No data") -> str:
     pts = [(f"t{i}", 5 + (seed >> (i % 6)) % 40 + (i % 3) * 3) for i in range(6)]
-    return line_chart(pts, width=520, height=height, y_label=y_label, x_label="Time")
+    return line_chart(pts, width=520, height=height, y_label=y_label, x_label=x_label, empty_text=empty_text)
 
 
 def _threat_table(title: str, columns: tuple[str, str], palette: list[tuple[str, str]], seed: int, n: int) -> ThreatRankedTable:
@@ -67,22 +68,22 @@ def _plain_table(title: str, columns: tuple[str, str], items: list[str], seed: i
     return RankedTable(title=title, columns=columns, rows=list(zip(rotated, counts)))
 
 
-def applications_block(device_name: str) -> ApplicationsBlock:
+def applications_block(device_name: str, t: "ReportText") -> ApplicationsBlock:
     seed = _seed(device_name)
     return ApplicationsBlock(
-        timeline_svg=_timeline_svg(seed, y_label="Sessions"),
-        top_detected=_threat_table("Top Detected", ("Application", "Sessions"), _APPS, seed, 5),
-        top_blocked=_threat_table("Top Blocked", ("Application", "Blocks"), _rotate(_APPS, seed + 3), seed + 3, 4),
-        top_categories=_threat_table("Top Categories", ("Category", "Sessions"), _CATEGORIES, seed, 5),
-        top_initiators=_plain_table("Top Initiators", ("Initiator", "Sessions"), _INITIATORS, seed, 4),
+        timeline_svg=_timeline_svg(seed, y_label=t.axis_sessions, x_label=t.axis_time, empty_text=t.no_data),
+        top_detected=_threat_table(t.t_top_detected, (t.col_application, t.col_sessions), _APPS, seed, 5),
+        top_blocked=_threat_table(t.t_top_blocked, (t.col_application, t.col_blocks), _rotate(_APPS, seed + 3), seed + 3, 4),
+        top_categories=_threat_table(t.t_top_categories, (t.col_category, t.col_sessions), _CATEGORIES, seed, 5),
+        top_initiators=_plain_table(t.t_top_initiators, (t.col_initiator, t.col_sessions), _INITIATORS, seed, 4),
     )
 
 
-def web_filter_block(device_name: str) -> WebFilterBlock:
+def web_filter_block(device_name: str, t: "ReportText") -> WebFilterBlock:
     seed = _seed(device_name) ^ 0x5F5F
     return WebFilterBlock(
-        timeline_svg=_timeline_svg(seed, height=140, y_label="Requests"),
-        top_categories=_threat_table("Top Categories", ("Category", "Requests"), _CATEGORIES, seed, 5),
-        top_sites=_plain_table("Top Sites", ("Site", "Requests"), _SITES, seed, 5),
-        top_initiators=_plain_table("Top Initiators", ("Initiator", "Requests"), _INITIATORS, seed, 4),
+        timeline_svg=_timeline_svg(seed, height=140, y_label=t.axis_requests, x_label=t.axis_time, empty_text=t.no_data),
+        top_categories=_threat_table(t.t_top_categories, (t.col_category, t.col_requests), _CATEGORIES, seed, 5),
+        top_sites=_plain_table(t.t_top_sites, (t.col_site, t.col_requests), _SITES, seed, 5),
+        top_initiators=_plain_table(t.t_top_initiators, (t.col_initiator, t.col_requests), _INITIATORS, seed, 4),
     )

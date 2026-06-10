@@ -29,11 +29,13 @@ def line_chart(
     y_label: str = "",
     x_label: str = "Time",
     y_format: Callable[[float], str] | None = None,
+    empty_text: str = "No data",
 ) -> str:
     """A time-series line chart with labelled X/Y axes, value ticks and gridlines.
 
     `points` is [(x_label, value)] (x_labels are time buckets). `y_format` formats the Y tick values
     (e.g. human-readable bytes); it is an INTERNAL callable, never user-controlled. All text is escaped.
+    `empty_text` is the centred message shown when `points` is empty (escaped before rendering).
     """
     fmt = y_format or _int_fmt
     plot_w = width - _ML - _MR
@@ -45,7 +47,7 @@ def line_chart(
     if not points:
         parts.append(
             f'<text x="{width / 2:.0f}" y="{height / 2:.0f}" font-size="10" fill="#888" '
-            f'text-anchor="middle">No data</text></svg>'
+            f'text-anchor="middle">{escape(empty_text)}</text></svg>'
         )
         return "".join(parts)
 

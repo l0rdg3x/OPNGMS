@@ -1,12 +1,12 @@
 @page {
   size: A4;
   margin: 2cm 1.5cm 2cm 1.5cm;
-  @bottom-left { content: "Report generated for timezone " string(tz); font-size: 8pt; color: #666; }
-  @bottom-center { content: "Report owner: " string(owner); font-size: 8pt; color: #666; }
-  @bottom-right { content: "Page " counter(page) " / " counter(pages); font-size: 8pt; color: #666; }
+  @bottom-left { content: string(ftz) " " string(tz); font-size: 8pt; color: #666; }
+  @bottom-center { content: string(fowner) " " string(owner); font-size: 8pt; color: #666; }
+  @bottom-right { content: string(fpage) " " counter(page) " " string(fof) " " counter(pages); font-size: 8pt; color: #666; }
 }
 body { font-family: sans-serif; color: #1a1a1a; font-size: 10pt; }
-.tz-meta { string-set: tz attr(data-tz), owner attr(data-owner); }
+.tz-meta { string-set: tz attr(data-tz), owner attr(data-owner), ftz attr(data-ftz), fowner attr(data-fowner), fpage attr(data-fpage), fof attr(data-fof); }
 .title-page { text-align: center; padding-top: 6cm; page-break-after: always; }
 .logo { max-height: 3cm; margin-bottom: .5cm; }
 .title-page h1 { font-size: 26pt; margin-bottom: .4cm; }

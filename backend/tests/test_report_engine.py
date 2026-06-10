@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from app.services.reporting.context import ReportContext
+from app.services.reporting.i18n import report_text
 from app.services.reporting.service import html_to_pdf
 from app.services.reporting.template import render_html
 
@@ -14,6 +15,7 @@ def _ctx():
         range_from=datetime(2026, 6, 1, tzinfo=timezone.utc),
         range_to=datetime(2026, 6, 8, tzinfo=timezone.utc),
         sections=[],
+        t=report_text("en"),
     )
 
 

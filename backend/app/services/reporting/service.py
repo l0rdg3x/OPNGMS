@@ -68,7 +68,7 @@ class ReportService:
         self.session = session
         self.tenant_id = tenant_id
 
-    async def build_html(self, *, tenant_name: str, frm: datetime, to: datetime) -> str:
+    async def build_html(self, *, tenant_name: str, frm: datetime, to: datetime, locale: str = "en") -> str:
         frm, to = _ensure_utc(frm), _ensure_utc(to)
         _validate_range(frm, to)
         settings = await ReportSettingsRepository(self.session, self.tenant_id).get_or_default()
@@ -83,9 +83,10 @@ class ReportService:
             to=to,
             title=settings.title,
             logo_data_uri=ctx_logo,
+            locale=locale,
         )
         return render_html(ctx)
 
-    async def build_report(self, *, tenant_name: str, frm: datetime, to: datetime) -> bytes:
-        html = await self.build_html(tenant_name=tenant_name, frm=frm, to=to)
+    async def build_report(self, *, tenant_name: str, frm: datetime, to: datetime, locale: str = "en") -> bytes:
+        html = await self.build_html(tenant_name=tenant_name, frm=frm, to=to, locale=locale)
         return html_to_pdf(html)

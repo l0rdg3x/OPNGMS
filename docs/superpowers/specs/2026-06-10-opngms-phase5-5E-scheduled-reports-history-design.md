@@ -1,5 +1,7 @@
 # OPNGMS — Phase 5 / Milestone 5E: Scheduled Reports + Storage/History + UI — Design Spec
 
+> **Note (5G):** The report cadence was changed from monthly to **weekly** (prior calendar week, Monday→Monday) in milestone 5G. The spec body below still refers to the original monthly design for historical context.
+
 - **Date:** 2026-06-10
 - **Status:** Approved (the user chose on-demand + periodic cron, and to proceed through 5B–5E)
 - **Phase:** 5 of 5 — Milestone 5E (the final reporting milestone)
