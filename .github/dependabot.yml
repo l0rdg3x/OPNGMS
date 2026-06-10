@@ -1,8 +1,7 @@
 # Automated dependency-update PRs (complements pip-audit / npm audit). Weekly.
 # Grouping strategy: bundle only low-risk MINOR + PATCH bumps into one combined PR per
-# ecosystem (fewer PRs => fewer notification emails), while every MAJOR update still comes
-# as its own individual PR so it can be evaluated / accepted / rejected on its own (full
-# granularity where it matters — e.g. a breaking bump like redis 8). Capped to limit open PRs.
+# ecosystem (fewer PRs => fewer notification emails). For npm / github-actions / docker,
+# MAJOR updates still come as their own individual PRs (full granularity to evaluate them).
 version: 2
 updates:
   - package-ecosystem: pip
@@ -15,10 +14,15 @@ updates:
       backend-minor:
         update-types: [minor, patch]
     ignore:
-      # arq pins redis[hiredis]<6, so redis >= 6 is unusable until arq raises its cap.
-      # (Dependabot proposed redis 8 in PR #22, which failed to resolve — keep redis 5.x.)
-      - dependency-name: "redis"
-        versions: [">=6"]
+      # Backend Python deps are tangled with transitive upper-bound caps that make a
+      # standalone MAJOR bump unresolvable until the capping library catches up, so it only
+      # yields a red PR. Known caps: arq->redis<6 (closed PR #22), fastapi/starlette->
+      # httpx<1.0/<0.29, pytest-asyncio->pytest<10, py-serializable->defusedxml<0.8.
+      # Major upgrades here are therefore done deliberately/manually (coordinating the capping
+      # libs); minor+patch still flow (grouped above). Security fixes are unaffected:
+      # Dependabot *security* updates and the CI pip-audit step still apply regardless.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /frontend
