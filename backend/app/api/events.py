@@ -8,7 +8,7 @@ from app.core.db import get_session
 from app.core.deps import TenantContext, require_tenant
 from app.core.rbac import Action
 from app.repositories.event import MAX_EVENTS, TOP_FIELDS, EventRepository
-from app.schemas.event import EventOut, EventTopRow
+from app.schemas.event import EventOut, EventPage, EventTopRow
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["events"])
 
@@ -19,22 +19,27 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
     return dt
 
 
-@router.get("/events", response_model=list[EventOut])
+@router.get("/events", response_model=EventPage)
 async def list_events(
     tenant_id: uuid.UUID,
     source: str | None = Query(None),
     device_id: uuid.UUID | None = Query(None),
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = Query(None),
+    after: str | None = Query(None, description="Opaque keyset cursor from a previous page's next_cursor"),
     limit: int = Query(100, ge=1, le=MAX_EVENTS),
     ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
     session: AsyncSession = Depends(get_session),
-) -> list[EventOut]:
+) -> EventPage:
     repo = EventRepository(session, tenant_id)
-    return await repo.list(
-        source=source, device_id=device_id,
-        frm=_ensure_utc(from_), to=_ensure_utc(to), limit=limit,
-    )
+    try:
+        items, next_cursor = await repo.list_page(
+            source=source, device_id=device_id,
+            frm=_ensure_utc(from_), to=_ensure_utc(to), after=after, limit=limit,
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid cursor")
+    return EventPage(items=items, next_cursor=next_cursor)
 
 
 @router.get("/events/top", response_model=list[EventTopRow])

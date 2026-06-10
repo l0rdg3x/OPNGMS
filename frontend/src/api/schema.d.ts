@@ -866,6 +866,13 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** EventPage */
+        EventPage: {
+            /** Items */
+            items: components["schemas"]["EventOut"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
         /** EventTopRow */
         EventTopRow: {
             /** Value */
@@ -1903,6 +1910,8 @@ export interface operations {
                 device_id?: string | null;
                 from?: string | null;
                 to?: string | null;
+                /** @description Opaque keyset cursor from a previous page's next_cursor */
+                after?: string | null;
                 limit?: number;
             };
             header?: never;
@@ -1919,7 +1928,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EventOut"][];
+                    "application/json": components["schemas"]["EventPage"];
                 };
             };
             /** @description Validation Error */

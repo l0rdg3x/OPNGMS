@@ -1087,6 +1087,24 @@
             }
           },
           {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from a previous page's next_cursor",
+              "title": "After"
+            },
+            "description": "Opaque keyset cursor from a previous page's next_cursor"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -1105,11 +1123,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EventOut"
-                  },
-                  "title": "Response List Events Api Tenants  Tenant Id  Events Get"
+                  "$ref": "#/components/schemas/EventPage"
                 }
               }
             }
@@ -2945,6 +2959,33 @@
           "attributes"
         ],
         "title": "EventOut"
+      },
+      "EventPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "EventPage"
       },
       "EventTopRow": {
         "properties": {

@@ -70,6 +70,48 @@ class EventRepository:
         rows = (await self.session.execute(sql, params)).mappings().all()
         return [EventOut(**dict(r)) for r in rows]
 
+    async def list_page(
+        self,
+        *,
+        source: str | None,
+        device_id: uuid.UUID | None,
+        frm: datetime | None,
+        to: datetime | None,
+        after: str | None,
+        limit: int,
+    ) -> tuple[list[EventOut], str | None]:
+        n = min(limit, MAX_EVENTS)
+        clauses = ["tenant_id = :tid"]
+        params: dict = {"tid": self.tenant_id, "limit": n}
+        if source is not None:
+            clauses.append("source = :source")
+            params["source"] = source
+        if device_id is not None:
+            clauses.append("device_id = :did")
+            params["did"] = device_id
+        if frm is not None:
+            clauses.append("time >= :frm")
+            params["frm"] = frm
+        if to is not None:
+            clauses.append("time < :to")
+            params["to"] = to
+        if after is not None:
+            c_time, c_did, c_source, c_ek = decode_cursor(after)
+            clauses.append("(time, device_id, source, event_key) < (:c_time, :c_did, :c_source, :c_ek)")
+            params |= {"c_time": c_time, "c_did": c_did, "c_source": c_source, "c_ek": c_ek}
+        where = " AND ".join(clauses)
+        sql = text(
+            f"SELECT {_LIST_COLUMNS}, event_key FROM events WHERE {where} "
+            "ORDER BY time DESC, device_id DESC, source DESC, event_key DESC LIMIT :limit"
+        )
+        rows = (await self.session.execute(sql, params)).mappings().all()
+        items = [EventOut(**{k: v for k, v in dict(r).items() if k != "event_key"}) for r in rows]
+        next_cursor = None
+        if len(rows) == n:
+            last = rows[-1]
+            next_cursor = encode_cursor(last["time"], last["device_id"], last["source"], last["event_key"])
+        return items, next_cursor
+
     async def top(
         self,
         *,
