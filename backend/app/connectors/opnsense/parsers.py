@@ -103,6 +103,8 @@ def parse_gateways(data: dict) -> list[dict]:
     """routes/gateway/status -> [{name, up, rtt_ms, loss_pct}]. '~'/units handled by num()."""
     out = []
     for g in (data or {}).get("items", []) or []:
+        if not isinstance(g, dict):
+            continue
         status = str(g.get("status", "")).lower()
         out.append({
             "name": g.get("name", ""),
@@ -121,6 +123,8 @@ def parse_vpn(data: dict) -> list[dict]:
     """wireguard/service/show -> [{name, up}]. Envelope key is `rows` (not `tunnels`)."""
     out = []
     for row in (data or {}).get("rows", []) or []:
+        if not isinstance(row, dict):
+            continue
         name = row.get("name") or row.get("instance") or row.get("if", "")
         if "connected" in row:
             up = _truthy(row.get("connected"))
@@ -176,6 +180,8 @@ def parse_ids_rows(data) -> list[dict]:
     stable source id when present, otherwise a discriminating content hash."""
     out: list[dict] = []
     for r in _rows(data, "rows", "alerts"):
+        if not isinstance(r, dict):
+            continue
         alert = r.get("alert", {}) if isinstance(r.get("alert"), dict) else {}
         ts = parse_ts(r.get("timestamp"))
         name = alert.get("signature") or r.get("signature") or ""
@@ -196,6 +202,8 @@ def parse_dns_rows(data) -> list[dict]:
     """unbound/overview/searchQueries rows -> normalized DNS "visited site" events."""
     out: list[dict] = []
     for r in _rows(data, "rows", "queries"):
+        if not isinstance(r, dict):
+            continue
         ts = parse_ts(r.get("timestamp", r.get("time")))
         client_ip = r.get("client") or r.get("client_ip") or ""
         domain = r.get("domain") or r.get("query") or r.get("name") or ""

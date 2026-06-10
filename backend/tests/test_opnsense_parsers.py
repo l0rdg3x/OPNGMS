@@ -1,6 +1,7 @@
-from tests.opn_fixtures import load
+import hashlib
 
 from app.connectors.opnsense import parsers
+from tests.opn_fixtures import load
 
 
 def test_fixtures_load():
@@ -104,9 +105,6 @@ def test_parse_plugins_tolerates_malformed_plugin_field():
     assert parsers.parse_plugins(None)["plugins"] == []
 
 
-import hashlib
-
-
 def test_parse_ids_rows_list_and_dict_and_keys():
     # bare list edge (the empty GET used to crash .get()): must not raise
     assert parsers.parse_ids_rows([]) == []
@@ -144,3 +142,15 @@ def test_parse_dns_rows():
     assert e["category"] == "query"
     assert e["dst_ip"] == "" and e["severity"] == ""
     assert e["event_key"] and e["time"].tzinfo is not None
+
+
+def test_parsers_skip_non_dict_rows():
+    assert parsers.parse_ids_rows({"rows": [None, "x", 42]}) == []
+    assert parsers.parse_dns_rows({"rows": [None, "x", 42]}) == []
+    assert parsers.parse_gateways({"items": [None, "x"]}) == []
+    assert parsers.parse_vpn({"rows": [None, "x"]}) == []
+
+
+def test_parse_ids_rows_empty_envelope_fixture():
+    # the real OPNsense empty shape is a dict {rows:[]}, distinct from the bare-[] edge
+    assert parsers.parse_ids_rows(load("ids_query_alerts_empty.json")) == []

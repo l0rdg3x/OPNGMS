@@ -1,5 +1,3 @@
-import hashlib
-
 import httpx
 import respx
 
