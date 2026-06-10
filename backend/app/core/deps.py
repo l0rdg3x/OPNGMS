@@ -13,6 +13,7 @@ from app.models.user import User
 from app.services.auth import AuthService
 
 SESSION_COOKIE = "opngms_session"
+CSRF_COOKIE = "opngms_csrf"  # readable (non-httponly) cookie carrying the per-session CSRF token
 CSRF_HEADER = "X-OPNGMS-CSRF"
 
 

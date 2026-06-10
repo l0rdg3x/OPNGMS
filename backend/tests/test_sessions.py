@@ -45,3 +45,16 @@ async def test_session_row_has_hardening_columns(factory):
         row = (await s.execute(text("SELECT token_hash, csrf_token, ip, user_agent FROM sessions WHERE id=:i"), {"i": sess.id})).one()
         assert row.token_hash == "a" * 64
         assert row.ip == "203.0.113.5"
+
+
+def test_settings_have_idle_timeout():
+    from app.core.config import Settings
+
+    s = Settings(database_url="x", session_secret="x", master_key="x")
+    assert s.session_idle_minutes == 120
+
+
+def test_csrf_cookie_constant_exists():
+    from app.core.deps import CSRF_COOKIE
+
+    assert CSRF_COOKIE == "opngms_csrf"
