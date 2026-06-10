@@ -101,6 +101,45 @@
         }
       }
     },
+    "/api/logout-all": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout All",
+        "operationId": "logout_all_api_logout_all_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List Sessions",
+        "operationId": "list_sessions_api_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionInfo"
+                  },
+                  "type": "array",
+                  "title": "Response List Sessions Api Sessions Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [
@@ -3386,6 +3425,67 @@
         },
         "type": "object",
         "title": "ScheduleIn"
+      },
+      "SessionInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          },
+          "current": {
+            "type": "boolean",
+            "title": "Current"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "last_seen_at",
+          "expires_at",
+          "ip",
+          "user_agent",
+          "current"
+        ],
+        "title": "SessionInfo"
       },
       "SetupIn": {
         "properties": {
