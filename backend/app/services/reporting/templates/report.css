@@ -19,3 +19,4 @@ table.ranked caption { text-align: left; font-weight: bold; font-size: 10pt; mar
 table.ranked th, table.ranked td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; font-size: 9pt; }
 table.ranked th { background: #f0f0f0; }
 .chart { margin: 8px 0; }
+.summary { font-size: 9pt; color: #333; margin: 2px 0 12px; }
