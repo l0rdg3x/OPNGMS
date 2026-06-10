@@ -31,4 +31,4 @@ async def test_get_vpn_status_reads_rows():
     respx.get(f"{BASE}/api/wireguard/service/show").mock(
         return_value=httpx.Response(200, json=load("wireguard_show.json")))
     vpn = await OpnsenseClient(BASE, "k", "s").get_vpn_status()
-    assert vpn == [{"name": "wg0 (peer1)", "up": True}]
+    assert vpn == [{"name": "wg-site-a", "up": True}]
