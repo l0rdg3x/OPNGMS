@@ -139,6 +139,45 @@ async def test_bandwidth_timeline_and_totals_reset_safe(db_engine):
         assert round(to_) == 50
 
 
+async def test_bandwidth_is_tenant_isolated_under_rls(db_engine):
+    """Under the real opngms_app role (RLS on `metrics`), tenant A's bandwidth must exclude tenant B's."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    ta, tb = uuid.uuid4(), uuid.uuid4()
+    da, db_ = uuid.uuid4(), uuid.uuid4()
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        for tid, slug in [(ta, "a"), (tb, "b")]:
+            await s.execute(
+                text("INSERT INTO tenants (id, name, slug, status) VALUES (:id,:slug,:slug,'active')"),
+                {"id": tid, "slug": slug},
+            )
+        # A: bytes_in 100 -> 900 (delta 800). B: bytes_in 0 -> 5000 (delta 5000).
+        for tid, did, lo, hi in [(ta, da, 100.0, 900.0), (tb, db_, 0.0, 5000.0)]:
+            await s.execute(
+                text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                     "VALUES (:id,:t,'fw','https://x',''::bytea,''::bytea,true,'reachable','{}')"),
+                {"id": did, "t": tid},
+            )
+            for mins, val in ((0, lo), (40, hi)):
+                await s.execute(
+                    text("INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
+                         "VALUES (:t,:d,'iface.bytes_in','wan',:tid,:v)"),
+                    {"t": base + timedelta(minutes=mins), "d": did, "tid": tid, "v": val},
+                )
+        await s.commit()
+    app_url = make_url(os.environ["TEST_DATABASE_URL"]).set(username=APP_ROLE, password=APP_ROLE_PASSWORD)
+    engine = make_engine(app_url.render_as_string(hide_password=False))
+    try:
+        f2 = async_sessionmaker(engine, expire_on_commit=False)
+        async with f2() as s:
+            await set_tenant_context(s, ta)
+            agg = ReportAggregator(s, ta)
+            ti, _ = await agg.bandwidth_totals(frm=base, to=base + timedelta(hours=1))
+            assert round(ti) == 800        # only A's 800 bytes; B's 5000 is hidden by RLS
+    finally:
+        await engine.dispose()
+
+
 async def test_availability_series_marks_gaps_down(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
