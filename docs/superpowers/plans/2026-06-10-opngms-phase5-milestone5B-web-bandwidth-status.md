@@ -528,6 +528,19 @@ git commit -m "docs: technical debt milestone 5B"
 
 ---
 
+## Technical debt (5B) — recorded
+
+- **Bandwidth precision**: per-bucket max-min (reset-clamped) approximates transferred bytes; a lag()-based
+  per-sample delta would be exact, and a within-bucket reset overestimates that one bucket. WAN-only vs
+  all-interfaces is summed-all for now (interface roles later).
+- **Availability is a poll-presence proxy**: a dedicated `device.up` metric per poll would make Up/Down exact.
+- **Web content categories**: DNS has no content categorization (category is constant "query"); Top
+  Categories / Web Filter categories come with 5C (mock) or a real proxy/category feed later.
+- **Applications / Top Services / app-id**: deferred to 5C (needs flow/app-id ingest).
+- **Per-device attacks**: now device-scoped (closed the 5A debt).
+
+---
+
 ## Definition of "Done" (5B)
 - A generated report shows, per firewall (now genuinely device-scoped, incl. Attacks): **Web Activity**
   (DNS timeline + Top Sites / Top Initiators / Top Blocked), **Data Usage** (transferred-bytes timeline +
