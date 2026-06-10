@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
 from app.core.rbac import Action
+from app.repositories.generated_report import GeneratedReportRepository
 from app.repositories.report_settings import ReportSettingsRepository
+from app.schemas.generated_report import GeneratedReportOut
 from app.schemas.report import ReportRequest
 from app.schemas.report_settings import ReportSettingsIn, ReportSettingsOut
 from app.services.audit import AuditService
@@ -44,6 +46,13 @@ async def generate_report(
             frm=payload.from_,
             to=payload.to,
         )
+        await GeneratedReportRepository(session, tenant_id).create(
+            kind="on_demand",
+            period_from=payload.from_,
+            period_to=payload.to,
+            created_by=ctx.user.id,
+            pdf=pdf,
+        )
     except ReportRangeError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     await AuditService(session).record(
@@ -60,6 +69,44 @@ async def generate_report(
         content=pdf,
         media_type="application/pdf",
         headers={"Content-Disposition": 'attachment; filename="opngms-report.pdf"'},
+    )
+
+
+@router.get("/reports", response_model=list[GeneratedReportOut])
+async def list_generated_reports(
+    tenant_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> list[GeneratedReportOut]:
+    rows = await GeneratedReportRepository(session, tenant_id).list()
+    return [
+        GeneratedReportOut(
+            id=r.id,
+            kind=r.kind,
+            period_from=r.period_from,
+            period_to=r.period_to,
+            created_by=r.created_by,
+            size=r.size,
+            created_at=r.created_at,
+        )
+        for r in rows
+    ]
+
+
+@router.get("/reports/{report_id}/download")
+async def download_generated_report(
+    tenant_id: uuid.UUID,
+    report_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    row = await GeneratedReportRepository(session, tenant_id).get(report_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    return Response(
+        content=row.pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="report-{report_id}.pdf"'},
     )
 
 

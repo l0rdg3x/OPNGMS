@@ -243,6 +243,16 @@ git commit -m "feat(fe): reports page (on-demand generate + history + download)"
 
 ---
 
+## Technical debt (5E) — recorded
+
+- **PDF bytes stored in the DB** (`generated_reports.pdf` bytea): fine at this scale; an object store +
+  a **retention/pruning** policy for old reports is a later option (history grows unbounded for now).
+- **Fixed monthly cron** (day 1, ~04:00, prior calendar month): per-tenant configurable schedules are a later add.
+- **No email/delivery** of scheduled reports yet (generation + storage only).
+- **`download` mutation** is page-level; per-row in-flight state is tracked via `pendingDownloadId`.
+
+---
+
 ## Definition of "Done" (5E)
 - On-demand and monthly-cron reports are **stored**; a member sees the tenant's report **history** and can
   **download** any report; the on-demand UI generates + downloads from the browser.

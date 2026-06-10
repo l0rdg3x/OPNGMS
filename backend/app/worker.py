@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from arq import cron
 from arq.connections import RedisSettings
@@ -147,6 +147,49 @@ async def apply_config_change(ctx: dict, change_id: str) -> str:
         return status
 
 
+async def generate_tenant_report(ctx: dict, tenant_id: str, frm: str, to: str, kind: str) -> str:
+    """Job: build a report for a tenant + range and store it. Runs as owner; the aggregator's explicit
+    tenant_id filters scope the data (RLS is bypassed for the owner, like the poller)."""
+    from app.models.tenant import Tenant
+    from app.repositories.generated_report import GeneratedReportRepository
+    from app.services.reporting.service import ReportService
+
+    factory = ctx["session_factory"]
+    frm_dt, to_dt = datetime.fromisoformat(frm), datetime.fromisoformat(to)
+    async with factory() as session:
+        tenant = await session.get(Tenant, uuid.UUID(tenant_id))
+        if tenant is None:
+            return "missing-tenant"
+        pdf = await ReportService(session, uuid.UUID(tenant_id)).build_report(
+            tenant_name=tenant.name, frm=frm_dt, to=to_dt
+        )
+        await GeneratedReportRepository(session, uuid.UUID(tenant_id)).create(
+            kind=kind, period_from=frm_dt, period_to=to_dt, created_by=None, pdf=pdf
+        )
+        await session.commit()
+        return "stored"
+
+
+def _prior_month(now: datetime) -> tuple[datetime, datetime]:
+    first_this = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    prev_start = (first_this - timedelta(days=1)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return prev_start, first_this
+
+
+async def enqueue_scheduled_reports(ctx: dict) -> int:
+    """Cron: enqueue a monthly report for every active tenant (prior calendar month)."""
+    from app.models.tenant import Tenant
+
+    factory = ctx["session_factory"]
+    redis = ctx["redis"]
+    frm, to = _prior_month(datetime.now(timezone.utc))
+    async with factory() as session:
+        ids = (await session.execute(select(Tenant.id).where(Tenant.status == "active"))).scalars().all()
+    for tid in ids:
+        await redis.enqueue_job("generate_tenant_report", str(tid), frm.isoformat(), to.isoformat(), "scheduled")
+    return len(ids)
+
+
 async def on_startup(ctx: dict) -> None:
     engine = create_async_engine(_owner_url(), pool_pre_ping=True)
     ctx["engine"] = engine
@@ -158,11 +201,12 @@ async def on_shutdown(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, generate_tenant_report]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # events, every 5 minutes
         cron(enqueue_config_backups, hour={3}, minute={0}),  # config, daily ~03:00
+        cron(enqueue_scheduled_reports, day={1}, hour={4}, minute={0}),  # monthly reports, 1st of month ~04:00
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
