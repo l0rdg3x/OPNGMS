@@ -53,6 +53,7 @@ export function ReportsPage() {
 
   const [from, setFrom] = useState<string | null>(defaultFrom);
   const [to, setTo] = useState<string | null>(defaultTo);
+  const [pendingDownloadId, setPendingDownloadId] = useState<string | null>(null);
 
   async function handleGenerate() {
     if (!from || !to) return;
@@ -62,17 +63,20 @@ export function ReportsPage() {
         from: new Date(from.replace(" ", "T")).toISOString(),
         to: new Date(to.replace(" ", "T")).toISOString(),
       });
-      notifications.show({ message: t.reports.page.generate });
+      notifications.show({ message: t.reports.page.generated });
     } catch {
       notifications.show({ color: "red", message: t.errors.reportGenerate });
     }
   }
 
   async function handleDownload(id: string) {
+    setPendingDownloadId(id);
     try {
       await downloadMutation.mutateAsync(id);
     } catch {
       notifications.show({ color: "red", message: t.errors.reportsLoad });
+    } finally {
+      setPendingDownloadId(null);
     }
   }
 
@@ -142,7 +146,9 @@ export function ReportsPage() {
                     </Table.Td>
                     <Table.Td>
                       <Badge color={report.kind === "on_demand" ? "blue" : "green"}>
-                        {report.kind}
+                        {report.kind === "on_demand"
+                          ? t.reports.page.kindOnDemand
+                          : t.reports.page.kindScheduled}
                       </Badge>
                     </Table.Td>
                     <Table.Td>{formatDate(report.created_at)}</Table.Td>
@@ -152,7 +158,7 @@ export function ReportsPage() {
                         size="xs"
                         variant="light"
                         onClick={() => handleDownload(report.id)}
-                        loading={downloadMutation.isPending}
+                        loading={downloadMutation.isPending && pendingDownloadId === report.id}
                         data-testid={`btn-download-${report.id}`}
                       >
                         {t.reports.page.download}

@@ -65,7 +65,7 @@ describe("ReportsPage — history rendering", () => {
     renderWithProviders(withTenant(<ReportsPage />, "tenant_admin"));
 
     // The table should appear with the report's kind badge
-    expect(await screen.findByText("on_demand")).toBeInTheDocument();
+    expect(await screen.findByText("On demand")).toBeInTheDocument();
     // Size column should be formatted
     expect(await screen.findByText(/12\.1 KB/)).toBeInTheDocument();
   });
@@ -98,7 +98,7 @@ describe("ReportsPage — role gating", () => {
     // Generate card must NOT be rendered
     expect(screen.queryByTestId("generate-card")).not.toBeInTheDocument();
     // History table IS shown
-    expect(await screen.findByText("on_demand")).toBeInTheDocument();
+    expect(await screen.findByText("On demand")).toBeInTheDocument();
   });
 
   it("shows the generate card for operator role", async () => {

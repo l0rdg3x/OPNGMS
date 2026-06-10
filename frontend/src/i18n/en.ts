@@ -144,6 +144,9 @@ export const en = {
       size: "Size",
       download: "Download",
       none: "No reports yet.",
+      generated: "Report generated",
+      kindOnDemand: "On demand",
+      kindScheduled: "Scheduled",
     },
     settings: {
       pageTitle: "Report settings",
