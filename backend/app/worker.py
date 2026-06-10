@@ -170,19 +170,22 @@ async def generate_tenant_report(ctx: dict, tenant_id: str, frm: str, to: str, k
         return "stored"
 
 
-def _prior_month(now: datetime) -> tuple[datetime, datetime]:
-    first_this = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    prev_start = (first_this - timedelta(days=1)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return prev_start, first_this
+def _prior_week(now: datetime) -> tuple[datetime, datetime]:
+    # [Monday 00:00 of last week, Monday 00:00 of this week)
+    this_week_start = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    prev_week_start = this_week_start - timedelta(days=7)
+    return prev_week_start, this_week_start
 
 
 async def enqueue_scheduled_reports(ctx: dict) -> int:
-    """Cron: enqueue a monthly report for every active tenant (prior calendar month)."""
+    """Cron: enqueue a weekly report for every active tenant (prior calendar week)."""
     from app.models.tenant import Tenant
 
     factory = ctx["session_factory"]
     redis = ctx["redis"]
-    frm, to = _prior_month(datetime.now(timezone.utc))
+    frm, to = _prior_week(datetime.now(timezone.utc))
     async with factory() as session:
         ids = (await session.execute(select(Tenant.id).where(Tenant.status == "active"))).scalars().all()
     for tid in ids:
@@ -206,7 +209,7 @@ class WorkerSettings:
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, 5))),  # events, every 5 minutes
         cron(enqueue_config_backups, hour={3}, minute={0}),  # config, daily ~03:00
-        cron(enqueue_scheduled_reports, day={1}, hour={4}, minute={0}),  # monthly reports, 1st of month ~04:00
+        cron(enqueue_scheduled_reports, weekday="mon", hour={4}, minute={0}),  # weekly reports, Monday ~04:00
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

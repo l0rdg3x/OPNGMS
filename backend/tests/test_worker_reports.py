@@ -1,13 +1,13 @@
 """Tests for the generate_tenant_report ARQ job and the enqueue_scheduled_reports cron."""
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.generated_report import GeneratedReport
-from app.worker import _prior_month, enqueue_scheduled_reports, generate_tenant_report
+from app.worker import _prior_week, enqueue_scheduled_reports, generate_tenant_report
 
 
 # ---------------------------------------------------------------------------
@@ -133,28 +133,28 @@ async def test_enqueue_scheduled_reports_enumerates_active_tenants(db_engine):
         # call is (name, tenant_id_str, frm_iso, to_iso, kind)
         assert call[4] == "scheduled"
 
-    # Verify the prior-month range:
-    # period_to must be the first of the current month at 00:00 UTC.
-    # period_from must be the first of the previous month at 00:00 UTC.
+    # Verify the prior-week range:
+    # period_to must be Monday 00:00 of the current week (UTC).
+    # period_from must be Monday 00:00 of the previous week (UTC).
+    # The span must be exactly 7 days.
     now = datetime.now(timezone.utc)
-    expected_frm, expected_to = _prior_month(now)
+    expected_frm, expected_to = _prior_week(now)
 
     for call in fake_redis.calls:
-        # Allow for the (very unlikely) edge case where the month rolled over between
-        # _prior_month above and the cron call — compare parsed values.
+        # Allow for the (very unlikely) edge case where the week boundary was crossed between
+        # _prior_week above and the cron call — compare parsed values independently.
         frm_parsed = datetime.fromisoformat(call[2])
         to_parsed = datetime.fromisoformat(call[3])
-        # period_to is always the first day of a month at 00:00
-        assert to_parsed.day == 1
+        # period_to is always a Monday at 00:00
+        assert to_parsed.weekday() == 0, "period_to must be a Monday"
         assert to_parsed.hour == 0 and to_parsed.minute == 0 and to_parsed.second == 0
-        # period_from is also the first day of a month at 00:00
-        assert frm_parsed.day == 1
+        # period_from is also a Monday at 00:00
+        assert frm_parsed.weekday() == 0, "period_from must be a Monday"
         assert frm_parsed.hour == 0 and frm_parsed.minute == 0 and frm_parsed.second == 0
-        # The range spans exactly one calendar month
-        assert (to_parsed.year, to_parsed.month) > (frm_parsed.year, frm_parsed.month)
-        # to - from is between 28 and 31 days
-        delta = to_parsed - frm_parsed
-        assert 28 <= delta.days <= 31
+        # The range spans exactly 7 days
+        assert to_parsed - frm_parsed == timedelta(days=7)
+        # The range matches _prior_week(now)
+        assert to_parsed == expected_to
 
     # The inactive tenant must NOT be enqueued
     enqueued_ids = {call[1] for call in fake_redis.calls}
