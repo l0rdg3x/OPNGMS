@@ -171,9 +171,9 @@ async def test_successful_login_after_full_reset_via_limiter(api_client, db_engi
     assert r.status_code == 200
 
 
-async def test_limiter_fails_open_on_internal_error(api_client, db_engine, monkeypatch):
-    """If the limiter raises, login must NOT 500 — it degrades to 'allowed' (fail-open),
-    so the request proceeds to authentication (wrong creds → 401, not 500)."""
+async def test_limiter_fails_closed_on_internal_error(api_client, db_engine, monkeypatch):
+    """If the limiter raises, the auth endpoint fails CLOSED (503 — never 500, never a silent bypass):
+    a transient limiter fault must not disable brute-force protection on credential validation."""
     await _setup_user(api_client)
 
     def _boom(_key):
@@ -183,4 +183,15 @@ async def test_limiter_fails_open_on_internal_error(api_client, db_engine, monke
     r = await api_client.post(
         "/api/login", json={"email": _TEST_EMAIL, "password": "wrong-password"}
     )
-    assert r.status_code == 401  # fail-open: auth ran and rejected, no 500
+    assert r.status_code == 503          # fail-closed: auth not even attempted
+    assert r.headers.get("Retry-After")  # advertised
+
+
+def test_limiter_memory_is_bounded():
+    """An attacker spraying many distinct keys cannot grow the key map without bound (LRU eviction)."""
+    from app.core.ratelimit import SlidingWindowLimiter
+
+    lim = SlidingWindowLimiter(max_attempts=5, window_seconds=900, max_keys=100)
+    for i in range(1000):
+        lim.record_failure(f"user{i}@x.io|10.0.0.{i % 256}")
+    assert len(lim._hits) <= 100  # bounded; least-recently-used keys evicted
