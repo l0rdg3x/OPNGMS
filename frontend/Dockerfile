@@ -1,7 +1,7 @@
 # OPNGMS frontend image — build the SPA, then serve it (+ reverse-proxy /api) with nginx.
 
 # Stage 1: build the static SPA.
-FROM node:20-slim AS build
+FROM node:26-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
