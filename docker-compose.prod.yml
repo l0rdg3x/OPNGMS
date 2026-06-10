@@ -48,7 +48,13 @@ services:
   api:
     build: ./backend
     image: opngms-backend:latest
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    # --proxy-headers + --forwarded-allow-ips makes uvicorn honour X-Forwarded-For/-Proto so the
+    # app sees the real client IP and original scheme behind a reverse proxy (nginx here, plus any
+    # external proxy in front of it). "*" trusts all upstreams to set those headers, which is safe
+    # because this service's port 8000 is NOT published to the host — only the compose network
+    # (the trusted nginx) can reach it. If you ever expose the API port directly, change "*" here to
+    # the proxy's address/CIDR.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
     env_file: .env
     depends_on:
       db:

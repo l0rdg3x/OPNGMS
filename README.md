@@ -171,6 +171,12 @@ curl -X POST http://localhost/api/setup \
 The app is then served at `http://localhost/`. Notes:
 - **TLS** is the operator's responsibility — front the `frontend` service with an HTTPS reverse proxy /
   load balancer for production (the bundled nginx listens on plain HTTP:80).
+- **Reverse-proxy aware:** the stack is built to run behind one (or several chained) reverse proxies.
+  The bundled nginx forwards `X-Forwarded-For`/`-Proto` (preserving the original scheme from an
+  upstream TLS-terminating proxy), and the API runs uvicorn with `--proxy-headers
+  --forwarded-allow-ips=*` so it resolves the real client IP and scheme from the trusted chain. The
+  `*` is safe because the API port is not published (only nginx reaches it); restrict it in
+  `docker-compose.prod.yml` if you expose the API directly.
 - The default `opngms_app` DB password is `opngms_app` (set by migration `0003`); change it for real
   deployments (`ALTER ROLE opngms_app PASSWORD '…'` then update `DATABASE_URL`).
 - The backend image is pinned to **Python 3.14** (matching the dev/test runtime).

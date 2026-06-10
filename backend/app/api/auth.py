@@ -22,9 +22,10 @@ login_limiter = SlidingWindowLimiter(_s.login_max_attempts, _s.login_lockout_win
 
 
 def _client_ip(request: Request) -> str | None:
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
+    # Behind a reverse proxy, uvicorn's --proxy-headers + --forwarded-allow-ips resolves the real
+    # client from the trusted X-Forwarded-For chain into request.client.host. We read that rather
+    # than parsing X-Forwarded-For ourselves: doing it in-app would bypass uvicorn's trust boundary
+    # and let any client spoof the header. See docker-compose.prod.yml (api command) and nginx.conf.
     return request.client.host if request.client else None
 
 
@@ -35,7 +36,8 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    ip = _client_ip(request) or "?"
+    client_ip = _client_ip(request)
+    ip = client_ip or "?"
     key = f"{payload.email.lower()}|{ip}"
 
     # Fail CLOSED on a limiter fault: this gates credential validation, so a transient limiter error
@@ -87,7 +89,7 @@ async def login(
     sess, raw_token = await svc.create_session(
         user,
         ttl_hours=settings.session_ttl_hours,
-        ip=_client_ip(request),
+        ip=client_ip,
         user_agent=request.headers.get("user-agent"),
     )
     try:
@@ -96,7 +98,7 @@ async def login(
         logger.error("login rate-limiter reset failed", exc_info=True)
     await AuditService(session).record(
         actor_user_id=user.id, tenant_id=None, action="auth.login",
-        target_type="session", target_id=str(sess.id), ip=_client_ip(request), details={},
+        target_type="session", target_id=str(sess.id), ip=client_ip, details={},
     )
     await session.commit()
     max_age = settings.session_ttl_hours * 3600
