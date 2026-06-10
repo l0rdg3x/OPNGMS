@@ -473,10 +473,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Generated Reports */
+        get: operations["list_generated_reports_api_tenants__tenant_id__reports_get"];
         put?: never;
         /** Generate Report */
         post: operations["generate_report_api_tenants__tenant_id__reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/reports/{report_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Generated Report */
+        get: operations["download_generated_report_api_tenants__tenant_id__reports__report_id__download_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -803,6 +821,35 @@ export interface components {
             value: string;
             /** Count */
             count: number;
+        };
+        /** GeneratedReportOut */
+        GeneratedReportOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Period From
+             * Format: date-time
+             */
+            period_from: string;
+            /**
+             * Period To
+             * Format: date-time
+             */
+            period_to: string;
+            /** Created By */
+            created_by: string | null;
+            /** Size */
+            size: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2130,6 +2177,37 @@ export interface operations {
             };
         };
     };
+    list_generated_reports_api_tenants__tenant_id__reports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneratedReportOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     generate_report_api_tenants__tenant_id__reports_post: {
         parameters: {
             query?: never;
@@ -2144,6 +2222,38 @@ export interface operations {
                 "application/json": components["schemas"]["ReportRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_generated_report_api_tenants__tenant_id__reports__report_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

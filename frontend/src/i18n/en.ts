@@ -11,6 +11,7 @@ export const en = {
     devices: "Devices",
     alerts: "Alerts",
     reportSettings: "Report settings",
+    reports: "Reports",
   },
   login: {
     title: "OPNGMS",
@@ -132,6 +133,18 @@ export const en = {
     noData: "No data yet",
   },
   reports: {
+    page: {
+      title: "Reports",
+      generate: "Generate report",
+      from: "From",
+      to: "To",
+      period: "Period",
+      kind: "Kind",
+      created: "Created",
+      size: "Size",
+      download: "Download",
+      none: "No reports yet.",
+    },
     settings: {
       pageTitle: "Report settings",
       title: "Report title",
@@ -159,6 +172,8 @@ export const en = {
     configChangeAction: "Action failed (you may lack permission)",
     reportSettingsLoad: "Failed to load report settings",
     reportSettingsAction: "Report settings action failed",
+    reportsLoad: "Failed to load reports",
+    reportGenerate: "Failed to generate report",
   },
 } as const;
 

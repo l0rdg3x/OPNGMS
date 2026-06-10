@@ -11,6 +11,7 @@ import { AlertsPage } from "../pages/AlertsPage";
 import { DevicesPage } from "../pages/DevicesPage";
 import { DeviceDetailPage } from "../pages/DeviceDetailPage";
 import { ReportSettingsPage } from "../pages/ReportSettingsPage";
+import { ReportsPage } from "../pages/ReportsPage";
 import { TenantSwitcher } from "./TenantSwitcher";
 
 function AppShellNav() {
@@ -22,6 +23,7 @@ function AppShellNav() {
       <NavLink component={RouterNavLink} to="/" label={t.nav.overview} />
       <NavLink component={RouterNavLink} to="/devices" label={t.nav.devices} />
       <NavLink component={RouterNavLink} to="/alerts" label={t.nav.alerts} />
+      <NavLink component={RouterNavLink} to="/reports" label={t.nav.reports} />
       {role === "tenant_admin" && (
         <NavLink component={RouterNavLink} to="/reports/settings" label={t.nav.reportSettings} />
       )}
@@ -66,6 +68,7 @@ export function AppShell() {
             <Route path="/devices" element={<DevicesPage />} />
             <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/reports/settings" element={<ReportSettingsPage />} />
           </Routes>
         </MantineAppShell.Main>
