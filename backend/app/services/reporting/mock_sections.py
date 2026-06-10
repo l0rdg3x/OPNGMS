@@ -49,9 +49,9 @@ def _counts(seed: int, n: int) -> list[int]:
     return [max(1, base // (i + 1) + (seed >> (i % 5)) % 7) for i in range(n)]
 
 
-def _timeline_svg(seed: int, *, height: int = 140) -> str:
+def _timeline_svg(seed: int, *, height: int = 140, y_label: str = "Sessions") -> str:
     pts = [(f"t{i}", 5 + (seed >> (i % 6)) % 40 + (i % 3) * 3) for i in range(6)]
-    return line_chart(pts, width=520, height=height)
+    return line_chart(pts, width=520, height=height, y_label=y_label, x_label="Time")
 
 
 def _threat_table(title: str, columns: tuple[str, str], palette: list[tuple[str, str]], seed: int, n: int) -> ThreatRankedTable:
@@ -70,7 +70,7 @@ def _plain_table(title: str, columns: tuple[str, str], items: list[str], seed: i
 def applications_block(device_name: str) -> ApplicationsBlock:
     seed = _seed(device_name)
     return ApplicationsBlock(
-        timeline_svg=_timeline_svg(seed),
+        timeline_svg=_timeline_svg(seed, y_label="Sessions"),
         top_detected=_threat_table("Top Detected", ("Application", "Sessions"), _APPS, seed, 5),
         top_blocked=_threat_table("Top Blocked", ("Application", "Blocks"), _rotate(_APPS, seed + 3), seed + 3, 4),
         top_categories=_threat_table("Top Categories", ("Category", "Sessions"), _CATEGORIES, seed, 5),
@@ -81,7 +81,7 @@ def applications_block(device_name: str) -> ApplicationsBlock:
 def web_filter_block(device_name: str) -> WebFilterBlock:
     seed = _seed(device_name) ^ 0x5F5F
     return WebFilterBlock(
-        timeline_svg=_timeline_svg(seed, height=140),
+        timeline_svg=_timeline_svg(seed, height=140, y_label="Requests"),
         top_categories=_threat_table("Top Categories", ("Category", "Requests"), _CATEGORIES, seed, 5),
         top_sites=_plain_table("Top Sites", ("Site", "Requests"), _SITES, seed, 5),
         top_initiators=_plain_table("Top Initiators", ("Initiator", "Requests"), _INITIATORS, seed, 4),

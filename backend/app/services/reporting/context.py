@@ -14,6 +14,14 @@ def human_bytes(n: float) -> str:
     return f"{f:.1f} {units[i]}"
 
 
+def _updown_fmt(v: float) -> str:
+    if v >= 0.99:
+        return "Up"
+    if v <= 0.01:
+        return "Down"
+    return ""
+
+
 @dataclass
 class RankedTable:
     title: str
@@ -140,6 +148,8 @@ async def build_context(
             [(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in tl],
             width=520,
             height=140,
+            y_label="Attempts",
+            x_label="Time",
         )
         top_attempts = await aggregator.top(field="name", frm=frm, to=to, device_id=dev.id)
         top_targets = await aggregator.top(field="dst_ip", frm=frm, to=to, device_id=dev.id)
@@ -156,7 +166,7 @@ async def build_context(
         # --- Web Activity (DNS) ---
         dns_tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="dns", device_id=dev.id)
         web = WebActivityBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140, y_label="DNS lookups", x_label="Time"),
             top_sites=RankedTable("Top Sites", ("Site", "Hits"),
                                   [(r.value, r.count) for r in await aggregator.top(field="name", source="dns", frm=frm, to=to, device_id=dev.id)]),
             top_initiators=RankedTable("Top Initiators", ("Initiator", "Hits"),
@@ -169,14 +179,14 @@ async def build_context(
         bw_tl = await aggregator.bandwidth_timeline(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         tin, tout = await aggregator.bandwidth_totals(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         bandwidth = BandwidthBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140, y_label="Data / period", x_label="Time", y_format=human_bytes),
             total_in=human_bytes(tin), total_out=human_bytes(tout),
         )
 
         # --- Up/Down status ---
         av_series, uptime = await aggregator.availability_series(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         status = StatusBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80),
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80, y_label="Status", x_label="Time", y_format=_updown_fmt),
             uptime_pct=round(uptime, 1),
         )
 

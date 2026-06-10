@@ -91,6 +91,8 @@ async def test_build_context_includes_web_bandwidth_status(db_engine):
                              "VALUES (:t,:d,'dns','k1',:tid,'example.org','10.0.0.7','allowed')"), {"t": base, "d": did, "tid": tid})
         await s.execute(text("INSERT INTO events (time, device_id, source, event_key, tenant_id, name, src_ip, action) "
                              "VALUES (:t,:d,'dns','k2',:tid,'tracker.bad','10.0.0.7','blocked')"), {"t": base, "d": did, "tid": tid})
+        await s.execute(text("INSERT INTO events (time, device_id, source, event_key, tenant_id, name, src_ip, dst_ip) "
+                             "VALUES (:t,:d,'ids','k3',:tid,'ET SCAN NMAP','10.0.0.7','8.8.4.4')"), {"t": base, "d": did, "tid": tid})
         for mins, val in ((0, 100.0), (30, 500.0)):
             await s.execute(text("INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
                                  "VALUES (:t,:d,'iface.bytes_in','wan',:tid,:v)"),
@@ -108,3 +110,7 @@ async def test_build_context_includes_web_bandwidth_status(db_engine):
     assert "Web Activity" in html and "example.org" in html and "tracker.bad" in html
     assert "Data Usage" in html
     assert "Up/Down Status" in html
+    # Task 2: per-chart axis units must appear in the SVG, explanation prose in the template
+    assert "DNS lookups" in html          # y_label on the web activity chart
+    assert "Attempts</text>" in html      # y_label rendered in the attacks timeline SVG (not the table caption)
+    assert "How much data flowed through" in html  # explanation paragraph for Data Usage

@@ -226,6 +226,15 @@ git commit -m "feat(reporting): per-chart axis units + plain-language section ex
 
 ---
 
+## Technical debt (5F) — recorded
+
+- Charts are static SVG (no interactivity/tooltips) — fine for a printed PDF.
+- Explanation copy is English-only (the report is English; localisation is a later add).
+- The availability chart is a 0/1 line with Down/Up ticks; a filled status band would read even better.
+- X-label thinning is heuristic (~6 labels, first/last anchored); very dense ranges could still be tight.
+
+---
+
 ## Definition of "Done" (5F)
 - Timeline charts show labelled X (Time) + Y (units) axes with value ticks/gridlines; the Data Usage chart's Y ticks are human bytes (KB/MB/GB); the availability chart shows Down/Up.
 - Each section has a short plain-language explanation; all text escaped/secret-safe; backend suite green; a rendered sample PDF confirms the look.
