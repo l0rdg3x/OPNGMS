@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, EmailStr
 
@@ -21,3 +22,13 @@ class MeOut(BaseModel):
     email: EmailStr
     name: str
     is_superadmin: bool
+
+
+class SessionInfo(BaseModel):
+    id: uuid.UUID
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    ip: str | None
+    user_agent: str | None
+    current: bool

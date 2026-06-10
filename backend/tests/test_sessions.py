@@ -121,3 +121,33 @@ async def test_logout_all_and_purge(factory):
         n = await svc.purge_expired(datetime.now(timezone.utc))
         await s.commit()
         assert n == 1 and await svc.list_sessions_for_user(user.id) == []
+
+
+async def _setup_login(api_client):
+    await api_client.post("/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456"})
+    await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456"})
+
+
+async def test_login_sets_both_cookies(api_client):
+    await api_client.post("/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456"})
+    r = await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456"})
+    assert r.status_code == 200
+    assert api_client.cookies.get("opngms_session")
+    assert api_client.cookies.get("opngms_csrf")
+
+
+async def test_get_sessions_lists_current(api_client):
+    await _setup_login(api_client)
+    r = await api_client.get("/api/sessions")
+    assert r.status_code == 200
+    rows = r.json()
+    assert len(rows) == 1 and rows[0]["current"] is True
+    assert "ip" in rows[0] and "user_agent" in rows[0]
+
+
+async def test_logout_all_kills_every_session(api_client):
+    await _setup_login(api_client)
+    csrf = api_client.cookies.get("opngms_csrf")
+    r = await api_client.post("/api/logout-all", headers={"X-OPNGMS-CSRF": csrf})
+    assert r.status_code == 204
+    assert (await api_client.get("/api/me")).status_code == 401
