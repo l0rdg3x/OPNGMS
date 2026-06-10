@@ -20,3 +20,8 @@ class EventOut(BaseModel):
 class EventTopRow(BaseModel):
     value: str
     count: int
+
+
+class EventPage(BaseModel):
+    items: list[EventOut]
+    next_cursor: str | None = None

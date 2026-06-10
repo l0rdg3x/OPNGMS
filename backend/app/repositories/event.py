@@ -1,10 +1,26 @@
+import base64
+import json
 import uuid
+import uuid as _uuid
 from datetime import datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.event import EventOut, EventTopRow
+
+
+def encode_cursor(time: datetime, device_id: _uuid.UUID, source: str, event_key: str) -> str:
+    raw = json.dumps([time.isoformat(), str(device_id), source, event_key]).encode()
+    return base64.urlsafe_b64encode(raw).decode()
+
+
+def decode_cursor(cursor: str) -> tuple[datetime, _uuid.UUID, str, str]:
+    try:
+        t, did, source, ek = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+        return datetime.fromisoformat(t), _uuid.UUID(did), source, ek
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError("invalid cursor") from exc
 
 # Defensive cap on the number of rows returned by the event list.
 MAX_EVENTS = 1000
