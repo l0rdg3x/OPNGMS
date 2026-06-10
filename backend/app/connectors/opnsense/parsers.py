@@ -145,9 +145,13 @@ def parse_plugins(info: dict) -> dict:
     """firmware/info -> {product_version, plugins}. Reads the `plugin` array (OPNsense
     plugins) and keeps only installed ones — NOT the much larger `package` array."""
     info = info or {}
+    raw = info.get("plugin")
+    items = raw if isinstance(raw, list) else []
     plugins = [
         p.get("name", "")
-        for p in info.get("plugin", []) or []
-        if str(p.get("installed", "")) in ("1", "true", "True") and p.get("name")
+        for p in items
+        if isinstance(p, dict)
+        and str(p.get("installed", "")) in ("1", "true", "True")
+        and p.get("name")
     ]
     return {"product_version": parse_firmware_version(info), "plugins": plugins}

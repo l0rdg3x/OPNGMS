@@ -94,3 +94,11 @@ def test_parse_plugins_reads_plugin_array_not_package():
     assert out["plugins"] == ["os-wireguard"]   # installed "1" from the `plugin` array
     assert "base" not in out["plugins"]          # `package` array is ignored
     assert "os-theme-cicada" not in out["plugins"]  # installed "0"
+
+
+def test_parse_plugins_tolerates_malformed_plugin_field():
+    assert parsers.parse_plugins({"plugin": None})["plugins"] == []
+    assert parsers.parse_plugins({"plugin": "x"})["plugins"] == []   # non-list
+    assert parsers.parse_plugins({"plugin": {"a": 1}})["plugins"] == []  # dict, not list
+    assert parsers.parse_plugins({})["plugins"] == []
+    assert parsers.parse_plugins(None)["plugins"] == []
