@@ -40,8 +40,10 @@ class OpnsenseClient:
     """Single HTTP boundary toward an OPNsense device.
 
     HTTP Basic auth (api_key as username, api_secret as password) over HTTPS.
-    NOTE: the exact endpoints are TO BE VERIFIED against a real OPNsense; here we use
-    `core/firmware/status` for the connection test + firmware version.
+    The read/telemetry endpoints are verified against a real OPNsense 26.1.9 and the raw
+    JSON is normalized by the pure functions in ``parsers``. The write path (``apply_alias``)
+    and ``get_config_backup`` remain unverified against hardware (out of scope, see the
+    connector design spec).
     """
 
     def __init__(
