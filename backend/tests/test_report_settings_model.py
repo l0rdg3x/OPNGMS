@@ -21,6 +21,7 @@ async def test_report_settings_insert_defaults(db_engine, two_tenants):
     assert fetched.logo is None
     assert fetched.logo_mime is None
     assert fetched.updated_at is not None
+    assert fetched.language == "en"
 
 
 async def test_report_settings_explicit_values(db_engine, two_tenants):

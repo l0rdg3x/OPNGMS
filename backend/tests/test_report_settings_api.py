@@ -345,3 +345,52 @@ async def test_operator_delete_logo_is_forbidden(api_client, db_engine):
     await _login(api_client, op_email)
     r = await api_client.delete(f"/api/tenants/{tid}/reports/settings/logo", headers=CSRF)
     assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Language field — Task 5H
+# ---------------------------------------------------------------------------
+
+async def test_get_settings_includes_language_en(api_client, db_engine):
+    """GET /reports/settings includes language: 'en' by default."""
+    tid = await _login_superadmin(api_client, db_engine)
+    r = await api_client.get(f"/api/tenants/{tid}/reports/settings")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["language"] == "en"
+
+
+async def test_put_settings_language_en_accepted(api_client, db_engine):
+    """PUT with language:'en' works and GET reflects it."""
+    tid = await _login_superadmin(api_client, db_engine)
+    payload = {"title": "Test Report", "owner": "", "timezone": "UTC", "language": "en"}
+    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", json=payload, headers=CSRF)
+    assert r.status_code == 200
+    assert r.json()["language"] == "en"
+
+    r2 = await api_client.get(f"/api/tenants/{tid}/reports/settings")
+    assert r2.status_code == 200
+    assert r2.json()["language"] == "en"
+
+
+async def test_put_settings_unknown_language_returns_400(api_client, db_engine):
+    """PUT with language:'xx' (unknown) → 400."""
+    tid = await _login_superadmin(api_client, db_engine)
+    payload = {"title": "Test Report", "owner": "", "timezone": "UTC", "language": "xx"}
+    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", json=payload, headers=CSRF)
+    assert r.status_code == 400
+    assert r.json()["detail"] == "unsupported language"
+
+
+async def test_get_languages_returns_en(api_client, db_engine):
+    """GET /reports/languages returns a list containing {'code':'en','name':'English'}."""
+    tid = await _login_superadmin(api_client, db_engine)
+    r = await api_client.get(f"/api/tenants/{tid}/reports/languages")
+    assert r.status_code == 200
+    languages = r.json()
+    assert isinstance(languages, list)
+    assert len(languages) >= 1
+    codes = {lang["code"] for lang in languages}
+    assert "en" in codes
+    en_entry = next(lang for lang in languages if lang["code"] == "en")
+    assert en_entry["name"] == "English"

@@ -86,5 +86,16 @@ git commit -m "feat(reporting): per-tenant report language (report_settings.lang
 
 ---
 
+## Technical debt (5H) — recorded
+
+- **Date/number formatting not localised** — the strings translate, but dates/numbers stay ISO/Western.
+- **No RTL** languages (the shipped set en/it/es/fr/de/pt/nl is all LTR).
+- **No auto-detection** of the recipient's language (the tenant admin sets it explicitly).
+- **Stored reports don't record their language** — a `generated_reports.language` column would let the
+  history show/re-render in the language used at generation time (cosmetic; rendering already honours the
+  current tenant language).
+
+---
+
 ## Definition of "Done" (5H)
 - A tenant admin selects the report language; on-demand + scheduled reports render in it; `GET /reports/languages` lists the options; it/es/fr/de/pt/nl are complete (== en key set) with en fallback for anything missing. Backend + frontend suites green; migration clean.

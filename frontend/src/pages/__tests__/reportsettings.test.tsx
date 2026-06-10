@@ -28,22 +28,34 @@ function withTenant(node: ReactNode, role: string = "tenant_admin") {
 }
 
 const SETTINGS_URL = "http://localhost:3000/api/tenants/t1/reports/settings";
+const LANGUAGES_URL = "http://localhost:3000/api/tenants/t1/reports/languages";
 const LOGO_URL = "http://localhost:3000/api/tenants/t1/reports/settings/logo";
 
 const defaultSettings = {
   title: "My Report",
   owner: "NOC",
   timezone: "UTC",
+  language: "en",
   has_logo: false,
   logo_mime: null,
 };
+
+const defaultLanguages = [
+  { code: "en", name: "English" },
+  { code: "it", name: "Italiano" },
+];
+
+const defaultLanguagesHandler = http.get(LANGUAGES_URL, () => HttpResponse.json(defaultLanguages));
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 describe("ReportSettingsPage — tenant_admin", () => {
   it("renders the form populated from GET settings", async () => {
-    server.use(http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)));
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
+    );
 
     renderWithProviders(withTenant(<ReportSettingsPage />, "tenant_admin"));
 
@@ -69,6 +81,7 @@ describe("ReportSettingsPage — tenant_admin", () => {
 
     server.use(
       http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
       http.put(SETTINGS_URL, async ({ request }) => {
         capturedBodies.push(await request.json());
         return HttpResponse.json({ ...defaultSettings, title: "Updated" });
@@ -102,6 +115,7 @@ describe("ReportSettingsPage — tenant_admin", () => {
 
     server.use(
       http.get(SETTINGS_URL, () => HttpResponse.json(settingsWithLogo)),
+      defaultLanguagesHandler,
       // The page requests the logo preview when has_logo is true
       http.get(LOGO_URL, () => new HttpResponse(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), { status: 200, headers: { "Content-Type": "image/png" } })),
     );
@@ -116,6 +130,7 @@ describe("ReportSettingsPage — tenant_admin", () => {
 
     server.use(
       http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
       http.put(LOGO_URL, () => {
         logoFetchCalled();
         return HttpResponse.json({ ...defaultSettings, has_logo: true, logo_mime: "image/png" });
@@ -154,6 +169,7 @@ describe("ReportSettingsPage — tenant_admin", () => {
     const showSpy = vi.spyOn(notifications, "show");
     server.use(
       http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
       http.put(SETTINGS_URL, () => HttpResponse.json({}, { status: 403 })),
     );
 
@@ -169,6 +185,76 @@ describe("ReportSettingsPage — tenant_admin", () => {
     // the page does not crash; the form is still present
     expect(screen.getByTestId("btn-save")).toBeInTheDocument();
     showSpy.mockRestore();
+  });
+
+  it("renders the language Select with options from GET languages", async () => {
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
+    );
+
+    renderWithProviders(withTenant(<ReportSettingsPage />, "tenant_admin"));
+
+    // Wait for form to load
+    await screen.findByTestId("btn-save");
+
+    // The Select wrapper is present
+    const languageSelect = screen.getByTestId("field-language");
+    expect(languageSelect).toBeInTheDocument();
+
+    // The current value defaults to "en" from settings
+    expect(languageSelect).toHaveValue("English");
+  });
+
+  it("saving sends language in the PUT body", async () => {
+    const capturedBodies: unknown[] = [];
+
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
+      http.put(SETTINGS_URL, async ({ request }) => {
+        capturedBodies.push(await request.json());
+        return HttpResponse.json({ ...defaultSettings });
+      }),
+    );
+
+    renderWithProviders(withTenant(<ReportSettingsPage />, "tenant_admin"));
+
+    // Wait for form to load then save
+    await screen.findByTestId("btn-save");
+    await userEvent.click(screen.getByTestId("btn-save"));
+
+    await waitFor(() => expect(capturedBodies.length).toBeGreaterThan(0));
+
+    expect(capturedBodies[0]).toMatchObject({
+      title: "My Report",
+      owner: "NOC",
+      timezone: "UTC",
+      language: "en",
+    });
+  });
+
+  it("defaults language to en when settings has no language", async () => {
+    const settingsNoLanguage = {
+      title: "No Lang",
+      owner: "NOC",
+      timezone: "UTC",
+      has_logo: false,
+      logo_mime: null,
+    };
+
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(settingsNoLanguage)),
+      defaultLanguagesHandler,
+    );
+
+    renderWithProviders(withTenant(<ReportSettingsPage />, "tenant_admin"));
+
+    await screen.findByTestId("btn-save");
+
+    // Select should show English as the default
+    const languageSelect = screen.getByTestId("field-language");
+    expect(languageSelect).toHaveValue("English");
   });
 });
 

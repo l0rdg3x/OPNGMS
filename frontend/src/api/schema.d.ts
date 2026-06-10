@@ -501,6 +501,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/reports/languages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report Languages */
+        get: operations["get_report_languages_api_tenants__tenant_id__reports_languages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/reports/settings": {
         parameters: {
             query?: never;
@@ -971,6 +988,13 @@ export interface components {
             /** Role */
             role: string | null;
         };
+        /** ReportLanguageOut */
+        ReportLanguageOut: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
         /** ReportRequest */
         ReportRequest: {
             /**
@@ -1003,6 +1027,11 @@ export interface components {
              * @default UTC
              */
             timezone: string;
+            /**
+             * Language
+             * @default en
+             */
+            language: string;
         };
         /** ReportSettingsOut */
         ReportSettingsOut: {
@@ -1016,6 +1045,8 @@ export interface components {
             has_logo: boolean;
             /** Logo Mime */
             logo_mime: string | null;
+            /** Language */
+            language: string;
         };
         /** RotateSecretIn */
         RotateSecretIn: {
@@ -2262,6 +2293,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_report_languages_api_tenants__tenant_id__reports_languages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportLanguageOut"][];
                 };
             };
             /** @description Validation Error */

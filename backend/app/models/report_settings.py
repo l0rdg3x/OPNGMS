@@ -18,6 +18,7 @@ class ReportSettings(Base):
                                        server_default="Security & Activity Report")
     owner: Mapped[str] = mapped_column(String, default="", server_default="")
     timezone: Mapped[str] = mapped_column(String, default="UTC", server_default="UTC")
+    language: Mapped[str] = mapped_column(String, default="en", server_default="en")
     logo: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     logo_mime: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
