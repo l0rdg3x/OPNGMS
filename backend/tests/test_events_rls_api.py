@@ -66,17 +66,17 @@ async def test_events_isolated_via_api(app_role_api_client, db_engine):
     # POSITIVE assertion -> proves grant propagation to the chunks (not tautological).
     ra = await app_role_api_client.get(f"/api/tenants/{ta}/events")
     assert ra.status_code == 200
-    assert [e["name"] for e in ra.json()] == ["A-EVENT"]
+    assert [e["name"] for e in ra.json()["items"]] == ["A-EVENT"]
 
     rb = await app_role_api_client.get(f"/api/tenants/{tb}/events")
     assert rb.status_code == 200
-    assert [e["name"] for e in rb.json()] == ["B-EVENT"]
+    assert [e["name"] for e in rb.json()["items"]] == ["B-EVENT"]
 
     # Cross-tenant via API: B's events queried in A's context -> none.
     # NB: here the repository's application filter WHERE tenant_id already isolates, so this
     # negative assertion does NOT distinguish "RLS active" from "application filter only": it is a
     # behavior test (defense-in-depth). The proof that it is RLS that isolates is the RAW query below.
-    assert "B-EVENT" not in [e["name"] for e in ra.json()]
+    assert "B-EVENT" not in [e["name"] for e in ra.json()["items"]]
 
     # Proof that it is RLS (not the application filter) that isolates cross-tenant.
     # DIRECT session as the real opngms_app role (NOT via the API, NOT as owner),
