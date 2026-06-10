@@ -15,6 +15,13 @@ class Event(Base):
             "ix_events_tenant_device_source_time",
             "tenant_id", "device_id", "source", "time",
         ),
+        # Backs the keyset-pagination ORDER BY (time, device_id, source, event_key) DESC under a
+        # tenant filter. Mirrors migration 0015 (name + columns + DESC ops must match).
+        Index(
+            "ix_events_keyset",
+            "tenant_id", "time", "device_id", "source", "event_key",
+            postgresql_ops={"time": "DESC", "device_id": "DESC", "source": "DESC", "event_key": "DESC"},
+        ),
     )
 
     # Composite PK that includes `time` (required by Timescale) and is also the

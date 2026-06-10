@@ -61,7 +61,7 @@ async def test_events_endpoint_returns_most_recent_first(api_client, db_engine):
     await _seed_events(db_engine, tid, did)
     r = await api_client.get(f"/api/tenants/{tid}/events")
     assert r.status_code == 200
-    body = r.json()
+    body = r.json()["items"]
     assert [e["name"] for e in body] == ["example.com", "ET POLICY", "ET SCAN"]
     # the out-schema exposes the full normalized record
     assert body[0]["source"] == "dns"
@@ -75,8 +75,9 @@ async def test_events_endpoint_filters_by_source(api_client, db_engine):
     await _seed_events(db_engine, tid, did)
     r = await api_client.get(f"/api/tenants/{tid}/events", params={"source": "ids"})
     assert r.status_code == 200
-    assert {e["source"] for e in r.json()} == {"ids"}
-    assert [e["name"] for e in r.json()] == ["ET POLICY", "ET SCAN"]
+    items = r.json()["items"]
+    assert {e["source"] for e in items} == {"ids"}
+    assert [e["name"] for e in items] == ["ET POLICY", "ET SCAN"]
 
 
 async def test_events_endpoint_respects_limit(api_client, db_engine):
@@ -85,7 +86,7 @@ async def test_events_endpoint_respects_limit(api_client, db_engine):
     await _seed_events(db_engine, tid, did)
     r = await api_client.get(f"/api/tenants/{tid}/events", params={"limit": 2})
     assert r.status_code == 200
-    body = r.json()
+    body = r.json()["items"]
     assert len(body) == 2  # the 2 most recent
     assert [e["name"] for e in body] == ["example.com", "ET POLICY"]
 
@@ -100,7 +101,7 @@ async def test_events_endpoint_naive_from_does_not_500(api_client, db_engine):
     )
     assert r.status_code == 200
     # naive `from` (well before the seeded events) -> all three returned
-    assert len(r.json()) == 3
+    assert len(r.json()["items"]) == 3
 
 
 async def _seed_top_events(db_engine, tenant_id, device_id):

@@ -49,6 +49,7 @@ export const en = {
   devices: {
     title: "Devices",
     add: "Add device",
+    loadError: "Failed to load devices",
     colName: "Name",
     colUrl: "URL",
     colStatus: "Status",
@@ -58,6 +59,7 @@ export const en = {
     url: "URL",
     status: "Status",
     firmware: "Firmware",
+    loadError: "Failed to load device",
   },
   deviceActions: {
     testConnection: "Test connection",
@@ -178,6 +180,13 @@ export const en = {
     logoutAll: "Log out everywhere",
     loadError: "Failed to load sessions",
     logoutAllError: "Failed to log out everywhere",
+  },
+  confirm: {
+    title: "Are you sure?",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    deleteDevice: "Delete device",
+    deleteDeviceBody: "This will permanently delete the device and all its data. This action cannot be undone.",
   },
   errors: {
     fleetHealthLoad: "Failed to load fleet health",

@@ -1,10 +1,26 @@
+import base64
+import json
 import uuid
+import uuid as _uuid
 from datetime import datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.event import EventOut, EventTopRow
+
+
+def encode_cursor(time: datetime, device_id: _uuid.UUID, source: str, event_key: str) -> str:
+    raw = json.dumps([time.isoformat(), str(device_id), source, event_key]).encode()
+    return base64.urlsafe_b64encode(raw).decode()
+
+
+def decode_cursor(cursor: str) -> tuple[datetime, _uuid.UUID, str, str]:
+    try:
+        t, did, source, ek = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+        return datetime.fromisoformat(t), _uuid.UUID(did), source, ek
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError("invalid cursor") from exc
 
 # Defensive cap on the number of rows returned by the event list.
 MAX_EVENTS = 1000
@@ -23,17 +39,18 @@ class EventRepository:
         self.session = session
         self.tenant_id = tenant_id
 
-    async def list(
+    def _filter_clauses(
         self,
+        params: dict,
         *,
         source: str | None,
         device_id: uuid.UUID | None,
         frm: datetime | None,
         to: datetime | None,
-        limit: int,
-    ) -> list[EventOut]:
+    ) -> list[str]:
+        """Build the shared tenant/source/device/time WHERE clauses, mutating ``params``."""
         clauses = ["tenant_id = :tid"]
-        params: dict = {"tid": self.tenant_id, "limit": min(limit, MAX_EVENTS)}
+        params["tid"] = self.tenant_id
         if source is not None:
             clauses.append("source = :source")
             params["source"] = source
@@ -46,6 +63,19 @@ class EventRepository:
         if to is not None:
             clauses.append("time < :to")
             params["to"] = to
+        return clauses
+
+    async def list(
+        self,
+        *,
+        source: str | None,
+        device_id: uuid.UUID | None,
+        frm: datetime | None,
+        to: datetime | None,
+        limit: int,
+    ) -> list[EventOut]:
+        params: dict = {"limit": min(limit, MAX_EVENTS)}
+        clauses = self._filter_clauses(params, source=source, device_id=device_id, frm=frm, to=to)
         where = " AND ".join(clauses)
         sql = text(
             f"SELECT {_LIST_COLUMNS} FROM events WHERE {where} "
@@ -53,6 +83,36 @@ class EventRepository:
         )
         rows = (await self.session.execute(sql, params)).mappings().all()
         return [EventOut(**dict(r)) for r in rows]
+
+    async def list_page(
+        self,
+        *,
+        source: str | None,
+        device_id: uuid.UUID | None,
+        frm: datetime | None,
+        to: datetime | None,
+        after: str | None,
+        limit: int,
+    ) -> tuple[list[EventOut], str | None]:
+        n = min(limit, MAX_EVENTS)
+        params: dict = {"limit": n}
+        clauses = self._filter_clauses(params, source=source, device_id=device_id, frm=frm, to=to)
+        if after is not None:
+            c_time, c_did, c_source, c_ek = decode_cursor(after)
+            clauses.append("(time, device_id, source, event_key) < (:c_time, :c_did, :c_source, :c_ek)")
+            params |= {"c_time": c_time, "c_did": c_did, "c_source": c_source, "c_ek": c_ek}
+        where = " AND ".join(clauses)
+        sql = text(
+            f"SELECT {_LIST_COLUMNS}, event_key FROM events WHERE {where} "
+            "ORDER BY time DESC, device_id DESC, source DESC, event_key DESC LIMIT :limit"
+        )
+        rows = (await self.session.execute(sql, params)).mappings().all()
+        items = [EventOut(**{k: v for k, v in dict(r).items() if k != "event_key"}) for r in rows]
+        next_cursor = None
+        if len(rows) == n:
+            last = rows[-1]
+            next_cursor = encode_cursor(last["time"], last["device_id"], last["source"], last["event_key"])
+        return items, next_cursor
 
     async def top(
         self,
