@@ -12,6 +12,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  packages: read  # read the Trivy vulnerability DB from ghcr.io as an authenticated pull
 
 jobs:
   scan:
@@ -32,6 +33,16 @@ jobs:
       - name: Build image
         run: docker build -t "opngms-${{ matrix.name }}:scan" "${{ matrix.context }}"
 
+      # Authenticate to ghcr.io so Trivy pulls its vulnerability DB (ghcr.io/aquasecurity/trivy-db
+      # and trivy-java-db) as an authenticated request. Anonymous pulls hit GitHub Container Registry
+      # rate limits (TOOMANYREQUESTS) on busy public repos, which is what failed the scan step.
+      - name: Log in to ghcr.io for the Trivy DB
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Trivy scan
         uses: aquasecurity/trivy-action@v0.33.1  # valid inputs + SHA-pinned internal setup-trivy
         with:
@@ -40,6 +51,10 @@ jobs:
           output: "trivy-${{ matrix.name }}.sarif"
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+        env:
+          # Pin the DB sources explicitly to the authenticated ghcr.io path (defaults, made explicit).
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
+          TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
 
       - name: Upload SARIF
         if: always()
