@@ -10,7 +10,12 @@ from app.repositories.report_settings import ReportSettingsRepository
 from app.schemas.report import ReportRequest
 from app.schemas.report_settings import ReportSettingsIn, ReportSettingsOut
 from app.services.audit import AuditService
-from app.services.reporting.service import ReportRangeError, ReportService, validate_logo
+from app.services.reporting.service import (
+    MAX_LOGO_BYTES,
+    ReportRangeError,
+    ReportService,
+    validate_logo,
+)
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["reports"])
 
@@ -102,6 +107,12 @@ async def upload_report_logo(
     ctx: TenantContext = Depends(require_tenant(Action.REPORT_CONFIG)),
     session: AsyncSession = Depends(get_session),
 ) -> ReportSettingsOut:
+    # Reject oversized uploads early (Starlette populates `.size` from the spooled body) before
+    # buffering it all into a bytes object; validate_logo re-checks the actual length too.
+    if file.size is not None and file.size > MAX_LOGO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="logo too large (max 512 KB)"
+        )
     data = await file.read()
     # CRITICAL: derive mime from magic bytes — NEVER trust file.content_type
     try:
