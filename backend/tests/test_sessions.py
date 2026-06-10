@@ -151,3 +151,50 @@ async def test_logout_all_kills_every_session(api_client):
     r = await api_client.post("/api/logout-all", headers={"X-OPNGMS-CSRF": csrf})
     assert r.status_code == 204
     assert (await api_client.get("/api/me")).status_code == 401
+
+
+async def test_tampered_session_cookie_returns_401(api_client):
+    await _setup_login(api_client)
+    # The server sets cookies under domain "test.local" (httpx normalises the
+    # base_url host "test" to "test.local" in the cookie jar).  We must match
+    # that domain when overwriting so the tampered value replaces the real one.
+    api_client.cookies.set("opngms_session", "tampered-not-a-real-token", domain="test.local")
+    r = await api_client.get("/api/me")
+    assert r.status_code == 401
+
+
+async def test_login_rotation_deletes_old_session(api_client, db_engine):
+    from sqlalchemy import text as _text
+    from sqlalchemy.ext.asyncio import async_sessionmaker as _asm
+
+    # Setup: create user then log in twice; second login must delete the first session.
+    await api_client.post("/api/setup", json={"email": "rot@rot.io", "name": "R", "password": "pw-123456"})
+    await api_client.post("/api/login", json={"email": "rot@rot.io", "password": "pw-123456"})
+    # Second login carries the first session cookie, triggering anti-fixation rotation.
+    await api_client.post("/api/login", json={"email": "rot@rot.io", "password": "pw-123456"})
+
+    factory = _asm(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        # Look up user id by email.
+        row = (
+            await s.execute(_text("SELECT id FROM users WHERE email='rot@rot.io'"))
+        ).one()
+        uid = row.id
+        count = (
+            await s.execute(
+                _text("SELECT count(*) FROM sessions WHERE user_id=:uid"), {"uid": uid}
+            )
+        ).scalar_one()
+    assert count == 1
+
+
+async def test_absolute_expiry_enforced_at_service_level(factory):
+    async with factory() as s:
+        user = await s.get(User, await _make_user(factory))
+        svc = AuthService(s)
+        sess, raw = await svc.create_session(user, ttl_hours=12)
+        # Force the session to have expired an hour ago.
+        sess.expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        await s.commit()
+        result = await svc.get_session_for_token(raw)
+    assert result is None
