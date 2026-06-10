@@ -192,3 +192,22 @@ async def test_absolute_expiry_enforced_at_service_level(factory):
         await s.commit()
         result = await svc.get_session_for_token(raw)
     assert result is None
+
+
+async def test_app_ignores_raw_x_forwarded_for(api_client, db_engine):
+    # The app must derive the client IP from request.client.host (populated by uvicorn's vetted
+    # proxy-headers middleware behind a trusted proxy + nginx sanitising X-Forwarded-For), NOT from a
+    # raw inbound X-Forwarded-For. Otherwise a client could spoof its IP to evade the per-IP login
+    # lockout. Logging in with a forged header must NOT record the forged IP on the session.
+    from sqlalchemy.ext.asyncio import async_sessionmaker as _asm
+
+    await api_client.post("/api/setup", json={"email": "xff@xff.io", "name": "X", "password": "pw-123456"})
+    await api_client.post(
+        "/api/login",
+        json={"email": "xff@xff.io", "password": "pw-123456"},
+        headers={"X-Forwarded-For": "9.9.9.9"},
+    )
+    factory = _asm(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        ip = (await s.execute(text("SELECT ip FROM sessions LIMIT 1"))).scalar_one()
+    assert ip != "9.9.9.9"
