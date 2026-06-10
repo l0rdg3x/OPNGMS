@@ -369,6 +369,17 @@ git commit -m "docs: technical debt milestone 5C"
 
 ---
 
+## Technical debt (5C) — recorded
+
+- **Applications/Web Filter are MOCK** (clearly labeled as sample data): real app-id/flow + content
+  categorization needs an OPNsense visibility plugin + a category feed (future ingest phase). The block
+  shape is real, so a later real aggregator drops in without template changes.
+- **Threat levels are fixed per palette entry** (mock); a real feed would assign them from policy/IP-rep.
+- **Circular import** between `context` and `mock_sections` resolved via a local import inside
+  `build_context`.
+
+---
+
 ## Definition of "Done" (5C)
 - A generated report shows, per firewall, **Applications** (timeline + Top Detected/Blocked/Categories
   with Low/Guarded/High threat badges + Top Initiators) and **Web Filter** (Categories/Sites/Initiators +

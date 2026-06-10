@@ -20,3 +20,8 @@ table.ranked th, table.ranked td { border: 1px solid #ccc; padding: 4px 6px; tex
 table.ranked th { background: #f0f0f0; }
 .chart { margin: 8px 0; }
 .summary { font-size: 9pt; color: #333; margin: 2px 0 12px; }
+.threat { display: inline-block; padding: 1px 6px; border-radius: 3px; color: #fff; font-size: 8pt; }
+.threat-low { background: #2f9e44; }
+.threat-guarded { background: #1971c2; }
+.threat-high { background: #e8590c; }
+.sample-note { font-size: 8pt; color: #b08900; font-style: italic; margin: 2px 0 6px; }
