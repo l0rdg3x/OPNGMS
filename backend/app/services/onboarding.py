@@ -20,7 +20,7 @@ async def probe_device(
     verify_tls: bool = True,
     tls_fingerprint: str | None = None,
 ) -> ProbeResult:
-    client = OpnsenseClient(base_url, api_key, api_secret, verify_tls=verify_tls)
+    client = OpnsenseClient(base_url, api_key, api_secret, verify_tls=verify_tls, tls_fingerprint=tls_fingerprint)
     try:
         version = await client.test_connection()
         return ProbeResult(reachable=True, firmware_version=version, error=None)
