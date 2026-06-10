@@ -1,6 +1,5 @@
 from app.services.onboarding import ProbeResult, get_prober
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
+from tests.conftest import csrf_headers
 
 
 async def _setup_two_tenants(app_role_api_client, db_engine):
@@ -33,7 +32,7 @@ async def test_device_created_in_tenant_a_not_visible_in_tenant_b(app_role_api_c
     created = await app_role_api_client.post(
         f"/api/tenants/{ta}/devices",
         json={"name": "fw-a", "base_url": "https://a", "api_key": "k", "api_secret": "s"},
-        headers=CSRF,
+        headers=csrf_headers(app_role_api_client),
     )
     assert created.status_code == 201
     la = await app_role_api_client.get(f"/api/tenants/{ta}/devices")

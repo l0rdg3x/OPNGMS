@@ -1,8 +1,7 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from tests.conftest import csrf_headers
 from tests.factories import make_membership, make_tenant, make_user
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 async def _seed_and_login(api_client, db_engine):
@@ -29,7 +28,7 @@ async def _create(api_client, tenant_id, name="fw1"):
     r = await api_client.post(
         f"/api/tenants/{tenant_id}/devices",
         json={"name": name, "base_url": "https://fw1", "api_key": "k", "api_secret": "s"},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     return r.json()["id"]
 
@@ -40,7 +39,7 @@ async def test_update_device_fields(api_client, db_engine):
     resp = await api_client.patch(
         f"/api/tenants/{tenant_id}/devices/{device_id}",
         json={"name": "fw1-renamed", "tags": ["edge"]},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert resp.status_code == 200
     assert resp.json()["name"] == "fw1-renamed"
@@ -54,7 +53,7 @@ async def test_update_nonexistent_404(api_client, db_engine):
     resp = await api_client.patch(
         f"/api/tenants/{tenant_id}/devices/{uuid.uuid4()}",
         json={"name": "x"},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert resp.status_code == 404
 
@@ -62,7 +61,7 @@ async def test_update_nonexistent_404(api_client, db_engine):
 async def test_delete_device(api_client, db_engine):
     tenant_id = await _seed_and_login(api_client, db_engine)
     device_id = await _create(api_client, tenant_id)
-    d = await api_client.delete(f"/api/tenants/{tenant_id}/devices/{device_id}", headers=CSRF)
+    d = await api_client.delete(f"/api/tenants/{tenant_id}/devices/{device_id}", headers=csrf_headers(api_client))
     assert d.status_code == 204
     g = await api_client.get(f"/api/tenants/{tenant_id}/devices/{device_id}")
     assert g.status_code == 404

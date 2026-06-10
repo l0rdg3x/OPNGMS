@@ -54,9 +54,8 @@ async def test_csrf_mutation_without_header_rejected(api_client):
 
 from app.services.onboarding import ProbeResult, get_prober
 from app.main import app
+from tests.conftest import csrf_headers
 from tests.factories import make_tenant
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 async def _rls_setup_two_tenants(app_role_api_client, db_engine):
@@ -87,7 +86,7 @@ async def test_rls_device_in_tenant_a_not_visible_in_tenant_b(app_role_api_clien
     created = await app_role_api_client.post(
         f"/api/tenants/{ta}/devices",
         json={"name": "fw-rls-a", "base_url": "https://rls-a", "api_key": "k", "api_secret": "s"},
-        headers=CSRF,
+        headers=csrf_headers(app_role_api_client),
     )
     assert created.status_code == 201
     la = await app_role_api_client.get(f"/api/tenants/{ta}/devices")

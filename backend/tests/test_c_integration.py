@@ -1,10 +1,9 @@
 import pytest
 
 from app.services.onboarding import ProbeResult, get_prober
+from tests.conftest import csrf_headers
 
 pytestmark = pytest.mark.asyncio
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 async def test_device_lifecycle(api_client, db_engine):
@@ -31,7 +30,7 @@ async def test_device_lifecycle(api_client, db_engine):
     c = await api_client.post(
         f"/api/tenants/{tenant_id}/devices",
         json={"name": "fw", "base_url": "https://fw", "api_key": "k", "api_secret": "s"},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert c.status_code == 201
     did = c.json()["id"]
@@ -39,19 +38,19 @@ async def test_device_lifecycle(api_client, db_engine):
     assert (await api_client.get(f"/api/tenants/{tenant_id}/devices/{did}")).status_code == 200
     # update
     u = await api_client.patch(
-        f"/api/tenants/{tenant_id}/devices/{did}", json={"site": "HQ"}, headers=CSRF
+        f"/api/tenants/{tenant_id}/devices/{did}", json={"site": "HQ"}, headers=csrf_headers(api_client)
     )
     assert u.json()["site"] == "HQ"
     # rotate
     assert (await api_client.post(
         f"/api/tenants/{tenant_id}/devices/{did}/rotate-secret",
-        json={"api_key": "k2", "api_secret": "s2"}, headers=CSRF,
+        json={"api_key": "k2", "api_secret": "s2"}, headers=csrf_headers(api_client),
     )).status_code == 200
     # test-connection
     assert (await api_client.post(
-        f"/api/tenants/{tenant_id}/devices/{did}/test-connection", headers=CSRF
+        f"/api/tenants/{tenant_id}/devices/{did}/test-connection", headers=csrf_headers(api_client)
     )).json()["status"] == "reachable"
     # delete
     assert (await api_client.delete(
-        f"/api/tenants/{tenant_id}/devices/{did}", headers=CSRF
+        f"/api/tenants/{tenant_id}/devices/{did}", headers=csrf_headers(api_client)
     )).status_code == 204

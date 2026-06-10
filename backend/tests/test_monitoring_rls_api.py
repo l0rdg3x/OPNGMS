@@ -10,9 +10,8 @@ from app.core.db import make_engine, set_tenant_context
 from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
 from app.main import app
 from app.services.onboarding import ProbeResult, get_prober
+from tests.conftest import csrf_headers
 from tests.factories import make_tenant
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 async def _setup(app_role_api_client, db_engine):
@@ -40,7 +39,7 @@ async def _make_device(app_role_api_client, tid, name):
     r = await app_role_api_client.post(
         f"/api/tenants/{tid}/devices",
         json={"name": name, "base_url": f"https://{name}", "api_key": "k", "api_secret": "s"},
-        headers=CSRF,
+        headers=csrf_headers(app_role_api_client),
     )
     assert r.status_code == 201
     return uuid.UUID(r.json()["id"])

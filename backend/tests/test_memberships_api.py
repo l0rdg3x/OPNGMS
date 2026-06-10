@@ -1,8 +1,7 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from tests.conftest import csrf_headers
 from tests.factories import make_tenant, make_user
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 async def _seed_superadmin_and_tenant(api_client, db_engine):
@@ -23,7 +22,7 @@ async def test_superadmin_assigns_membership(api_client, db_engine):
     resp = await api_client.post(
         f"/api/tenants/{tenant_id}/memberships",
         json={"user_id": str(user_id), "role": "operator"},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert resp.status_code == 201
     assert resp.json()["role"] == "operator"
@@ -37,6 +36,6 @@ async def test_invalid_role_rejected(api_client, db_engine):
     resp = await api_client.post(
         f"/api/tenants/{tenant_id}/memberships",
         json={"user_id": str(user_id), "role": "wizard"},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert resp.status_code == 422

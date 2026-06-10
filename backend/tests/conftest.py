@@ -29,6 +29,15 @@ from app.models import Base
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL")
 
 
+def csrf_headers(client) -> dict:
+    """Return an X-OPNGMS-CSRF header dict with the token from the client's cookie jar.
+
+    Call this after a successful login so the real per-session CSRF token is used.
+    """
+    token = client.cookies.get("opngms_csrf") or ""
+    return {"X-OPNGMS-CSRF": token}
+
+
 @pytest.fixture
 async def client():
     transport = ASGITransport(app=app)
