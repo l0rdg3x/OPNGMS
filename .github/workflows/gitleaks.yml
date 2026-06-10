@@ -1,0 +1,30 @@
+# Scan the repo + history for committed secrets (defence in depth alongside GitHub secret scanning).
+name: Secret Scan (gitleaks)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 5 * * 1"  # weekly, Monday 05:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history so the scan covers past commits
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE is required only when this repo belongs to a GitHub Organization
+          # (free for personal/public repos). Set it as a repo secret if needed:
+          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
