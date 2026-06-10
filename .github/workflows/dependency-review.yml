@@ -16,6 +16,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v4.9.0  # no moving `v4` tag exists; pin an exact release
         with:
           fail-on-severity: high
