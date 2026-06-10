@@ -8,9 +8,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.db import make_engine, set_tenant_context
 from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
 from app.core.rls import TENANT_TABLES
+from tests.conftest import csrf_headers
 from tests.factories import make_tenant
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 def test_config_changes_in_tenant_tables():
@@ -82,7 +81,7 @@ async def test_create_change_cross_tenant_device_is_404(app_role_api_client, db_
     r = await app_role_api_client.post(
         f"/api/tenants/{ta}/devices/{dev_b}/config/changes",
         json={"kind": "alias", "operation": "set", "target": "alias-x", "payload": {}},
-        headers=CSRF,
+        headers=csrf_headers(app_role_api_client),
     )
     assert r.status_code == 404
 

@@ -1,5 +1,7 @@
 import pytest
 
+from tests.conftest import csrf_headers
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -10,13 +12,10 @@ async def _login_superadmin(api_client):
     await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
 
 
-CSRF = {"X-OPNGMS-CSRF": "1"}
-
-
 async def test_superadmin_can_create_and_list_tenants(api_client):
     await _login_superadmin(api_client)
     created = await api_client.post(
-        "/api/tenants", json={"name": "Customer A", "slug": "cliente-a"}, headers=CSRF
+        "/api/tenants", json={"name": "Customer A", "slug": "cliente-a"}, headers=csrf_headers(api_client)
     )
     assert created.status_code == 201
     assert created.json()["slug"] == "cliente-a"
@@ -36,7 +35,7 @@ async def test_non_superadmin_cannot_create_tenant(api_client, db_engine):
         await s.commit()
     await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
     resp = await api_client.post(
-        "/api/tenants", json={"name": "X", "slug": "x"}, headers=CSRF
+        "/api/tenants", json={"name": "X", "slug": "x"}, headers=csrf_headers(api_client)
     )
     assert resp.status_code == 403
 

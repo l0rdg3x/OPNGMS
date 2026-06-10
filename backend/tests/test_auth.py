@@ -40,7 +40,8 @@ async def test_me_without_session_401(api_client):
 async def test_logout_clears_session(api_client):
     await _setup_admin(api_client)
     await api_client.post("/api/login", json={"email": "admin@x.io", "password": "pw12345"})
-    out = await api_client.post("/api/logout", headers={"X-OPNGMS-CSRF": "1"})
+    csrf = api_client.cookies.get("opngms_csrf")
+    out = await api_client.post("/api/logout", headers={"X-OPNGMS-CSRF": csrf})
     assert out.status_code == 204
     me = await api_client.get("/api/me")
     assert me.status_code == 401

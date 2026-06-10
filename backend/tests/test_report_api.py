@@ -11,9 +11,8 @@ from app.core.db import make_engine, set_tenant_context
 from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
 from app.main import app
 from app.services.reporting.service import ReportService
+from tests.conftest import csrf_headers
 from tests.factories import make_tenant
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 async def _login_superadmin(api_client, db_engine):
@@ -54,7 +53,7 @@ async def test_generate_report_returns_pdf(api_client, db_engine):
     tid = await _login_superadmin(api_client, db_engine)
     base = await _seed(db_engine, tid)
     body = {"from": (base - timedelta(hours=1)).isoformat(), "to": (base + timedelta(hours=1)).isoformat()}
-    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=CSRF)
+    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=csrf_headers(api_client))
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/pdf"
     assert r.content[:5] == b"%PDF-"
@@ -73,7 +72,7 @@ async def test_generate_report_requires_auth(db_engine):
         r = await anon.post(
             f"/api/tenants/{uuid.uuid4()}/reports",
             json={"from": "2026-06-09T11:00:00Z", "to": "2026-06-09T13:00:00Z"},
-            headers=CSRF,
+            headers={"X-OPNGMS-CSRF": "anon"},
         )
     assert r.status_code in (401, 404)
 
@@ -103,7 +102,7 @@ async def test_report_data_not_remotely_fetched(api_client, db_engine):
         )
         await s.commit()
     body = {"from": (base - timedelta(hours=1)).isoformat(), "to": (base + timedelta(hours=1)).isoformat()}
-    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=CSRF)
+    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=csrf_headers(api_client))
     assert r.status_code == 200
     assert r.content[:5] == b"%PDF-"
 
@@ -113,7 +112,7 @@ async def test_generate_report_rejects_oversized_range(api_client, db_engine):
     tid = await _login_superadmin(api_client, db_engine)
     base = await _seed(db_engine, tid)
     body = {"from": (base - timedelta(days=120)).isoformat(), "to": base.isoformat()}
-    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=CSRF)
+    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=csrf_headers(api_client))
     assert r.status_code == 400
 
 
@@ -122,7 +121,7 @@ async def test_generate_report_rejects_inverted_range(api_client, db_engine):
     tid = await _login_superadmin(api_client, db_engine)
     base = await _seed(db_engine, tid)
     body = {"from": (base + timedelta(hours=1)).isoformat(), "to": (base - timedelta(hours=1)).isoformat()}
-    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=CSRF)
+    r = await api_client.post(f"/api/tenants/{tid}/reports", json=body, headers=csrf_headers(api_client))
     assert r.status_code == 400
 
 

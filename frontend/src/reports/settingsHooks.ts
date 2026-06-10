@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import type { components } from "../api/schema";
+import { csrfToken } from "../api/csrf";
 import { en } from "../i18n/en";
 import { useTenant } from "../tenant/useTenant";
 
@@ -70,7 +71,7 @@ export function useUploadLogo() {
       const res = await fetch(url, {
         method: "PUT",
         credentials: "include",
-        headers: { "X-OPNGMS-CSRF": "1" },
+        headers: { "X-OPNGMS-CSRF": csrfToken() },
         body: fd,
       });
       if (!res.ok) throw new Error(en.errors.reportSettingsAction);

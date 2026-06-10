@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.audit import AuditLog
+from tests.conftest import csrf_headers
 
 
 async def _audit_actions(db_engine):
@@ -18,6 +19,6 @@ async def test_login_and_logout_are_audited(api_client, db_engine):
     await api_client.post("/api/login", json={"email": "a@x.io", "password": "pw12345"})
     actions = await _audit_actions(db_engine)
     assert "auth.login" in actions
-    await api_client.post("/api/logout", headers={"X-OPNGMS-CSRF": "1"})
+    await api_client.post("/api/logout", headers=csrf_headers(api_client))
     actions = await _audit_actions(db_engine)
     assert "auth.logout" in actions

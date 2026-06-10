@@ -6,9 +6,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.queue import get_enqueuer
 from app.main import app
+from tests.conftest import csrf_headers
 from tests.factories import make_membership, make_tenant, make_user
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 async def _seed_members(db_engine):
@@ -63,7 +62,7 @@ async def _create_change(api_client, tid, did, payload=None):
         "payload": {"name": "myalias", "content": ["1.2.3.4"]},
     }
     return await api_client.post(
-        f"/api/tenants/{tid}/devices/{did}/config/changes", json=body, headers=CSRF
+        f"/api/tenants/{tid}/devices/{did}/config/changes", json=body, headers=csrf_headers(api_client)
     )
 
 
@@ -130,7 +129,7 @@ async def test_schedule_immediate_enqueues_without_defer(api_client, db_engine):
     r = await api_client.post(
         f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/schedule",
         json={"scheduled_at": None},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 200
     assert r.json()["status"] == "scheduled"
@@ -154,7 +153,7 @@ async def test_schedule_deferred_enqueues_with_defer(api_client, db_engine):
     r = await api_client.post(
         f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/schedule",
         json={"scheduled_at": when},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 200
     body = r.json()
@@ -175,7 +174,7 @@ async def test_cancel_sets_cancelled(api_client, db_engine):
     created = await _create_change(api_client, tid, did)
     cid = created.json()["id"]
     r = await api_client.post(
-        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=CSRF
+        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=csrf_headers(api_client)
     )
     assert r.status_code == 200
     assert r.json()["status"] == "cancelled"
@@ -190,13 +189,13 @@ async def test_schedule_conflict_on_non_draft(api_client, db_engine):
     cid = created.json()["id"]
     # cancel first -> status 'cancelled'
     await api_client.post(
-        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=CSRF
+        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=csrf_headers(api_client)
     )
     # now scheduling must 409
     r = await api_client.post(
         f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/schedule",
         json={"scheduled_at": None},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 409
 
@@ -208,10 +207,10 @@ async def test_cancel_conflict_on_cancelled(api_client, db_engine):
     created = await _create_change(api_client, tid, did)
     cid = created.json()["id"]
     await api_client.post(
-        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=CSRF
+        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=csrf_headers(api_client)
     )
     r = await api_client.post(
-        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=CSRF
+        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=csrf_headers(api_client)
     )
     assert r.status_code == 409
 
@@ -230,7 +229,7 @@ async def test_read_only_forbidden_to_schedule(api_client, db_engine):
     r = await api_client.post(
         f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/schedule",
         json={"scheduled_at": None},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 403
 
@@ -253,7 +252,7 @@ async def test_read_only_forbidden_to_cancel(api_client, db_engine):
     cid = created.json()["id"]
     await _login(api_client, "ro@x.io")
     r = await api_client.post(
-        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=CSRF
+        f"/api/tenants/{tid}/devices/{did}/config/changes/{cid}/cancel", headers=csrf_headers(api_client)
     )
     assert r.status_code == 403
 
@@ -266,7 +265,7 @@ async def test_create_requires_auth(api_client, db_engine):
         r = await anon.post(
             f"/api/tenants/{tid}/devices/{did}/config/changes",
             json={"kind": "alias", "operation": "set", "target": "a", "payload": {}},
-            headers=CSRF,
+            headers={"X-OPNGMS-CSRF": "anon"},
         )
     assert r.status_code == 401
 

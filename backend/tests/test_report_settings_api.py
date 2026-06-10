@@ -13,9 +13,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.db import make_engine, set_tenant_context
 from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
 from app.main import app
+from tests.conftest import csrf_headers
 from tests.factories import make_membership, make_tenant, make_user
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +92,7 @@ async def test_get_settings_returns_defaults(api_client, db_engine):
 async def test_put_settings_then_get_reflects_changes(api_client, db_engine):
     tid = await _login_superadmin(api_client, db_engine)
     payload = {"title": "My Custom Report", "owner": "Acme Corp", "timezone": "Europe/Rome"}
-    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", json=payload, headers=CSRF)
+    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", json=payload, headers=csrf_headers(api_client))
     assert r.status_code == 200
     out = r.json()
     assert out["title"] == "My Custom Report"
@@ -120,7 +119,7 @@ async def test_operator_put_settings_is_forbidden(api_client, db_engine):
     r = await api_client.put(
         f"/api/tenants/{tid}/reports/settings",
         json={"title": "Hack", "owner": "", "timezone": "UTC"},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 403
 
@@ -167,7 +166,7 @@ async def test_upload_valid_png_logo(api_client, db_engine):
     r = await api_client.put(
         f"/api/tenants/{tid}/reports/settings/logo",
         files={"file": ("logo.png", TINY_PNG, "image/png")},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 200
     body = r.json()
@@ -181,7 +180,7 @@ async def test_get_logo_endpoint_returns_bytes(api_client, db_engine):
     await api_client.put(
         f"/api/tenants/{tid}/reports/settings/logo",
         files={"file": ("logo.png", TINY_PNG, "image/png")},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     # Then GET logo bytes
     r = await api_client.get(f"/api/tenants/{tid}/reports/settings/logo")
@@ -206,7 +205,7 @@ async def test_upload_invalid_logo_svg_returns_400(api_client, db_engine):
     r = await api_client.put(
         f"/api/tenants/{tid}/reports/settings/logo",
         files={"file": ("logo.svg", bad_data, "image/svg+xml")},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 400
 
@@ -216,7 +215,7 @@ async def test_upload_invalid_logo_plaintext_returns_400(api_client, db_engine):
     r = await api_client.put(
         f"/api/tenants/{tid}/reports/settings/logo",
         files={"file": ("file.txt", b"hello world", "text/plain")},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 400
 
@@ -228,7 +227,7 @@ async def test_upload_logo_mime_derived_from_magic_bytes_not_content_type(api_cl
     r = await api_client.put(
         f"/api/tenants/{tid}/reports/settings/logo",
         files={"file": ("logo.jpg", TINY_PNG, "image/jpeg")},  # lying about type
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 200
     body = r.json()
@@ -247,10 +246,10 @@ async def test_delete_logo_clears_it(api_client, db_engine):
     await api_client.put(
         f"/api/tenants/{tid}/reports/settings/logo",
         files={"file": ("logo.png", TINY_PNG, "image/png")},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     # Now delete
-    r = await api_client.delete(f"/api/tenants/{tid}/reports/settings/logo", headers=CSRF)
+    r = await api_client.delete(f"/api/tenants/{tid}/reports/settings/logo", headers=csrf_headers(api_client))
     assert r.status_code == 200
     body = r.json()
     assert body["has_logo"] is False
@@ -283,7 +282,7 @@ async def test_cross_tenant_isolation(app_role_api_client, db_engine):
     r = await app_role_api_client.put(
         f"/api/tenants/{ta_id}/reports/settings",
         json={"title": "Tenant A Custom Title", "owner": "Owner A", "timezone": "UTC"},
-        headers=CSRF,
+        headers=csrf_headers(app_role_api_client),
     )
     assert r.status_code == 200
 
@@ -311,7 +310,7 @@ async def test_cross_tenant_logo_isolation(app_role_api_client, db_engine):
     r = await app_role_api_client.put(
         f"/api/tenants/{ta_id}/reports/settings/logo",
         files={"file": ("logo.png", TINY_PNG, "image/png")},
-        headers=CSRF,
+        headers=csrf_headers(app_role_api_client),
     )
     assert r.status_code == 200
     assert r.json()["has_logo"] is True
@@ -335,7 +334,7 @@ async def test_operator_upload_logo_is_forbidden(api_client, db_engine):
     r = await api_client.put(
         f"/api/tenants/{tid}/reports/settings/logo",
         files={"file": ("logo.png", TINY_PNG, "image/png")},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 403
 
@@ -343,7 +342,7 @@ async def test_operator_upload_logo_is_forbidden(api_client, db_engine):
 async def test_operator_delete_logo_is_forbidden(api_client, db_engine):
     tid, admin_email, op_email = await _seed_members(db_engine)
     await _login(api_client, op_email)
-    r = await api_client.delete(f"/api/tenants/{tid}/reports/settings/logo", headers=CSRF)
+    r = await api_client.delete(f"/api/tenants/{tid}/reports/settings/logo", headers=csrf_headers(api_client))
     assert r.status_code == 403
 
 
@@ -364,7 +363,7 @@ async def test_put_settings_language_en_accepted(api_client, db_engine):
     """PUT with language:'en' works and GET reflects it."""
     tid = await _login_superadmin(api_client, db_engine)
     payload = {"title": "Test Report", "owner": "", "timezone": "UTC", "language": "en"}
-    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", json=payload, headers=CSRF)
+    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", json=payload, headers=csrf_headers(api_client))
     assert r.status_code == 200
     assert r.json()["language"] == "en"
 
@@ -377,7 +376,7 @@ async def test_put_settings_unknown_language_returns_400(api_client, db_engine):
     """PUT with language:'xx' (unknown) → 400."""
     tid = await _login_superadmin(api_client, db_engine)
     payload = {"title": "Test Report", "owner": "", "timezone": "UTC", "language": "xx"}
-    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", json=payload, headers=CSRF)
+    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", json=payload, headers=csrf_headers(api_client))
     assert r.status_code == 400
     assert r.json()["detail"] == "unsupported language"
 

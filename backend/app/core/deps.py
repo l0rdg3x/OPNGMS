@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from dataclasses import dataclass
 
@@ -8,34 +9,44 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session, set_tenant_context
 from app.core.rbac import Action, can
 from app.models.membership import Membership
+from app.models.session import Session
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.services.auth import AuthService
 
 SESSION_COOKIE = "opngms_session"
+CSRF_COOKIE = "opngms_csrf"  # readable (non-httponly) cookie carrying the per-session CSRF token
 CSRF_HEADER = "X-OPNGMS-CSRF"
 
 
-async def enforce_csrf(request: Request) -> None:
+async def get_current_session(
+    request: Request, session: AsyncSession = Depends(get_session)
+) -> Session:
+    raw = request.cookies.get(SESSION_COOKIE)
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    sess = await AuthService(session).get_session_for_token(raw)
+    if sess is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
+    return sess
+
+
+async def enforce_csrf(
+    request: Request, sess: Session = Depends(get_current_session)
+) -> None:
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
-        if not request.headers.get(CSRF_HEADER):
+        header = request.headers.get(CSRF_HEADER)
+        if not header or not secrets.compare_digest(header, sess.csrf_token):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Missing CSRF header",
+                status_code=status.HTTP_403_FORBIDDEN, detail="CSRF check failed"
             )
 
 
 async def get_current_user(
-    request: Request, session: AsyncSession = Depends(get_session)
+    sess: Session = Depends(get_current_session),
+    session: AsyncSession = Depends(get_session),
 ) -> User:
-    raw = request.cookies.get(SESSION_COOKIE)
-    if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    try:
-        session_id = uuid.UUID(raw)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
-    user = await AuthService(session).get_user_for_session(session_id)
+    user = await AuthService(session).get_user_for_session(sess)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
     return user

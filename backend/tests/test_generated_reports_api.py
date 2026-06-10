@@ -14,9 +14,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.db import make_engine, set_tenant_context
 from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
 from app.main import app
+from tests.conftest import csrf_headers
 from tests.factories import make_membership, make_tenant, make_user
-
-CSRF = {"X-OPNGMS-CSRF": "1"}
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +70,7 @@ async def test_post_generate_stores_and_list_returns_one_row(api_client, db_engi
     frm = (base - timedelta(hours=1)).isoformat()
     to_ = (base + timedelta(hours=1)).isoformat()
 
-    r = await api_client.post(f"/api/tenants/{tid}/reports", json={"from": frm, "to": to_}, headers=CSRF)
+    r = await api_client.post(f"/api/tenants/{tid}/reports", json={"from": frm, "to": to_}, headers=csrf_headers(api_client))
     assert r.status_code == 200
     assert r.content[:5] == b"%PDF-"
 
@@ -96,7 +95,7 @@ async def test_list_period_matches_request(api_client, db_engine):
     await api_client.post(
         f"/api/tenants/{tid}/reports",
         json={"from": frm_dt.isoformat(), "to": to_dt.isoformat()},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     r = await api_client.get(f"/api/tenants/{tid}/reports")
     row = r.json()[0]
@@ -117,7 +116,7 @@ async def test_download_returns_pdf_bytes(api_client, db_engine):
     await api_client.post(
         f"/api/tenants/{tid}/reports",
         json={"from": (base - timedelta(hours=1)).isoformat(), "to": (base + timedelta(hours=1)).isoformat()},
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     rows = (await api_client.get(f"/api/tenants/{tid}/reports")).json()
     report_id = rows[0]["id"]
@@ -191,7 +190,7 @@ async def _seed_tenant_with_report(db_engine, app_role_client, slug: str, sa_ema
             "from": (base - timedelta(hours=1)).isoformat(),
             "to": (base + timedelta(hours=1)).isoformat(),
         },
-        headers=CSRF,
+        headers=csrf_headers(app_role_client),
     )
     assert r.status_code == 200, f"generate failed for {slug}: {r.text}"
     rows = (await app_role_client.get(f"/api/tenants/{tid}/reports")).json()
@@ -261,7 +260,7 @@ async def test_range_error_does_not_store(api_client, db_engine):
             "from": (base - timedelta(days=120)).isoformat(),
             "to": base.isoformat(),
         },
-        headers=CSRF,
+        headers=csrf_headers(api_client),
     )
     assert r.status_code == 400
 
