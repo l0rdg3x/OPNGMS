@@ -15,6 +15,13 @@ from app.schemas.event import EventTopRow
 # being checked against this set (asyncpg cannot bind a Python str as a PG interval), so the
 # allowlist — not parameter binding — is what makes the interpolation injection-safe.
 _BUCKETS = ("1 hour", "6 hours", "1 day")
+_BUCKET_DELTAS = {"1 hour": timedelta(hours=1), "6 hours": timedelta(hours=6), "1 day": timedelta(days=1)}
+
+
+def _bucket_delta(bucket: str) -> timedelta:
+    if bucket not in _BUCKET_DELTAS:
+        raise ValueError(f"bucket not allowed: {bucket}")
+    return _BUCKET_DELTAS[bucket]
 
 
 def pick_bucket(span: timedelta) -> str:
@@ -101,3 +108,49 @@ class ReportAggregator:
         )
         rows = (await self.session.execute(sql, params)).all()
         return [(r.b, int(r.c)) for r in rows]
+
+    async def bandwidth_timeline(
+        self, *, frm: datetime, to: datetime, bucket: str, device_id: uuid.UUID | None = None,
+    ) -> list[tuple[datetime, float]]:
+        """Transferred bytes (in+out) per bucket. Counters are cumulative, so per (bucket, interface,
+        direction) we take max-min clamped >= 0 (a reset within the bucket yields 0 for that slice)."""
+        delta = _bucket_delta(bucket)  # bound as a real interval (timedelta)
+        clauses = ["tenant_id = :tid", "metric IN ('iface.bytes_in','iface.bytes_out')", "time >= :frm", "time < :to"]
+        params: dict = {"bucket": delta, "tid": self.tenant_id, "frm": frm, "to": to}
+        if device_id is not None:
+            clauses.append("device_id = :did")
+            params["did"] = device_id
+        where = " AND ".join(clauses)
+        sql = text(
+            "SELECT b, SUM(d) AS total FROM ("
+            "  SELECT time_bucket(:bucket, time) AS b, device_id, label, metric, "
+            "         GREATEST(max(value) - min(value), 0) AS d "
+            f"  FROM metrics WHERE {where} "
+            "  GROUP BY b, device_id, label, metric"
+            ") s GROUP BY b ORDER BY b"
+        )
+        rows = (await self.session.execute(sql, params)).all()
+        return [(r.b, float(r.total)) for r in rows]
+
+    async def bandwidth_totals(
+        self, *, frm: datetime, to: datetime, bucket: str = "1 hour", device_id: uuid.UUID | None = None,
+    ) -> tuple[float, float]:
+        """(total_in, total_out) bytes over the range — summed per-bucket max-min (reset-safe)."""
+        delta = _bucket_delta(bucket)
+        clauses = ["tenant_id = :tid", "metric IN ('iface.bytes_in','iface.bytes_out')", "time >= :frm", "time < :to"]
+        params: dict = {"bucket": delta, "tid": self.tenant_id, "frm": frm, "to": to}
+        if device_id is not None:
+            clauses.append("device_id = :did")
+            params["did"] = device_id
+        where = " AND ".join(clauses)
+        sql = text(
+            "SELECT metric, SUM(d) AS total FROM ("
+            "  SELECT time_bucket(:bucket, time) AS b, device_id, label, metric, "
+            "         GREATEST(max(value) - min(value), 0) AS d "
+            f"  FROM metrics WHERE {where} "
+            "  GROUP BY b, device_id, label, metric"
+            ") s GROUP BY metric"
+        )
+        rows = (await self.session.execute(sql, params)).all()
+        by_metric = {r.metric: float(r.total) for r in rows}
+        return by_metric.get("iface.bytes_in", 0.0), by_metric.get("iface.bytes_out", 0.0)
