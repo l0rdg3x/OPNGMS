@@ -1,3 +1,7 @@
 
 # Local tooling state (ruflo, etc.)
 .claude/
+
+# Production secrets — never commit
+.env
+
