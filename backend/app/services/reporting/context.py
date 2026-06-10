@@ -112,7 +112,6 @@ from datetime import timezone as _tz  # noqa: E402
 
 from app.services.reporting.aggregation import ReportAggregator, pick_bucket  # noqa: E402
 from app.services.reporting.charts import line_chart  # noqa: E402
-from app.services.reporting.mock_sections import applications_block, web_filter_block  # noqa: E402
 
 
 async def build_context(
@@ -125,6 +124,10 @@ async def build_context(
     to: datetime,
     title: str = "Security & Activity Report",
 ) -> ReportContext:
+    # Local import: mock_sections imports the dataclasses from this module, so importing it here
+    # (rather than at module top) avoids a circular-import cycle and lets mock_sections be imported
+    # standalone. Swapped for a real aggregator when app-id/category ingest lands.
+    from app.services.reporting.mock_sections import applications_block, web_filter_block
     bucket = pick_bucket(to - frm)
     sections: list[DeviceSection] = []
     devices = await aggregator.devices()
