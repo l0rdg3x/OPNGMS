@@ -7,4 +7,4 @@ _DIR = Path(__file__).parent / "fixtures" / "opnsense"
 
 def load(name: str):
     """Return the parsed JSON of fixtures/opnsense/<name>."""
-    return json.loads((_DIR / name).read_text())
+    return json.loads((_DIR / name).read_text(encoding="utf-8"))
