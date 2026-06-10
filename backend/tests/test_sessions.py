@@ -64,12 +64,6 @@ from app.models.user import User
 from app.services.auth import AuthService, _hash_token
 
 
-async def _user_obj(factory) -> User:
-    uid = await _make_user(factory)
-    async with factory() as s:
-        return await s.get(User, uid)
-
-
 async def test_create_session_hashes_token(factory):
     async with factory() as s:
         user = await s.get(User, await _make_user(factory))

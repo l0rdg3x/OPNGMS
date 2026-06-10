@@ -28,7 +28,6 @@ async def get_current_session(
     sess = await AuthService(session).get_session_for_token(raw)
     if sess is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
-    request.state.session = sess  # used by enforce_csrf and the current-session flag in GET /sessions
     return sess
 
 

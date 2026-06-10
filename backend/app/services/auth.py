@@ -72,7 +72,12 @@ class AuthService:
             return None
         if (now - sess.last_seen_at) >= _LAST_SEEN_THROTTLE:
             sess.last_seen_at = now
-            await self.session.commit()  # get_session() does not auto-commit; persist the touch
+            # get_session() does not auto-commit, so persist the touch here. This relies on an
+            # ordering invariant: get_current_session (which calls this) is the FIRST DB-touching
+            # dependency in the request, so committing now cannot clobber uncommitted writes or the
+            # transaction-local RLS context (set later by tenant_context via set_tenant_context).
+            # If a DB dependency is ever ordered before get_current_session, revisit this.
+            await self.session.commit()
         return sess
 
     async def get_user_for_session(self, sess: Session) -> User | None:
