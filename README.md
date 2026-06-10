@@ -186,6 +186,9 @@ The app is then served at `http://localhost/`. Notes:
 - **SSRF guard** on the connector: HTTPS only, no userinfo, DNS resolution + blocking of
   loopback/link-local (incl. cloud metadata 169.254.169.254)/unspecified/multicast/reserved (private
   RFC1918 ranges are allowed), IP pinning, no redirects, sanitized errors.
+- **TLS certificate pinning (SEC-2):** opt-in per device — when a `tls_fingerprint` is set, the connector
+  verifies the device's leaf-cert SHA-256 **before sending credentials** (MITM-resistant even with a
+  self-signed cert). With no fingerprint, `verify_tls=false` stays permissive (self-signed accepted).
 - **Auth:** server-side sessions + CSRF header on mutations; argon2 password hashing; 4-role RBAC
   (superadmin + tenant_admin/operator/read_only); **login rate-limiting** (lockout after N failures) +
   failed-login auditing.
