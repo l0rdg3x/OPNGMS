@@ -141,6 +141,40 @@ npm run build       # typecheck (tsc) + build
 npm run lint        # ESLint
 ```
 
+## Production deployment
+
+The whole stack runs from a single compose file: TimescaleDB + Redis, a one-shot **migrate** job, the
+**API** (uvicorn, connecting as the non-superuser `opngms_app` role → RLS enforced), the **worker** (ARQ,
+connecting as the owner), and an **nginx frontend** that serves the SPA and reverse-proxies `/api` to the
+API (single origin, so the session cookie + CSRF model works without CORS). The backend image bundles the
+WeasyPrint system libraries (pango/cairo) so PDF reporting works.
+
+```bash
+# 1. Configure secrets (never commit the resulting .env — it is gitignored)
+cp .env.example .env
+# Edit .env: set a strong POSTGRES_PASSWORD (and the matching ADMIN_DATABASE_URL password), then:
+#   SESSION_SECRET:  python -c "import secrets; print(secrets.token_urlsafe(48))"
+#   MASTER_KEY:      python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# 2. Build + start the stack
+docker compose -f docker-compose.prod.yml up -d --build
+
+# migrate runs `alembic upgrade head` as the owner (creates the schema + the opngms_app role + RLS),
+# then the API/worker/frontend start. The API healthcheck hits GET /healthz.
+
+# 3. Create the first superadmin (one-time)
+curl -X POST http://localhost/api/setup \
+  -H 'Content-Type: application/json' -H 'X-OPNGMS-CSRF: 1' \
+  -d '{"email":"admin@example.com","name":"Admin","password":"<strong-password>"}'
+```
+
+The app is then served at `http://localhost/`. Notes:
+- **TLS** is the operator's responsibility — front the `frontend` service with an HTTPS reverse proxy /
+  load balancer for production (the bundled nginx listens on plain HTTP:80).
+- The default `opngms_app` DB password is `opngms_app` (set by migration `0003`); change it for real
+  deployments (`ALTER ROLE opngms_app PASSWORD '…'` then update `DATABASE_URL`).
+- The backend image is pinned to **Python 3.14** (matching the dev/test runtime).
+
 ## Security & multi-tenancy
 
 - **Per-customer isolation:** every tenant-scoped table carries a `tenant_id` and a `tenant_isolation`
@@ -165,7 +199,7 @@ npm run lint        # ESLint
 | **3 — Log/Event ingest** | Pull-API event ingest into an `events` hypertable (RLS) for reporting. 3A Suricata ✅ · 3B DNS ✅ · 3C query API ✅ | ✅ Done |
 | **4 — Config management** | Versioned, encrypted config backup + drift detection (schema-agnostic, RLS). 4A backup+drift ✅ · 4B config model + capability ✅ · 4C firewall-aware UI ✅ · 4D edit + push (4D-a pipeline ✅, dry-run · 4D-c editing UI ✅) | 🔄 In progress (4A–4C, 4D-a, 4D-c ✅) |
 | **5 — PDF reporting** | Per-customer white-label PDF reports (attacks, sites visited, bandwidth). 5A reporting engine (WeasyPrint + Jinja2 + SVG charts, tenant-scoped aggregation, on-demand generate API, Attacks section) · 5B Web Activity (DNS) + Data Usage (bandwidth) + Up/Down status, per-firewall · 5C Applications + Web Filter (labeled sample data) with threat-level color coding · 5D per-tenant white-label config (title/owner/timezone + logo upload, settings UI) · 5E scheduled reports (monthly ARQ cron) + stored history + on-demand generate/download UI | ✅ Done |
-| **Deploy** | Multi-stage Dockerfile + production docker-compose for the whole stack | ⬜ End of project |
+| **Deploy** | Production Dockerfiles (backend + WeasyPrint, frontend + nginx) + `docker-compose.prod.yml` for the whole stack (db, redis, migrate, api, worker, frontend) | ✅ Done |
 
 Design specs and implementation plans for each milestone live in
 [`docs/superpowers/`](docs/superpowers/).
