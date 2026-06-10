@@ -250,6 +250,17 @@ git commit -m "feat(fe): report settings page (white-label: title/owner/timezone
 
 ---
 
+## Technical debt (5D) — recorded
+
+- **Logo stored in the DB** (bytea on `report_settings`): fine at this scale; an object store + a size/format
+  conversion pipeline is a later option. Capped at 512 KB.
+- **SVG logos rejected** (XXE/script safety) — only PNG/JPEG by magic bytes.
+- **Timezone is a free string** (validated only as text); a proper IANA timezone picker/validation is a later nicety.
+- **`url_fetcher`** allows only `data:` (via `URLFetcher(allowed_protocols=["data"])`); no remote resources of any kind.
+- **No per-template themes/palettes** beyond logo + title + owner/timezone yet.
+
+---
+
 ## Definition of "Done" (5D)
 - A tenant admin sets title/owner/timezone + uploads a PNG/JPEG logo; generated reports show the logo on
   the title page and owner/timezone in the footer (from settings).
