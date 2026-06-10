@@ -187,7 +187,15 @@ The app is then served at `http://localhost/`. Notes:
   loopback/link-local (incl. cloud metadata 169.254.169.254)/unspecified/multicast/reserved (private
   RFC1918 ranges are allowed), IP pinning, no redirects, sanitized errors.
 - **Auth:** server-side sessions + CSRF header on mutations; argon2 password hashing; 4-role RBAC
-  (superadmin + tenant_admin/operator/read_only).
+  (superadmin + tenant_admin/operator/read_only); **login rate-limiting** (lockout after N failures) +
+  failed-login auditing.
+- **Web hardening (SEC-1):** security response headers (CSP, HSTS, X-Frame-Options DENY, nosniff,
+  Referrer-Policy, Permissions-Policy) on the API and the nginx SPA; **CORS closed by default**
+  (opt-in via `cors_allow_origins`); the app-role DB password is env-configurable (`APP_ROLE_PASSWORD`).
+- **Continuous assurance:** a consolidated **application-security test suite**
+  (`tests/test_security_suite.py` — CSRF, RLS isolation, SSRF, secret redaction, headers, rate-limit,
+  SQL-injection allowlist, XXE) + a **dependency audit** (`scripts/security_audit.sh`: `pip-audit` +
+  `npm audit`) wired into **CI** (`.github/workflows/ci.yml`).
 
 ## Roadmap & status
 
