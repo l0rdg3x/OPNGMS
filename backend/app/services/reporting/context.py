@@ -5,6 +5,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 
+def human_bytes(n: float) -> str:
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    f, i = float(n), 0
+    while f >= 1024 and i < len(units) - 1:
+        f /= 1024
+        i += 1
+    return f"{f:.1f} {units[i]}"
+
+
 @dataclass
 class RankedTable:
     title: str
@@ -19,9 +28,33 @@ class AttacksBlock:
 
 
 @dataclass
+class WebActivityBlock:
+    timeline_svg: str
+    top_sites: RankedTable
+    top_initiators: RankedTable
+    top_blocked: RankedTable
+
+
+@dataclass
+class BandwidthBlock:
+    timeline_svg: str
+    total_in: str   # human-formatted
+    total_out: str
+
+
+@dataclass
+class StatusBlock:
+    timeline_svg: str
+    uptime_pct: float
+
+
+@dataclass
 class DeviceSection:
     device_name: str
     attacks: AttacksBlock | None = None
+    web: "WebActivityBlock | None" = None
+    bandwidth: "BandwidthBlock | None" = None
+    status: "StatusBlock | None" = None
 
 
 @dataclass
@@ -60,18 +93,16 @@ async def build_context(
     sections: list[DeviceSection] = []
     devices = await aggregator.devices()
     for dev in devices:
-        # Attacks block: timeline + three ranked tables (IDS).
-        # NOTE (5A tech debt): timeline/top aggregate the tenant's IDS events for the range,
-        # not yet filtered per device. Per-device filtering is added in 5B.
-        tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="ids")
+        # Attacks block: timeline + three ranked tables (IDS), per-device.
+        tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="ids", device_id=dev.id)
         svg = line_chart(
             [(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in tl],
             width=520,
             height=140,
         )
-        top_attempts = await aggregator.top(field="name", frm=frm, to=to)
-        top_targets = await aggregator.top(field="dst_ip", frm=frm, to=to)
-        top_initiators = await aggregator.top(field="src_ip", frm=frm, to=to)
+        top_attempts = await aggregator.top(field="name", frm=frm, to=to, device_id=dev.id)
+        top_targets = await aggregator.top(field="dst_ip", frm=frm, to=to, device_id=dev.id)
+        top_initiators = await aggregator.top(field="src_ip", frm=frm, to=to, device_id=dev.id)
         attacks = AttacksBlock(
             timeline_svg=svg,
             tables=[
@@ -80,7 +111,35 @@ async def build_context(
                 RankedTable("Top Initiators", ("Initiator", "Count"), [(r.value, r.count) for r in top_initiators]),
             ],
         )
-        sections.append(DeviceSection(device_name=dev.name, attacks=attacks))
+
+        # --- Web Activity (DNS) ---
+        dns_tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="dns", device_id=dev.id)
+        web = WebActivityBlock(
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140),
+            top_sites=RankedTable("Top Sites", ("Site", "Hits"),
+                                  [(r.value, r.count) for r in await aggregator.top(field="name", source="dns", frm=frm, to=to, device_id=dev.id)]),
+            top_initiators=RankedTable("Top Initiators", ("Initiator", "Hits"),
+                                       [(r.value, r.count) for r in await aggregator.top(field="src_ip", source="dns", frm=frm, to=to, device_id=dev.id)]),
+            top_blocked=RankedTable("Top Blocked", ("Domain", "Blocks"),
+                                    [(r.value, r.count) for r in await aggregator.top_blocked_domains(frm=frm, to=to, device_id=dev.id)]),
+        )
+
+        # --- Data Usage (bandwidth) ---
+        bw_tl = await aggregator.bandwidth_timeline(frm=frm, to=to, bucket=bucket, device_id=dev.id)
+        tin, tout = await aggregator.bandwidth_totals(frm=frm, to=to, bucket=bucket, device_id=dev.id)
+        bandwidth = BandwidthBlock(
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140),
+            total_in=human_bytes(tin), total_out=human_bytes(tout),
+        )
+
+        # --- Up/Down status ---
+        av_series, uptime = await aggregator.availability_series(frm=frm, to=to, bucket=bucket, device_id=dev.id)
+        status = StatusBlock(
+            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80),
+            uptime_pct=round(uptime, 1),
+        )
+
+        sections.append(DeviceSection(device_name=dev.name, attacks=attacks, web=web, bandwidth=bandwidth, status=status))
 
     return ReportContext(
         tenant_name=tenant_name,

@@ -63,6 +63,147 @@ async def test_top_and_timeline(db_engine):
         assert sum(c for _, c in tl) == 3
 
 
+async def test_top_supports_device_filter_and_blocked_domains(db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        t = await make_tenant(s, slug="acme")
+        await s.commit()
+        tid = t.id
+    from sqlalchemy import text
+    d1, d2 = uuid.uuid4(), uuid.uuid4()
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        for did in (d1, d2):
+            await s.execute(text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                                 "VALUES (:id,:t,'fw','https://x',''::bytea,''::bytea,true,'reachable','{}')"), {"id": did, "t": tid})
+        # DNS events: d1 -> a.com (allowed x2), bad.com (blocked); d2 -> c.com (allowed)
+        seed = [(d1,"a.com","allowed"),(d1,"a.com","allowed"),(d1,"bad.com","blocked"),(d2,"c.com","allowed")]
+        for i,(did,name,act) in enumerate(seed):
+            await s.execute(text("INSERT INTO events (time, device_id, source, event_key, tenant_id, name, src_ip, action) "
+                                 "VALUES (:t,:d,'dns',:k,:tid,:n,'10.0.0.1',:a)"),
+                            {"t": base, "d": did, "k": f"k{i}", "tid": tid, "n": name, "a": act})
+        await s.commit()
+    async with factory() as s:
+        agg = ReportAggregator(s, tid)
+        frm, to = base - timedelta(hours=1), base + timedelta(hours=1)
+        # device-scoped Top Sites for d1
+        sites = await agg.top(field="name", source="dns", frm=frm, to=to, device_id=d1)
+        assert ("a.com", 2) in [(r.value, r.count) for r in sites]
+        assert "c.com" not in [r.value for r in sites]   # d2's site excluded
+        # Top Blocked (device d1)
+        blocked = await agg.top_blocked_domains(frm=frm, to=to, device_id=d1)
+        assert [(r.value, r.count) for r in blocked] == [("bad.com", 1)]
+        # DNS timeline device-scoped
+        tl = await agg.timeline(frm=frm, to=to, bucket="1 hour", source="dns", device_id=d1)
+        assert sum(c for _, c in tl) == 3
+
+
+async def test_bandwidth_timeline_and_totals_reset_safe(db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        t = await make_tenant(s, slug="acme")
+        await s.commit()
+        tid = t.id
+    from sqlalchemy import text
+    did = uuid.uuid4()
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        await s.execute(text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                             "VALUES (:id,:t,'fw','https://x',''::bytea,''::bytea,true,'reachable','{}')"), {"id": did, "t": tid})
+        # iface wan bytes_in counter samples within one hour bucket: 100, 300, 900 -> delta 800.
+        # plus a reset case in the next bucket: 50, 120 -> delta 70 (max-min within bucket).
+        samples = [
+            (base + timedelta(minutes=0), "iface.bytes_in", "wan", 100.0),
+            (base + timedelta(minutes=20), "iface.bytes_in", "wan", 300.0),
+            (base + timedelta(minutes=40), "iface.bytes_in", "wan", 900.0),
+            (base + timedelta(minutes=65), "iface.bytes_in", "wan", 50.0),   # reset (reboot)
+            (base + timedelta(minutes=85), "iface.bytes_in", "wan", 120.0),
+            (base + timedelta(minutes=20), "iface.bytes_out", "wan", 10.0),
+            (base + timedelta(minutes=40), "iface.bytes_out", "wan", 60.0),  # +50 out
+        ]
+        for ts, m, lbl, val in samples:
+            await s.execute(text("INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
+                                 "VALUES (:t,:d,:m,:l,:tid,:v)"),
+                            {"t": ts, "d": did, "m": m, "l": lbl, "tid": tid, "v": val})
+        await s.commit()
+    async with factory() as s:
+        agg = ReportAggregator(s, tid)
+        frm, to = base, base + timedelta(hours=2)
+        tl = await agg.bandwidth_timeline(frm=frm, to=to, bucket="1 hour", device_id=did)
+        # first bucket: in delta 800 + out delta 50 = 850; second bucket: in delta 70 = 70
+        totals_by_bucket = {b: v for b, v in tl}
+        assert round(sum(totals_by_bucket.values())) == 920
+        ti, to_ = await agg.bandwidth_totals(frm=frm, to=to, device_id=did)
+        # in = bucket1 800 + bucket2 70 = 870; out = bucket1 50 (per-bucket max-min summed per direction)
+        assert round(ti) == 870
+        assert round(to_) == 50
+
+
+async def test_bandwidth_is_tenant_isolated_under_rls(db_engine):
+    """Under the real opngms_app role (RLS on `metrics`), tenant A's bandwidth must exclude tenant B's."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    ta, tb = uuid.uuid4(), uuid.uuid4()
+    da, db_ = uuid.uuid4(), uuid.uuid4()
+    base = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        for tid, slug in [(ta, "a"), (tb, "b")]:
+            await s.execute(
+                text("INSERT INTO tenants (id, name, slug, status) VALUES (:id,:slug,:slug,'active')"),
+                {"id": tid, "slug": slug},
+            )
+        # A: bytes_in 100 -> 900 (delta 800). B: bytes_in 0 -> 5000 (delta 5000).
+        for tid, did, lo, hi in [(ta, da, 100.0, 900.0), (tb, db_, 0.0, 5000.0)]:
+            await s.execute(
+                text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                     "VALUES (:id,:t,'fw','https://x',''::bytea,''::bytea,true,'reachable','{}')"),
+                {"id": did, "t": tid},
+            )
+            for mins, val in ((0, lo), (40, hi)):
+                await s.execute(
+                    text("INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
+                         "VALUES (:t,:d,'iface.bytes_in','wan',:tid,:v)"),
+                    {"t": base + timedelta(minutes=mins), "d": did, "tid": tid, "v": val},
+                )
+        await s.commit()
+    app_url = make_url(os.environ["TEST_DATABASE_URL"]).set(username=APP_ROLE, password=APP_ROLE_PASSWORD)
+    engine = make_engine(app_url.render_as_string(hide_password=False))
+    try:
+        f2 = async_sessionmaker(engine, expire_on_commit=False)
+        async with f2() as s:
+            await set_tenant_context(s, ta)
+            agg = ReportAggregator(s, ta)
+            ti, _ = await agg.bandwidth_totals(frm=base, to=base + timedelta(hours=1))
+            assert round(ti) == 800        # only A's 800 bytes; B's 5000 is hidden by RLS
+    finally:
+        await engine.dispose()
+
+
+async def test_availability_series_marks_gaps_down(db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        t = await make_tenant(s, slug="acme")
+        await s.commit()
+        tid = t.id
+    from sqlalchemy import text
+    did = uuid.uuid4()
+    base = datetime(2026, 6, 9, 0, 0, tzinfo=timezone.utc)
+    async with factory() as s:
+        await s.execute(text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+                             "VALUES (:id,:t,'fw','https://x',''::bytea,''::bytea,true,'reachable','{}')"), {"id": did, "t": tid})
+        # cpu.pct present in hour 0 and hour 2, absent in hour 1 and 3 (gaps -> down)
+        for h in (0, 2):
+            await s.execute(text("INSERT INTO metrics (time, device_id, metric, label, tenant_id, value) "
+                                 "VALUES (:t,:d,'cpu.pct','',:tid,5.0)"),
+                            {"t": base + timedelta(hours=h, minutes=10), "d": did, "tid": tid})
+        await s.commit()
+    async with factory() as s:
+        agg = ReportAggregator(s, tid)
+        series, uptime = await agg.availability_series(frm=base, to=base + timedelta(hours=4), bucket="1 hour", device_id=did)
+        ups = [v for _, v in series]
+        assert ups == [1, 0, 1, 0]
+        assert round(uptime) == 50
+
+
 async def test_aggregator_is_tenant_isolated_under_rls(db_engine):
     # Seed two tenants + a device + distinct IDS events each, as owner (bypasses RLS).
     factory = async_sessionmaker(db_engine, expire_on_commit=False)

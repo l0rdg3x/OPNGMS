@@ -23,6 +23,7 @@
   {% for section in ctx.sections %}
   <section class="device-section">
     <h2>{{ section.device_name }}</h2>
+
     {% if section.attacks %}
     <h3>Attacks</h3>
     <div class="chart">{{ Markup(section.attacks.timeline_svg) }}</div>
@@ -37,6 +38,34 @@
     </table>
     {% endfor %}
     {% endif %}
+
+    {% if section.web %}
+    <h3>Web Activity</h3>
+    <div class="chart">{{ Markup(section.web.timeline_svg) }}</div>
+    {% for tbl in [section.web.top_sites, section.web.top_initiators, section.web.top_blocked] %}
+    <table class="ranked">
+      <caption>{{ tbl.title }}</caption>
+      <thead><tr><th>{{ tbl.columns[0] }}</th><th>{{ tbl.columns[1] }}</th></tr></thead>
+      <tbody>
+        {% for value, count in tbl.rows %}<tr><td>{{ value }}</td><td>{{ count }}</td></tr>{% endfor %}
+        {% if not tbl.rows %}<tr><td colspan="2">No data</td></tr>{% endif %}
+      </tbody>
+    </table>
+    {% endfor %}
+    {% endif %}
+
+    {% if section.bandwidth %}
+    <h3>Data Usage</h3>
+    <div class="chart">{{ Markup(section.bandwidth.timeline_svg) }}</div>
+    <p class="summary">Total in: {{ section.bandwidth.total_in }} · Total out: {{ section.bandwidth.total_out }}</p>
+    {% endif %}
+
+    {% if section.status %}
+    <h3>Up/Down Status</h3>
+    <div class="chart">{{ Markup(section.status.timeline_svg) }}</div>
+    <p class="summary">Uptime: {{ section.status.uptime_pct }}%</p>
+    {% endif %}
+
   </section>
   {% endfor %}
 </body>
