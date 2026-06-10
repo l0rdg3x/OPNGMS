@@ -26,3 +26,4 @@ table.ranked th { background: #f0f0f0; }
 .threat-guarded { background: #1971c2; }
 .threat-high { background: #e8590c; }
 .sample-note { font-size: 8pt; color: #b08900; font-style: italic; margin: 2px 0 6px; }
+.explain { font-size: 8pt; color: #555; margin: 1px 0 7px; max-width: 17cm; line-height: 1.3; }

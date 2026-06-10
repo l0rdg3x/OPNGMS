@@ -108,3 +108,7 @@ async def test_build_context_includes_web_bandwidth_status(db_engine):
     assert "Web Activity" in html and "example.org" in html and "tracker.bad" in html
     assert "Data Usage" in html
     assert "Up/Down Status" in html
+    # Task 2: per-chart axis units must appear in the SVG, explanation prose in the template
+    assert "DNS lookups" in html          # y_label on the web activity chart
+    assert "Attempts" in html             # y_label on the attacks timeline chart
+    assert "How much data flowed through" in html  # explanation paragraph for Data Usage

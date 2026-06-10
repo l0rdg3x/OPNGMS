@@ -27,6 +27,7 @@
 
     {% if section.attacks %}
     <h3>Attacks</h3>
+    <p class="explain">Attempted intrusions your firewall's threat detection blocked during this period. The chart shows how many attempts occurred over time; the tables list the most frequent attack types, which of your devices were targeted, and where the attempts came from.</p>
     <div class="chart">{{ Markup(section.attacks.timeline_svg) }}</div>
     {% for tbl in section.attacks.tables %}
     <table class="ranked">
@@ -42,6 +43,7 @@
 
     {% if section.web %}
     <h3>Web Activity</h3>
+    <p class="explain">The websites and online services your network looked up. The chart shows lookup volume over time; the tables show the most-visited sites, the busiest devices, and the domains that were blocked.</p>
     <div class="chart">{{ Markup(section.web.timeline_svg) }}</div>
     {% for tbl in [section.web.top_sites, section.web.top_initiators, section.web.top_blocked] %}
     <table class="ranked">
@@ -57,12 +59,14 @@
 
     {% if section.bandwidth %}
     <h3>Data Usage</h3>
+    <p class="explain">How much data flowed through your firewall over time (incoming plus outgoing). The totals below summarise the whole period.</p>
     <div class="chart">{{ Markup(section.bandwidth.timeline_svg) }}</div>
     <p class="summary">Total in: {{ section.bandwidth.total_in }} · Total out: {{ section.bandwidth.total_out }}</p>
     {% endif %}
 
     {% if section.status %}
     <h3>Up/Down Status</h3>
+    <p class="explain">Whether this firewall was online and reachable over the period. 'Uptime' is the share of time it was online — higher is better.</p>
     <div class="chart">{{ Markup(section.status.timeline_svg) }}</div>
     <p class="summary">Uptime: {{ section.status.uptime_pct }}%</p>
     {% endif %}
@@ -70,6 +74,7 @@
     {% if section.applications %}
     <h3>Applications</h3>
     <p class="sample-note">Sample data — application visibility not yet ingested.</p>
+    <p class="explain">Applications seen on your network, each with a simple risk rating — green (Low), blue (Guarded), orange (High). These figures are sample data until application monitoring is enabled.</p>
     <div class="chart">{{ Markup(section.applications.timeline_svg) }}</div>
     {% for tbl in [section.applications.top_detected, section.applications.top_blocked, section.applications.top_categories] %}
     <table class="ranked">
@@ -95,6 +100,7 @@
     {% if section.web_filter %}
     <h3>Web Filter</h3>
     <p class="sample-note">Sample data — content categorization not yet ingested.</p>
+    <p class="explain">Categories of web content requested from your network, each with a risk rating. These figures are sample data until content categorisation is enabled.</p>
     <div class="chart">{{ Markup(section.web_filter.timeline_svg) }}</div>
     <table class="ranked">
       <caption>{{ section.web_filter.top_categories.title }}</caption>
