@@ -189,6 +189,11 @@ The app is then served at `http://localhost/`. Notes:
   uses the owner (superuser) for fleet-wide writes. Cross-tenant isolation is covered by SQL-level and
   real-API tests.
 - **Device secrets** are encrypted with Fernet (`MASTER_KEY`); never returned or logged (write-only).
+  **Rotating MASTER_KEY (zero-downtime):**
+  1. Generate a new key: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+  2. Set it as `MASTER_KEY`; move the previous value into `MASTER_KEY_OLD_KEYS` (comma-separated, decryption-only). Deploy.
+  3. Run `python -m app.scripts.rekey_secrets` inside the api/worker container (runs as DB owner, re-encrypts all stored secrets under the new primary key).
+  4. Once it completes successfully, clear `MASTER_KEY_OLD_KEYS` and redeploy.
 - **SSRF guard** on the connector: HTTPS only, no userinfo, DNS resolution + blocking of
   loopback/link-local (incl. cloud metadata 169.254.169.254)/unspecified/multicast/reserved (private
   RFC1918 ranges are allowed), IP pinning, no redirects, sanitized errors.
