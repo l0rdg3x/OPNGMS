@@ -113,7 +113,9 @@ class ReportAggregator:
         self, *, frm: datetime, to: datetime, bucket: str, device_id: uuid.UUID | None = None,
     ) -> list[tuple[datetime, float]]:
         """Transferred bytes (in+out) per bucket. Counters are cumulative, so per (bucket, interface,
-        direction) we take max-min clamped >= 0 (a reset within the bucket yields 0 for that slice)."""
+        direction) we take max-min (clamped >= 0 defensively). A counter reset between buckets is handled
+        correctly (each bucket only sees its own samples); a reset within a single bucket would overestimate
+        that one bucket — acceptable given the poll cadence vs bucket width (a lag()-based delta is 5B debt)."""
         delta = _bucket_delta(bucket)  # bound as a real interval (timedelta)
         clauses = ["tenant_id = :tid", "metric IN ('iface.bytes_in','iface.bytes_out')", "time >= :frm", "time < :to"]
         params: dict = {"bucket": delta, "tid": self.tenant_id, "frm": frm, "to": to}

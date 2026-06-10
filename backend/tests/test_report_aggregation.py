@@ -134,8 +134,9 @@ async def test_bandwidth_timeline_and_totals_reset_safe(db_engine):
         totals_by_bucket = {b: v for b, v in tl}
         assert round(sum(totals_by_bucket.values())) == 920
         ti, to_ = await agg.bandwidth_totals(frm=frm, to=to, device_id=did)
-        # totals over the whole range, per-interface max-min reset-clamped is computed per-bucket then summed
-        assert ti >= 0 and to_ >= 0
+        # in = bucket1 800 + bucket2 70 = 870; out = bucket1 50 (per-bucket max-min summed per direction)
+        assert round(ti) == 870
+        assert round(to_) == 50
 
 
 async def test_availability_series_marks_gaps_down(db_engine):
