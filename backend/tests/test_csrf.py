@@ -1,22 +1,28 @@
-import pytest
-
-
 async def _login(api_client):
     await api_client.post(
-        "/api/setup", json={"email": "a@x.io", "name": "A", "password": "pw12345"}
+        "/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456"}
     )
-    await api_client.post("/api/login", json={"email": "a@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456"})
 
 
-@pytest.mark.asyncio
-async def test_mutation_without_csrf_header_rejected(api_client):
+def _csrf(api_client) -> str:
+    # The login response set a readable opngms_csrf cookie; httpx stores it in the jar.
+    return api_client.cookies.get("opngms_csrf")
+
+
+async def test_logout_without_header_is_forbidden(api_client):
     await _login(api_client)
-    resp = await api_client.post("/api/logout")  # no CSRF header
-    assert resp.status_code == 403
+    r = await api_client.post("/api/logout")
+    assert r.status_code == 403
 
 
-@pytest.mark.asyncio
-async def test_mutation_with_csrf_header_allowed(api_client):
+async def test_logout_with_wrong_token_is_forbidden(api_client):
     await _login(api_client)
-    resp = await api_client.post("/api/logout", headers={"X-OPNGMS-CSRF": "1"})
-    assert resp.status_code == 204
+    r = await api_client.post("/api/logout", headers={"X-OPNGMS-CSRF": "wrong"})
+    assert r.status_code == 403
+
+
+async def test_logout_with_session_token_succeeds(api_client):
+    await _login(api_client)
+    r = await api_client.post("/api/logout", headers={"X-OPNGMS-CSRF": _csrf(api_client)})
+    assert r.status_code == 204
