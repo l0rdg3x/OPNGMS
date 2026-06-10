@@ -169,3 +169,18 @@ async def test_successful_login_after_full_reset_via_limiter(api_client, db_engi
         "/api/login", json={"email": _TEST_EMAIL, "password": "pw12345"}
     )
     assert r.status_code == 200
+
+
+async def test_limiter_fails_open_on_internal_error(api_client, db_engine, monkeypatch):
+    """If the limiter raises, login must NOT 500 — it degrades to 'allowed' (fail-open),
+    so the request proceeds to authentication (wrong creds → 401, not 500)."""
+    await _setup_user(api_client)
+
+    def _boom(_key):
+        raise RuntimeError("limiter backend down")
+
+    monkeypatch.setattr(login_limiter, "check", _boom)
+    r = await api_client.post(
+        "/api/login", json={"email": _TEST_EMAIL, "password": "wrong-password"}
+    )
+    assert r.status_code == 401  # fail-open: auth ran and rejected, no 500

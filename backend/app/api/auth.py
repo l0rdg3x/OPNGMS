@@ -28,7 +28,11 @@ async def login(
     ip = request.client.host if request.client else "?"
     key = f"{payload.email.lower()}|{ip}"
 
-    allowed, retry = login_limiter.check(key)
+    # Fail-OPEN: a limiter error must never deny everyone (it gates auth, it is not auth).
+    try:
+        allowed, retry = login_limiter.check(key)
+    except Exception:  # noqa: BLE001 — defensive: degrade to "allowed" on any limiter fault
+        allowed, retry = True, 0
     if not allowed:
         raise HTTPException(
             status_code=429,
