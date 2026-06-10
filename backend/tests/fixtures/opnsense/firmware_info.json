@@ -1,0 +1,1 @@
+{"product_id":"opnsense","product_version":"26.1.9","plugin":[{"name":"os-wireguard","installed":"1"},{"name":"os-theme-cicada","installed":"0"}],"package":[{"name":"base","installed":"1"}],"product":{"product_version":"26.1.9"}}

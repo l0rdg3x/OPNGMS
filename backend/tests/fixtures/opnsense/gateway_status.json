@@ -1,0 +1,1 @@
+{"items":[{"name":"WAN_DHCP6","address":"fe80::d620:ff:feb1:d727","status":"none","loss":"~","delay":"~","stddev":"~","monitor":"~","status_translated":"Online"},{"name":"WAN_DHCP","address":"192.168.1.1","status":"none","loss":"~","delay":"~","stddev":"~","monitor":"~","status_translated":"Online"}],"status":"ok"}

@@ -1,0 +1,1 @@
+{"interfaces":{"opt1":{"device":"igb0","name":"LAN","link state":"0","flags":"8843","line rate":"10000000 bit/s","bytes received":"0","bytes transmitted":"0"},"wan":{"device":"igb3","name":"WAN","link state":"2","flags":"8843","line rate":"1000000000 bit/s","bytes received":"394684","bytes transmitted":"5116981"}}}

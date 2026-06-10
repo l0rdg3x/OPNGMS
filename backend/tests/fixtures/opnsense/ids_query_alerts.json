@@ -1,0 +1,1 @@
+{"rows":[{"timestamp":"2026-06-10T20:45:00+00:00","src_ip":"192.168.1.50","dest_ip":"8.8.8.8","alert":{"signature":"ET SCAN Nmap","severity":2,"action":"allowed"},"alert_id":"a1"}],"origin":"eve.json","rowCount":1,"total":1,"current":1}
