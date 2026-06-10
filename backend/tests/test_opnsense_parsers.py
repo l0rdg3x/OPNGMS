@@ -65,8 +65,12 @@ def test_parse_gateways_tilde_and_status():
 
 def test_parse_vpn_reads_rows():
     assert parsers.parse_vpn(load("wireguard_show_empty.json")) == []
-    out = parsers.parse_vpn(load("wireguard_show.json"))
-    assert out == [{"name": "wg0 (peer1)", "up": True}]
+    # Real OPNsense 26.1.9 shape: `peer-status` ("online"/"offline") drives `up`; there is
+    # NO `connected` field (verified live by creating a throwaway tunnel on the test box).
+    assert parsers.parse_vpn(load("wireguard_show.json")) == [{"name": "wg-site-a", "up": True}]
+    assert parsers.parse_vpn(load("wireguard_show_offline.json")) == [{"name": "opngms-probe", "up": False}]
+    # Legacy/alternate `connected` field is still honored.
+    assert parsers.parse_vpn({"rows": [{"name": "x", "connected": True}]}) == [{"name": "x", "up": True}]
 
 
 def test_parse_interfaces_tolerates_malformed_shape():

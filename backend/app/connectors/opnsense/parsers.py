@@ -120,17 +120,25 @@ def _truthy(v) -> bool:
 
 
 def parse_vpn(data: dict) -> list[dict]:
-    """wireguard/service/show -> [{name, up}]. Envelope key is `rows` (not `tunnels`)."""
+    """wireguard/service/show -> [{name, up}]. Envelope key is `rows` (not `tunnels`).
+
+    Verified against OPNsense 26.1.9 (live throwaway tunnel): each row carries
+    `peer-status` ("online"/"offline") and `latest-handshake-epoch`; there is NO `connected`
+    field. `up` means a peer is actually connected, not merely that the interface is
+    configured (`status: "up"`).
+    """
     out = []
     for row in (data or {}).get("rows", []) or []:
         if not isinstance(row, dict):
             continue
         name = row.get("name") or row.get("instance") or row.get("if", "")
-        if "connected" in row:
+        if "connected" in row:                        # legacy / alternate shape
             up = _truthy(row.get("connected"))
-        else:
-            hs = str(row.get("latest-handshake", "")).strip()
-            up = bool(hs) and hs != "0"
+        elif "peer-status" in row:                    # real field (26.1.9)
+            up = str(row.get("peer-status")).strip().lower() == "online"
+        else:                                          # handshake-recency fallback
+            hs = str(row.get("latest-handshake-epoch") or row.get("latest-handshake") or "").strip()
+            up = bool(hs) and hs not in ("0", "", "None")
         out.append({"name": name, "up": up})
     return out
 
