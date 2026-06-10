@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4.9.0  # no moving `v4` tag exists; pin an exact release
+        uses: actions/dependency-review-action@v5  # Node 24 runtime (v4 ran on the deprecated Node 20)
         with:
           fail-on-severity: high

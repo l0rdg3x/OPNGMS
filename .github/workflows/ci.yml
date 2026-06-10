@@ -37,7 +37,7 @@ jobs:
       MASTER_KEY: "LafHffA5c4feuY3PFgnzdCjCE6Z3uEKhbZOgyS_x81o="
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # WeasyPrint runtime dependencies — matches the backend Dockerfile exactly.
       - name: Install WeasyPrint system libraries
@@ -52,7 +52,7 @@ jobs:
             shared-mime-info \
             fonts-dejavu-core
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
 
@@ -71,9 +71,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
 
@@ -97,13 +97,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
 
