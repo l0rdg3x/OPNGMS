@@ -58,3 +58,66 @@ def test_csrf_cookie_constant_exists():
     from app.core.deps import CSRF_COOKIE
 
     assert CSRF_COOKIE == "opngms_csrf"
+
+
+from app.models.user import User
+from app.services.auth import AuthService, _hash_token
+
+
+async def _user_obj(factory) -> User:
+    uid = await _make_user(factory)
+    async with factory() as s:
+        return await s.get(User, uid)
+
+
+async def test_create_session_hashes_token(factory):
+    async with factory() as s:
+        user = await s.get(User, await _make_user(factory))
+        sess, raw = await AuthService(s).create_session(user, ttl_hours=12, ip="203.0.113.9", user_agent="UA")
+        await s.commit()
+        assert raw and sess.token_hash == _hash_token(raw)
+        assert sess.token_hash != raw  # stored value is the hash, not the token
+        assert sess.csrf_token and sess.ip == "203.0.113.9"
+
+
+async def test_get_session_for_token_roundtrip_and_expiry(factory):
+    async with factory() as s:
+        user = await s.get(User, await _make_user(factory))
+        svc = AuthService(s)
+        sess, raw = await svc.create_session(user, ttl_hours=12)
+        await s.commit()
+        got = await svc.get_session_for_token(raw)
+        assert got is not None and got.id == sess.id
+        assert await svc.get_session_for_token("not-a-real-token") is None
+
+
+async def test_idle_timeout_rejects_stale_session(factory):
+    from datetime import datetime, timedelta, timezone
+    async with factory() as s:
+        user = await s.get(User, await _make_user(factory))
+        svc = AuthService(s)
+        sess, raw = await svc.create_session(user, ttl_hours=12)
+        sess.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=121)  # idle default 120
+        await s.commit()
+        assert await svc.get_session_for_token(raw) is None
+
+
+async def test_logout_all_and_purge(factory):
+    from datetime import datetime, timedelta, timezone
+    async with factory() as s:
+        user = await s.get(User, await _make_user(factory))
+        svc = AuthService(s)
+        a, ra = await svc.create_session(user, ttl_hours=12)
+        b, rb = await svc.create_session(user, ttl_hours=12)
+        await s.commit()
+        assert len(await svc.list_sessions_for_user(user.id)) == 2
+        await svc.delete_all_sessions_for_user(user.id)
+        await s.commit()
+        assert await svc.list_sessions_for_user(user.id) == []
+        # purge: insert one already-expired session, confirm it is removed
+        c, rc = await svc.create_session(user, ttl_hours=12)
+        c.expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        await s.commit()
+        n = await svc.purge_expired(datetime.now(timezone.utc))
+        await s.commit()
+        assert n == 1 and await svc.list_sessions_for_user(user.id) == []
