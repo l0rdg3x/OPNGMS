@@ -5,11 +5,29 @@ import { api } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { useT } from "../i18n";
 import { TenantProvider } from "../tenant/TenantProvider";
+import { useTenant } from "../tenant/useTenant";
 import { OverviewPage } from "../pages/OverviewPage";
 import { AlertsPage } from "../pages/AlertsPage";
 import { DevicesPage } from "../pages/DevicesPage";
 import { DeviceDetailPage } from "../pages/DeviceDetailPage";
+import { ReportSettingsPage } from "../pages/ReportSettingsPage";
 import { TenantSwitcher } from "./TenantSwitcher";
+
+function AppShellNav() {
+  const t = useT();
+  const { activeId, tenants } = useTenant();
+  const role = tenants.find((ten) => ten.id === activeId)?.role ?? null;
+  return (
+    <>
+      <NavLink component={RouterNavLink} to="/" label={t.nav.overview} />
+      <NavLink component={RouterNavLink} to="/devices" label={t.nav.devices} />
+      <NavLink component={RouterNavLink} to="/alerts" label={t.nav.alerts} />
+      {role === "tenant_admin" && (
+        <NavLink component={RouterNavLink} to="/reports/settings" label={t.nav.reportSettings} />
+      )}
+    </>
+  );
+}
 
 export function AppShell() {
   const { me, refresh } = useAuth();
@@ -40,9 +58,7 @@ export function AppShell() {
           </Group>
         </MantineAppShell.Header>
         <MantineAppShell.Navbar p="sm">
-          <NavLink component={RouterNavLink} to="/" label={t.nav.overview} />
-          <NavLink component={RouterNavLink} to="/devices" label={t.nav.devices} />
-          <NavLink component={RouterNavLink} to="/alerts" label={t.nav.alerts} />
+          <AppShellNav />
         </MantineAppShell.Navbar>
         <MantineAppShell.Main>
           <Routes>
@@ -50,6 +66,7 @@ export function AppShell() {
             <Route path="/devices" element={<DevicesPage />} />
             <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/reports/settings" element={<ReportSettingsPage />} />
           </Routes>
         </MantineAppShell.Main>
       </MantineAppShell>

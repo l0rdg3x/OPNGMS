@@ -151,8 +151,7 @@ async def test_report_is_tenant_isolated_under_rls(db_engine):
         async with f2() as s:
             await set_tenant_context(s, ta)
             html = await ReportService(s, ta).build_html(
-                tenant_name="A", frm=base - timedelta(hours=1), to=base + timedelta(hours=1),
-                timezone_name="UTC", owner=None)
+                tenant_name="A", frm=base - timedelta(hours=1), to=base + timedelta(hours=1))
             assert "A-ONLY-SIG" in html
             assert "B-ONLY-SIG" not in html      # RLS hides tenant B
     finally:
