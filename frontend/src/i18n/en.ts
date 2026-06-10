@@ -49,6 +49,7 @@ export const en = {
   devices: {
     title: "Devices",
     add: "Add device",
+    loadError: "Failed to load devices",
     colName: "Name",
     colUrl: "URL",
     colStatus: "Status",
@@ -58,6 +59,7 @@ export const en = {
     url: "URL",
     status: "Status",
     firmware: "Firmware",
+    loadError: "Failed to load device",
   },
   deviceActions: {
     testConnection: "Test connection",

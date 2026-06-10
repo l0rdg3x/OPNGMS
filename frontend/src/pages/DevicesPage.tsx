@@ -1,4 +1,4 @@
-import { Badge, Button, Group, Table, Title } from "@mantine/core";
+import { Badge, Button, Group, Loader, Table, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +18,7 @@ export function DevicesPage() {
   const { activeId } = useTenant();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
-  const { data: devices } = useQuery({
+  const { data: devices, isLoading, error } = useQuery({
     queryKey: ["devices", activeId],
     enabled: !!activeId,
     queryFn: async () => {
@@ -35,6 +35,8 @@ export function DevicesPage() {
         <Title order={3}>{t.devices.title}</Title>
         <Button onClick={() => setCreateOpen(true)} disabled={!activeId}>{t.devices.add}</Button>
       </Group>
+      {isLoading && <Loader data-testid="devices-loader" />}
+      {error && <Text c="red" data-testid="devices-error">{t.devices.loadError}</Text>}
       <Table highlightOnHover>
         <Table.Thead>
           <Table.Tr>

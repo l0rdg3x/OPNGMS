@@ -1,4 +1,4 @@
-import { Badge, Card, Stack, Tabs, Text, Title } from "@mantine/core";
+import { Badge, Card, Loader, Stack, Tabs, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
@@ -12,7 +12,7 @@ export function DeviceDetailPage() {
   const t = useT();
   const { deviceId } = useParams();
   const { activeId } = useTenant();
-  const { data: device } = useQuery({
+  const { data: device, isLoading, error } = useQuery({
     queryKey: ["device", activeId, deviceId],
     enabled: !!activeId && !!deviceId,
     queryFn: async () => {
@@ -22,6 +22,8 @@ export function DeviceDetailPage() {
       return data;
     },
   });
+  if (isLoading) return <Loader data-testid="device-detail-loader" />;
+  if (error) return <Text c="red" data-testid="device-detail-error">{t.deviceDetail.loadError}</Text>;
   if (!device) return null;
   return (
     <Stack>
