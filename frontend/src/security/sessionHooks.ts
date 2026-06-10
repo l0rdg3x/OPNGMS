@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { useAuth } from "../auth/useAuth";
 import type { components } from "../api/schema";
 import { en } from "../i18n/en";
 
@@ -22,13 +23,17 @@ export function useSessions() {
 export function useLogoutAll() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { refresh } = useAuth();
   return useMutation({
     mutationFn: async (): Promise<void> => {
       const { error } = await api.POST("/api/logout-all");
       if (error) throw new Error(en.sessions.logoutAllError);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: sessionsKey() });
+      // Mirror the single-session logout (AppShell): wipe the whole query cache and re-evaluate
+      // auth state, not just the sessions list — every session was just revoked server-side.
+      qc.clear();
+      refresh();
       navigate("/login");
     },
   });

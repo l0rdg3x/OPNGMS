@@ -40,8 +40,8 @@ describe("SessionsPage", () => {
     expect(await screen.findByText("203.0.113.5")).toBeInTheDocument();
     expect(await screen.findByText("203.0.113.9")).toBeInTheDocument();
 
-    // Only the current session has the badge
-    expect(screen.getByTestId("badge-current")).toBeInTheDocument();
+    // Exactly one session is badged as current (the other row must not be).
+    expect(screen.queryAllByTestId("badge-current")).toHaveLength(1);
   });
 
   it("clicking Log out everywhere calls POST /api/logout-all", async () => {
