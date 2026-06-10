@@ -14,14 +14,6 @@ def human_bytes(n: float) -> str:
     return f"{f:.1f} {units[i]}"
 
 
-def _updown_fmt(v: float) -> str:
-    if v >= 0.99:
-        return "Up"
-    if v <= 0.01:
-        return "Down"
-    return ""
-
-
 @dataclass
 class RankedTable:
     title: str
@@ -113,6 +105,13 @@ class ReportContext:
     logo_data_uri: str | None = None
     t: "ReportText | None" = None
 
+    def __post_init__(self) -> None:
+        # The template always dereferences ctx.t; default to English so any ReportContext renders.
+        if self.t is None:
+            from app.services.reporting.i18n import report_text
+
+            self.t = report_text("en")
+
     @property
     def toc(self) -> list[str]:
         return [s.device_name for s in self.sections]
@@ -142,6 +141,10 @@ async def build_context(
     # standalone. Swapped for a real aggregator when app-id/category ingest lands.
     from app.services.reporting.mock_sections import applications_block, web_filter_block
     t = report_text(locale)
+
+    def _ud(v: float) -> str:  # locale-aware up/down formatter for the availability chart (closes over t)
+        return t.status_up if v >= 0.99 else (t.status_down if v <= 0.01 else "")
+
     bucket = pick_bucket(to - frm)
     sections: list[DeviceSection] = []
     devices = await aggregator.devices()
@@ -190,8 +193,6 @@ async def build_context(
 
         # --- Up/Down status ---
         av_series, uptime = await aggregator.availability_series(frm=frm, to=to, bucket=bucket, device_id=dev.id)
-        def _ud(v: float) -> str:  # locale-aware updown formatter (closes over t)
-            return t.status_up if v >= 0.99 else (t.status_down if v <= 0.01 else "")
         status = StatusBlock(
             timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80, y_label=t.axis_status, x_label=t.axis_time, y_format=_ud, empty_text=t.no_data),
             uptime_pct=round(uptime, 1),
