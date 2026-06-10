@@ -49,12 +49,47 @@ class StatusBlock:
 
 
 @dataclass
+class ThreatRow:
+    label: str
+    count: int
+    level: str   # controlled enum: "low" | "guarded" | "high"
+
+
+@dataclass
+class ThreatRankedTable:
+    title: str
+    columns: tuple[str, str]          # (label header, count header); a "Threat" column is implicit
+    rows: list["ThreatRow"]
+
+
+@dataclass
+class ApplicationsBlock:
+    timeline_svg: str
+    top_detected: "ThreatRankedTable"
+    top_blocked: "ThreatRankedTable"
+    top_categories: "ThreatRankedTable"
+    top_initiators: RankedTable
+    sample: bool = True
+
+
+@dataclass
+class WebFilterBlock:
+    timeline_svg: str
+    top_categories: "ThreatRankedTable"
+    top_sites: RankedTable
+    top_initiators: RankedTable
+    sample: bool = True
+
+
+@dataclass
 class DeviceSection:
     device_name: str
     attacks: AttacksBlock | None = None
     web: "WebActivityBlock | None" = None
     bandwidth: "BandwidthBlock | None" = None
     status: "StatusBlock | None" = None
+    applications: "ApplicationsBlock | None" = None
+    web_filter: "WebFilterBlock | None" = None
 
 
 @dataclass
