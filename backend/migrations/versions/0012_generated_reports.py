@@ -28,7 +28,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_generated_reports_tenant_id", "generated_reports", ["tenant_id"])
     op.create_index("ix_generated_reports_tenant_created", "generated_reports", ["tenant_id", "created_at"])
     op.execute("ALTER TABLE generated_reports ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE generated_reports FORCE ROW LEVEL SECURITY")
@@ -43,5 +42,4 @@ def downgrade() -> None:
     op.execute("ALTER TABLE generated_reports NO FORCE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE generated_reports DISABLE ROW LEVEL SECURITY")
     op.drop_index("ix_generated_reports_tenant_created", table_name="generated_reports")
-    op.drop_index("ix_generated_reports_tenant_id", table_name="generated_reports")
     op.drop_table("generated_reports")
