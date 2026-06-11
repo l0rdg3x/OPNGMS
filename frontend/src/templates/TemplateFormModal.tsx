@@ -7,6 +7,7 @@ import { type Template, useCreateTemplate, useUpdateTemplate } from "./hooks";
 import { IdsRulesetForm } from "./IdsRulesetForm";
 import { OpnsenseSettingForm } from "./OpnsenseSettingForm";
 import { FirewallRuleForm } from "./FirewallRuleForm";
+import { MonitTestForm } from "./MonitTestForm";
 
 const ALIAS_TYPES = ["host", "network", "port", "url", "urltable", "geoip", "networkgroup", "mac", "dynipv6host"];
 
@@ -19,6 +20,9 @@ const EMPTY_IDS: IdsBody = { rulesets: [] };
 type RuleBody = { payload: Record<string, string> };
 const EMPTY_RULE: RuleBody = { payload: {} };
 
+type MonitBody = { payload: Record<string, string> };
+const EMPTY_MONIT: MonitBody = { payload: {} };
+
 export function TemplateFormModal(
   { opened, onClose, editing }: { opened: boolean; onClose: () => void; editing: Template | null },
 ) {
@@ -29,6 +33,7 @@ export function TemplateFormModal(
   const [settingBody, setSettingBody] = useState<SettingBody>(EMPTY_SETTING);
   const [idsBody, setIdsBody] = useState<IdsBody>(EMPTY_IDS);
   const [ruleBody, setRuleBody] = useState<RuleBody>(EMPTY_RULE);
+  const [monitBody, setMonitBody] = useState<MonitBody>(EMPTY_MONIT);
   const form = useForm({
     initialValues: { name: "", type: "host", content: "", description: "" },
   });
@@ -46,6 +51,9 @@ export function TemplateFormModal(
       setRuleBody(editing?.kind === "firewall_rule"
         ? { payload: (editing.body as Record<string, string> | undefined) ?? {} }
         : EMPTY_RULE);
+      setMonitBody(editing?.kind === "monit_test"
+        ? { payload: (editing.body as Record<string, string> | undefined) ?? {} }
+        : EMPTY_MONIT);
       form.setValues(editing && editing.kind !== "opnsense_setting"
         ? { name: editing.name, type: String(editing.body?.type ?? "host"),
             content: (Array.isArray(editing.body?.content) ? editing.body.content : []).join("\n"),
@@ -93,6 +101,20 @@ export function TemplateFormModal(
             description: v.description, body: ruleBody.payload });
           notifications.show({ message: t.templates.created });
         }
+      } else if (kind === "monit_test") {
+        if (!String(monitBody.payload.name ?? "").trim()) {
+          notifications.show({ color: "red", message: t.templates.monit.nameRequired });
+          return;
+        }
+        if (editing) {
+          await update.mutateAsync({ id: editing.id,
+            body: { name: v.name, description: v.description, body: monitBody.payload } });
+          notifications.show({ message: t.templates.updated });
+        } else {
+          await create.mutateAsync({ kind: "monit_test", name: v.name,
+            description: v.description, body: monitBody.payload });
+          notifications.show({ message: t.templates.created });
+        }
       } else {
         const content = v.content.split("\n").map((s) => s.trim()).filter(Boolean);
         const body = { name: v.name, type: v.type, content, description: v.description };
@@ -125,6 +147,7 @@ export function TemplateFormModal(
               { value: "opnsense_setting", label: t.templates.kindSetting },
               { value: "suricata_ruleset", label: t.templates.kindIdsRulesets },
               { value: "firewall_rule", label: t.templates.kindFirewallRule },
+              { value: "monit_test", label: t.templates.kindMonitTest },
             ]}
             value={kind}
             onChange={(k) => setKind(k ?? "firewall_alias")}
@@ -136,6 +159,8 @@ export function TemplateFormModal(
             ? <IdsRulesetForm value={idsBody} onChange={setIdsBody} />
             : kind === "firewall_rule"
             ? <FirewallRuleForm value={ruleBody} onChange={setRuleBody} />
+            : kind === "monit_test"
+            ? <MonitTestForm value={monitBody} onChange={setMonitBody} />
             : (
               <>
                 <Select label={t.templates.type} data={ALIAS_TYPES} data-testid="tpl-type"
