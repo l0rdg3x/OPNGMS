@@ -5,7 +5,6 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app.connectors.opnsense import parsers
 from app.connectors.opnsense.identity import DeviceIdentity, parse_identity
 from app.connectors.opnsense.resolver import CapabilityResolver
 from app.connectors.opnsense.url_safety import UnsafeUrlError, validate_base_url
@@ -121,18 +120,10 @@ class OpnsenseClient:
         return resp
 
     async def _get(self, path: str) -> dict:
-        resp = await self._request(path)
-        try:
-            return resp.json()
-        except ValueError as exc:
-            raise ParseError("response not interpretable") from exc
+        return self._decode(await self._request(path))
 
     async def _post(self, path: str, json: dict) -> dict:
-        resp = await self._request(path, "POST", json)
-        try:
-            return resp.json()
-        except ValueError as exc:
-            raise ParseError("response not interpretable") from exc
+        return self._decode(await self._request(path, "POST", json))
 
     def set_identity(self, edition: str, version: str) -> None:
         """Switch the resolver to a device's detected (edition, version)."""
@@ -190,9 +181,11 @@ class OpnsenseClient:
         return await self._capability("vpn_status")
 
     async def get_ids_alerts(self, since: datetime | None = None) -> list[dict]:
+        """`since` is accepted for caller convenience; filtering/dedup happen downstream."""
         return await self._capability("ids_alerts")
 
     async def get_dns_events(self, since: datetime | None = None) -> list[dict]:
+        """`since` is accepted for caller convenience; filtering/dedup happen downstream."""
         return await self._capability("dns_events")
 
     async def get_plugin_info(self) -> dict:
