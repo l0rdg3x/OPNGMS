@@ -27,3 +27,5 @@ class Device(UUIDPKMixin, TimestampMixin, Base):
         DateTime(timezone=True), default=None
     )
     firmware_version: Mapped[str | None] = mapped_column(default=None)
+    edition: Mapped[str] = mapped_column(default="", server_default="")
+    firmware_series: Mapped[str] = mapped_column(default="", server_default="")
