@@ -27,9 +27,10 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Device actions** — trigger firmware updates / major upgrades and plugin install/remove from the
   console, now or scheduled, run by a reboot-tolerant worker; plus a one-click deep-link to the
   device's WebGUI.
-- **Configuration templates** — reusable, typed templates (firewall aliases) in a shared MSP library
-  with per-customer overrides, and **profiles** (ordered bundles of templates), applied to a device
-  with a redacted preview, now or scheduled.
+- **Configuration templates** — reusable, typed templates (firewall aliases, any introspectable
+  OPNsense setting, Suricata/IDS rulesets) in a shared MSP library with per-customer overrides, and
+  **profiles** (ordered bundles of templates), applied to a device with a redacted preview, now or
+  scheduled.
 - **Multi-tenant dashboard** — fleet overview, per-device time-series charts, alert list.
 
 ## Architecture
@@ -187,7 +188,7 @@ Set via environment (see `.env.example`). Highlights:
 | **Config management** — encrypted backup + drift detection + firewall-aware editing UI + **live alias push** | ✅ Done¹ |
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
-| **Configuration templates (M1–M2)** — a global MSP **template library** (`firewall_alias` kind, superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot (fan-out to one change per member); superadmin Library + Profiles UI + per-device Apply tabs; live-verified on real OPNsense 26.1.9³ | ✅ Done |
+| **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot (fan-out to one change per member). A **kind-pluggable engine** ships three kinds: `firewall_alias` (M1), the **generic `opnsense_setting`** (M3) — any introspectable, fleet-portable OPNsense setting rendered as a **value-controlled** auto-form (hardware/device-specific fields excluded), and **`suricata_ruleset`** (M3) — enable a set of Suricata/IDS rulesets, picked from the device's live catalog. Superadmin Library + Profiles UI + per-device Apply tabs; live-verified on real OPNsense 26.1.9³ | ✅ Done |
 | **Deployment** — production Dockerfiles + `docker-compose.prod.yml`, reverse-proxy aware | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
@@ -200,10 +201,12 @@ update/upgrade are covered by mocked worker tests only (they reboot the device).
 WebGUI is a separate milestone — the button is currently a deep-link to the WebGUI login.
 
 ³ Configuration templates are a multi-milestone program: **M1** = the engine + the `firewall_alias` kind;
-**M2** = profiles (ordered bundles, fan-out apply). Both are merged & live-verified. Next: **M3+** additional
-kinds (Suricata/IDS, firewall rules, monit). The M1 live verify surfaced & fixed a real connector bug —
-OPNsense stored a JSON-list alias `content` as the literal `"Array"`; it is now joined to a newline string
-(also fixing the manual config-push path).
+**M2** = profiles (ordered bundles, fan-out apply); **M3** = the kind-pluggable registries plus two new
+kinds — the **generic `opnsense_setting`** (introspection-driven, value-controlled, fleet-portable) and
+**`suricata_ruleset`** (enable-only IDS rulesets, charset-guarded against path injection). All merged &
+live-verified on the real 26.1.9 box. Next curated kinds: firewall rules, monit. The M1 live verify
+surfaced & fixed a real connector bug — OPNsense stored a JSON-list alias `content` as the literal
+`"Array"`; it is now joined to a newline string (also fixing the manual config-push path).
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 
