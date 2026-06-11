@@ -6,10 +6,15 @@ from app.services.templates import InvalidTemplateError, TemplateKind, register_
 
 def _validate(body: dict) -> None:
     body = body or {}
-    if body.get("endpoint_key") not in SETTING_ENDPOINTS:
+    ep = SETTING_ENDPOINTS.get(body.get("endpoint_key"))
+    if ep is None:
         raise InvalidTemplateError(f"unknown setting endpoint: {body.get('endpoint_key')!r}")
-    if not isinstance(body.get("payload"), dict):
+    payload = body.get("payload")
+    if not isinstance(payload, dict):
         raise InvalidTemplateError("setting 'payload' must be an object")
+    bad = set(payload) & set(ep.exclude_fields)
+    if bad:
+        raise InvalidTemplateError(f"hardware/device-specific fields are not templatable: {sorted(bad)}")
 
 
 register_template_kind("opnsense_setting", TemplateKind(

@@ -28,7 +28,7 @@ from app.schemas.profiles import (
 from app.schemas.templates import TemplatePreviewOut
 from app.services.audit import AuditService
 from app.services.profiles import _effective, _ordered_members, materialize_profile
-from app.services.templates import InvalidTemplateError, validate_body
+from app.services.templates import TEMPLATE_KINDS, InvalidTemplateError, validate_body
 
 router = APIRouter(prefix="/api", tags=["profiles"])
 
@@ -242,9 +242,12 @@ async def preview_profile(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
             ) from exc
-        # M1: firewall_alias maps to the config-push 'alias' kind
+        # Derive operation/target/kind from each member's kind via the registry mapping
+        # (kind-aware: alias uses name, opnsense_setting uses endpoint_key, etc.).
+        spec = TEMPLATE_KINDS[tpl.kind]
+        op, target, _ = spec.to_change(eff)
         previews.append(
-            TemplatePreviewOut(operation="set", kind="alias", target=eff["name"], new=eff)
+            TemplatePreviewOut(operation=op, kind=spec.change_kind, target=str(target), new=eff)
         )
     return previews
 

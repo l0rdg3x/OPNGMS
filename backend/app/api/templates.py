@@ -29,6 +29,7 @@ from app.schemas.templates import (
 )
 from app.services.audit import AuditService
 from app.services.templates import (
+    TEMPLATE_KINDS,
     InvalidTemplateError,
     effective_body,
     materialize_change,
@@ -256,8 +257,11 @@ async def preview_template(
         validate_body(tpl.kind, eff)
     except InvalidTemplateError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
-    # M1: firewall_alias maps to the config-push 'alias' kind
-    return TemplatePreviewOut(operation="set", kind="alias", target=eff["name"], new=eff)
+    # Derive operation/target/kind from the template kind's registry mapping (kind-aware:
+    # firewall_alias -> ("set", name, "alias"); opnsense_setting -> ("set", endpoint_key, ...)).
+    spec = TEMPLATE_KINDS[tpl.kind]
+    op, target, _ = spec.to_change(eff)
+    return TemplatePreviewOut(operation=op, kind=spec.change_kind, target=str(target), new=eff)
 
 
 @router.post(

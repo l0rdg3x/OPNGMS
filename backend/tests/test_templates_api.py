@@ -226,6 +226,31 @@ async def test_create_template_writes_audit_row(api_client, db_engine):
     assert row.details.get("name") == "audited"
 
 
+async def test_preview_opnsense_setting_template_is_kind_aware(api_client, db_engine):
+    # an opnsense_setting template previews to operation=set, kind=opnsense_setting (NOT a hardcoded
+    # alias shape that would KeyError on eff["name"]); `new` carries the effective body incl. payload.
+    tid = await _seed_members(db_engine)
+    did = await _insert_device(db_engine, tid)
+    template_id = await _seed_template(
+        db_engine,
+        kind="opnsense_setting",
+        name="ids-enable",
+        body={"endpoint_key": "ids_general", "payload": {"general.enabled": "1"}},
+    )
+    await _login(api_client, "ta@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/devices/{did}/templates/{template_id}/preview",
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["operation"] == "set"
+    assert body["kind"] == "opnsense_setting"
+    assert body["target"] == "ids_general"
+    assert body["new"]["endpoint_key"] == "ids_general"
+    assert body["new"]["payload"] == {"general.enabled": "1"}
+
+
 async def test_apply_invalid_effective_body_is_422(api_client, db_engine):
     # an override that empties content -> invalid effective body -> 422, no enqueue
     tid = await _seed_members(db_engine)
