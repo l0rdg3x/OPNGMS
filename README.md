@@ -24,6 +24,9 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   weekly or generated on demand, localized per tenant (en/it/es/fr/de/pt/nl).
 - **Config management** — versioned, encrypted configuration backup with drift detection and a
   firewall-aware editing UI.
+- **Device actions** — trigger firmware updates / major upgrades and plugin install/remove from the
+  console, now or scheduled, run by a reboot-tolerant worker; plus a one-click deep-link to the
+  device's WebGUI.
 - **Multi-tenant dashboard** — fleet overview, per-device time-series charts, alert list.
 
 ## Architecture
@@ -180,12 +183,17 @@ Set via environment (see `.env.example`). Highlights:
 | **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 7-language localization | ✅ Done |
 | **Config management** — encrypted backup + drift detection + firewall-aware editing UI + **live alias push** | ✅ Done¹ |
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
+| **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
 | **Deployment** — production Dockerfiles + `docker-compose.prod.yml`, reverse-proxy aware | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
 ¹ Live configuration **push** to a device (firewall aliases, 4D-b) is verified against real OPNsense 26.1.9
 and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot as
 a rollback point; automatic rollback is a planned follow-up.
+
+² Plugin install/remove was exercised end-to-end on the real 26.1.9 box (with guaranteed cleanup); firmware
+update/upgrade are covered by mocked worker tests only (they reboot the device). True single-sign-on into the
+WebGUI is a separate milestone — the button is currently a deep-link to the WebGUI login.
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 
