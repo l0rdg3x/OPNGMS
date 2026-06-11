@@ -54,6 +54,23 @@ export function useIdsRulesets(deviceId: string) {
   });
 }
 
+export type RuleModel = { fields: SettingField[]; interfaces: { value: string; label: string }[] };
+
+export function useFirewallRuleModel(deviceId: string) {
+  const { activeId } = useTenant();
+  const t = useT();
+  return useMutation({
+    mutationFn: async (): Promise<RuleModel> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/devices/{device_id}/opnsense/firewall/rule-model",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId } } },
+      );
+      if (error || !data) throw new Error(t.templates.fw.loadFailed);
+      return data as RuleModel;
+    },
+  });
+}
+
 export function useIntrospectSetting(deviceId: string) {
   const { activeId } = useTenant();
   const t = useT();
