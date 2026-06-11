@@ -48,6 +48,22 @@ const RULE_MODEL = {
   interfaces: [{ value: "wan", label: "WAN" }],
 };
 
+const MONIT_TEST_MODEL = {
+  fields: [
+    { path: "name", label: "name", control: "text", value: "" },
+    {
+      path: "action",
+      label: "action",
+      control: "select",
+      options: [
+        { value: "alert", label: "alert" },
+        { value: "restart", label: "restart" },
+      ],
+      value: "",
+    },
+  ],
+};
+
 /** Shared providers wrapper. */
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -210,6 +226,91 @@ describe("TemplateFormModal — firewall_rule", () => {
     await userEvent.click(screen.getByTestId("fw-load"));
     // description left empty -> save is blocked client-side, no POST is made.
     await screen.findByTestId("fw-field-action");
+    await userEvent.click(screen.getByTestId("tpl-save"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(capture).not.toHaveBeenCalled();
+  });
+});
+
+describe("TemplateFormModal — monit_test", () => {
+  it("creates a monit_test template with the loaded test fields as the body", async () => {
+    const capture = vi.fn();
+    server.use(
+      http.get("/api/tenants/t1/devices", () => HttpResponse.json(DEVICES)),
+      http.get(
+        "/api/tenants/t1/devices/d1/opnsense/monit/test-model",
+        () => HttpResponse.json(MONIT_TEST_MODEL),
+      ),
+      http.post("/api/templates", async ({ request }) => {
+        capture(await request.json());
+        return HttpResponse.json(
+          { id: "x", kind: "monit_test", name: "CPUHigh", version: 1 },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderModal();
+
+    // Name.
+    await userEvent.type(screen.getByTestId("tpl-name"), "CPUHigh");
+
+    // Switch the kind to Monit health-check test (Mantine Select: click input, then option).
+    await userEvent.click(screen.getByTestId("tpl-kind"));
+    await userEvent.click(await screen.findByText("Monit health-check test"));
+
+    // The monit-test form is now shown: pick device + load the model.
+    await userEvent.click(await screen.findByTestId("monit-device"));
+    await userEvent.click(await screen.findByText("fw1"));
+    await userEvent.click(screen.getByTestId("monit-load"));
+
+    // Set the test name (the identity).
+    const name = await screen.findByTestId("monit-field-name");
+    await userEvent.type(name, "CPUHigh");
+
+    // Set the action to restart.
+    const action = await screen.findByTestId("monit-field-action");
+    await userEvent.click(action);
+    await userEvent.click(await screen.findByText("restart"));
+
+    // Save and assert the captured POST body.
+    await userEvent.click(screen.getByTestId("tpl-save"));
+
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "monit_test",
+          name: "CPUHigh",
+          description: "",
+          body: expect.objectContaining({ name: "CPUHigh", action: "restart" }),
+        }),
+      )
+    );
+  });
+
+  it("refuses to save a monit_test with an empty name (it is the test identity)", async () => {
+    const capture = vi.fn();
+    server.use(
+      http.get("/api/tenants/t1/devices", () => HttpResponse.json(DEVICES)),
+      http.get(
+        "/api/tenants/t1/devices/d1/opnsense/monit/test-model",
+        () => HttpResponse.json(MONIT_TEST_MODEL),
+      ),
+      http.post("/api/templates", async ({ request }) => {
+        capture(await request.json());
+        return HttpResponse.json({ id: "x", kind: "monit_test", name: "n", version: 1 }, { status: 201 });
+      }),
+    );
+
+    renderModal();
+    await userEvent.type(screen.getByTestId("tpl-name"), "No name");
+    await userEvent.click(screen.getByTestId("tpl-kind"));
+    await userEvent.click(await screen.findByText("Monit health-check test"));
+    await userEvent.click(await screen.findByTestId("monit-device"));
+    await userEvent.click(await screen.findByText("fw1"));
+    await userEvent.click(screen.getByTestId("monit-load"));
+    // name left empty -> save is blocked client-side, no POST is made.
+    await screen.findByTestId("monit-field-action");
     await userEvent.click(screen.getByTestId("tpl-save"));
     await new Promise((r) => setTimeout(r, 50));
     expect(capture).not.toHaveBeenCalled();

@@ -71,6 +71,21 @@ export function useFirewallRuleModel(deviceId: string) {
   });
 }
 
+export function useMonitTestModel(deviceId: string) {
+  const { activeId } = useTenant();
+  const t = useT();
+  return useMutation({
+    mutationFn: async (): Promise<{ fields: SettingField[] }> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/devices/{device_id}/opnsense/monit/test-model",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId } } },
+      );
+      if (error || !data) throw new Error(t.templates.monit.loadFailed);
+      return data as { fields: SettingField[] };
+    },
+  });
+}
+
 export function useIntrospectSetting(deviceId: string) {
   const { activeId } = useTenant();
   const t = useT();

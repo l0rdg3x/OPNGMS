@@ -877,6 +877,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/opnsense/monit/test-model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monit Test Model
+         * @description Value-controlled Monit-test field schema for the template form.
+         */
+        get: operations["monit_test_model_api_tenants__tenant_id__devices__device_id__opnsense_monit_test_model_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -3755,6 +3775,40 @@ export interface operations {
         };
     };
     firewall_rule_model_api_tenants__tenant_id__devices__device_id__opnsense_firewall_rule_model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monit_test_model_api_tenants__tenant_id__devices__device_id__opnsense_monit_test_model_get: {
         parameters: {
             query?: never;
             header?: never;

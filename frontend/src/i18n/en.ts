@@ -164,6 +164,16 @@ export const en = {
       floating: "Floating (no interface)",
       note: "The interface is chosen at apply time; leave it empty for a floating rule.",
     },
+    kindMonitTest: "Monit health-check test",
+    monit: {
+      referenceDevice: "Reference device (to read the available test fields)",
+      load: "Load fields",
+      loadHint: "Pick a device, then load the test fields to configure.",
+      noDevice: "No device available in the active tenant to read fields from.",
+      loadFailed: "Could not read the test model from the device.",
+      nameRequired: "A name is required (it is the test identity).",
+      note: "A test takes effect once attached to a Monit service.",
+    },
     kindIdsRulesets: "Suricata/IDS rulesets",
     ids: {
       referenceDevice: "Reference device (to read the available rulesets)",
