@@ -49,7 +49,7 @@ Adding Unbound/DHCP/… later = appending entries (data-only), each declaring it
 ### 4.2 Connector (introspect + apply)
 
 - `OpnsenseClient.get_setting(get_path) -> dict` — the raw `get` response (for field inference). Goes through the SSRF-guarded `_get`.
-- `OpnsenseClient.apply_setting(set_path, reconfigure_path, model_root, payload, *, dry_run) -> dict` — `dry_run` returns a summary (no write); else `POST set_path` with `{ model_root: payload }`, then `POST reconfigure_path`. (`set` expects the model values under the model root; option fields are set by their selected key(s) — comma-joined for multi.)
+- `OpnsenseClient.apply_setting(set_path, reconfigure_path, model_root, payload, *, dry_run) -> dict` — `dry_run` returns a summary (no write); else **POST a PARTIAL `set`** containing ONLY the templated fields, then `POST reconfigure_path`. **Verified on real 26.1.9:** `set` MERGES a partial payload — `POST ids/settings/set {"ids": {"general": {"AlertSaveLogs": "5"}}}` returns `{"result":"saved"}`, changes only that field, leaves the rest untouched (no clobber), and does NOT validate untouched fields. (Re-posting the FULL `get` body instead FAILS validation — `get`↔`set` aren't symmetric — so partial-set is the correct, verified approach.) Option fields are set by their selected key(s) — comma-joined for multi. The applier un-flattens the payload's dotted paths (`general.homenet` → `{general: {homenet: ...}}`) under the model root.
 
 ### 4.3 Template kind `opnsense_setting`
 
