@@ -1,7 +1,11 @@
+from datetime import UTC, datetime, timedelta
+
 import pyotp
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core import crypto
+from app.models.session import Session
 from app.models.user_mfa import UserMfa
 from app.models.user_recovery_code import UserRecoveryCode
 from app.services import mfa as mfa_svc
@@ -81,6 +85,47 @@ async def test_login_mfa_recovery_code_single_use(api_client, db_engine):
     h2 = csrf_headers(api_client)
     r2 = await api_client.post("/api/login/mfa", json={"code": codes[0]}, headers=h2)
     assert r2.status_code == 401
+
+
+async def test_login_mfa_replayed_totp_step_is_rejected(api_client, db_engine):
+    await _seed_mfa_user(db_engine)
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    h = csrf_headers(api_client)
+    code = pyotp.TOTP(_SECRET).now()
+    r = await api_client.post("/api/login/mfa", json={"code": code}, headers=h)
+    assert r.status_code == 200, r.text
+
+    # log in again and replay the SAME TOTP code (same time-step) -> anti-replay rejects it
+    await api_client.post("/api/logout", headers=csrf_headers(api_client))
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    h2 = csrf_headers(api_client)
+    r2 = await api_client.post("/api/login/mfa", json={"code": code}, headers=h2)
+    assert r2.status_code == 401
+
+
+async def test_mfa_pending_session_can_logout(api_client, db_engine):
+    # a user mid-MFA (mfa_pending) must be able to cancel: logout invalidates the session cookie
+    await _seed_mfa_user(db_engine)
+    r = await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    assert r.json()["status"] == "mfa_required"
+    out = await api_client.post("/api/logout", headers=csrf_headers(api_client))
+    assert out.status_code == 204
+    # the pending session is now invalid: the MFA challenge endpoint sees no session
+    r2 = await api_client.post("/api/login/mfa", json={"code": "000000"})
+    assert r2.status_code == 401
+
+
+async def test_mfa_pending_session_ttl_is_minutes_not_hours(api_client, db_engine):
+    await _seed_mfa_user(db_engine)
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        sess = (
+            await s.execute(select(Session).where(Session.kind == "mfa_pending"))
+        ).scalar_one()
+    # expires ~5 min out (default mfa_pending_ttl_minutes), well under the 1h that mfa_setup uses
+    delta = sess.expires_at - datetime.now(UTC)
+    assert timedelta(minutes=3) < delta < timedelta(minutes=7)
 
 
 async def test_setup_policy_issues_setup_session(api_client, db_engine):
