@@ -21,12 +21,13 @@ def _interfaces(root: ET.Element) -> list[dict]:
     return out
 
 
-def build_inventory(xml: str, opnsense_version: str, plugin_info: dict) -> dict:
+def build_inventory(xml: str, opnsense_version: str, plugin_info: dict, edition: str = "") -> dict:
     root = _parse_xml(xml)
     configured_sections = [el.tag for el in list(root) if el.tag != "revision"]
     available = [describe(pid) for pid in plugin_info.get("plugins", [])]
     return {
         "opnsense_version": opnsense_version,
+        "edition": edition,
         "interfaces": _interfaces(root),
         "configured_sections": configured_sections,
         "available_capabilities": available,

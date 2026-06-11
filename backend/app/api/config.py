@@ -142,7 +142,7 @@ async def config_capabilities(
             plugin_info = await client.get_plugin_info()
         except (OpnsenseError, InvalidToken):
             plugin_info = {"plugins": []}
-    inv = build_inventory(_xml(snap), snap.opnsense_version, plugin_info)
+    inv = build_inventory(_xml(snap), snap.opnsense_version, plugin_info, edition=device.edition if device is not None else "")
     return CapabilityInventory(**inv)
 
 

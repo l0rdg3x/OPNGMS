@@ -71,6 +71,8 @@ async def create_device(
         tags=payload.tags,
         status="reachable" if result.reachable else "unverified",
         firmware_version=result.firmware_version,
+        edition=result.edition,
+        firmware_series=result.series,
         last_seen=datetime.now(timezone.utc) if result.reachable else None,
     )
     device = await DeviceRepository(session, tenant_id).add(device)
@@ -175,6 +177,8 @@ async def test_device_connection(
     if result.reachable:
         device.last_seen = datetime.now(timezone.utc)
         device.firmware_version = result.firmware_version
+        device.edition = result.edition
+        device.firmware_series = result.series
     await session.flush()
     await AuditService(session).record(
         actor_user_id=ctx.user.id,

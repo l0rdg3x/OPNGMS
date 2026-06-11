@@ -11,6 +11,13 @@ from app.services.monitoring import collect_and_store
 
 
 class FakeClient:
+    async def get_device_identity(self):
+        from app.connectors.opnsense.identity import DeviceIdentity
+        return DeviceIdentity(edition="community", version="26.1.9", series="26.1")
+
+    def set_identity(self, edition, version):
+        pass
+
     async def get_system_info(self):
         return {"cpu_pct": 5.0, "mem_pct": 30.0, "disk_pct": 10.0, "uptime_seconds": 100}
 
@@ -28,6 +35,12 @@ class FakeClient:
 
 
 class FailClient:
+    async def get_device_identity(self):
+        raise ReachabilityError("down")
+
+    def set_identity(self, edition, version):
+        pass
+
     async def get_system_info(self):
         raise ReachabilityError("down")
 
