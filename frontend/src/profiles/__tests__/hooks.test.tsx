@@ -74,7 +74,7 @@ describe("profile library hooks", () => {
     });
   });
 
-  it("useApplyProfile POSTs to .../profiles/{id}/apply with {scheduled_at}", async () => {
+  it("useApplyProfile POSTs to .../profiles/{id}/apply with {scheduled_at, bindings}", async () => {
     let captured: unknown = null;
     server.use(
       http.post(
@@ -88,7 +88,11 @@ describe("profile library hooks", () => {
     const { result } = renderHook(() => useApplyProfile("d1"), {
       wrapper: wrapperWithTenant,
     });
-    await result.current.mutateAsync({ profileId: "p1", scheduled_at: null });
-    expect(captured).toMatchObject({ scheduled_at: null });
+    await result.current.mutateAsync({
+      profileId: "p1",
+      scheduled_at: null,
+      bindings: { interface: "wan" },
+    });
+    expect(captured).toMatchObject({ scheduled_at: null, bindings: { interface: "wan" } });
   });
 });

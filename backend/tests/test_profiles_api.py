@@ -7,11 +7,19 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.queue import get_enqueuer
 from app.main import app
 from app.models.audit import AuditLog
+from app.models.config_change import ConfigChange
 from tests.conftest import csrf_headers
 from tests.factories import make_membership, make_tenant, make_user
 
 # A valid firewall_alias body the template engine accepts.
 _VALID_BODY = {"name": "web", "type": "host", "content": ["1.2.3.4"]}
+
+# A valid firewall_rule body (interface is an apply-time binding; empty = floating).
+_VALID_RULE_BODY = {
+    "description": "block-telnet", "action": "block", "direction": "in",
+    "ipprotocol": "inet", "source_net": "any", "destination_net": "any",
+    "destination_port": "23",
+}
 
 
 async def _seed_members(db_engine):
@@ -318,6 +326,75 @@ async def test_put_profile_replaces_member_set(api_client, db_engine):
     rows = [p for p in lst.json() if p["id"] == pid]
     assert len(rows) == 1
     assert rows[0]["template_ids"] == [str(tC), str(tA)]
+
+
+async def test_apply_profile_binds_firewall_rule_interface(api_client, db_engine):
+    # a profile with a firewall_rule member, applied with bindings={"interface":"wan"}, materializes
+    # a firewall_rule config_change whose payload.interface == "wan" (not floating).
+    tid = await _seed_members(db_engine)
+    await _seed_superadmin(db_engine)
+    did = await _insert_device(db_engine, tid)
+    t1 = await _seed_template(
+        db_engine, kind="firewall_rule", name="rule-a", body=dict(_VALID_RULE_BODY)
+    )
+    await _login(api_client, "sa@x.io")
+    created = await api_client.post(
+        "/api/profiles",
+        json={"name": "fw-profile", "template_ids": [str(t1)]},
+        headers=csrf_headers(api_client),
+    )
+    assert created.status_code == 201
+    pid = created.json()["id"]
+    _override_enqueuer()
+    await _login(api_client, "ta@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/devices/{did}/profiles/{pid}/apply",
+        json={"scheduled_at": None, "bindings": {"interface": "wan"}},
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code in (200, 201)
+    change_ids = r.json()["change_ids"]
+    assert len(change_ids) == 1
+    # the materialized config_change carries interface == "wan" in its payload
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        change = (
+            await s.execute(
+                select(ConfigChange).where(ConfigChange.id == uuid.UUID(change_ids[0]))
+            )
+        ).scalar_one()
+    assert change.kind == "firewall_rule"
+    assert change.payload["interface"] == "wan"
+
+
+async def test_preview_profile_binds_firewall_rule_interface(api_client, db_engine):
+    # previewing a profile with a firewall_rule member + bindings={"interface":"wan"} reflects
+    # the bound interface in new.interface (preview matches what apply will materialize).
+    tid = await _seed_members(db_engine)
+    await _seed_superadmin(db_engine)
+    did = await _insert_device(db_engine, tid)
+    t1 = await _seed_template(
+        db_engine, kind="firewall_rule", name="rule-a", body=dict(_VALID_RULE_BODY)
+    )
+    await _login(api_client, "sa@x.io")
+    created = await api_client.post(
+        "/api/profiles",
+        json={"name": "fw-profile-preview", "template_ids": [str(t1)]},
+        headers=csrf_headers(api_client),
+    )
+    assert created.status_code == 201
+    pid = created.json()["id"]
+    await _login(api_client, "ta@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/devices/{did}/profiles/{pid}/preview",
+        json={"bindings": {"interface": "wan"}},
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items) == 1
+    assert items[0]["kind"] == "firewall_rule"
+    assert items[0]["new"]["interface"] == "wan"
 
 
 async def test_apply_profile_cross_tenant_device_is_404(api_client, db_engine):

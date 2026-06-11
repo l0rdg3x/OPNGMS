@@ -219,6 +219,8 @@ export const en = {
         pick: "Profile",
         preview: "Preview",
         previewTitle: "Effective configuration (per template, in order)",
+        interface: "Interface (chosen at apply time)",
+        floating: "Floating (no interface)",
         empty: "No profiles available.",
         applyConfirm: "Apply this profile to the device? It applies each member template in order.",
         runNow: "Apply now",

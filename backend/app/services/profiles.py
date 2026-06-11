@@ -40,9 +40,12 @@ async def _effective(session: AsyncSession, tenant_id: uuid.UUID, tpl: ConfigTem
 
 async def materialize_profile(
     session: AsyncSession, *, tenant_id: uuid.UUID, device_id: uuid.UUID,
-    created_by: uuid.UUID, profile: ConfigProfile,
+    created_by: uuid.UUID, profile: ConfigProfile, bindings: dict | None = None,
 ) -> list[ConfigChange]:
-    """Validate ALL member effective bodies, then materialize one config_change per member (in order)."""
+    """Validate ALL member effective bodies, then materialize one config_change per member (in order).
+
+    `bindings` are apply-time inputs (e.g. {"interface": "wan"}) threaded into each member; the bind
+    hook is per-kind (only firewall_rule consumes `interface`), so this is a no-op for other kinds."""
     templates = await _ordered_members(session, profile.id)
     if not templates:
         raise InvalidTemplateError("profile has no member templates")
@@ -57,7 +60,7 @@ async def materialize_profile(
     for tpl, body in effective:
         change = await materialize_change(
             session, tenant_id=tenant_id, device_id=device_id, created_by=created_by,
-            template_id=tpl.id, kind=tpl.kind, body=body,
+            template_id=tpl.id, kind=tpl.kind, body=body, bindings=bindings,
         )
         change.source_profile_id = profile.id
         changes.append(change)

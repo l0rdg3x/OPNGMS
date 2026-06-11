@@ -63,17 +63,28 @@ export function useDeleteProfile() {
   });
 }
 
+// Apply-time bindings threaded into preview/apply (e.g. { interface: "wan" } for firewall_rule
+// members; empty = floating / no-op for kinds without a bind hook).
+type Bindings = Record<string, unknown>;
+
 export function usePreviewProfile(deviceId: string) {
   const { activeId } = useTenant();
   const t = useT();
   return useMutation({
-    mutationFn: async (profileId: string): Promise<TemplatePreview[]> => {
+    mutationFn: async ({
+      profileId,
+      bindings,
+    }: {
+      profileId: string;
+      bindings: Bindings;
+    }): Promise<TemplatePreview[]> => {
       const { data, error } = await api.POST(
         "/api/tenants/{tenant_id}/devices/{device_id}/profiles/{profile_id}/preview",
         {
           params: {
             path: { tenant_id: activeId!, device_id: deviceId, profile_id: profileId },
           },
+          body: { bindings },
         },
       );
       if (error || !data) throw new Error(t.templates.profiles.apply.failed);
@@ -90,9 +101,11 @@ export function useApplyProfile(deviceId: string) {
     mutationFn: async ({
       profileId,
       scheduled_at,
+      bindings,
     }: {
       profileId: string;
       scheduled_at: string | null;
+      bindings: Bindings;
     }) => {
       const { data, error } = await api.POST(
         "/api/tenants/{tenant_id}/devices/{device_id}/profiles/{profile_id}/apply",
@@ -100,7 +113,7 @@ export function useApplyProfile(deviceId: string) {
           params: {
             path: { tenant_id: activeId!, device_id: deviceId, profile_id: profileId },
           },
-          body: { scheduled_at },
+          body: { scheduled_at, bindings },
         },
       );
       if (error || !data) throw new Error(t.templates.profiles.apply.failed);
