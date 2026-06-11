@@ -2724,6 +2724,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PreviewTemplateIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3265,6 +3282,62 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/opnsense/firewall/rule-model": {
+      "get": {
+        "tags": [
+          "firewall-rules"
+        ],
+        "summary": "Firewall Rule Model",
+        "description": "Value-controlled rule-field schema + the device's interfaces (for the apply-time picker).",
+        "operationId": "firewall_rule_model_api_tenants__tenant_id__devices__device_id__opnsense_firewall_rule_model_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Firewall Rule Model Api Tenants  Tenant Id  Devices  Device Id  Opnsense Firewall Rule Model Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Healthz",
@@ -3381,6 +3454,12 @@
               }
             ],
             "title": "Scheduled At"
+          },
+          "bindings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Bindings",
+            "default": {}
           }
         },
         "type": "object",
@@ -4496,6 +4575,18 @@
           "updated_at"
         ],
         "title": "OverrideOut"
+      },
+      "PreviewTemplateIn": {
+        "properties": {
+          "bindings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Bindings",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "PreviewTemplateIn"
       },
       "ProfileApplyOut": {
         "properties": {
