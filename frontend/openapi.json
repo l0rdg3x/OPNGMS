@@ -1877,6 +1877,179 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/firmware/check": {
+      "post": {
+        "tags": [
+          "firmware"
+        ],
+        "summary": "Firmware Check",
+        "operationId": "firmware_check_api_tenants__tenant_id__devices__device_id__firmware_check_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmwareCheckOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/devices/{device_id}/firmware/action": {
+      "post": {
+        "tags": [
+          "firmware"
+        ],
+        "summary": "Create Firmware Action",
+        "operationId": "create_firmware_action_api_tenants__tenant_id__devices__device_id__firmware_action_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmwareActionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmwareActionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/devices/{device_id}/firmware/actions": {
+      "get": {
+        "tags": [
+          "firmware"
+        ],
+        "summary": "List Firmware Actions",
+        "operationId": "list_firmware_actions_api_tenants__tenant_id__devices__device_id__firmware_actions_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FirmwareActionOut"
+                  },
+                  "title": "Response List Firmware Actions Api Tenants  Tenant Id  Devices  Device Id  Firmware Actions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/reports": {
       "post": {
         "tags": [
@@ -2425,6 +2598,11 @@
           "opnsense_version": {
             "type": "string",
             "title": "Opnsense Version"
+          },
+          "edition": {
+            "type": "string",
+            "title": "Edition",
+            "default": ""
           },
           "interfaces": {
             "items": {
@@ -3004,6 +3182,136 @@
           "count"
         ],
         "title": "EventTopRow"
+      },
+      "FirmwareActionIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target",
+            "default": ""
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "FirmwareActionIn"
+      },
+      "FirmwareActionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
+          },
+          "applied_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "target",
+          "status",
+          "scheduled_at",
+          "applied_at",
+          "result",
+          "created_at"
+        ],
+        "title": "FirmwareActionOut"
+      },
+      "FirmwareCheckOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "updates": {
+            "type": "integer",
+            "title": "Updates"
+          },
+          "download_size": {
+            "type": "string",
+            "title": "Download Size"
+          },
+          "needs_reboot": {
+            "type": "boolean",
+            "title": "Needs Reboot"
+          },
+          "new_major": {
+            "type": "boolean",
+            "title": "New Major"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "updates",
+          "download_size",
+          "needs_reboot",
+          "new_major"
+        ],
+        "title": "FirmwareCheckOut"
       },
       "GeneratedReportOut": {
         "properties": {

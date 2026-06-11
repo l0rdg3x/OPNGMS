@@ -7,7 +7,11 @@ import { api } from "../api/client";
 import { useT } from "../i18n";
 import { ConfirmModal } from "./ConfirmModal";
 
-export function DeviceActions({ tenantId, deviceId }: { tenantId: string; deviceId: string }) {
+export function DeviceActions({
+  tenantId,
+  deviceId,
+  baseUrl,
+}: { tenantId: string; deviceId: string; baseUrl?: string }) {
   const t = useT();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -49,6 +53,18 @@ export function DeviceActions({ tenantId, deviceId }: { tenantId: string; device
   return (
     <>
       <Group mt="md">
+        {baseUrl && (
+          <Button
+            component="a"
+            href={baseUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="light"
+            data-testid="btn-webgui"
+          >
+            {t.deviceActions.openWebGui}
+          </Button>
+        )}
         <Button onClick={() => test.mutate()} loading={test.isPending}>
           {t.deviceActions.testConnection}
         </Button>
