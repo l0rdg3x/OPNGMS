@@ -132,3 +132,31 @@ async def test_apply_live_applies_real_and_snapshots(db_engine, two_tenants, mon
         # the rollback snapshot records the device firmware version (here "" — the test device
         # has no firmware_version set, but the field is now populated from the device, not hardcoded)
         assert snap.opnsense_version == ""
+
+
+async def test_apply_live_failure_marks_failed(db_engine, two_tenants, monkeypatch):
+    from types import SimpleNamespace
+
+    from app.connectors.opnsense.client import OpnsenseError
+    from app.services.config_diff import canonical_hash
+
+    monkeypatch.setattr(
+        "app.services.config_push.get_settings",
+        lambda: SimpleNamespace(live_push_enabled=True),
+    )
+    tenant_a, _ = two_tenants
+    cid = await _scheduled_change(db_engine, tenant_a, baseline_hash=canonical_hash(XML))
+
+    class FailingApplyClient(FakeClient):
+        async def apply_alias(self, operation, payload, *, dry_run=True):
+            raise OpnsenseError("boom")
+
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        ch = await s.get(ConfigChange, cid)
+        status = await apply_change(s, ch, FailingApplyClient(XML), now=datetime.now(timezone.utc))
+        await s.commit()
+    assert status == "failed"
+    async with factory() as s:
+        ch = await s.get(ConfigChange, cid)
+        assert ch.status == "failed" and ch.result.get("error") == "apply failed"
