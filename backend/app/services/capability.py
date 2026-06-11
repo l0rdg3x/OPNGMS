@@ -24,6 +24,10 @@ def _interfaces(root: ET.Element) -> list[dict]:
 def build_inventory(xml: str, opnsense_version: str, plugin_info: dict, edition: str = "") -> dict:
     root = _parse_xml(xml)
     configured_sections = [el.tag for el in list(root) if el.tag != "revision"]
+    # NOTE: `available_capabilities` is currently plugin-derived only. Gating it by the device's
+    # (edition, version) against the connector's CAPABILITIES matrix is deferred until
+    # edition/version-specific capabilities actually exist (e.g. when a Business profile adds
+    # them) — today every capability is edition="any", so such gating would be a no-op.
     available = [describe(pid) for pid in plugin_info.get("plugins", [])]
     return {
         "opnsense_version": opnsense_version,
