@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,13 +7,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import crypto
 from app.core.db import get_session
-from app.core.deps import enforce_csrf, get_current_user, get_enrollment_ctx
+from app.core.deps import enforce_csrf, get_current_user, get_enrollment_ctx, require_org
+from app.core.rbac import Action
 from app.core.security import verify_password
 from app.models.user import User
 from app.models.user_mfa import UserMfa
 from app.models.user_recovery_code import UserRecoveryCode
-from app.schemas.mfa import CodeIn, MfaStatusOut, PasswordIn, RecoveryOut, SetupOut
+from app.schemas.mfa import (
+    CodeIn,
+    MfaPolicyIn,
+    MfaPolicyOut,
+    MfaStatusOut,
+    PasswordIn,
+    RecoveryOut,
+    SetupOut,
+)
 from app.services import mfa as mfa_svc
+from app.services.app_settings import MFA_MODES, get_mfa_policy, set_mfa_policy
 from app.services.audit import AuditService
 
 router = APIRouter(prefix="/api", tags=["mfa"])
@@ -154,3 +165,55 @@ async def mfa_regen(
     )
     await session.commit()
     return RecoveryOut(recovery_codes=codes)
+
+
+# --- Superadmin: global MFA policy + admin reset of another user's MFA ---
+
+
+@router.get("/admin/mfa-policy", response_model=MfaPolicyOut)
+async def mfa_policy_get(
+    user: User = Depends(require_org(Action.USER_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> MfaPolicyOut:
+    return MfaPolicyOut(mode=await get_mfa_policy(session))
+
+
+@router.put("/admin/mfa-policy", response_model=MfaPolicyOut, dependencies=[Depends(enforce_csrf)])
+async def mfa_policy_set(
+    body: MfaPolicyIn,
+    user: User = Depends(require_org(Action.USER_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> MfaPolicyOut:
+    if body.mode not in MFA_MODES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="invalid mode")
+    await set_mfa_policy(session, body.mode)
+    await AuditService(session).record(
+        actor_user_id=user.id, tenant_id=None, action="mfa.policy_change",
+        target_type="app_settings", target_id="mfa_required", ip=None,
+        details={"mode": body.mode},
+    )
+    await session.commit()
+    return MfaPolicyOut(mode=body.mode)
+
+
+@router.post(
+    "/users/{user_id}/mfa/reset",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def mfa_admin_reset(
+    user_id: uuid.UUID,
+    actor: User = Depends(require_org(Action.USER_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    await session.execute(
+        UserRecoveryCode.__table__.delete().where(UserRecoveryCode.user_id == user_id)
+    )
+    row = await session.get(UserMfa, user_id)
+    if row is not None:
+        await session.delete(row)
+    await AuditService(session).record(
+        actor_user_id=actor.id, tenant_id=None, action="mfa.admin_reset",
+        target_type="user", target_id=str(user_id), ip=None, details={},
+    )
+    await session.commit()
