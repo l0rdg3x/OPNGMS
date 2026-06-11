@@ -7,6 +7,7 @@ export interface Me {
   email: string;
   name: string;
   is_superadmin: boolean;
+  mfa_setup_required?: boolean;
 }
 
 interface AuthState {

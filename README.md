@@ -45,6 +45,10 @@ A dark, instrument-grade "operations console" UI (Mantine + IBM Plex), built for
 |---|---|
 | [![Template library](docs/ui/template-library.png)](docs/ui/template-library.png) | [![New template](docs/ui/template-modal.png)](docs/ui/template-modal.png) |
 
+| Two-factor login (TOTP) | Two-factor settings & policy |
+|---|---|
+| [![MFA login step](docs/ui/mfa-login.png)](docs/ui/mfa-login.png) | [![MFA settings](docs/ui/mfa-security.png)](docs/ui/mfa-security.png) |
+
 ## Architecture
 
 ```
@@ -174,6 +178,15 @@ Set via environment (see `.env.example`). Highlights:
 - **Sessions & CSRF** — opaque session tokens stored only as a SHA-256 hash (a DB dump yields no usable
   sessions); idle + absolute expiry; rotation on login; "log out everywhere" + an active-sessions view;
   an hourly cleanup cron. CSRF uses a per-session token validated in constant time on every mutation.
+- **Two-factor auth (TOTP)** — optional/enforceable **TOTP** second factor with one-time **recovery
+  codes**. Self-service enrollment (QR + password re-auth); the secret is encrypted at rest
+  (`MASTER_KEY`), recovery codes are argon2-hashed and single-use (atomic consume), and TOTP is
+  anti-replay (last-used step, row-locked). Two-step login uses a short-lived `mfa_pending` session
+  upgraded to a fresh full session on success (anti-fixation), rate-limited and fail-closed. A
+  superadmin policy (`off` / `all` / `privileged`) can **require** MFA, gating non-enrolled users into
+  a fail-closed setup-only session until they enroll. Superadmins can **reset** another user's MFA, and
+  a host-level **break-glass CLI** (`python -m app.cli mfa-reset --email <e>`, audited) recovers the
+  last locked-out superadmin.
 - **Credentials** — argon2 password hashing; device secrets encrypted with Fernet (`MASTER_KEY`),
   never returned or logged. Rotate with zero downtime: set the new `MASTER_KEY`, move the old key into
   `MASTER_KEY_OLD_KEYS`, deploy, run `python -m app.scripts.rekey_secrets` (as the owner), then clear
@@ -201,6 +214,7 @@ Set via environment (see `.env.example`). Highlights:
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
 | **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot (fan-out to one change per member). A **kind-pluggable engine** ships five kinds: `firewall_alias` (M1), the **generic `opnsense_setting`** (M3) — any introspectable, fleet-portable OPNsense setting rendered as a **value-controlled** auto-form (hardware/device-specific fields excluded), **`suricata_ruleset`** (M3) — enable a set of Suricata/IDS rulesets picked from the device's live catalog, **`firewall_rule`** (M3) — a portable "Rules [new]" (MVC) filter rule whose target **interface is chosen at apply time** (empty = floating) so the template stays fleet-portable, idempotently upserted by `(description, interface)`, and **`monit_test`** (M3) — a portable Monit health-check test (condition + action) upserted by `name`. Superadmin Library + Profiles UI + per-device Apply tabs; live-verified on real OPNsense 26.1.9³ | ✅ Done |
+| **Login MFA (TOTP)** — TOTP second factor + one-time recovery codes; self-enroll + superadmin enforcement policy (off/all/privileged) with a fail-closed setup gate; two-step login (pending→full session); superadmin reset of a user's MFA + a host **break-glass CLI**; adversarially security-reviewed | ✅ Done |
 | **Deployment** — production Dockerfiles + `docker-compose.prod.yml`, reverse-proxy aware | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
