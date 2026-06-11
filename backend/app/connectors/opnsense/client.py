@@ -1,4 +1,5 @@
 import asyncio
+import re
 import ssl
 from datetime import datetime
 from urllib.parse import urlsplit
@@ -36,6 +37,9 @@ class ParseError(OpnsenseError):
 
 # firewall/alias/reconfigure reloads the firewall tables and is slow; give it room.
 RECONFIGURE_TIMEOUT = 120.0
+
+# Plugin names must be safe for URL path embedding: alphanumeric, dots, hyphens, underscores only.
+_PLUGIN_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
 
 class OpnsenseClient:
@@ -215,6 +219,40 @@ class OpnsenseClient:
 
     async def get_config_backup(self) -> str:
         return await self._capability("config_backup")
+
+    async def firmware_check(self) -> dict:
+        """Trigger a firmware mirror check."""
+        return await self._post("core/firmware/check", {}, timeout=RECONFIGURE_TIMEOUT)
+
+    async def firmware_status_raw(self) -> dict:
+        """Raw core/firmware/status (updates count, download size, reboot-needed, latest major)."""
+        return await self._get("core/firmware/status")
+
+    async def firmware_update(self) -> dict:
+        """Apply all available package updates (may reboot)."""
+        return await self._post("core/firmware/update", {}, timeout=RECONFIGURE_TIMEOUT)
+
+    async def firmware_upgrade(self) -> dict:
+        """Major release upgrade (always reboots)."""
+        return await self._post("core/firmware/upgrade", {}, timeout=RECONFIGURE_TIMEOUT)
+
+    async def firmware_upgrade_status(self) -> dict:
+        """Progress of a running firmware operation: {status, log}."""
+        return await self._get("core/firmware/upgradestatus")
+
+    async def plugin_install(self, name: str) -> dict:
+        """Install a plugin by exact name (charset-validated to avoid path injection)."""
+        return await self._post(f"core/firmware/install/{self._plugin_name(name)}", {}, timeout=RECONFIGURE_TIMEOUT)
+
+    async def plugin_remove(self, name: str) -> dict:
+        """Remove a plugin by exact name (charset-validated)."""
+        return await self._post(f"core/firmware/remove/{self._plugin_name(name)}", {}, timeout=RECONFIGURE_TIMEOUT)
+
+    @staticmethod
+    def _plugin_name(name: str) -> str:
+        if not name or not _PLUGIN_NAME_RE.match(name):
+            raise ApiError(0, f"invalid plugin name: {name!r}")
+        return name
 
     async def get_firmware_status(self) -> dict:
         return {"product_version": await self._capability("firmware_status")}
