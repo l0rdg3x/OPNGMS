@@ -1,0 +1,11 @@
+# Caddy automatic-HTTPS in front of the OPNGMS frontend. Domain + ACME email come from the
+# environment (set in .env, passed by docker-compose.caddy.yml). Caddy obtains and auto-renews a
+# Let's Encrypt certificate for the domain and reverse-proxies to the frontend container. Caddy sets
+# X-Forwarded-Proto/For/Host by default, so the backend issues Secure cookies correctly.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	reverse_proxy frontend:80
+}

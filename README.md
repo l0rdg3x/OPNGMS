@@ -94,10 +94,12 @@ A dark, instrument-grade "operations console" UI (Mantine + IBM Plex), built for
 ## Repository layout
 
 ```
-backend/           FastAPI API, ARQ worker, OPNsense connector, models, Alembic migrations, tests
-frontend/          React/Mantine SPA (shell, pages, typed API client, tests)
-docs/superpowers/  design specs and implementation plans, one per milestone
-.github/workflows/ CI + security workflows (tests, audit, CodeQL, Trivy, gitleaks)
+backend/             FastAPI API, ARQ worker, OPNsense connector, models, Alembic migrations, tests
+frontend/            React/Mantine SPA (shell, pages, typed API client, tests); nginx/ = mode-aware serving
+docs/superpowers/    design specs and implementation plans, one per milestone
+deploy/              Caddy config for the automatic-HTTPS override
+docker-compose*.yml  base prod stack + TLS overrides (tls / caddy / traefik)
+.github/workflows/   CI + security workflows (tests, audit, CodeQL, Trivy, gitleaks)
 ```
 
 ## Quick start — development
@@ -134,30 +136,66 @@ Create the first superadmin once via `POST /api/setup`. When MFA is enrolled, lo
 (`POST /api/login` → `POST /api/login/mfa`); a locked-out superadmin recovers with
 `python -m app.cli mfa-reset --email <email>` on the host.
 
-## Quick start — production
+## Deployment (production)
 
-The whole stack runs from one compose file: TimescaleDB + Redis, a one-shot **migrate** job, the
-**API** (uvicorn as `opngms_app` → RLS enforced), the **worker** (ARQ as the owner), and an **nginx
-frontend** that serves the SPA and reverse-proxies `/api`. The backend image bundles the WeasyPrint
-system libraries so PDF reporting works out of the box.
+One compose stack: TimescaleDB + Redis, a one-shot **migrate** job, the **API** (uvicorn as
+`opngms_app` → RLS enforced), the **worker** (ARQ as the owner), and an **nginx frontend** (SPA +
+`/api` reverse-proxy). The backend image bundles the WeasyPrint system libraries so PDF reporting
+works out of the box.
 
 ```bash
-cp .env.example .env        # then edit: strong POSTGRES_PASSWORD, SESSION_SECRET, MASTER_KEY (never commit .env)
-docker compose -f docker-compose.prod.yml up -d --build
-# migrate runs `alembic upgrade head`, then API/worker/frontend start (API healthcheck: GET /healthz).
-
-# Create the first superadmin (one-time):
-curl -X POST http://localhost/api/setup \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","name":"Admin","password":"<strong-password>"}'
+cp .env.example .env   # edit: strong POSTGRES_PASSWORD/APP_ROLE_PASSWORD, SESSION_SECRET, MASTER_KEY,
+                       #       and the frontend/TLS block (SERVER_NAME / DOMAIN / ACME_EMAIL). Never commit .env.
 ```
 
-**Behind a reverse proxy.** The stack expects to sit behind one (or several chained) proxies. nginx
-forwards `X-Forwarded-Proto` (preserving the original scheme from an upstream TLS-terminating proxy)
-and a sanitised `X-Forwarded-For`; uvicorn runs with `--proxy-headers` so the API sees the real client
-IP and scheme. To recover the true client IP through an external proxy, set `set_real_ip_from` in
-`frontend/nginx.conf`. **TLS** is the operator's responsibility — terminate HTTPS at your edge proxy
-(the bundled nginx listens on plain HTTP:80).
+The SPA carries logins, MFA and `Secure` cookies, so **serve it over HTTPS** in production (plain HTTP
+is for localhost/dev only). Pick **exactly one** of the four models below — the overrides are mutually
+exclusive (Docker Compose **v2.24.4+** is required for the `!override` tag they use):
+
+**1. Behind your own reverse proxy / load balancer (recommended).** The base stack serves the SPA as
+plain HTTP bound to **`127.0.0.1:8080`** — not internet-facing. Put your TLS terminator (Cloudflare, a
+cloud LB, an existing nginx/Caddy/Traefik, a Kubernetes ingress) in front, forwarding to
+`127.0.0.1:8080` with `X-Forwarded-Proto: https`.
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+**2. Self-contained HTTPS with your own certificate.** nginx terminates TLS itself (80 → 443
+redirect). Drop `fullchain.pem` + `privkey.pem` into `./certs` (`CERT_DIR`) and set `SERVER_NAME`; if
+no cert is present a self-signed one is generated at startup so the server still boots.
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.tls.yml up -d --build
+```
+
+**3. Self-contained HTTPS with automatic certificates (Let's Encrypt).** A proxy in front
+auto-obtains + auto-renews a real cert. Point `DOMAIN`'s DNS at the host (ports 80/443 reachable) and
+set `DOMAIN` + `ACME_EMAIL`. Choose **Caddy** *or* **Traefik** (Traefik is the same controller many
+already run on Docker & Kubernetes) — never both:
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml   up -d --build   # Caddy
+docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d --build   # Traefik
+```
+
+| # | Files | TLS terminated by | Certificate | Host ports |
+|---|-------|-------------------|-------------|------------|
+| 1 | base only | your edge proxy / LB / ingress | yours (upstream) | `127.0.0.1:8080` (HTTP) |
+| 2 | `+ docker-compose.tls.yml` | the bundled nginx | yours (mount PEM in `./certs`) | `80`→`443` |
+| 3a | `+ docker-compose.caddy.yml` | bundled Caddy | Let's Encrypt (auto) | `80` + `443` |
+| 3b | `+ docker-compose.traefik.yml` | bundled Traefik | Let's Encrypt (auto) | `80` + `443` |
+
+**Create the first superadmin** (one-time) against your public URL (or `http://127.0.0.1:8080` in
+model 1):
+```bash
+curl -X POST https://<your-domain>/api/setup -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","name":"Admin","password":"<strong-password>"}'
+```
+Then enrol MFA under **Two-factor auth** (two-step login: `POST /api/login` → `POST /api/login/mfa`; a
+locked-out superadmin recovers with `python -m app.cli mfa-reset --email <email>` on the host).
+
+**Real client IP through a proxy.** nginx forwards `X-Forwarded-Proto` (preserving the upstream
+HTTPS scheme so `Secure` cookies work) and a sanitised `X-Forwarded-For`; uvicorn runs with
+`--proxy-headers`. To recover the true client IP behind an external proxy (for the login
+rate-limit/lockout), set `set_real_ip_from` in `frontend/nginx/snippets/app.conf`.
 
 ## Configuration
 
@@ -220,7 +258,7 @@ Set via environment (see `.env.example`). Highlights:
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
 | **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot (fan-out to one change per member). A **kind-pluggable engine** ships five kinds: `firewall_alias` (M1), the **generic `opnsense_setting`** (M3) — any introspectable, fleet-portable OPNsense setting rendered as a **value-controlled** auto-form (hardware/device-specific fields excluded), **`suricata_ruleset`** (M3) — enable a set of Suricata/IDS rulesets picked from the device's live catalog, **`firewall_rule`** (M3) — a portable "Rules [new]" (MVC) filter rule whose target **interface is chosen at apply time** (empty = floating) so the template stays fleet-portable, idempotently upserted by `(description, interface)`, and **`monit_test`** (M3) — a portable Monit health-check test (condition + action) upserted by `name`. Superadmin Library + Profiles UI + per-device Apply tabs; live-verified on real OPNsense 26.1.9³ | ✅ Done |
 | **Login MFA (TOTP)** — TOTP second factor + one-time recovery codes; self-enroll + superadmin enforcement policy (off/all/privileged) with a fail-closed setup gate; two-step login (pending→full session); superadmin reset of a user's MFA + a host **break-glass CLI**; adversarially security-reviewed | ✅ Done |
-| **Deployment** — production Dockerfiles + `docker-compose.prod.yml`, reverse-proxy aware | ✅ Done |
+| **Deployment** — production Dockerfiles + a base `docker-compose.prod.yml` (frontend HTTP, localhost-bound, safe-by-default) with override files for every TLS model: behind your reverse proxy / LB, built-in TLS (your cert, self-signed fallback), or automatic Let's Encrypt via **Caddy** or **Traefik** | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
 ¹ Live configuration **push** to a device (firewall aliases, 4D-b) is verified against real OPNsense 26.1.9

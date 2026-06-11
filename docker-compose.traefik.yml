@@ -1,0 +1,53 @@
+# Override: SELF-CONTAINED HTTPS with AUTOMATIC certificates via Traefik (Let's Encrypt / ACME).
+# Traefik (widely used on Docker AND Kubernetes) sits in front, obtains + auto-renews a real cert for
+# ${DOMAIN} via the HTTP-01 challenge, routes via Docker labels, and proxies to the frontend (plain
+# HTTP on the compose network). Zero cert files. Use this instead of Caddy — never both.
+#
+#   1) point ${DOMAIN}'s public DNS at this host; ports 80 + 443 must be reachable
+#   2) set DOMAIN=your.domain and ACME_EMAIL=you@example.com in .env
+#   3) docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d --build
+#
+# On Kubernetes you would instead front the frontend with a Traefik (or any) Ingress that terminates
+# TLS — the base file's HTTP model already supports that (the Ingress sets X-Forwarded-Proto: https).
+# Pick exactly ONE of the TLS overrides. Requires Docker Compose v2.24.4+ for the `!override` tag.
+services:
+  frontend:
+    ports: !override []          # not host-published; Traefik routes to it on the compose network
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router (terminates TLS with the Let's Encrypt resolver `le`)
+      - "traefik.http.routers.opngms.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.opngms.entrypoints=websecure"
+      - "traefik.http.routers.opngms.tls.certresolver=le"
+      - "traefik.http.services.opngms.loadbalancer.server.port=80"
+      # HTTP router -> permanent redirect to HTTPS
+      - "traefik.http.routers.opngms-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.opngms-http.entrypoints=web"
+      - "traefik.http.routers.opngms-http.middlewares=opngms-redirect"
+      - "traefik.http.middlewares.opngms-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.opngms-redirect.redirectscheme.permanent=true"
+
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL:?set ACME_EMAIL for Let's Encrypt}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      # Read-only Docker socket so Traefik can read the routing labels (the standard Traefik trade-off).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+
+volumes:
+  traefik_letsencrypt:
