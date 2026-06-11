@@ -1,6 +1,11 @@
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The literal substring every secret placeholder in .env.example carries. The startup guard rejects
+# any secret that still contains it, so a deployment cannot silently run on the shipped defaults.
+_PLACEHOLDER = "change-me"
 
 
 class Settings(BaseSettings):
@@ -34,3 +39,28 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def assert_secure_secrets(settings: Settings) -> None:
+    """Fail closed if any secret still holds an `.env.example` placeholder.
+
+    Forces operators off the shipped default credentials before the app will start. Real values
+    (dev/test/CI included) never contain the placeholder, so this is a no-op for them. The DB password
+    is env-driven (DATABASE_URL ↔ APP_ROLE_PASSWORD, ADMIN_DATABASE_URL ↔ POSTGRES_PASSWORD); this
+    guard ensures it is actually set rather than left at the template value.
+    """
+    candidates = {
+        "DATABASE_URL": settings.database_url,
+        "ADMIN_DATABASE_URL": settings.admin_database_url or "",
+        "SESSION_SECRET": settings.session_secret,
+        "MASTER_KEY": settings.master_key,
+        "APP_ROLE_PASSWORD": os.getenv("APP_ROLE_PASSWORD", ""),
+    }
+    bad = sorted(name for name, val in candidates.items() if _PLACEHOLDER in (val or ""))
+    if bad:
+        raise RuntimeError(
+            "Refusing to start: unedited .env.example placeholder(s) in " + ", ".join(bad) + ". "
+            "Set strong, unique values in your .env — keep DATABASE_URL's password matched to "
+            "APP_ROLE_PASSWORD, and ADMIN_DATABASE_URL's to POSTGRES_PASSWORD. "
+            "See the README 'Deployment' / 'Configuration' sections."
+        )
