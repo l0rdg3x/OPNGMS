@@ -500,6 +500,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/firmware/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Firmware Check */
+        post: operations["firmware_check_api_tenants__tenant_id__devices__device_id__firmware_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/firmware/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Firmware Action */
+        post: operations["create_firmware_action_api_tenants__tenant_id__devices__device_id__firmware_action_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/firmware/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Firmware Actions */
+        get: operations["list_firmware_actions_api_tenants__tenant_id__devices__device_id__firmware_actions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/reports": {
         parameters: {
             query?: never;
@@ -658,6 +709,11 @@ export interface components {
         CapabilityInventory: {
             /** Opnsense Version */
             opnsense_version: string;
+            /**
+             * Edition
+             * @default
+             */
+            edition: string;
             /** Interfaces */
             interfaces: components["schemas"]["Interface"][];
             /** Configured Sections */
@@ -879,6 +935,58 @@ export interface components {
             value: string;
             /** Count */
             count: number;
+        };
+        /** FirmwareActionIn */
+        FirmwareActionIn: {
+            /** Kind */
+            kind: string;
+            /**
+             * Target
+             * @default
+             */
+            target: string;
+            /** Scheduled At */
+            scheduled_at?: string | null;
+        };
+        /** FirmwareActionOut */
+        FirmwareActionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Target */
+            target: string;
+            /** Status */
+            status: string;
+            /** Scheduled At */
+            scheduled_at: string | null;
+            /** Applied At */
+            applied_at: string | null;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** FirmwareCheckOut */
+        FirmwareCheckOut: {
+            /** Status */
+            status: string;
+            /** Updates */
+            updates: number;
+            /** Download Size */
+            download_size: string;
+            /** Needs Reboot */
+            needs_reboot: boolean;
+            /** New Major */
+            new_major: boolean;
         };
         /** GeneratedReportOut */
         GeneratedReportOut: {
@@ -2305,6 +2413,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigChangeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    firmware_check_api_tenants__tenant_id__devices__device_id__firmware_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FirmwareCheckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_firmware_action_api_tenants__tenant_id__devices__device_id__firmware_action_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirmwareActionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FirmwareActionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_firmware_actions_api_tenants__tenant_id__devices__device_id__firmware_actions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FirmwareActionOut"][];
                 };
             };
             /** @description Validation Error */
