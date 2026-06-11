@@ -39,8 +39,14 @@ emailed as a PDF attachment.
    - **Per-device report** — a single device/site (for a different site contact).
 3. **Recipients are multiple addresses**, set per schedule (so tenant-level and device-level recipient
    lists are independent).
-4. **Cadence is "every N days"** at a configured UTC hour — replacing the fixed weekly cron.
-5. **Future TODO (record, do not build):** OAuth-based sending (Gmail / M365) instead of an SMTP
+4. **Frequency is a preset** at a configured UTC hour — replacing the fixed weekly cron:
+   - **Weekly** — every 7 days on a chosen weekday (Mon..Sun).
+   - **Monthly** — the first day of each calendar month.
+   - **On demand** — no automatic cadence; delivered only via a manual "send now" trigger (which also
+     works for weekly/monthly schedules).
+5. **Delivery retries** on SMTP failure: re-attempt **every 10 minutes for up to 2 hours** (12 retries)
+   before giving up. The report PDF is generated/stored once; only the send is retried.
+6. **Future TODO (record, do not build):** OAuth-based sending (Gmail / M365) instead of an SMTP
    password.
 
 ## Architecture
@@ -52,14 +58,13 @@ emailed as a PDF attachment.
                                           │ read+decrypt
    tenant_admin ──PUT──▶ report_schedule  │                 ┌─────────────────┐
      (tenant &           (tenant_id,      ▼                 │ EmailService    │
-      device rows)        device_id?,  ┌──────────────┐     │ (aiosmtplib)    │
-                          recipients[]) │ worker cron  │────▶│ send PDF+body   │──▶ recipients
-                                        │ hourly:      │     └─────────────────┘
-                                        │ enqueue_due_ │
-                                        │ reports      │──▶ deliver_scheduled_report(schedule_id):
-                                        └──────────────┘      build (tenant|device) → store
-                                                              GeneratedReport → email → advance
-                                                              next_run_at
+      device rows,        device_id?,  ┌──────────────┐     │ (aiosmtplib)    │
+      frequency,          recipients[]) │ worker cron  │     │ send PDF+body   │──▶ recipients
+      weekday/hour)                     │ hourly:      │     └─────────────────┘
+       │ POST send-now                  │ enqueue_due_ │              ▲ retry ≤2h (every 10m)
+       ▼                                │ reports      │              │
+  deliver_scheduled_report(schedule_id, manual?): ─────▶ build (tenant|device) → store
+        build + store + advance next_run_at            GeneratedReport → send_report_email_job(report_id)
 ```
 
 ### Component boundaries
@@ -113,10 +118,11 @@ Migration `0022`. RLS enabled + forced + tenant policy (same pattern as `generat
 | `tenant_id`    | UUID FK→tenants     | `ON DELETE CASCADE`; RLS key                                |
 | `device_id`    | UUID FK→devices     | nullable; `ON DELETE CASCADE`; NULL = tenant scope          |
 | `enabled`      | Boolean             | default `true`                                              |
-| `every_n_days` | Integer             | `CHECK (every_n_days >= 1)`                                  |
-| `hour`         | Integer             | `CHECK (hour BETWEEN 0 AND 23)`; UTC send hour              |
+| `frequency`    | String              | `weekly` \| `monthly` \| `on_demand`                        |
+| `weekday`      | Integer             | nullable; `0=Mon..6=Sun`; set iff `frequency='weekly'`; `CHECK (weekday BETWEEN 0 AND 6)` |
+| `hour`         | Integer             | `CHECK (hour BETWEEN 0 AND 23)`; UTC send hour (ignored for `on_demand`) |
 | `recipients`   | ARRAY(String)       | email addresses (validated + capped in the service)         |
-| `next_run_at`  | DateTime(tz)        | nullable; when `<= now` and `enabled`, the schedule fires   |
+| `next_run_at`  | DateTime(tz)        | nullable; when `<= now` and `enabled`, the schedule fires; **always NULL for `on_demand`** |
 | `last_run_at`  | DateTime(tz)        | nullable                                                     |
 | `created_by`   | UUID                | nullable                                                    |
 | `created_at`   | DateTime(tz)        | `server_default=now()`                                      |
@@ -148,35 +154,55 @@ report covered (NULL for tenant/fleet reports). Lets the per-device history be f
   config (password falling back to stored) **without persisting**; returns `{ok, detail}`.
 - **Schedules (tenant_admin):** under `/api/tenants/{tenant_id}/report-schedules`:
   `GET` (list tenant + device schedules), `PUT` (upsert one schedule — body carries optional
-  `device_id`, `enabled`, `every_n_days`, `hour`, `recipients`), `DELETE /{schedule_id}`.
+  `device_id`, `enabled`, `frequency`, `weekday`, `hour`, `recipients`), `DELETE /{schedule_id}`, and
+  `POST /{schedule_id}/send-now` (manual on-demand delivery — works for any frequency).
 - **Sender + language (tenant_admin):** fold `from_email` into the existing
   `GET/PUT /reports/settings` (`ReportSettingsIn/Out`); the language picker is already backed by
   `language` + `GET /reports/languages`.
 
 ### Delivery (worker)
 
+Generation and sending are **split into two jobs** so a send retry never regenerates the PDF:
+
 1. **`enqueue_due_reports` (cron, hourly at minute 0):** runs as owner; `SELECT * FROM report_schedule
-   WHERE enabled AND next_run_at IS NOT NULL AND next_run_at <= now()`. For each, enqueue
-   `deliver_scheduled_report(schedule_id)`. (One job per schedule = isolation + per-job retry.)
-2. **`deliver_scheduled_report(schedule_id)` (job):**
-   - Load the schedule; re-check `enabled` and `next_run_at <= now` (skip stale duplicates). Load the
-     tenant; if `device_id` set, load the device (skip + disable-log if it was deleted).
-   - **Window:** `to = today 00:00 UTC` (the run day's start); `frm = to − every_n_days days`.
+   WHERE enabled AND next_run_at IS NOT NULL AND next_run_at <= now()` (skips `on_demand`, whose
+   `next_run_at` is NULL). For each, enqueue `deliver_scheduled_report(schedule_id)`.
+2. **`deliver_scheduled_report(schedule_id, *, manual=False)` (job — generate + store + advance):**
+   - Load the schedule. When `manual=False`, re-check `enabled` and `next_run_at <= now` (skip stale
+     cron duplicates). Load the tenant; if `device_id` set, load the device (if deleted: disable the
+     schedule, audit, return).
+   - **Window** (UTC, aligned to day boundaries):
+     - `weekly` (and `on_demand` send-now): `to = today 00:00`, `frm = to − 7 days`.
+     - `monthly`: the **previous calendar month** — `to = first of this month 00:00`,
+       `frm = first of previous month 00:00`.
    - **Build:** `ReportService(session, tenant_id).build_report(tenant_name, frm, to, locale,
      device_id=schedule.device_id)`. `device_id=None` ⇒ fleet; set ⇒ that device only.
    - **Store:** `GeneratedReportRepository.create(kind="scheduled", device_id=…, period_from=frm,
-     period_to=to, created_by=None, pdf=…)`.
-   - **Resolve send config:** global `smtp_settings` (must be `enabled`, else skip with a logged
-     reason); `from_email = report_settings.from_email or smtp_settings.from_email`.
+     period_to=to, created_by=None, pdf=…)` → `generated_report_id`.
+   - **Advance the cadence now** (independent of send success): set `last_run_at = now`; for a cron run
+     (`manual=False`) of a `weekly`/`monthly` schedule, `next_run_at = _advance(frequency, weekday,
+     hour, after=now)`. A `manual` send and `on_demand` schedules never touch `next_run_at`.
+   - **Enqueue the send:** `send_report_email_job(generated_report_id, schedule_id, attempt=1)`.
+3. **`send_report_email_job(report_id, schedule_id, attempt)` (job — send + retry):**
+   - Resolve `smtp_settings` (must be `enabled`; else **defer** the send by retry — operator may be
+     mid-setup); `from_email = report_settings.from_email or smtp_settings.from_email`. Load recipients
+     from the schedule (skip if empty, audit). Load the stored PDF by `report_id`.
    - **Send:** `EmailService.send(...)` with subject `"{title} — {tenant|device} — {frm:%Y-%m-%d}…"`,
-     a short text body, and the PDF attachment.
-   - **Advance:** set `last_run_at = now`; `next_run_at = _advance(next_run_at, every_n_days, hour)`
-     (next occurrence at `hour`, at least `every_n_days` ahead, strictly in the future). Audit
-     `report.schedule.delivered` (or `.failed`). **Advance even on send failure** so a broken relay
-     does not re-fire hourly; the failure is audited and surfaced via the test button.
-3. **`next_run_at` initialisation:** when a schedule is created/enabled (or its cadence/hour changes),
-   set `next_run_at` = the next future occurrence of `hour` (today if `hour` not yet passed, else
-   tomorrow). Disabling clears nothing; the cron simply skips disabled rows.
+     a short text body, the PDF attachment.
+   - **On success:** audit `report.schedule.delivered`.
+   - **On `EmailSendError`:** if `attempt < MAX_SEND_ATTEMPTS` (=12), re-enqueue
+     `send_report_email_job(report_id, schedule_id, attempt+1)` with `_defer_by=RETRY_INTERVAL`
+     (10 min) → retries span ≈2 h. Else audit `report.schedule.failed` (give up). Cadence already
+     advanced in step 2, so the next scheduled run is unaffected by send retries.
+4. **`next_run_at` initialisation (`_advance`):** when a `weekly`/`monthly` schedule is created/enabled
+   or its frequency/weekday/hour changes, set `next_run_at` = the next **future** occurrence:
+   `weekly` → next date matching `weekday` at `hour` (today if it is `weekday` and `hour` not yet
+   passed, else the following week); `monthly` → next 1st-of-month at `hour`. `on_demand` →
+   `next_run_at = NULL`. Disabling leaves the row; the cron skips disabled rows.
+
+**On-demand / "send now":** `POST /report-schedules/{id}/send-now` enqueues
+`deliver_scheduled_report(schedule_id, manual=True)` — fresh build + store + send (with the same retry
+chain), without touching `next_run_at`. Works for every frequency.
 
 ### Report scope (single device)
 
@@ -194,7 +220,9 @@ report). All existing per-device aggregator calls already pass `device_id`, so n
   (headers via the stdlib API ⇒ no header injection), sets `From`/`To`/`Subject`, attaches the PDF.
 - Transport per `security`: `starttls` (aiosmtplib `start_tls=True`), `tls` (`use_tls=True`, implicit,
   typically port 465), `none` (plain). Authenticate only when `username` is set.
-- Failures raise `EmailSendError(str)`; callers (worker job, test endpoint) handle it.
+- Failures raise `EmailSendError(str)`; callers (worker job, test endpoint) handle it. The worker's
+  `send_report_email_job` retries on `EmailSendError` every `RETRY_INTERVAL=600s` up to
+  `MAX_SEND_ATTEMPTS=12` (≈2 h) via arq `_defer_by`.
 - Add `aiosmtplib` to `pyproject.toml` dependencies.
 
 ## Security
@@ -218,13 +246,13 @@ report). All existing per-device aggregator calls already pass `device_id`, so n
 
 | Condition                                   | Behaviour                                               |
 |---------------------------------------------|---------------------------------------------------------|
-| SMTP not `enabled` / unconfigured           | worker skips the schedule, logs a reason; no `next_run_at` advance (so it fires once configured) |
-| Schedule's device deleted                   | job disables the schedule (`enabled=False`), audits, returns |
-| SMTP send fails (transport/auth)            | report still stored; `report.schedule.failed` audited; `next_run_at` advanced; surfaced via test button |
-| Invalid recipients / cadence / hour         | rejected at API write (422/400)                         |
+| SMTP not `enabled` / unconfigured at send   | `send_report_email_job` treats it like a transient failure → retries every 10 min (≤2 h); the cadence already advanced, so the next run is unaffected |
+| Schedule's device deleted                   | `deliver_scheduled_report` disables the schedule (`enabled=False`), audits, returns |
+| SMTP send fails (transport/auth)            | report stays stored; **retry every 10 min up to 2 h** (`MAX_SEND_ATTEMPTS=12`); on final give-up `report.schedule.failed` audited |
+| Invalid recipients / frequency / weekday / hour | rejected at API write (422/400); `weekly` requires `weekday`, `monthly`/`on_demand` reject one |
 | Test send fails                             | `POST /smtp/test` returns `{ok:false, detail}` (no 5xx) |
 | Empty per-device report (device has no data)| renders an empty section; still sent (consistent with today's empty fleet reports) |
-| Two cron fires before a job runs (dup)      | job re-checks `next_run_at <= now` and is idempotent on advance |
+| Two cron fires before a job runs (dup)      | `deliver_scheduled_report` re-checks `next_run_at <= now` (cron path) and advances idempotently |
 
 ## Testing
 
@@ -232,15 +260,19 @@ report). All existing per-device aggregator calls already pass `device_id`, so n
   mock transport) for each `security` mode + auth on/off; assert MIME structure (PDF attachment,
   headers) and that `EmailSendError` wraps transport failures.
 - **Schedule model/repo:** upsert tenant vs device rows; partial-unique constraints (one tenant row,
-  one per device); `next_run_at` init + `_advance` (cadence math, hour preserved, always future).
-- **Worker job:** `deliver_scheduled_report` with a fake SMTP (monkeypatched `EmailService`) — asserts
-  build → store (`GeneratedReport` with right `kind`/`device_id`/window) → send (right recipients/from)
-  → advance; plus the skip paths (SMTP off, device deleted, disabled).
+  one per device); `_advance` math for `weekly` (next chosen weekday at hour, always future),
+  `monthly` (next 1st-of-month at hour), `on_demand` (`next_run_at` stays NULL); window math (weekly =
+  prior 7 days; monthly = previous calendar month).
+- **Worker jobs:** `deliver_scheduled_report` (monkeypatched send) — build → store (`GeneratedReport`
+  with right `kind`/`device_id`/window) → cadence advance → enqueues the send; plus skip paths (device
+  deleted, disabled, stale cron dup). `send_report_email_job` — success audits delivered; failure
+  retries with `attempt+1`/`_defer_by=600` up to `MAX_SEND_ATTEMPTS`, then audits failed; SMTP-off
+  behaves as a transient retry. `manual=True` (send-now) builds + sends without advancing `next_run_at`.
 - **Single-device report:** `build_context(device_id=…)` yields exactly one section; `device_id=None`
   unchanged (all devices).
 - **API:** SMTP GET hides the password; PUT upsert + password keep/clear; test ok/fail; schedule
-  GET/PUT/DELETE RBAC (tenant_admin write, read_only denied) + CSRF + device-belongs-to-tenant + email
-  validation + recipient cap.
+  GET/PUT/DELETE/send-now RBAC (tenant_admin write, read_only denied) + CSRF + device-belongs-to-tenant
+  + email validation + recipient cap + frequency/weekday validation (`weekly` needs `weekday`).
 - **Frontend:** superadmin SMTP page (form + test button states); tenant schedule editor (tenant +
   device schedules, recipients chips, sender override, language picker). `npm run build` must pass
   (`tsc -b` checks tests — see the frontend-build-gate learning).
@@ -253,16 +285,19 @@ report). All existing per-device aggregator calls already pass `device_id`, so n
 - **Tenant → Report settings** (extend existing page): add `from_email` (sender override) + the
   **language picker** (from `GET /reports/languages`).
 - **Tenant → Report schedules** (new section/page): the tenant (fleet) schedule + a per-device list;
-  each row = enabled toggle, every-N-days, hour, recipients (multi-email chips). Reuse Mantine v9 +
-  the Midnight-NOC design tokens.
+  each row = enabled toggle, frequency picker (**Weekly** + weekday select / **Monthly** / **On
+  demand**), hour, recipients (multi-email chips), and a **"Send now"** button. Reuse Mantine v9 + the
+  Midnight-NOC design tokens.
 
 ## Build phases (informs the plan; one cohesive subsystem)
 
 - **Phase A — SMTP + tenant delivery:** `smtp_settings` table/model/service + crypto; `EmailService` +
   `aiosmtplib`; superadmin SMTP API + test; `report_schedule` table/model/repo (both scopes, but wire
-  the **tenant** path end-to-end first); `report_settings.from_email`; worker `enqueue_due_reports` +
-  `deliver_scheduled_report` (replacing the weekly cron); tenant schedule API; frontend SMTP page +
-  tenant schedule editor + sender/language fields.
+  the **tenant** path end-to-end first) with the `weekly`/`monthly`/`on_demand` frequency + `_advance`;
+  `report_settings.from_email`; worker `enqueue_due_reports` + `deliver_scheduled_report` +
+  `send_report_email_job` (retry chain), replacing the weekly cron; tenant schedule API incl.
+  `send-now`; frontend SMTP page + tenant schedule editor (frequency picker + send-now) + sender/
+  language fields.
 - **Phase B — per-device scope:** `generated_reports.device_id`; `build_context(device_id=…)` +
   `aggregator.device()`; device-scoped schedule rows end-to-end (already in the table) + the frontend
   per-device schedule list; tests for the device path.
@@ -270,7 +305,7 @@ report). All existing per-device aggregator calls already pass `device_id`, so n
 ## Out of scope / future TODO
 
 - **OAuth sending** (Gmail / M365) instead of an SMTP password — recorded; not built.
-- **"Send now"** for a schedule / emailing on-demand reports — not in v1 (on-demand stays
-  download-only).
+- Emailing the existing **on-demand download** report (the `/reports` POST) — stays download-only;
+  "send now" lives on a saved schedule (with its scope + recipients), not on the ad-hoc generator.
 - Per-recipient delivery status / bounce handling, DKIM/SPF setup — operator's SMTP relay concern.
 ```
