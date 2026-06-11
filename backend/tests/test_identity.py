@@ -21,3 +21,21 @@ def test_parse_identity_series_fallback_from_version():
 def test_parse_identity_defensive():
     assert parse_identity({}).edition == "community"
     assert parse_identity(None).version == ""
+
+
+def test_parse_identity_never_raises_on_weird_shapes():
+    assert parse_identity({"product": [1, 2]}).edition == "community"
+    assert parse_identity({"product": {"product_id": 123}}).edition == "community"
+    assert parse_identity("nonsense").edition == "community"
+
+
+def test_parse_identity_product_id_is_primary_over_name():
+    # A Community product_id must NOT be overridden by 'business' in product_name/repos.
+    ident = parse_identity({"product": {
+        "product_id": "opnsense", "product_name": "OPNsense Business Lite",
+        "product_version": "26.1.0"}})
+    assert ident.edition == "community"
+
+
+def test_parse_identity_empty_series_when_no_version():
+    assert parse_identity({}).series == ""

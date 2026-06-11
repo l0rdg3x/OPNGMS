@@ -11,21 +11,27 @@ class DeviceIdentity:
     series: str    # e.g. "26.1"
 
 
-def parse_identity(firmware_status: dict) -> DeviceIdentity:
-    """Map a core/firmware/status payload to a DeviceIdentity. Never raises.
+def parse_identity(firmware_status) -> DeviceIdentity:
+    """Map a core/firmware/status payload to a DeviceIdentity. Never raises on any input shape.
 
-    Edition signal: product_id ("opnsense" vs "opnsense-business" vs "opnsense-devel"), with a
-    defensive fallback to product_repos/product_name containing "business". Business values are
-    inferred pending a real Business box."""
-    product = (firmware_status or {}).get("product", {}) or {}
+    Edition signal: PRIMARY is product_id ("opnsense-business"->business, "opnsense-devel"->devel,
+    any other non-empty id e.g. "opnsense"->community). Only when product_id is absent/empty do we
+    fall back to "business" appearing in product_repos/product_name. Business values are inferred
+    pending a real Business box."""
+    fs = firmware_status if isinstance(firmware_status, dict) else {}
+    product = fs.get("product")
+    if not isinstance(product, dict):
+        product = {}
     pid = str(product.get("product_id", "")).lower()
-    blob = f"{pid} {str(product.get('product_repos', '')).lower()} {str(product.get('product_name', '')).lower()}"
-    if "business" in blob:
+    if "business" in pid:
         edition = "business"
     elif "devel" in pid:
         edition = "devel"
-    else:
+    elif pid:                       # a recognized non-business product_id (e.g. "opnsense")
         edition = "community"
+    else:                           # product_id absent -> fall back to repos/name
+        blob = f"{str(product.get('product_repos', '')).lower()} {str(product.get('product_name', '')).lower()}"
+        edition = "business" if "business" in blob else "community"
     version = product.get("product_version") or ""
-    series = product.get("product_series") or parsers.series_of(version)
+    series = product.get("product_series") or (parsers.series_of(version) if version else "")
     return DeviceIdentity(edition=edition, version=version, series=series)
