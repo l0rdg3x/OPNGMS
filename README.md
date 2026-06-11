@@ -33,6 +33,18 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   scheduled.
 - **Multi-tenant dashboard** — fleet overview, per-device time-series charts, alert list.
 
+## Screenshots
+
+A dark, instrument-grade "operations console" UI (Mantine + IBM Plex), built for SOC/NOC workflows.
+
+| Sign in | Fleet overview |
+|---|---|
+| [![Login](docs/ui/login.png)](docs/ui/login.png) | [![Overview](docs/ui/overview.png)](docs/ui/overview.png) |
+
+| Template library | New-template (kind picker) |
+|---|---|
+| [![Template library](docs/ui/template-library.png)](docs/ui/template-library.png) | [![New template](docs/ui/template-modal.png)](docs/ui/template-modal.png) |
+
 ## Architecture
 
 ```
