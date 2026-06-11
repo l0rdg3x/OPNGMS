@@ -64,8 +64,17 @@ function Harness() {
   return <OpnsenseSettingForm value={v} onChange={setV} />;
 }
 
-/** Wrap with all providers the form needs, including TenantContext (activeId "t1"). */
-function renderHarness() {
+/** Harness that starts with a pre-saved value (edit case). */
+function EditHarness({ initial }: { initial: SettingBody }) {
+  const [v, setV] = useState<SettingBody>(initial);
+  useEffect(() => {
+    latest = v;
+  }, [v]);
+  return <OpnsenseSettingForm value={v} onChange={setV} />;
+}
+
+/** Shared providers wrapper. */
+function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -87,7 +96,17 @@ function renderHarness() {
       </I18nProvider>
     );
   }
-  return render(<Harness />, { wrapper: Wrapper });
+  return Wrapper;
+}
+
+/** Wrap with all providers the form needs, including TenantContext (activeId "t1"). */
+function renderHarness() {
+  return render(<Harness />, { wrapper: makeWrapper() });
+}
+
+/** Render with a pre-saved value (edit/reopen case). */
+function renderEditHarness(initial: SettingBody) {
+  return render(<EditHarness initial={initial} />, { wrapper: makeWrapper() });
 }
 
 function mockHappyPath() {
@@ -155,6 +174,30 @@ describe("OpnsenseSettingForm", () => {
     expect(latest.payload["general.enabled"]).toBe("1");
 
     // The endpoint key is preserved alongside the toggled value.
+    expect(latest.endpoint_key).toBe("ids_general");
+  });
+
+  it("preserves a saved payload across Load (edit case)", async () => {
+    // The saved template has general.enabled = "1", overriding the device default of "0".
+    const savedValue: SettingBody = {
+      endpoint_key: "ids_general",
+      payload: { "general.enabled": "1" },
+    };
+    mockHappyPath();
+    renderEditHarness(savedValue);
+
+    // The endpoint is already pre-selected from value.endpoint_key.
+    // Pick the reference device and click Load.
+    await userEvent.click(await screen.findByTestId("setting-device"));
+    await userEvent.click(await screen.findByText("fw1"));
+    await userEvent.click(screen.getByTestId("setting-load"));
+
+    // After Load, the switch should be CHECKED (saved "1"), not device default "0".
+    const enabled = await screen.findByTestId("setting-field-general.enabled");
+    expect(enabled).toBeChecked();
+
+    // The captured payload also reflects the saved value, not the device default.
+    expect(latest.payload["general.enabled"]).toBe("1");
     expect(latest.endpoint_key).toBe("ids_general");
   });
 });

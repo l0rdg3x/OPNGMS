@@ -22,6 +22,7 @@ export function OpnsenseSettingForm(
   const { data: devices } = useTenantDevices();
   const [deviceId, setDeviceId] = useState<string>("");
   const [fields, setFields] = useState<SettingField[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const introspect = useIntrospectSetting(deviceId);
 
   const endpointData = (endpoints ?? []).map((e) => ({ value: e.key, label: e.label }));
@@ -34,9 +35,14 @@ export function OpnsenseSettingForm(
   async function loadFields() {
     try {
       const res = await introspect.mutateAsync(value.endpoint_key);
+      const defaults = initialPayload(res.fields);
+      const merged = { ...defaults, ...value.payload };   // saved values override device defaults
       setFields(res.fields);
-      onChange({ endpoint_key: value.endpoint_key, payload: initialPayload(res.fields) });
+      setLoaded(true);
+      onChange({ endpoint_key: value.endpoint_key, payload: merged });
     } catch {
+      setFields([]);
+      setLoaded(false);
       notifications.show({ color: "red", message: t.templates.setting.loadFailed });
     }
   }
@@ -50,6 +56,7 @@ export function OpnsenseSettingForm(
         value={value.endpoint_key || null}
         onChange={(key) => {
           setFields([]);
+          setLoaded(false);
           onChange({ endpoint_key: key ?? "", payload: {} });
         }}
       />
@@ -77,9 +84,11 @@ export function OpnsenseSettingForm(
           </>
         )}
 
-      {fields.length === 0
+      {!loaded
         ? <Text size="sm" c="dimmed" data-testid="setting-load-hint">{t.templates.setting.loadHint}</Text>
-        : (
+        : fields.length === 0
+          ? <Text size="sm" c="dimmed" data-testid="setting-no-fields">{t.templates.setting.noFields}</Text>
+          : (
           <Stack data-testid="setting-fields">
             {fields.map((field) => {
               const current = value.payload[field.path];
