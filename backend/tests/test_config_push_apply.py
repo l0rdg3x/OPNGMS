@@ -129,3 +129,6 @@ async def test_apply_live_applies_real_and_snapshots(db_engine, two_tenants, mon
         assert ch.pre_apply_snapshot_id is not None        # rollback point captured
         snap = await s.get(ConfigSnapshot, ch.pre_apply_snapshot_id)
         assert snap is not None and snap.device_id == ch.device_id
+        # the rollback snapshot records the device firmware version (here "" — the test device
+        # has no firmware_version set, but the field is now populated from the device, not hardcoded)
+        assert snap.opnsense_version == ""

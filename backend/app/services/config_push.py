@@ -11,6 +11,7 @@ from app.core import crypto
 from app.core.config import get_settings
 from app.models.config_change import ConfigChange
 from app.models.config_snapshot import ConfigSnapshot
+from app.models.device import Device
 from app.repositories.config_snapshot import ConfigSnapshotRepository
 from app.services.config_diff import canonical_hash
 
@@ -60,13 +61,15 @@ def _advisory_key(device_id: uuid.UUID) -> int:
 
 async def _save_pre_apply_snapshot(session: AsyncSession, change: ConfigChange, xml: str) -> uuid.UUID:
     """Persist the current device config as an encrypted snapshot (a pre-apply rollback point)."""
+    raw = xml.encode("utf-8")
+    device = await session.get(Device, change.device_id)
     snap = ConfigSnapshot(
         tenant_id=change.tenant_id,
         device_id=change.device_id,
         canonical_hash=canonical_hash(xml),
-        content_enc=crypto.encrypt_bytes(gzip.compress(xml.encode("utf-8"))),
-        opnsense_version="",
-        size_bytes=len(xml.encode("utf-8")),
+        content_enc=crypto.encrypt_bytes(gzip.compress(raw)),
+        opnsense_version=(device.firmware_version or "") if device is not None else "",
+        size_bytes=len(raw),
     )
     session.add(snap)
     await session.flush()
@@ -78,9 +81,9 @@ async def apply_change(
 ) -> str:
     """Apply a scheduled change. Returns the new status.
 
-    Dry-run; staleness-guarded; per-device serialized. SAFETY-CRITICAL:
-    re-reads the live config and refuses to apply if it drifted from the
-    baseline captured at proposal time (no clobber).
+    Real apply only when LIVE_PUSH_ENABLED is set (otherwise dry-run); staleness-guarded;
+    per-device serialized. SAFETY-CRITICAL: re-reads the live config and refuses to apply
+    if it drifted from the baseline captured at proposal time (no clobber).
     """
     if change.status != "scheduled":
         return change.status
