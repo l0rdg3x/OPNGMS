@@ -253,23 +253,45 @@ class OpnsenseClient:
         return (await self._get("monit/settings/getTest")).get("test", {})
 
     async def apply_monit_test(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
-        """Upsert a Monit test by `name`, then reconfigure monit.
+        """Upsert a Monit test by `name`; optionally attach it to the system service; then reconfigure.
 
-        Verified against OPNsense 26.1.9: monit/settings addTest/setTest/{uuid} + monit/service/reconfigure.
-        Identity is `name`: 1 match -> setTest; none -> addTest; many -> refuse (never mutate on doubt).
-        dry_run performs NO mutation."""
+        `attach_to_system` ("1") is a directive, stripped from the test payload before it is sent.
+        Identity is `name` (1 match -> setTest; none -> addTest; many -> refuse). dry_run mutates nothing."""
+        payload = dict(payload)
+        attach = str(payload.pop("attach_to_system", "0")) in ("1", "true", "True")
         name = str(payload.get("name", ""))
         if dry_run:
-            return {"dry_run": True, "name": name}
+            return {"dry_run": True, "name": name, "attach_to_system": attach}
         uuid_ = await self._resolve_monit_test_uuid(name)
         if uuid_ is None:
             res = await self._post("monit/settings/addTest", {"test": payload})
-            op = "add"
+            test_uuid, op = res.get("uuid"), "add"
         else:
             res = await self._post(f"monit/settings/setTest/{uuid_}", {"test": payload})
-            op = "set"
+            test_uuid, op = uuid_, "set"
+        if attach and test_uuid:
+            await self._attach_test_to_system(test_uuid)
         await self._post("monit/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
-        return {"dry_run": False, "operation": op, "result": res}
+        return {"dry_run": False, "operation": op, "attached": bool(attach), "result": res}
+
+    async def _resolve_system_service_uuid(self) -> str:
+        """The Monit `system`-type service uuid. Refuse (ApiError) if zero or >1 (never mutate on doubt)."""
+        data = await self._post("monit/settings/searchService", {"current": 1, "rowCount": 1000})
+        matches = [r for r in data.get("rows", []) if str(r.get("type", "")).lower() == "system"]
+        if len(matches) != 1:
+            raise ApiError(0, f"monit system service not uniquely resolvable ({len(matches)})")
+        return matches[0]["uuid"]
+
+    async def _attach_test_to_system(self, test_uuid: str) -> None:
+        """Add `test_uuid` to the system service's tests (partial merge). Idempotent."""
+        sid = await self._resolve_system_service_uuid()
+        svc = (await self._get(f"monit/settings/getService/{sid}")).get("service", {})
+        tests = svc.get("tests", {})
+        selected = [k for k, v in tests.items() if isinstance(v, dict) and str(v.get("selected")) in ("1", "True")]
+        if test_uuid in selected:
+            return
+        selected.append(test_uuid)
+        await self._post(f"monit/settings/setService/{sid}", {"service": {"tests": ",".join(selected)}})
 
     async def _resolve_monit_test_uuid(self, name: str) -> str | None:
         """Resolve a Monit test by EXACT name. None if absent; ApiError if many (never mutate on doubt)."""
