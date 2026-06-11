@@ -166,17 +166,29 @@ class OpnsenseClient:
         if dry_run:
             return {"dry_run": True, "operation": operation, "target": payload.get("name", "")}
         if operation == "add":
-            res = await self._post("firewall/alias/addItem", {"alias": payload})
+            res = await self._post(
+                "firewall/alias/addItem", {"alias": self._normalize_alias_payload(payload)})
         elif operation in ("set", "delete"):
             alias_uuid = await self._resolve_alias_uuid(payload.get("name", ""))
             if operation == "set":
-                res = await self._post(f"firewall/alias/setItem/{alias_uuid}", {"alias": payload})
+                res = await self._post(
+                    f"firewall/alias/setItem/{alias_uuid}",
+                    {"alias": self._normalize_alias_payload(payload)})
             else:
                 res = await self._post(f"firewall/alias/delItem/{alias_uuid}", {})
         else:
             raise ApiError(0, f"unknown alias operation: {operation}")
         await self._post("firewall/alias/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "result": res}
+
+    @staticmethod
+    def _normalize_alias_payload(payload: dict) -> dict:
+        """OPNsense's alias API wants ``content`` as a newline-separated string; a JSON list is
+        coerced to the literal 'Array'. Join list/tuple content into the expected string."""
+        content = payload.get("content")
+        if isinstance(content, (list, tuple)):
+            return {**payload, "content": "\n".join(str(c) for c in content)}
+        return payload
 
     async def _resolve_alias_uuid(self, name: str) -> str:
         """Resolve a firewall alias name to its uuid via searchItem (EXACT name match).

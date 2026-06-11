@@ -69,3 +69,39 @@ async def test_apply_alias_set_multiple_exact_matches_raises():
             {"uuid": "u1", "name": "myalias"}, {"uuid": "u2", "name": "myalias"}]}))
     with pytest.raises(ApiError):
         await _client().apply_alias("delete", {"name": "myalias"}, dry_run=False)
+
+
+@respx.mock
+async def test_apply_alias_joins_list_content():
+    # OPNsense coerces a JSON list to the literal 'Array'; content must be a newline-joined string.
+    captured = {}
+
+    def _capture(request):
+        import json
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json={"result": "saved", "uuid": "u1"})
+
+    respx.post(url__regex=r".*/api/firewall/alias/addItem.*").mock(side_effect=_capture)
+    respx.post(url__regex=r".*/api/firewall/alias/reconfigure.*").mock(
+        return_value=httpx.Response(200, json={"status": "ok"}))
+    await _client().apply_alias(
+        "add", {"name": "a", "type": "host", "content": ["1.1.1.1", "2.2.2.2"]}, dry_run=False)
+    assert captured["alias"]["content"] == "1.1.1.1\n2.2.2.2"  # joined, not a list / not "Array"
+
+
+@respx.mock
+async def test_apply_alias_string_content_unchanged():
+    # A string content must be left untouched (no spurious join / re-encode).
+    captured = {}
+
+    def _capture(request):
+        import json
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json={"result": "saved", "uuid": "u1"})
+
+    respx.post(url__regex=r".*/api/firewall/alias/addItem.*").mock(side_effect=_capture)
+    respx.post(url__regex=r".*/api/firewall/alias/reconfigure.*").mock(
+        return_value=httpx.Response(200, json={"status": "ok"}))
+    await _client().apply_alias(
+        "add", {"name": "a", "type": "host", "content": "1.1.1.1"}, dry_run=False)
+    assert captured["alias"]["content"] == "1.1.1.1"
