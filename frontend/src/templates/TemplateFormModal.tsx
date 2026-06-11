@@ -4,12 +4,16 @@ import { notifications } from "@mantine/notifications";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n";
 import { type Template, useCreateTemplate, useUpdateTemplate } from "./hooks";
+import { IdsRulesetForm } from "./IdsRulesetForm";
 import { OpnsenseSettingForm } from "./OpnsenseSettingForm";
 
 const ALIAS_TYPES = ["host", "network", "port", "url", "urltable", "geoip", "networkgroup", "mac", "dynipv6host"];
 
 type SettingBody = { endpoint_key: string; payload: Record<string, string> };
 const EMPTY_SETTING: SettingBody = { endpoint_key: "", payload: {} };
+
+type IdsBody = { rulesets: string[] };
+const EMPTY_IDS: IdsBody = { rulesets: [] };
 
 export function TemplateFormModal(
   { opened, onClose, editing }: { opened: boolean; onClose: () => void; editing: Template | null },
@@ -19,6 +23,7 @@ export function TemplateFormModal(
   const update = useUpdateTemplate();
   const [kind, setKind] = useState<string>("firewall_alias");
   const [settingBody, setSettingBody] = useState<SettingBody>(EMPTY_SETTING);
+  const [idsBody, setIdsBody] = useState<IdsBody>(EMPTY_IDS);
   const form = useForm({
     initialValues: { name: "", type: "host", content: "", description: "" },
   });
@@ -30,6 +35,9 @@ export function TemplateFormModal(
       setSettingBody(editing?.kind === "opnsense_setting"
         ? ((editing.body as SettingBody | undefined) ?? EMPTY_SETTING)
         : EMPTY_SETTING);
+      setIdsBody(editing?.kind === "suricata_ruleset"
+        ? ((editing.body as IdsBody | undefined) ?? EMPTY_IDS)
+        : EMPTY_IDS);
       form.setValues(editing && editing.kind !== "opnsense_setting"
         ? { name: editing.name, type: String(editing.body?.type ?? "host"),
             content: (Array.isArray(editing.body?.content) ? editing.body.content : []).join("\n"),
@@ -51,6 +59,16 @@ export function TemplateFormModal(
         } else {
           await create.mutateAsync({ kind: "opnsense_setting", name: v.name,
             description: v.description, body: settingBody });
+          notifications.show({ message: t.templates.created });
+        }
+      } else if (kind === "suricata_ruleset") {
+        if (editing) {
+          await update.mutateAsync({ id: editing.id,
+            body: { name: v.name, description: v.description, body: idsBody } });
+          notifications.show({ message: t.templates.updated });
+        } else {
+          await create.mutateAsync({ kind: "suricata_ruleset", name: v.name,
+            description: v.description, body: idsBody });
           notifications.show({ message: t.templates.created });
         }
       } else {
@@ -83,6 +101,7 @@ export function TemplateFormModal(
             data={[
               { value: "firewall_alias", label: t.templates.kindAlias },
               { value: "opnsense_setting", label: t.templates.kindSetting },
+              { value: "suricata_ruleset", label: t.templates.kindIdsRulesets },
             ]}
             value={kind}
             onChange={(k) => setKind(k ?? "firewall_alias")}
@@ -90,6 +109,8 @@ export function TemplateFormModal(
           />
           {kind === "opnsense_setting"
             ? <OpnsenseSettingForm value={settingBody} onChange={setSettingBody} />
+            : kind === "suricata_ruleset"
+            ? <IdsRulesetForm value={idsBody} onChange={setIdsBody} />
             : (
               <>
                 <Select label={t.templates.type} data={ALIAS_TYPES} data-testid="tpl-type"
