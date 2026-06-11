@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     report_weekday: str = "mon"  # weekly report day (mon..sun)
     report_hour: int = 4  # weekly report hour (UTC, 0..23)
     session_cleanup_minute: int = 0  # expired-session cleanup minute-of-hour (hourly)
+    live_push_enabled: bool = False  # master switch: real config push (default OFF -> dry-run)
 
 
 @lru_cache

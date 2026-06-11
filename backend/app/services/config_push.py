@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import uuid
 from datetime import datetime
@@ -6,7 +7,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.opnsense.client import OpnsenseError
+from app.core import crypto
+from app.core.config import get_settings
 from app.models.config_change import ConfigChange
+from app.models.config_snapshot import ConfigSnapshot
+from app.models.device import Device
 from app.repositories.config_snapshot import ConfigSnapshotRepository
 from app.services.config_diff import canonical_hash
 
@@ -54,14 +59,31 @@ def _advisory_key(device_id: uuid.UUID) -> int:
     return int.from_bytes(digest[:8], "big", signed=True)
 
 
+async def _save_pre_apply_snapshot(session: AsyncSession, change: ConfigChange, xml: str) -> uuid.UUID:
+    """Persist the current device config as an encrypted snapshot (a pre-apply rollback point)."""
+    raw = xml.encode("utf-8")
+    device = await session.get(Device, change.device_id)
+    snap = ConfigSnapshot(
+        tenant_id=change.tenant_id,
+        device_id=change.device_id,
+        canonical_hash=canonical_hash(xml),
+        content_enc=crypto.encrypt_bytes(gzip.compress(raw)),
+        opnsense_version=(device.firmware_version or "") if device is not None else "",
+        size_bytes=len(raw),
+    )
+    session.add(snap)
+    await session.flush()
+    return snap.id
+
+
 async def apply_change(
     session: AsyncSession, change: ConfigChange, client, now: datetime
 ) -> str:
     """Apply a scheduled change. Returns the new status.
 
-    Dry-run; staleness-guarded; per-device serialized. SAFETY-CRITICAL:
-    re-reads the live config and refuses to apply if it drifted from the
-    baseline captured at proposal time (no clobber).
+    Real apply only when LIVE_PUSH_ENABLED is set (otherwise dry-run); staleness-guarded;
+    per-device serialized. SAFETY-CRITICAL: re-reads the live config and refuses to apply
+    if it drifted from the baseline captured at proposal time (no clobber).
     """
     if change.status != "scheduled":
         return change.status
@@ -93,8 +115,12 @@ async def apply_change(
         return "conflict"
     change.status = "applying"
     await session.flush()
+    live = get_settings().live_push_enabled
     try:
-        res = await client.apply_alias(change.operation, change.payload, dry_run=True)
+        if live:
+            # rollback point: persist the pre-apply config (the `xml` already read above).
+            change.pre_apply_snapshot_id = await _save_pre_apply_snapshot(session, change, xml)
+        res = await client.apply_alias(change.operation, change.payload, dry_run=not live)
         change.status = "applied"
         change.applied_at = now
         change.result = res
