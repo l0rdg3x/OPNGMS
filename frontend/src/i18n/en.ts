@@ -347,7 +347,6 @@ export const en = {
     enabled: "Enabled",
     disabled: "Disabled",
     recoveryRemaining: "Recovery codes remaining",
-    loading: "Loading…",
     statusError: "Failed to load MFA status",
     // Enroll
     enroll: "Set up two-factor authentication",
@@ -402,7 +401,6 @@ export const en = {
     // Forced setup gate
     gateTitle: "Two-factor authentication required",
     gateIntro: "Your organization requires two-factor authentication. Set it up now to continue.",
-    gateDone: "Two-factor authentication is now enabled.",
   },
   confirm: {
     title: "Are you sure?",
