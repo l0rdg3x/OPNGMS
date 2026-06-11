@@ -1,0 +1,28 @@
+# gitleaks configuration for OPNGMS.
+#
+# We extend gitleaks' full default ruleset (real secrets are caught everywhere, in every file and
+# every path) and add ONE narrow allowlist that suppresses only two specific, harmless illustrative
+# strings that the entropy-based `generic-api-key` heuristic false-positives on:
+#
+#   * "SQLAlchemy/Alembic" — appears in the tech-stack prose of the design docs; the slash + mixed
+#     case makes the heuristic treat it as a key.
+#   * the local *test* database DSN `postgresql+asyncpg://opngms:opngms@localhost/...` — a throwaway
+#     local credential embedded in plan/spec snippets and all over the test suite.
+#
+# This is scoped by `regexes` (matching the secret string), NOT by `paths`: no file or directory is
+# exempted from scanning, so a real `ghp_…`, AWS key, private key, etc. is still flagged even inside
+# the design docs. Real secrets never live in the repo (they come from the environment / files
+# outside the tree). GitHub secret scanning runs alongside this as defence in depth.
+
+title = "OPNGMS gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Suppress only specific harmless illustrative strings the generic-api-key heuristic misfires on (no path is exempted)."
+regexTarget = "match"
+regexes = [
+  '''SQLAlchemy/Alembic''',
+  '''postgresql\+asyncpg://opngms:opngms@localhost''',
+]
