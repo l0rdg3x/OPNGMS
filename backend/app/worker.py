@@ -6,6 +6,7 @@ from arq.connections import RedisSettings
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+import app.services.firewall_rule_kind  # noqa: F401  — registers firewall_rule kind at worker-process startup
 import app.services.ids_kind  # noqa: F401  — registers suricata_ruleset kind at worker-process startup
 import app.services.setting_kind  # noqa: F401  — registers opnsense_setting kind at worker-process startup
 from app.connectors.opnsense.client import OpnsenseClient

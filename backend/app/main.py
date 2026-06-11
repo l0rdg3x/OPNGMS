@@ -3,12 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+import app.services.firewall_rule_kind  # noqa: F401  — registers firewall_rule kind at API-process startup
 import app.services.ids_kind  # noqa: F401  — registers suricata_ruleset kind at API-process startup
 import app.services.setting_kind  # noqa: F401  — registers opnsense_setting kind at API-process startup
 from app.api.auth import router as auth_router
 from app.api.config import router as config_router
 from app.api.devices import router as devices_router
 from app.api.events import router as events_router
+from app.api.firewall_rules import router as firewall_rules_router
 from app.api.firmware import router as firmware_router
 from app.api.ids import router as ids_router
 from app.api.me_tenants import router as me_tenants_router
@@ -53,6 +55,7 @@ app.include_router(templates_router)
 app.include_router(profiles_router)
 app.include_router(settings_router)
 app.include_router(ids_router)
+app.include_router(firewall_rules_router)
 
 
 @app.exception_handler(IntegrityError)

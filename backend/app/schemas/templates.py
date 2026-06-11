@@ -45,6 +45,11 @@ class OverrideOut(BaseModel):
 
 class ApplyTemplateIn(BaseModel):
     scheduled_at: datetime | None = None
+    bindings: dict = {}
+
+
+class PreviewTemplateIn(BaseModel):
+    bindings: dict = {}
 
 
 class TemplatePreviewOut(BaseModel):
