@@ -40,6 +40,10 @@ RECONFIGURE_TIMEOUT = 120.0
 # Plugin names must be safe for URL path embedding: alphanumeric, dots, hyphens, underscores only.
 _PLUGIN_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
+# IDS ruleset filenames embed in the toggleRuleset URL path: restrict to the safe charset
+# (verified: all real-box ruleset filenames match this) to prevent path injection.
+_RULESET_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
+
 
 def _unflatten(flat: dict) -> dict:
     """{'a.b': 1, 'a.c': 2, 'x': 3} -> {'a': {'b': 1, 'c': 2}, 'x': 3}."""
@@ -207,6 +211,30 @@ class OpnsenseClient:
         res = await self._post(set_path, {model_root: nested})
         await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "result": res}
+
+    async def list_ids_rulesets(self) -> list[dict]:
+        """Catalog of installed Suricata/IDS rulesets: [{filename, description, enabled, ...}]."""
+        return (await self._get("ids/settings/listRulesets")).get("rows", [])
+
+    async def apply_ids_rulesets(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
+        """Enable the listed IDS rulesets (additive/non-destructive), then reload the engine.
+
+        Verified against OPNsense 26.1.9: POST ids/settings/toggleRuleset/{filename}/1 enables one
+        ruleset; ids/service/reconfigure reloads Suricata. Each filename is charset-validated
+        (anti path-injection) before it is embedded in the URL path. dry_run performs NO mutation."""
+        rulesets = list(payload.get("rulesets", []))
+        if dry_run:
+            return {"dry_run": True, "rulesets": rulesets}
+        for name in rulesets:
+            await self._post(f"ids/settings/toggleRuleset/{self._ruleset_name(name)}/1", {})
+        await self._post("ids/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+        return {"dry_run": False, "enabled": rulesets}
+
+    @staticmethod
+    def _ruleset_name(name: str) -> str:
+        if not name or not _RULESET_NAME_RE.match(name):
+            raise ApiError(0, f"invalid ruleset filename: {name!r}")
+        return name
 
     @staticmethod
     def _normalize_alias_payload(payload: dict) -> dict:
