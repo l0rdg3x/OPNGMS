@@ -54,7 +54,7 @@ async def create_template(
     try:
         validate_body(body.kind, body.body)
     except InvalidTemplateError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     tpl = ConfigTemplate(
         kind=body.kind,
         name=body.name,
@@ -102,7 +102,7 @@ async def update_template(
         try:
             validate_body(tpl.kind, body.body)
         except InvalidTemplateError as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
         tpl.body = body.body
     if body.name is not None:
         tpl.name = body.name
@@ -216,7 +216,7 @@ async def preview_template(
     try:
         validate_body(tpl.kind, eff)
     except InvalidTemplateError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     # M1: firewall_alias maps to the config-push 'alias' kind
     return TemplatePreviewOut(operation="set", kind="alias", target=eff["name"], new=eff)
 
@@ -248,7 +248,7 @@ async def apply_template(
             body=eff,
         )
     except InvalidTemplateError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     change.status = "scheduled"
     change.scheduled_at = body.scheduled_at
     await session.commit()
