@@ -3114,6 +3114,98 @@
         }
       }
     },
+    "/api/opnsense/setting-endpoints": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "List Setting Endpoints",
+        "description": "The curated catalog of fleet-portable setting endpoints (powers the kind picker).",
+        "operationId": "list_setting_endpoints_api_opnsense_setting_endpoints_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response List Setting Endpoints Api Opnsense Setting Endpoints Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/devices/{device_id}/opnsense/settings/{endpoint_key}": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Introspect Setting",
+        "description": "Read the device's setting `get` and return a value-controlled field schema for the form.",
+        "operationId": "introspect_setting_api_tenants__tenant_id__devices__device_id__opnsense_settings__endpoint_key__get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "endpoint_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Endpoint Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Introspect Setting Api Tenants  Tenant Id  Devices  Device Id  Opnsense Settings  Endpoint Key  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Healthz",
