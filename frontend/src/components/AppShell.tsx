@@ -17,9 +17,11 @@ const DeviceDetailPage = lazy(() => import("../pages/DeviceDetailPage").then((m)
 const ReportsPage = lazy(() => import("../pages/ReportsPage").then((m) => ({ default: m.ReportsPage })));
 const ReportSettingsPage = lazy(() => import("../pages/ReportSettingsPage").then((m) => ({ default: m.ReportSettingsPage })));
 const SessionsPage = lazy(() => import("../security/SessionsPage").then((m) => ({ default: m.SessionsPage })));
+const TemplateLibraryPage = lazy(() => import("../pages/TemplateLibraryPage").then((m) => ({ default: m.TemplateLibraryPage })));
 
 function AppShellNav() {
   const t = useT();
+  const { me } = useAuth();
   const { activeId, tenants } = useTenant();
   const role = tenants.find((ten) => ten.id === activeId)?.role ?? null;
   return (
@@ -32,6 +34,9 @@ function AppShellNav() {
         <NavLink component={RouterNavLink} to="/reports/settings" label={t.nav.reportSettings} />
       )}
       <NavLink component={RouterNavLink} to="/security/sessions" label={t.nav.sessions} />
+      {me?.is_superadmin && (
+        <NavLink component={RouterNavLink} to="/admin/templates" label={t.nav.templates} />
+      )}
     </>
   );
 }
@@ -77,6 +82,7 @@ export function AppShell() {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/reports/settings" element={<ReportSettingsPage />} />
               <Route path="/security/sessions" element={<SessionsPage />} />
+              <Route path="/admin/templates" element={<TemplateLibraryPage />} />
             </Routes>
           </Suspense>
         </MantineAppShell.Main>
