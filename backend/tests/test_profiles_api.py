@@ -213,6 +213,113 @@ async def test_apply_empty_profile_is_400(api_client, db_engine):
     assert len(calls) == 0
 
 
+async def test_preview_profile_returns_ordered_member_previews(api_client, db_engine):
+    # superadmin creates a profile with TWO templates; a tenant operator previews it and gets
+    # an ordered list of TemplatePreviewOut items, one per member, in member order.
+    tid = await _seed_members(db_engine)
+    await _seed_superadmin(db_engine)
+    did = await _insert_device(db_engine, tid)
+    t1 = await _seed_template(
+        db_engine,
+        name="alias-a",
+        body={"name": "a", "type": "host", "content": ["1.1.1.1"]},
+    )
+    t2 = await _seed_template(
+        db_engine,
+        name="alias-b",
+        body={"name": "b", "type": "host", "content": ["2.2.2.2"]},
+    )
+    await _login(api_client, "sa@x.io")
+    created = await api_client.post(
+        "/api/profiles",
+        json={"name": "preview-baseline", "template_ids": [str(t1), str(t2)]},
+        headers=csrf_headers(api_client),
+    )
+    assert created.status_code == 201
+    pid = created.json()["id"]
+    await _login(api_client, "ta@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/devices/{did}/profiles/{pid}/preview",
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items) == 2
+    # both items carry the expected operation/kind
+    assert all(item["operation"] == "set" for item in items)
+    assert all(item["kind"] == "alias" for item in items)
+    # ORDER is preserved: first item corresponds to template t1 ("a"), second to t2 ("b")
+    assert items[0]["new"]["name"] == "a"
+    assert items[0]["new"]["content"] == ["1.1.1.1"]
+    assert items[1]["new"]["name"] == "b"
+    assert items[1]["new"]["content"] == ["2.2.2.2"]
+
+
+async def test_preview_empty_profile_is_400(api_client, db_engine):
+    # a profile with no members -> preview returns 400, nothing is computed
+    tid = await _seed_members(db_engine)
+    await _seed_superadmin(db_engine)
+    did = await _insert_device(db_engine, tid)
+    await _login(api_client, "sa@x.io")
+    created = await api_client.post(
+        "/api/profiles",
+        json={"name": "empty-preview", "template_ids": []},
+        headers=csrf_headers(api_client),
+    )
+    assert created.status_code == 201
+    pid = created.json()["id"]
+    await _login(api_client, "ta@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/devices/{did}/profiles/{pid}/preview",
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code == 400
+
+
+async def test_put_profile_replaces_member_set(api_client, db_engine):
+    # superadmin creates profile [A, B], then PUTs [C, A]; the stored set becomes [C, A] (B gone,
+    # C inserted, order preserved).
+    await _seed_members(db_engine)
+    await _seed_superadmin(db_engine)
+    tA = await _seed_template(
+        db_engine,
+        name="alias-A",
+        body={"name": "A", "type": "host", "content": ["10.0.0.1"]},
+    )
+    tB = await _seed_template(
+        db_engine,
+        name="alias-B",
+        body={"name": "B", "type": "host", "content": ["10.0.0.2"]},
+    )
+    tC = await _seed_template(
+        db_engine,
+        name="alias-C",
+        body={"name": "C", "type": "host", "content": ["10.0.0.3"]},
+    )
+    await _login(api_client, "sa@x.io")
+    created = await api_client.post(
+        "/api/profiles",
+        json={"name": "replace-test", "template_ids": [str(tA), str(tB)]},
+        headers=csrf_headers(api_client),
+    )
+    assert created.status_code == 201
+    pid = created.json()["id"]
+    # PUT replaces the member set with [C, A]
+    r = await api_client.put(
+        f"/api/profiles/{pid}",
+        json={"template_ids": [str(tC), str(tA)]},
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code == 200
+    assert r.json()["template_ids"] == [str(tC), str(tA)]
+    # verify via LIST as well (no duplicates/orphans)
+    lst = await api_client.get("/api/profiles")
+    assert lst.status_code == 200
+    rows = [p for p in lst.json() if p["id"] == pid]
+    assert len(rows) == 1
+    assert rows[0]["template_ids"] == [str(tC), str(tA)]
+
+
 async def test_apply_profile_cross_tenant_device_is_404(api_client, db_engine):
     # applying a profile to a device that belongs to another tenant -> 404 (device not found in this tenant)
     tid = await _seed_members(db_engine)
