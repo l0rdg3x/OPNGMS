@@ -16,6 +16,10 @@ class DownGwClient:
     async def get_interfaces(self): return []
     async def get_gateways(self): return [{"name": "WAN_GW", "up": False, "rtt_ms": 0.0, "loss_pct": 100.0}]
     async def get_vpn_status(self): return []
+    async def get_device_identity(self):
+        from app.connectors.opnsense.identity import DeviceIdentity
+        return DeviceIdentity(edition="community", version="26.1.9", series="26.1")
+    def set_identity(self, edition, version): pass
 
 
 async def test_poll_collects_and_opens_gateway_alert(db_engine):
