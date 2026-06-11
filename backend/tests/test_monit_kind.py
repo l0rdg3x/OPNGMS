@@ -30,6 +30,16 @@ def test_validate_rejects_bad(patch):
         tpl.validate_body("monit_test", {**_GOOD, **patch})
 
 
+def test_validate_accepts_attach_flag():
+    tpl.validate_body("monit_test", {**_GOOD, "attach_to_system": "1"})
+    tpl.validate_body("monit_test", {**_GOOD, "attach_to_system": "0"})
+
+
+def test_validate_rejects_bad_attach_flag():
+    with pytest.raises(tpl.InvalidTemplateError):
+        tpl.validate_body("monit_test", {**_GOOD, "attach_to_system": "yes"})
+
+
 async def test_applier_dispatches():
     calls = {}
 
