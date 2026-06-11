@@ -103,7 +103,7 @@ On success: re-detect identity (`get_device_identity`) → record the new firmwa
 - Connector/transport error or `upgradestatus` never completing within budget → `status="failed"` with a sanitized reason; no secret leakage in `result`.
 - `plugin_install` with pending firmware updates → `failed` ("update first"), no install.
 - Unknown `kind` / missing `target` for a plugin op → 4xx at the API (rejected before enqueue).
-- The advisory lock not acquired → the action stays `scheduled` for retry (mirrors config-push).
+- The advisory lock not acquired (a concurrent action holds the per-device lock) → the worker bails **without raising**, so the row stays `scheduled` but is **not auto-retried** by ARQ and must be re-enqueued to run. This mirrors config-push and trades guaranteed delivery for strict per-device serialization. *Follow-up:* a sweeper that re-enqueues orphaned `scheduled` actions (shared with config-push) is tracked, not built.
 
 ## 9. Testing
 
