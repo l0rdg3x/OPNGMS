@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+import app.services.firewall_rule_kind  # noqa: F401  — registers firewall_rule kind at API-process startup
 import app.services.ids_kind  # noqa: F401  — registers suricata_ruleset kind at API-process startup
 import app.services.setting_kind  # noqa: F401  — registers opnsense_setting kind at API-process startup
 from app.api.auth import router as auth_router
