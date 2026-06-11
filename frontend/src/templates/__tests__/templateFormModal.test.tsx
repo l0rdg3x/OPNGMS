@@ -186,4 +186,32 @@ describe("TemplateFormModal — firewall_rule", () => {
       )
     );
   });
+
+  it("refuses to save a firewall_rule with an empty description (it is the rule identity)", async () => {
+    const capture = vi.fn();
+    server.use(
+      http.get("/api/tenants/t1/devices", () => HttpResponse.json(DEVICES)),
+      http.get(
+        "/api/tenants/t1/devices/d1/opnsense/firewall/rule-model",
+        () => HttpResponse.json(RULE_MODEL),
+      ),
+      http.post("/api/templates", async ({ request }) => {
+        capture(await request.json());
+        return HttpResponse.json({ id: "x", kind: "firewall_rule", name: "n", version: 1 }, { status: 201 });
+      }),
+    );
+
+    renderModal();
+    await userEvent.type(screen.getByTestId("tpl-name"), "No description");
+    await userEvent.click(screen.getByTestId("tpl-kind"));
+    await userEvent.click(await screen.findByText("Firewall rule (Rules [new])"));
+    await userEvent.click(await screen.findByTestId("fw-device"));
+    await userEvent.click(await screen.findByText("fw1"));
+    await userEvent.click(screen.getByTestId("fw-load"));
+    // description left empty -> save is blocked client-side, no POST is made.
+    await screen.findByTestId("fw-field-action");
+    await userEvent.click(screen.getByTestId("tpl-save"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(capture).not.toHaveBeenCalled();
+  });
 });

@@ -80,6 +80,10 @@ export function TemplateFormModal(
           notifications.show({ message: t.templates.created });
         }
       } else if (kind === "firewall_rule") {
+        if (!String(ruleBody.payload.description ?? "").trim()) {
+          notifications.show({ color: "red", message: t.templates.fw.descriptionRequired });
+          return;
+        }
         if (editing) {
           await update.mutateAsync({ id: editing.id,
             body: { name: v.name, description: v.description, body: ruleBody.payload } });
