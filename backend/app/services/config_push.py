@@ -13,6 +13,7 @@ from app.models.config_change import ConfigChange
 from app.models.config_snapshot import ConfigSnapshot
 from app.models.device import Device
 from app.repositories.config_snapshot import ConfigSnapshotRepository
+from app.services.config_apply import apply_for_kind
 from app.services.config_diff import canonical_hash
 
 
@@ -120,7 +121,7 @@ async def apply_change(
         if live:
             # rollback point: persist the pre-apply config (the `xml` already read above).
             change.pre_apply_snapshot_id = await _save_pre_apply_snapshot(session, change, xml)
-        res = await client.apply_alias(change.operation, change.payload, dry_run=not live)
+        res = await apply_for_kind(client, change.kind, change.operation, change.payload, dry_run=not live)
         change.status = "applied"
         change.applied_at = now
         change.result = res
