@@ -11,6 +11,7 @@ from app.core.deps import (
     enforce_csrf,
     get_current_session,
     get_current_user,
+    get_enrollment_ctx,
 )
 from app.core.ratelimit import SlidingWindowLimiter
 from app.models.session import Session
@@ -173,5 +174,9 @@ async def list_sessions(
 
 
 @router.get("/me", response_model=MeOut)
-async def me(user: User = Depends(get_current_user)) -> User:
-    return user
+async def me(ctx: tuple[User, Session] = Depends(get_enrollment_ctx)) -> MeOut:
+    user, sess = ctx
+    return MeOut(
+        id=user.id, email=user.email, name=user.name,
+        is_superadmin=user.is_superadmin, mfa_setup_required=(sess.kind == "mfa_setup"),
+    )

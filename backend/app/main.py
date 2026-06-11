@@ -16,6 +16,7 @@ from app.api.firmware import router as firmware_router
 from app.api.ids import router as ids_router
 from app.api.me_tenants import router as me_tenants_router
 from app.api.memberships import router as memberships_router
+from app.api.mfa import router as mfa_router
 from app.api.monit import router as monit_router
 from app.api.monitoring import router as monitoring_router
 from app.api.profiles import router as profiles_router
@@ -43,6 +44,7 @@ if _origins:
 
 app.include_router(setup_router)
 app.include_router(auth_router)
+app.include_router(mfa_router)
 app.include_router(tenants_router)
 app.include_router(users_router)
 app.include_router(memberships_router)
