@@ -22,6 +22,17 @@ export const en = {
     passwordToggle: "Show/hide",
     submit: "Sign in",
     invalidCredentials: "Invalid credentials",
+    mfa: {
+      title: "Two-factor authentication",
+      codeHint: "Enter the 6-digit code from your authenticator app.",
+      recoveryHint: "Enter one of your one-time recovery codes.",
+      codeLabel: "Authentication code",
+      recoveryLabel: "Recovery code",
+      verify: "Verify",
+      useRecovery: "Use a recovery code instead",
+      useCode: "Use an authenticator code instead",
+      invalidCode: "Invalid code",
+    },
   },
   tenant: {
     activeLabel: "Active tenant",
