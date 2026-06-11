@@ -1,4 +1,5 @@
 from app.models.alert import Alert
+from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.config_change import ConfigChange
@@ -17,10 +18,13 @@ from app.models.session import Session
 from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.models.user_mfa import UserMfa  # noqa: F401
+from app.models.user_recovery_code import UserRecoveryCode  # noqa: F401
 
 __all__ = [
     "Base",
     "Alert",
+    "AppSetting",
     "AuditLog",
     "ConfigChange",
     "ConfigProfile",
@@ -39,4 +43,6 @@ __all__ = [
     "Session",
     "Tenant",
     "User",
+    "UserMfa",
+    "UserRecoveryCode",
 ]

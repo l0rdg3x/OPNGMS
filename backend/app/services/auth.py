@@ -37,7 +37,8 @@ class AuthService:
         self,
         user: User,
         *,
-        ttl_hours: int,
+        ttl_hours: float,
+        kind: str = "full",
         ip: str | None = None,
         user_agent: str | None = None,
     ) -> tuple[Session, str]:
@@ -46,6 +47,7 @@ class AuthService:
         raw_token = secrets.token_urlsafe(32)
         sess = Session(
             user_id=user.id,
+            kind=kind,
             token_hash=_hash_token(raw_token),
             csrf_token=secrets.token_urlsafe(32),
             last_seen_at=now,

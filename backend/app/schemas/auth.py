@@ -22,6 +22,12 @@ class MeOut(BaseModel):
     email: EmailStr
     name: str
     is_superadmin: bool
+    mfa_setup_required: bool = False
+
+
+class LoginOut(BaseModel):
+    status: str  # "ok" | "mfa_required" | "mfa_setup_required"
+    user: MeOut | None = None
 
 
 class SessionInfo(BaseModel):
