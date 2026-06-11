@@ -9,9 +9,11 @@ import { renderWithProviders } from "../../test/utils";
 
 const me = { id: "1", email: "op@x.io", name: "Op", is_superadmin: false };
 
-function withAuth(node: ReactNode) {
+function withAuth(node: ReactNode, is_superadmin = false) {
   return (
-    <AuthContext.Provider value={{ me, loading: false, refresh: vi.fn(), setMe: vi.fn() }}>
+    <AuthContext.Provider
+      value={{ me: { ...me, is_superadmin }, loading: false, refresh: vi.fn(), setMe: vi.fn() }}
+    >
       {node}
     </AuthContext.Provider>
   );
@@ -32,5 +34,30 @@ describe("AppShell", () => {
     renderWithProviders(withAuth(<AppShell />));
     expect(await screen.findByText("op@x.io")).toBeInTheDocument();
     expect(await screen.findByText(/Alpha/)).toBeInTheDocument();
+  });
+
+  it("shows the Template library nav link only for superadmins", async () => {
+    server.use(
+      http.get("/api/me/tenants", () =>
+        HttpResponse.json([{ id: "t1", name: "Alpha", slug: "alpha", role: "operator" }]),
+      ),
+      http.get("/api/tenants/t1/health", () =>
+        HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
+      ),
+      http.get("/api/tenants/t1/alerts", () => HttpResponse.json([])),
+    );
+
+    // Superadmin: link should be present
+    const { unmount } = renderWithProviders(withAuth(<AppShell />, true));
+    expect(
+      await screen.findByRole("link", { name: /template library/i }),
+    ).toBeInTheDocument();
+    unmount();
+
+    // Non-superadmin: link should be absent
+    renderWithProviders(withAuth(<AppShell />, false));
+    // Wait for the shell to render (use the email as a proxy)
+    expect(await screen.findByText("op@x.io")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /template library/i })).toBeNull();
   });
 });
