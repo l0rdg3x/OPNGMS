@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,12 +10,6 @@ import { server } from "../../test/server";
 import { I18nProvider } from "../../i18n";
 import { TenantContext } from "../../tenant/TenantProvider";
 import { TemplateFormModal } from "../TemplateFormModal";
-
-// jsdom does not implement Element.scrollIntoView; Mantine's Combobox calls it on a
-// deferred timer when navigating options, which surfaces as an unhandled exception.
-beforeAll(() => {
-  Element.prototype.scrollIntoView = () => {};
-});
 
 const DEVICES = [
   {

@@ -26,6 +26,9 @@ class ResizeObserverMock {
 }
 globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
 
+// jsdom does not implement Element.scrollIntoView; Mantine's Combobox calls it while navigating.
+Element.prototype.scrollIntoView = () => {};
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
