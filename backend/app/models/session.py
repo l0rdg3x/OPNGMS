@@ -14,6 +14,9 @@ class Session(UUIDPKMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
+    # Session scope: "full" (normal), "mfa_pending" (password ok, awaiting TOTP), or
+    # "mfa_setup" (policy requires MFA but the user is not yet enrolled).
+    kind: Mapped[str] = mapped_column(String(16), default="full", server_default="full")
     # SHA-256 hex of the opaque bearer token. The raw token lives only in the cookie;
     # a DB dump therefore yields no usable session tokens.
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
