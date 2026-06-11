@@ -34,6 +34,10 @@ class ParseError(OpnsenseError):
     """Response not interpretable as JSON."""
 
 
+# firewall/alias/reconfigure reloads the firewall tables and is slow; give it room.
+RECONFIGURE_TIMEOUT = 120.0
+
+
 class OpnsenseClient:
     """Single HTTP boundary toward an OPNsense device.
 
@@ -64,7 +68,7 @@ class OpnsenseClient:
         self._resolver = CapabilityResolver(edition, version)
 
     async def _request(
-        self, path: str, method: str = "GET", json: dict | None = None
+        self, path: str, method: str = "GET", json: dict | None = None, timeout: float | None = None
     ) -> httpx.Response:
         """SSRF-guarded request toward the device API; the single guarded HTTP boundary.
 
@@ -99,7 +103,7 @@ class OpnsenseClient:
         try:
             async with httpx.AsyncClient(
                 verify=self._verify,
-                timeout=self._timeout,
+                timeout=timeout or self._timeout,
                 auth=self._auth,
                 follow_redirects=False,
             ) as client:
@@ -122,8 +126,8 @@ class OpnsenseClient:
     async def _get(self, path: str) -> dict:
         return self._decode(await self._request(path))
 
-    async def _post(self, path: str, json: dict) -> dict:
-        return self._decode(await self._request(path, "POST", json))
+    async def _post(self, path: str, json: dict, timeout: float | None = None) -> dict:
+        return self._decode(await self._request(path, "POST", json, timeout=timeout))
 
     def set_identity(self, edition: str, version: str) -> None:
         """Switch the resolver to a device's detected (edition, version)."""
@@ -151,22 +155,40 @@ class OpnsenseClient:
     async def apply_alias(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
         """Apply a firewall alias change. dry_run=True (default) performs NO mutation.
 
-        NOTE: endpoints `firewall/alias/{addItem,setItem,delItem}` + `firewall/alias/reconfigure`
-        and the payload shape are TO BE VERIFIED against a real OPNsense device (4D-b). Goes
-        through the single SSRF-guarded HTTP boundary.
+        Verified against OPNsense 26.1.9: add -> addItem; set/delete need the uuid in the path,
+        resolved by exact name via searchItem; reconfigure is slow (long timeout). Goes through
+        the single SSRF-guarded HTTP boundary.
         """
         if dry_run:
             return {"dry_run": True, "operation": operation, "target": payload.get("name", "")}
-        endpoints = {
-            "add": "firewall/alias/addItem",
-            "set": "firewall/alias/setItem",
-            "delete": "firewall/alias/delItem",
-        }
-        if operation not in endpoints:
+        if operation == "add":
+            res = await self._post("firewall/alias/addItem", {"alias": payload})
+        elif operation in ("set", "delete"):
+            alias_uuid = await self._resolve_alias_uuid(payload.get("name", ""))
+            if operation == "set":
+                res = await self._post(f"firewall/alias/setItem/{alias_uuid}", {"alias": payload})
+            else:
+                res = await self._post(f"firewall/alias/delItem/{alias_uuid}", {})
+        else:
             raise ApiError(0, f"unknown alias operation: {operation}")
-        res = await self._post(endpoints[operation], {"alias": payload})
-        await self._post("firewall/alias/reconfigure", {})
+        await self._post("firewall/alias/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "result": res}
+
+    async def _resolve_alias_uuid(self, name: str) -> str:
+        """Resolve a firewall alias name to its uuid via searchItem (EXACT name match).
+
+        searchItem does substring matching, so we filter to an exact name. Refuses (ApiError)
+        when the name is empty or does not resolve to exactly one alias — never mutates on doubt.
+        """
+        if not name:
+            raise ApiError(0, "alias name required for set/delete")
+        data = await self._post(
+            "firewall/alias/searchItem", {"current": 1, "rowCount": 1000, "searchPhrase": name}
+        )
+        matches = [r for r in data.get("rows", []) if r.get("name") == name]
+        if len(matches) != 1:
+            raise ApiError(0, f"alias '{name}' not uniquely resolvable ({len(matches)} exact matches)")
+        return matches[0]["uuid"]
 
     async def get_system_info(self) -> dict:
         return await self._capability("system_info")
