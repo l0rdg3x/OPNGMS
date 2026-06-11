@@ -2,7 +2,9 @@ from app.models.base import Base
 from app.models.alert import Alert
 from app.models.audit import AuditLog
 from app.models.config_change import ConfigChange
+from app.models.config_template import ConfigTemplate  # noqa: F401
 from app.models.firmware_action import FirmwareAction  # noqa: F401
+from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.config_snapshot import ConfigSnapshot
 from app.models.device import Device
 from app.models.event import Event
@@ -20,7 +22,9 @@ __all__ = [
     "Alert",
     "AuditLog",
     "ConfigChange",
+    "ConfigTemplate",
     "FirmwareAction",
+    "TemplateOverride",
     "ConfigSnapshot",
     "Device",
     "Event",

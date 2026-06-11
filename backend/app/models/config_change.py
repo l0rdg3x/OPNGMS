@@ -31,6 +31,9 @@ class ConfigChange(UUIDPKMixin, Base):
     pre_apply_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), default=None
     )
+    source_template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("config_templates.id", ondelete="SET NULL"), default=None
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

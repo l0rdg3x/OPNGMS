@@ -13,6 +13,7 @@ from app.api.memberships import router as memberships_router
 from app.api.monitoring import router as monitoring_router
 from app.api.reports import router as reports_router
 from app.api.setup import router as setup_router
+from app.api.templates import router as templates_router
 from app.api.tenants import router as tenants_router
 from app.api.users import router as users_router
 from app.core.config import get_settings
@@ -43,6 +44,7 @@ app.include_router(events_router)
 app.include_router(config_router)
 app.include_router(firmware_router)
 app.include_router(reports_router)
+app.include_router(templates_router)
 
 
 @app.exception_handler(IntegrityError)
