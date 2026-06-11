@@ -46,6 +46,22 @@ const PREVIEW = [
   { operation: "set", kind: "alias", target: "b", new: { name: "b", content: ["2.2.2.2"] } },
 ];
 
+// A profile whose preview includes a firewall_rule member (needs an apply-time interface binding).
+const FW_PREVIEW = [
+  { operation: "set", kind: "alias", target: "a", new: { name: "a", content: ["1.1.1.1"] } },
+  {
+    operation: "set",
+    kind: "firewall_rule",
+    target: "block-telnet",
+    new: { description: "block-telnet", action: "block", interface: "" },
+  },
+];
+
+const RULE_MODEL = {
+  fields: [{ path: "action", label: "action", control: "select", value: "block" }],
+  interfaces: [{ value: "wan", label: "WAN" }],
+};
+
 function withTenant(node: ReactNode) {
   return (
     <TenantContext.Provider
@@ -136,5 +152,79 @@ describe("ApplyProfileSection", () => {
       expect(call.scheduled_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
       expect(call.scheduled_at).not.toContain(" ");
     });
+  });
+
+  it("no firewall_rule member: no interface picker, apply sends empty bindings", async () => {
+    server.use(http.get("/api/profiles", () => HttpResponse.json([P])));
+    server.use(
+      http.post("/api/tenants/t1/devices/d1/profiles/p1/preview", () =>
+        HttpResponse.json(PREVIEW),
+      ),
+    );
+    const posted = vi.fn();
+    server.use(
+      http.post("/api/tenants/t1/devices/d1/profiles/p1/apply", async ({ request }) => {
+        posted(await request.json());
+        return HttpResponse.json({ change_ids: ["c1", "c2"], status: "scheduled" });
+      }),
+    );
+    renderWithProviders(withTenant(<ApplyProfileSection deviceId="d1" />));
+
+    const pick = await screen.findByTestId("prof-pick");
+    await userEvent.click(pick);
+    await userEvent.click(await screen.findByText("Small"));
+
+    await userEvent.click(screen.getByTestId("prof-preview"));
+    await screen.findByTestId("prof-preview-out");
+    // No interface picker for an alias-only profile.
+    expect(screen.queryByTestId("prof-apply-interface")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("btn-prof-apply"));
+    await userEvent.click(await screen.findByTestId("btn-prof-apply-now"));
+    await waitFor(() =>
+      expect(posted).toHaveBeenCalledWith(
+        expect.objectContaining({ scheduled_at: null, bindings: {} }),
+      ),
+    );
+  });
+
+  it("firewall_rule member: interface picker appears, apply sends the chosen binding", async () => {
+    server.use(http.get("/api/profiles", () => HttpResponse.json([P])));
+    server.use(
+      http.get("/api/tenants/t1/devices/d1/opnsense/firewall/rule-model", () =>
+        HttpResponse.json(RULE_MODEL),
+      ),
+    );
+    server.use(
+      http.post("/api/tenants/t1/devices/d1/profiles/p1/preview", () =>
+        HttpResponse.json(FW_PREVIEW),
+      ),
+    );
+    const posted = vi.fn();
+    server.use(
+      http.post("/api/tenants/t1/devices/d1/profiles/p1/apply", async ({ request }) => {
+        posted(await request.json());
+        return HttpResponse.json({ change_ids: ["c1", "c2"], status: "scheduled" });
+      }),
+    );
+    renderWithProviders(withTenant(<ApplyProfileSection deviceId="d1" />));
+
+    const pick = await screen.findByTestId("prof-pick");
+    await userEvent.click(pick);
+    await userEvent.click(await screen.findByText("Small"));
+
+    // Preview reveals a firewall_rule member -> the interface picker appears.
+    await userEvent.click(screen.getByTestId("prof-preview"));
+    const iface = await screen.findByTestId("prof-apply-interface");
+    await userEvent.click(iface);
+    await userEvent.click(await screen.findByText("WAN"));
+
+    await userEvent.click(screen.getByTestId("btn-prof-apply"));
+    await userEvent.click(await screen.findByTestId("btn-prof-apply-now"));
+    await waitFor(() =>
+      expect(posted).toHaveBeenCalledWith(
+        expect.objectContaining({ scheduled_at: null, bindings: { interface: "wan" } }),
+      ),
+    );
   });
 });

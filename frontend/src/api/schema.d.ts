@@ -1089,6 +1089,13 @@ export interface components {
         ApplyProfileIn: {
             /** Scheduled At */
             scheduled_at?: string | null;
+            /**
+             * Bindings
+             * @default {}
+             */
+            bindings: {
+                [key: string]: unknown;
+            };
         };
         /** ApplyTemplateIn */
         ApplyTemplateIn: {
@@ -4076,7 +4083,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PreviewTemplateIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

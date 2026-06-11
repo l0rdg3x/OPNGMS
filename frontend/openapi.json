@@ -3345,6 +3345,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PreviewTemplateIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3807,6 +3824,12 @@
               }
             ],
             "title": "Scheduled At"
+          },
+          "bindings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Bindings",
+            "default": {}
           }
         },
         "type": "object",

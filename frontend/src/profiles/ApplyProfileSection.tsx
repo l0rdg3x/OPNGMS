@@ -1,8 +1,9 @@
 import { Button, Card, Code, Group, Modal, Select, Stack, Text, Title } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "../i18n";
+import { useFirewallRuleModel } from "../templates/settingHooks";
 import { useApplyProfile, usePreviewProfile, useProfiles } from "./hooks";
 
 export function ApplyProfileSection({ deviceId }: { deviceId: string }) {
@@ -11,9 +12,28 @@ export function ApplyProfileSection({ deviceId }: { deviceId: string }) {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [when, setWhen] = useState<string | null>(null);
+  const [iface, setIface] = useState<string>("");
+  const [interfaces, setInterfaces] = useState<{ value: string; label: string }[]>([]);
 
   const preview = usePreviewProfile(deviceId);
   const apply = useApplyProfile(deviceId);
+  const ruleModel = useFirewallRuleModel(deviceId);
+
+  // A firewall_rule member needs an apply-time interface binding (one interface for the whole
+  // profile application; empty = floating). We only know member kinds after a preview.
+  const hasFwRule = preview.data?.some((p) => p.kind === "firewall_rule") ?? false;
+  // Apply-time bindings: thread the chosen interface only when the profile has a firewall_rule.
+  const bindings: Record<string, unknown> = hasFwRule ? { interface: iface } : {};
+
+  // When a preview reveals a firewall_rule member, load the device's interfaces for the picker.
+  useEffect(() => {
+    if (hasFwRule && interfaces.length === 0) {
+      ruleModel.mutateAsync().then((res) => setInterfaces(res.interfaces)).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFwRule]);
+
+  const interfaceData = [{ value: "", label: t.templates.profiles.apply.floating }, ...interfaces];
 
   // The ordered list of member previews, one line per template.
   const previewLines = preview.data?.map((p) => {
@@ -21,11 +41,22 @@ export function ApplyProfileSection({ deviceId }: { deviceId: string }) {
     return (n.name ?? "") + ": " + (n.content ?? []).join(", ");
   });
 
+  // Reset the picked interface whenever a different profile is selected.
+  function pickProfile(id: string | null) {
+    setProfileId(id);
+    setIface("");
+    setInterfaces([]);
+  }
+
   function runPreview() {
     if (!profileId) return;
-    preview.mutate(profileId, {
-      onError: () => notifications.show({ color: "red", message: t.templates.profiles.apply.failed }),
-    });
+    preview.mutate(
+      { profileId, bindings },
+      {
+        onError: () =>
+          notifications.show({ color: "red", message: t.templates.profiles.apply.failed }),
+      },
+    );
   }
 
   function openConfirm() {
@@ -37,7 +68,7 @@ export function ApplyProfileSection({ deviceId }: { deviceId: string }) {
     if (!profileId) return;
     const scheduled_at = scheduled && when ? new Date(when.replace(" ", "T")).toISOString() : null;
     try {
-      await apply.mutateAsync({ profileId, scheduled_at });
+      await apply.mutateAsync({ profileId, scheduled_at, bindings });
       notifications.show({ message: t.templates.profiles.apply.queued });
     } catch {
       notifications.show({ color: "red", message: t.templates.profiles.apply.failed });
@@ -66,9 +97,18 @@ export function ApplyProfileSection({ deviceId }: { deviceId: string }) {
             placeholder={t.templates.profiles.apply.pick}
             data={profiles.map((p) => ({ value: p.id, label: p.name }))}
             value={profileId}
-            onChange={setProfileId}
+            onChange={pickProfile}
             data-testid="prof-pick"
           />
+          {hasFwRule && (
+            <Select
+              label={t.templates.profiles.apply.interface}
+              data={interfaceData}
+              value={iface}
+              onChange={(v) => setIface(v ?? "")}
+              data-testid="prof-apply-interface"
+            />
+          )}
           {profileId && (
             <Group>
               <Button
