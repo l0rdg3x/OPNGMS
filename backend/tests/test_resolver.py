@@ -56,3 +56,10 @@ def test_resolve_never_returns_none():
     r = CapabilityResolver("community", "1.0", rules={"cap": [
         ProfileRule("any", None, None, _spec("only"))]})
     assert _path(r, "cap") == "only"
+
+
+def test_resolve_unknown_capability_raises_clear_error():
+    import pytest
+    r = CapabilityResolver("community", "26.1.9", rules=_rules())
+    with pytest.raises(ValueError):
+        r.resolve("does-not-exist")

@@ -15,7 +15,9 @@ class CapabilityResolver:
         self._rules = rules if rules is not None else CAPABILITIES
 
     def resolve(self, capability: str) -> EndpointSpec:
-        rules = self._rules[capability]
+        rules = self._rules.get(capability)
+        if not rules:
+            raise ValueError(f"unknown or empty capability profile: {capability!r}")
         for rule in rules:
             if rule.edition not in ("any", self.edition):
                 continue
