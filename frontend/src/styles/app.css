@@ -1,0 +1,170 @@
+/* ── "Midnight NOC" global atmosphere & component polish ──────────────────── */
+
+:root {
+  --noc-accent: #30d0b2;
+  --noc-canvas: #0e151d;
+  --noc-panel: #141c25;
+  --noc-border: #283544;
+  --noc-glow: rgba(48, 208, 178, 0.10);
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  background-color: var(--noc-canvas);
+}
+
+/* Layered atmosphere: two faint signal/indigo light sources + a fine grain overlay.
+   Fixed so it never scrolls; pointer-events:none so it never interferes. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 600px at 0% -5%, rgba(48, 208, 178, 0.08), transparent 60%),
+    radial-gradient(1100px 700px at 100% 0%, rgba(56, 120, 190, 0.07), transparent 55%),
+    radial-gradient(800px 800px at 85% 110%, rgba(48, 208, 178, 0.05), transparent 60%);
+}
+
+/* Subtle film grain via an inline SVG noise texture (very low opacity). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Keep the actual app above the atmosphere layers. */
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* Refined scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a3a48 transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: #2a3a48;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: #36495a; background-clip: content-box; }
+
+::selection {
+  background: rgba(48, 208, 178, 0.30);
+  color: #eafff9;
+}
+
+/* ── Layout chrome ─────────────────────────────────────────────────────────── */
+
+/* Header: glassy, hairline divider, sits on the atmosphere. */
+.mantine-AppShell-header {
+  background: rgba(14, 21, 29, 0.72) !important;
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--noc-border) !important;
+}
+
+/* Sidebar: slightly raised surface with a hairline edge. */
+.mantine-AppShell-navbar {
+  background: linear-gradient(180deg, #111922 0%, #0d141c 100%) !important;
+  border-right: 1px solid var(--noc-border) !important;
+}
+
+.mantine-AppShell-main {
+  position: relative;
+}
+
+/* NavLink: quiet by default, lit accent rail + tint when active. */
+.mantine-NavLink-root {
+  border-radius: 8px;
+  margin-bottom: 2px;
+  color: #aebccb;
+  position: relative;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.mantine-NavLink-root:hover { background-color: rgba(255, 255, 255, 0.035); color: #e7eef4; }
+.mantine-NavLink-root[data-active] {
+  background-color: rgba(48, 208, 178, 0.10);
+  color: #eafff9;
+}
+.mantine-NavLink-root[data-active]::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--noc-accent);
+  box-shadow: 0 0 12px var(--noc-accent);
+}
+.mantine-NavLink-label { font-size: 0.9rem; font-weight: 500; }
+
+/* ── Surfaces ──────────────────────────────────────────────────────────────── */
+
+.mantine-Card-root,
+.mantine-Paper-root[data-with-border] {
+  background: linear-gradient(180deg, #161f29 0%, #131a23 100%);
+  border-color: var(--noc-border);
+}
+
+/* Tables: uppercase, tracked headers; mono-friendly cells; lifted hover. */
+.mantine-Table-thead .mantine-Table-th {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #8aa0b3;
+}
+.mantine-Table-tbody .mantine-Table-tr { transition: background-color 100ms ease; }
+.mantine-Table-tbody .mantine-Table-tr:hover { background-color: rgba(48, 208, 178, 0.05); }
+
+/* Buttons: confident weight, a touch of lift on the filled primary. */
+.mantine-Button-root { font-weight: 600; letter-spacing: 0.01em; }
+.mantine-Button-root[data-variant="filled"] {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 6px 18px -10px var(--noc-accent);
+}
+
+/* Headings: tighten tracking for the instrument feel. */
+.mantine-Title-root { letter-spacing: -0.015em; }
+
+/* Badges: mono, technical. */
+.mantine-Badge-root { font-family: "IBM Plex Mono", monospace; letter-spacing: 0.02em; }
+
+/* ── Utilities ─────────────────────────────────────────────────────────────── */
+
+.noc-mono { font-family: "IBM Plex Mono", monospace; }
+
+/* Big instrument readout for metric tiles. */
+.noc-metric {
+  font-family: "IBM Plex Mono", monospace;
+  font-feature-settings: "tnum" 1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.noc-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #8aa0b3;
+}
+
+/* Staggered fade-in for the main content on route load. */
+@keyframes nocRise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.mantine-AppShell-main > * { animation: nocRise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
