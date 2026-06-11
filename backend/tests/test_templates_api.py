@@ -1,11 +1,12 @@
 import json
 import uuid
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.queue import get_enqueuer
 from app.main import app
+from app.models.audit import AuditLog
 from tests.conftest import csrf_headers
 from tests.factories import make_membership, make_tenant, make_user
 
@@ -164,6 +165,65 @@ async def test_apply_template_enqueues_config_change(api_client, db_engine):
     assert defer_until is None
     # the enqueued arg is the new change's id
     assert args == (r.json()["change_id"],)
+
+
+async def test_apply_template_writes_audit_row(api_client, db_engine):
+    # applying a template records a template.apply audit row for the new config_change
+    tid = await _seed_members(db_engine)
+    did = await _insert_device(db_engine, tid)
+    template_id = await _seed_template(db_engine)
+    _override_enqueuer()
+    await _login(api_client, "ta@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/devices/{did}/templates/{template_id}/apply",
+        json={"scheduled_at": None},
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code in (200, 201)
+    change_id = r.json()["change_id"]
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        rows = (
+            await s.execute(
+                select(AuditLog).where(AuditLog.action == "template.apply")
+            )
+        ).scalars().all()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.target_type == "config_change"
+    assert row.target_id == change_id
+    assert row.tenant_id == tid
+    assert row.details.get("template_id") == str(template_id)
+
+
+async def test_create_template_writes_audit_row(api_client, db_engine):
+    # superadmin creating a library template records a template.create audit row (tenant_id=None)
+    await _seed_superadmin(db_engine)
+    await _login(api_client, "sa@x.io")
+    r = await api_client.post(
+        "/api/templates",
+        json={
+            "kind": "firewall_alias",
+            "name": "audited",
+            "body": {"name": "audited", "type": "host", "content": ["1.2.3.4"]},
+        },
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code == 201
+    tpl_id = r.json()["id"]
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        rows = (
+            await s.execute(
+                select(AuditLog).where(AuditLog.action == "template.create")
+            )
+        ).scalars().all()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.target_type == "config_template"
+    assert row.target_id == tpl_id
+    assert row.tenant_id is None
+    assert row.details.get("name") == "audited"
 
 
 async def test_apply_invalid_effective_body_is_422(api_client, db_engine):

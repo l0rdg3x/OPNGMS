@@ -27,6 +27,7 @@ from app.schemas.templates import (
     TemplatePreviewOut,
     TemplateUpdateIn,
 )
+from app.services.audit import AuditService
 from app.services.templates import (
     InvalidTemplateError,
     effective_body,
@@ -63,6 +64,16 @@ async def create_template(
         created_by=user.id,
     )
     session.add(tpl)
+    await session.flush()
+    await AuditService(session).record(
+        actor_user_id=user.id,
+        tenant_id=None,
+        action="template.create",
+        target_type="config_template",
+        target_id=str(tpl.id),
+        ip=None,
+        details={"kind": tpl.kind, "name": tpl.name},
+    )
     await session.commit()
     await session.refresh(tpl)
     return TemplateOut.model_validate(tpl)
@@ -109,6 +120,15 @@ async def update_template(
     if body.description is not None:
         tpl.description = body.description
     tpl.version += 1
+    await AuditService(session).record(
+        actor_user_id=user.id,
+        tenant_id=None,
+        action="template.update",
+        target_type="config_template",
+        target_id=str(tpl.id),
+        ip=None,
+        details={"version": tpl.version},
+    )
     await session.commit()
     await session.refresh(tpl)
     return TemplateOut.model_validate(tpl)
@@ -127,7 +147,17 @@ async def delete_template(
     tpl = await session.get(ConfigTemplate, template_id)
     # Idempotent: deleting a non-existent template is a no-op (204).
     if tpl is not None:
+        tid = str(tpl.id)
         await session.delete(tpl)
+        await AuditService(session).record(
+            actor_user_id=user.id,
+            tenant_id=None,
+            action="template.delete",
+            target_type="config_template",
+            target_id=tid,
+            ip=None,
+            details={},
+        )
         await session.commit()
 
 
@@ -169,6 +199,15 @@ async def upsert_override(
         session.add(existing)
     else:
         existing.body_patch = body.body_patch
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="template.override",
+        target_type="template_override",
+        target_id=str(template_id),
+        ip=None,
+        details={},
+    )
     await session.commit()
     await session.refresh(existing)
     return OverrideOut.model_validate(existing)
@@ -251,6 +290,15 @@ async def apply_template(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     change.status = "scheduled"
     change.scheduled_at = body.scheduled_at
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id,
+        tenant_id=tenant_id,
+        action="template.apply",
+        target_type="config_change",
+        target_id=str(change.id),
+        ip=None,
+        details={"template_id": str(template_id), "status": "scheduled"},
+    )
     await session.commit()
     await enqueue("apply_config_change", str(change.id), defer_until=body.scheduled_at)
     return {"change_id": str(change.id), "status": "scheduled"}
