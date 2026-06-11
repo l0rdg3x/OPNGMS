@@ -37,6 +37,23 @@ export function useTenantDevices() {
   });
 }
 
+export type RulesetRow = { filename: string; description: string; enabled: string };
+
+export function useIdsRulesets(deviceId: string) {
+  const { activeId } = useTenant();
+  const t = useT();
+  return useMutation({
+    mutationFn: async (): Promise<RulesetRow[]> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/devices/{device_id}/opnsense/ids/rulesets",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId } } },
+      );
+      if (error || !data) throw new Error(t.templates.ids.loadFailed);
+      return data as RulesetRow[];
+    },
+  });
+}
+
 export function useIntrospectSetting(deviceId: string) {
   const { activeId } = useTenant();
   const t = useT();

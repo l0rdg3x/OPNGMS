@@ -152,6 +152,17 @@ export const en = {
       noFields: "No configurable fields.",
       hardwareNote: "Hardware/device-specific fields are intentionally not templatable.",
     },
+    kindIdsRulesets: "Suricata/IDS rulesets",
+    ids: {
+      referenceDevice: "Reference device (to read the available rulesets)",
+      load: "Load rulesets",
+      loadHint: "Pick a device, then load its rulesets to choose which to enable.",
+      noDevice: "No device available in the active tenant to read rulesets from.",
+      loadFailed: "Could not read the rulesets from the device.",
+      rulesets: "Rulesets to enable",
+      noRulesets: "No rulesets found on the device.",
+      note: "Applying enables the selected rulesets (additive — it does not disable others).",
+    },
     profiles: {
       tab: "Profiles",
       name: "Name",
