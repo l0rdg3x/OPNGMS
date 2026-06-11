@@ -162,7 +162,7 @@ describe("MfaPanel — superadmin section", () => {
       http.get(POLICY_URL, () => HttpResponse.json({ mode: "off" })),
       http.put(POLICY_URL, async ({ request }) => {
         policyBody = await request.json();
-        return HttpResponse.json(policyBody);
+        return HttpResponse.json({ mode: (policyBody as { mode: string }).mode });
       }),
       http.get(USERS_URL, () =>
         HttpResponse.json([
