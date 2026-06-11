@@ -41,6 +41,18 @@ RECONFIGURE_TIMEOUT = 120.0
 _PLUGIN_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
 
+def _unflatten(flat: dict) -> dict:
+    """{'a.b': 1, 'a.c': 2, 'x': 3} -> {'a': {'b': 1, 'c': 2}, 'x': 3}."""
+    out: dict = {}
+    for key, val in flat.items():
+        parts = key.split(".")
+        node = out
+        for p in parts[:-1]:
+            node = node.setdefault(p, {})
+        node[parts[-1]] = val
+    return out
+
+
 class OpnsenseClient:
     """Single HTTP boundary toward an OPNsense device.
 
@@ -178,6 +190,22 @@ class OpnsenseClient:
         else:
             raise ApiError(0, f"unknown alias operation: {operation}")
         await self._post("firewall/alias/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+        return {"dry_run": False, "result": res}
+
+    async def get_setting(self, get_path: str) -> dict:
+        """Read an OPNsense model-setting endpoint (for introspection)."""
+        return await self._get(get_path)
+
+    async def apply_setting(self, set_path: str, reconfigure_path: str, model_root: str,
+                            payload: dict, *, dry_run: bool = True) -> dict:
+        """Apply a PARTIAL setting: POST only the templated fields under the model root, then
+        reconfigure. Verified: OPNsense `set` merges a partial payload (no clobber). Payload keys are
+        dotted paths (e.g. 'general.homenet'); values are strings (option fields = comma-joined keys)."""
+        if dry_run:
+            return {"dry_run": True, "endpoint": set_path, "fields": sorted(payload.keys())}
+        nested = _unflatten(payload)
+        res = await self._post(set_path, {model_root: nested})
+        await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "result": res}
 
     @staticmethod
