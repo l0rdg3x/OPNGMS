@@ -28,6 +28,7 @@ class ProfileOut(BaseModel):
 
 class ApplyProfileIn(BaseModel):
     scheduled_at: datetime | None = None
+    bindings: dict = {}  # apply-time bindings (e.g. {"interface": "wan"}) threaded into each member
 
 
 class ProfileApplyOut(BaseModel):

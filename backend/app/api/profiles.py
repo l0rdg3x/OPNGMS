@@ -25,10 +25,15 @@ from app.schemas.profiles import (
     ProfileOut,
     ProfileUpdateIn,
 )
-from app.schemas.templates import TemplatePreviewOut
+from app.schemas.templates import PreviewTemplateIn, TemplatePreviewOut
 from app.services.audit import AuditService
 from app.services.profiles import _effective, _ordered_members, materialize_profile
-from app.services.templates import TEMPLATE_KINDS, InvalidTemplateError, validate_body
+from app.services.templates import (
+    TEMPLATE_KINDS,
+    InvalidTemplateError,
+    apply_bindings,
+    validate_body,
+)
 
 router = APIRouter(prefix="/api", tags=["profiles"])
 
@@ -223,6 +228,7 @@ async def preview_profile(
     tenant_id: uuid.UUID,
     device_id: uuid.UUID,
     profile_id: uuid.UUID,
+    body: PreviewTemplateIn | None = None,
     ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
     session: AsyncSession = Depends(get_session),
 ) -> list[TemplatePreviewOut]:
@@ -233,9 +239,13 @@ async def preview_profile(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Profile has no member templates"
         )
+    binds = body.bindings if body else {}
     previews: list[TemplatePreviewOut] = []
     for tpl in templates:
         eff = await _effective(session, tenant_id, tpl)
+        # Apply the per-kind apply-time binding (e.g. firewall_rule interface) so the preview
+        # reflects what apply will materialize; identity for kinds without a bind hook.
+        eff = apply_bindings(tpl.kind, eff, binds)
         try:
             validate_body(tpl.kind, eff)
         except InvalidTemplateError as exc:
@@ -275,6 +285,7 @@ async def apply_profile(
             device_id=device_id,
             created_by=ctx.user.id,
             profile=profile,
+            bindings=body.bindings,
         )
     except InvalidTemplateError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
