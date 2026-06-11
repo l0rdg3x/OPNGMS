@@ -4,7 +4,7 @@ Single source used both by the migrations and by the tests' conftest, so the
 policies applied in production and in tests cannot diverge.
 """
 
-TENANT_TABLES: list[str] = ["devices", "metrics", "alerts", "events", "config_snapshots", "config_changes", "report_settings", "generated_reports"]
+TENANT_TABLES: list[str] = ["devices", "metrics", "alerts", "events", "config_snapshots", "config_changes", "report_settings", "generated_reports", "firmware_actions"]
 
 POLICY_NAME = "tenant_isolation"
 

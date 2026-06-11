@@ -96,7 +96,11 @@ async def run_firmware_action(session: AsyncSession, action: FirmwareAction, cli
         text("SELECT pg_try_advisory_xact_lock(:k)"), {"k": _advisory_key(action.device_id)}
     )).scalar_one()
     if not got:
-        return action.status  # another action holds the device lock; leave scheduled for retry
+        # Another action holds the device lock. We bail WITHOUT raising (so ARQ won't auto-retry):
+        # the row stays 'scheduled' and must be re-enqueued to run. Same limitation as apply_config_change;
+        # a sweeper for orphaned scheduled actions is a tracked follow-up. Per-device serialization is the
+        # priority here over guaranteed delivery.
+        return action.status
     action.status = "running"
     await session.flush()
     try:
