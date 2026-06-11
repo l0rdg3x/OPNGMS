@@ -248,6 +248,40 @@ class OpnsenseClient:
             raise ApiError(0, f"rule '{description}' on '{interface}' not uniquely resolvable ({len(matches)})")
         return matches[0]["uuid"] if matches else None
 
+    async def get_monit_test_model(self) -> dict:
+        """Blank Monit test model (option-objects/strings) for the introspection form."""
+        return (await self._get("monit/settings/getTest")).get("test", {})
+
+    async def apply_monit_test(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
+        """Upsert a Monit test by `name`, then reconfigure monit.
+
+        Verified against OPNsense 26.1.9: monit/settings addTest/setTest/{uuid} + monit/service/reconfigure.
+        Identity is `name`: 1 match -> setTest; none -> addTest; many -> refuse (never mutate on doubt).
+        dry_run performs NO mutation."""
+        name = str(payload.get("name", ""))
+        if dry_run:
+            return {"dry_run": True, "name": name}
+        uuid_ = await self._resolve_monit_test_uuid(name)
+        if uuid_ is None:
+            res = await self._post("monit/settings/addTest", {"test": payload})
+            op = "add"
+        else:
+            res = await self._post(f"monit/settings/setTest/{uuid_}", {"test": payload})
+            op = "set"
+        await self._post("monit/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+        return {"dry_run": False, "operation": op, "result": res}
+
+    async def _resolve_monit_test_uuid(self, name: str) -> str | None:
+        """Resolve a Monit test by EXACT name. None if absent; ApiError if many (never mutate on doubt)."""
+        if not name:
+            raise ApiError(0, "monit test name required (it is the test identity)")
+        data = await self._post(
+            "monit/settings/searchTest", {"current": 1, "rowCount": 1000, "searchPhrase": name})
+        matches = [r for r in data.get("rows", []) if r.get("name") == name]
+        if len(matches) > 1:
+            raise ApiError(0, f"monit test '{name}' not uniquely resolvable ({len(matches)} matches)")
+        return matches[0]["uuid"] if matches else None
+
     async def list_ids_rulesets(self) -> list[dict]:
         """Catalog of installed Suricata/IDS rulesets: [{filename, description, enabled, ...}]."""
         return (await self._get("ids/settings/listRulesets")).get("rows", [])
