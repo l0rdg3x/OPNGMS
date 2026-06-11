@@ -16,6 +16,7 @@ from app.api.firmware import router as firmware_router
 from app.api.ids import router as ids_router
 from app.api.me_tenants import router as me_tenants_router
 from app.api.memberships import router as memberships_router
+from app.api.monit import router as monit_router
 from app.api.monitoring import router as monitoring_router
 from app.api.profiles import router as profiles_router
 from app.api.reports import router as reports_router
@@ -57,6 +58,7 @@ app.include_router(profiles_router)
 app.include_router(settings_router)
 app.include_router(ids_router)
 app.include_router(firewall_rules_router)
+app.include_router(monit_router)
 
 
 @app.exception_handler(IntegrityError)
