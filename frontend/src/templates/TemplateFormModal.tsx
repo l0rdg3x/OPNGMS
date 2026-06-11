@@ -6,6 +6,7 @@ import { useT } from "../i18n";
 import { type Template, useCreateTemplate, useUpdateTemplate } from "./hooks";
 import { IdsRulesetForm } from "./IdsRulesetForm";
 import { OpnsenseSettingForm } from "./OpnsenseSettingForm";
+import { FirewallRuleForm } from "./FirewallRuleForm";
 
 const ALIAS_TYPES = ["host", "network", "port", "url", "urltable", "geoip", "networkgroup", "mac", "dynipv6host"];
 
@@ -14,6 +15,9 @@ const EMPTY_SETTING: SettingBody = { endpoint_key: "", payload: {} };
 
 type IdsBody = { rulesets: string[] };
 const EMPTY_IDS: IdsBody = { rulesets: [] };
+
+type RuleBody = { payload: Record<string, string> };
+const EMPTY_RULE: RuleBody = { payload: {} };
 
 export function TemplateFormModal(
   { opened, onClose, editing }: { opened: boolean; onClose: () => void; editing: Template | null },
@@ -24,6 +28,7 @@ export function TemplateFormModal(
   const [kind, setKind] = useState<string>("firewall_alias");
   const [settingBody, setSettingBody] = useState<SettingBody>(EMPTY_SETTING);
   const [idsBody, setIdsBody] = useState<IdsBody>(EMPTY_IDS);
+  const [ruleBody, setRuleBody] = useState<RuleBody>(EMPTY_RULE);
   const form = useForm({
     initialValues: { name: "", type: "host", content: "", description: "" },
   });
@@ -38,6 +43,9 @@ export function TemplateFormModal(
       setIdsBody(editing?.kind === "suricata_ruleset"
         ? ((editing.body as IdsBody | undefined) ?? EMPTY_IDS)
         : EMPTY_IDS);
+      setRuleBody(editing?.kind === "firewall_rule"
+        ? { payload: (editing.body as Record<string, string> | undefined) ?? {} }
+        : EMPTY_RULE);
       form.setValues(editing && editing.kind !== "opnsense_setting"
         ? { name: editing.name, type: String(editing.body?.type ?? "host"),
             content: (Array.isArray(editing.body?.content) ? editing.body.content : []).join("\n"),
@@ -71,6 +79,16 @@ export function TemplateFormModal(
             description: v.description, body: idsBody });
           notifications.show({ message: t.templates.created });
         }
+      } else if (kind === "firewall_rule") {
+        if (editing) {
+          await update.mutateAsync({ id: editing.id,
+            body: { name: v.name, description: v.description, body: ruleBody.payload } });
+          notifications.show({ message: t.templates.updated });
+        } else {
+          await create.mutateAsync({ kind: "firewall_rule", name: v.name,
+            description: v.description, body: ruleBody.payload });
+          notifications.show({ message: t.templates.created });
+        }
       } else {
         const content = v.content.split("\n").map((s) => s.trim()).filter(Boolean);
         const body = { name: v.name, type: v.type, content, description: v.description };
@@ -102,6 +120,7 @@ export function TemplateFormModal(
               { value: "firewall_alias", label: t.templates.kindAlias },
               { value: "opnsense_setting", label: t.templates.kindSetting },
               { value: "suricata_ruleset", label: t.templates.kindIdsRulesets },
+              { value: "firewall_rule", label: t.templates.kindFirewallRule },
             ]}
             value={kind}
             onChange={(k) => setKind(k ?? "firewall_alias")}
@@ -111,6 +130,8 @@ export function TemplateFormModal(
             ? <OpnsenseSettingForm value={settingBody} onChange={setSettingBody} />
             : kind === "suricata_ruleset"
             ? <IdsRulesetForm value={idsBody} onChange={setIdsBody} />
+            : kind === "firewall_rule"
+            ? <FirewallRuleForm value={ruleBody} onChange={setRuleBody} />
             : (
               <>
                 <Select label={t.templates.type} data={ALIAS_TYPES} data-testid="tpl-type"
