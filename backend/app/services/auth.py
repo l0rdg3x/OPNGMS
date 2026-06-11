@@ -37,7 +37,7 @@ class AuthService:
         self,
         user: User,
         *,
-        ttl_hours: int,
+        ttl_hours: float,
         kind: str = "full",
         ip: str | None = None,
         user_agent: str | None = None,

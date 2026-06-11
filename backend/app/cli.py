@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.config import get_settings
 from app.core.db import make_engine
+from app.models.audit import AuditLog
 from app.models.user import User
 from app.models.user_mfa import UserMfa
 from app.models.user_recovery_code import UserRecoveryCode
@@ -33,6 +34,18 @@ async def reset_user_mfa(email: str, *, engine: AsyncEngine | None = None) -> in
             return 0
         await s.execute(delete(UserRecoveryCode).where(UserRecoveryCode.user_id == user.id))
         await s.execute(delete(UserMfa).where(UserMfa.user_id == user.id))
+        # Break-glass is an out-of-band privileged action: record it so the reset is auditable.
+        s.add(
+            AuditLog(
+                actor_user_id=None,
+                tenant_id=None,
+                action="mfa.cli_reset",
+                target_type="user",
+                target_id=str(user.id),
+                ip=None,
+                details={"email": email},
+            )
+        )
         await s.commit()
     if engine is None:
         await eng.dispose()

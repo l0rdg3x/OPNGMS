@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     master_key_old_keys: str = ""  # comma-separated retired Fernet keys, decryption-only (rotation)
     session_ttl_hours: int = 12
     session_idle_minutes: int = 120  # sliding/idle timeout, alongside the absolute session_ttl_hours
+    mfa_pending_ttl_minutes: int = 5  # short-lived mfa_pending challenge window (password ok, awaiting TOTP)
     admin_database_url: str | None = None  # owner, for the worker (bypasses RLS)
     redis_url: str = "redis://localhost:6379"
     poll_interval_seconds: int = 60

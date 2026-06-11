@@ -85,7 +85,13 @@ async def mfa_confirm(
     session: AsyncSession = Depends(get_session),
 ) -> RecoveryOut:
     user, sess = ctx
-    row = await _mfa_row(session, user.id)
+    # FOR UPDATE: serialize concurrent confirms so the TOTP anti-replay (last_used_step)
+    # check-then-set cannot race, consistent with /api/login/mfa.
+    row = (
+        await session.execute(
+            select(UserMfa).where(UserMfa.user_id == user.id).with_for_update()
+        )
+    ).scalar_one_or_none()
     if row is None or not row.totp_secret_enc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No pending enrollment")
     secret = crypto.decrypt(row.totp_secret_enc)

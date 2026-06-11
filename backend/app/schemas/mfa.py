@@ -1,12 +1,12 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PasswordIn(BaseModel):
-    password: str
+    password: str = Field(max_length=1024)
 
 
 class CodeIn(BaseModel):
-    code: str
+    code: str = Field(max_length=128)
 
 
 class SetupOut(BaseModel):

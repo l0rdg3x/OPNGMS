@@ -2,7 +2,7 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import crypto
@@ -114,7 +114,14 @@ async def login(
     else:
         kind = "full"
 
-    ttl_hours = settings.session_ttl_hours if kind == "full" else 1
+    # mfa_pending is a short challenge window (minutes); mfa_setup keeps the 1h enrollment window;
+    # full uses the normal session TTL. create_session accepts a fractional ttl_hours.
+    if kind == "full":
+        ttl_hours: float = settings.session_ttl_hours
+    elif kind == "mfa_pending":
+        ttl_hours = settings.mfa_pending_ttl_minutes / 60
+    else:  # mfa_setup
+        ttl_hours = 1
     sess, raw_token = await svc.create_session(
         user,
         ttl_hours=ttl_hours,
@@ -132,7 +139,9 @@ async def login(
         target_type="session", target_id=str(sess.id), ip=client_ip, details={},
     )
     await session.commit()
-    max_age = ttl_hours * 3600
+    # max_age must be an integer number of seconds (a float yields a malformed Set-Cookie that
+    # clients drop); round the fractional mfa_pending TTL up.
+    max_age = round(ttl_hours * 3600)
     response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
     response.set_cookie(CSRF_COOKIE, sess.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
     if kind == "mfa_pending":
@@ -163,14 +172,30 @@ async def login_mfa(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No MFA challenge")
     client_ip = _client_ip(request)
     key = f"mfa|{sess.user_id}|{client_ip or '?'}"
-    allowed, retry = login_limiter.check(key)
+    # Fail CLOSED on a limiter fault, mirroring /api/login: this gates MFA verification, so a
+    # transient limiter error must not silently disable brute-force protection.
+    try:
+        allowed, retry = login_limiter.check(key)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("mfa rate-limiter check failed; failing closed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Login temporarily unavailable",
+            headers={"Retry-After": "5"},
+        ) from exc
     if not allowed:
         raise HTTPException(
             status_code=429, detail="Too many attempts", headers={"Retry-After": str(retry)}
         )
 
     user = await AuthService(session).get_user_for_session(sess)
-    row = await session.get(UserMfa, sess.user_id)
+    # FOR UPDATE: serialize concurrent verifications for this user so the TOTP anti-replay
+    # (last_used_step) check-then-set cannot race between requests.
+    row = (
+        await session.execute(
+            select(UserMfa).where(UserMfa.user_id == sess.user_id).with_for_update()
+        )
+    ).scalar_one_or_none()
     if user is None or row is None or not row.enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No MFA challenge")
 
@@ -180,7 +205,9 @@ async def login_mfa(
     if ok:
         row.last_used_step = step
     else:
-        # recovery-code fallback (one-time)
+        # recovery-code fallback (one-time). Argon2 hashes can't be matched in SQL, so first find
+        # the matching unused code by id, THEN consume it with an atomic guarded UPDATE. Only this
+        # request — not a concurrent one — succeeds if the UPDATE returns a row.
         codes = (
             await session.execute(
                 select(UserRecoveryCode).where(
@@ -191,11 +218,24 @@ async def login_mfa(
         ).scalars().all()
         idx = mfa_svc.find_recovery_match(body.code, [c.code_hash for c in codes])
         if idx is not None:
-            codes[idx].used_at = datetime.now(UTC)
-            used_recovery = True
+            consumed = (
+                await session.execute(
+                    update(UserRecoveryCode)
+                    .where(
+                        UserRecoveryCode.id == codes[idx].id,
+                        UserRecoveryCode.used_at.is_(None),
+                    )
+                    .values(used_at=datetime.now(UTC))
+                    .returning(UserRecoveryCode.id)
+                )
+            ).scalar_one_or_none()
+            used_recovery = consumed is not None
 
     if not ok and not used_recovery:
-        login_limiter.record_failure(key)
+        try:
+            login_limiter.record_failure(key)
+        except Exception:  # noqa: BLE001 — never let a limiter fault turn a 401 into a 500
+            logger.error("mfa rate-limiter record_failure failed", exc_info=True)
         await AuditService(session).record(
             actor_user_id=user.id, tenant_id=None, action="mfa.login_failed",
             target_type="session", target_id=str(sess.id), ip=client_ip, details={},
@@ -212,7 +252,10 @@ async def login_mfa(
         user, ttl_hours=settings.session_ttl_hours, kind="full",
         ip=client_ip, user_agent=request.headers.get("user-agent"),
     )
-    login_limiter.reset(key)
+    try:
+        login_limiter.reset(key)
+    except Exception:  # noqa: BLE001 — never let a limiter fault break a successful MFA login
+        logger.error("mfa rate-limiter reset failed", exc_info=True)
     await AuditService(session).record(
         actor_user_id=user.id, tenant_id=None,
         action=("mfa.recovery_used" if used_recovery else "mfa.login_success"),
@@ -232,14 +275,16 @@ async def login_mfa(
 async def logout(
     request: Request,
     response: Response,
-    user: User = Depends(get_current_user),
+    sess: Session = Depends(get_current_session),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    # get_current_session accepts any valid session kind, so a user mid-MFA (mfa_pending/mfa_setup)
+    # can cancel and invalidate the cookie rather than being stuck behind get_current_user's 403.
     raw = request.cookies.get(SESSION_COOKIE)
     if raw:
         await AuthService(session).delete_session_by_token(raw)
         await AuditService(session).record(
-            actor_user_id=user.id, tenant_id=None, action="auth.logout",
+            actor_user_id=sess.user_id, tenant_id=None, action="auth.logout",
             target_type="session", target_id=None,
             ip=request.client.host if request.client else None, details={},
         )
@@ -254,13 +299,15 @@ async def logout(
 async def logout_all(
     request: Request,
     response: Response,
-    user: User = Depends(get_current_user),
+    sess: Session = Depends(get_current_session),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    await AuthService(session).delete_all_sessions_for_user(user.id)
+    # Accept any valid session kind (incl. mfa_pending/mfa_setup) so a mid-MFA user can revoke
+    # all of their sessions.
+    await AuthService(session).delete_all_sessions_for_user(sess.user_id)
     await AuditService(session).record(
-        actor_user_id=user.id, tenant_id=None, action="auth.logout_all",
-        target_type="user", target_id=str(user.id),
+        actor_user_id=sess.user_id, tenant_id=None, action="auth.logout_all",
+        target_type="user", target_id=str(sess.user_id),
         ip=request.client.host if request.client else None, details={},
     )
     await session.commit()
