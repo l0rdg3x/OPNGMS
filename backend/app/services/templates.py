@@ -34,12 +34,13 @@ def validate_alias_body(body: dict) -> None:
 
 @dataclass(frozen=True)
 class TemplateKind:
-    """How a template kind validates, maps to a config_change, and pins identity fields."""
+    """How a template kind validates, maps to a config_change, pins identity, and binds apply-time inputs."""
 
     validate: Callable[[dict], None]
     change_kind: str                                    # the config_change.kind it materializes to
     to_change: Callable[[dict], tuple[str, str, dict]]  # body -> (operation, target, payload)
     pinned: tuple[str, ...]                             # body keys an override may not change
+    bind: Callable[[dict, dict], dict] | None = None   # (body, apply-time bindings) -> body
 
 
 TEMPLATE_KINDS: dict[str, TemplateKind] = {}
@@ -79,13 +80,22 @@ def effective_body(kind: str, base: dict, patch: dict | None) -> dict:
     return merged
 
 
+def apply_bindings(kind: str, body: dict, bindings: dict | None) -> dict:
+    """Apply a kind's apply-time bindings (e.g. firewall interface) to the body; identity if none."""
+    spec = _kind(kind)
+    if spec.bind is None:
+        return body
+    return spec.bind(body or {}, bindings or {})
+
+
 async def materialize_change(
     session: AsyncSession, *, tenant_id: uuid.UUID, device_id: uuid.UUID, created_by: uuid.UUID,
-    template_id: uuid.UUID, kind: str, body: dict,
+    template_id: uuid.UUID, kind: str, body: dict, bindings: dict | None = None,
 ) -> ConfigChange:
-    """Validate the effective body and materialize a draft config_change for the kind."""
+    """Bind apply-time inputs, validate the effective body, and materialize a draft config_change."""
     spec = _kind(kind)
-    spec.validate(body or {})
+    body = apply_bindings(kind, body or {}, bindings)
+    spec.validate(body)
     operation, target, payload = spec.to_change(body)
     change = await create_change(
         session, tenant_id=tenant_id, device_id=device_id, created_by=created_by,

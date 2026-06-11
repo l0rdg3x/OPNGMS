@@ -22,6 +22,7 @@ from app.schemas.templates import (
     ApplyTemplateIn,
     OverrideIn,
     OverrideOut,
+    PreviewTemplateIn,
     TemplateIn,
     TemplateOut,
     TemplatePreviewOut,
@@ -31,6 +32,7 @@ from app.services.audit import AuditService
 from app.services.templates import (
     TEMPLATE_KINDS,
     InvalidTemplateError,
+    apply_bindings,
     effective_body,
     materialize_change,
     validate_body,
@@ -247,12 +249,14 @@ async def preview_template(
     tenant_id: uuid.UUID,
     device_id: uuid.UUID,
     template_id: uuid.UUID,
+    body: PreviewTemplateIn | None = None,
     ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
     session: AsyncSession = Depends(get_session),
 ) -> TemplatePreviewOut:
     await _device_or_404(session, tenant_id, device_id)
     tpl = await _template_or_404(session, template_id)
     eff = await _effective(session, tenant_id, tpl)
+    eff = apply_bindings(tpl.kind, eff, (body.bindings if body else {}))
     try:
         validate_body(tpl.kind, eff)
     except InvalidTemplateError as exc:
@@ -289,6 +293,7 @@ async def apply_template(
             template_id=template_id,
             kind=tpl.kind,
             body=eff,
+            bindings=body.bindings,
         )
     except InvalidTemplateError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
