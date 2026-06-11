@@ -101,3 +101,31 @@ async def test_apply_non_scheduled_is_noop(db_engine, two_tenants):
     async with factory() as s:
         ch = await s.get(ConfigChange, cid)
     assert ch.status == "cancelled"
+
+
+async def test_apply_live_applies_real_and_snapshots(db_engine, two_tenants, monkeypatch):
+    from types import SimpleNamespace
+
+    from app.models.config_snapshot import ConfigSnapshot
+    from app.services.config_diff import canonical_hash
+
+    monkeypatch.setattr(
+        "app.services.config_push.get_settings",
+        lambda: SimpleNamespace(live_push_enabled=True),
+    )
+    tenant_a, _ = two_tenants
+    cid = await _scheduled_change(db_engine, tenant_a, baseline_hash=canonical_hash(XML))
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        ch = await s.get(ConfigChange, cid)
+        client = FakeClient(XML)
+        status = await apply_change(s, ch, client, now=datetime.now(timezone.utc))
+        await s.commit()
+    assert status == "applied"
+    assert client.apply_called is True
+    async with factory() as s:
+        ch = await s.get(ConfigChange, cid)
+        assert ch.result.get("dry_run") is False          # real apply
+        assert ch.pre_apply_snapshot_id is not None        # rollback point captured
+        snap = await s.get(ConfigSnapshot, ch.pre_apply_snapshot_id)
+        assert snap is not None and snap.device_id == ch.device_id

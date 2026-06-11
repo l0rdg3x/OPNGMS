@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import uuid
 from datetime import datetime
@@ -6,7 +7,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.opnsense.client import OpnsenseError
+from app.core import crypto
+from app.core.config import get_settings
 from app.models.config_change import ConfigChange
+from app.models.config_snapshot import ConfigSnapshot
 from app.repositories.config_snapshot import ConfigSnapshotRepository
 from app.services.config_diff import canonical_hash
 
@@ -54,6 +58,21 @@ def _advisory_key(device_id: uuid.UUID) -> int:
     return int.from_bytes(digest[:8], "big", signed=True)
 
 
+async def _save_pre_apply_snapshot(session: AsyncSession, change: ConfigChange, xml: str) -> uuid.UUID:
+    """Persist the current device config as an encrypted snapshot (a pre-apply rollback point)."""
+    snap = ConfigSnapshot(
+        tenant_id=change.tenant_id,
+        device_id=change.device_id,
+        canonical_hash=canonical_hash(xml),
+        content_enc=crypto.encrypt_bytes(gzip.compress(xml.encode("utf-8"))),
+        opnsense_version="",
+        size_bytes=len(xml.encode("utf-8")),
+    )
+    session.add(snap)
+    await session.flush()
+    return snap.id
+
+
 async def apply_change(
     session: AsyncSession, change: ConfigChange, client, now: datetime
 ) -> str:
@@ -93,8 +112,12 @@ async def apply_change(
         return "conflict"
     change.status = "applying"
     await session.flush()
+    live = get_settings().live_push_enabled
     try:
-        res = await client.apply_alias(change.operation, change.payload, dry_run=True)
+        if live:
+            # rollback point: persist the pre-apply config (the `xml` already read above).
+            change.pre_apply_snapshot_id = await _save_pre_apply_snapshot(session, change, xml)
+        res = await client.apply_alias(change.operation, change.payload, dry_run=not live)
         change.status = "applied"
         change.applied_at = now
         change.result = res
