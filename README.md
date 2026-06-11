@@ -275,7 +275,9 @@ kinds — the **generic `opnsense_setting`** (introspection-driven, value-contro
 **`suricata_ruleset`** (enable-only IDS rulesets, charset-guarded against path injection),
 **`firewall_rule`** (Rules [new] / MVC filter rules; interface is an apply-time binding so the template
 stays portable; idempotent upsert by `(description, interface)`; the engine grew a generic apply-time
-`bindings` channel for this, identity-preserving for the other kinds), and **`monit_test`** (portable
+`bindings` channel for this, identity-preserving for the other kinds — **profile** apply threads the same
+channel, so a `firewall_rule` member can be bound to one interface for the whole profile application
+instead of always floating), and **`monit_test`** (portable
 Monit health-check tests — condition + action — upserted by `name`; services are intentionally excluded
 as they reference per-device UUIDs). All merged & live-verified on the real 26.1.9 box. The M1 live verify
 surfaced & fixed a real connector bug — OPNsense stored a JSON-list alias `content` as the literal
