@@ -54,7 +54,16 @@ export function FirmwareActions({ deviceId }: { deviceId: string }) {
       <Card withBorder>
         <Group justify="space-between" mb="xs">
           <Title order={5}>{t.firmware.title}</Title>
-          <Button size="xs" onClick={() => check.mutate()} loading={check.isPending} data-testid="btn-fw-check">
+          <Button
+            size="xs"
+            onClick={() =>
+              check.mutate(undefined, {
+                onError: () => notifications.show({ color: "red", message: t.firmware.checkFailed }),
+              })
+            }
+            loading={check.isPending}
+            data-testid="btn-fw-check"
+          >
             {t.firmware.check}
           </Button>
         </Group>
@@ -88,6 +97,9 @@ export function FirmwareActions({ deviceId }: { deviceId: string }) {
                 </Button>
               )}
             </Group>
+            {result.new_major && (
+              <Text size="sm" c="orange">{t.firmware.newMajor}</Text>
+            )}
           </Stack>
         )}
       </Card>

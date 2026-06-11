@@ -74,7 +74,6 @@ export const en = {
     title: "Firmware",
     tab: "Firmware",
     check: "Check for updates",
-    checking: "Checking…",
     upToDate: "Up to date",
     updatesAvailable: "Updates available",
     downloadSize: "Download size",

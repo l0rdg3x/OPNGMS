@@ -178,4 +178,14 @@ describe("FirmwareActions", () => {
       expect(call.scheduled_at).not.toContain(" ");
     });
   });
+
+  it("does not show a result panel when the check fails", async () => {
+    listOnce();
+    server.use(http.post(`${BASE}/check`, () => new HttpResponse(null, { status: 502 })));
+    renderWithProviders(withTenant(<FirmwareActions deviceId="d1" />));
+    await userEvent.click(screen.getByTestId("btn-fw-check"));
+    // give the failed mutation a tick; no result panel / Update button should appear
+    await waitFor(() => expect(screen.queryByTestId("btn-fw-update")).toBeNull());
+    expect(screen.queryByTestId("fw-check-result")).toBeNull();
+  });
 });
