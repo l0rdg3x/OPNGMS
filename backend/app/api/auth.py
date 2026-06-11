@@ -1,8 +1,11 @@
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import crypto
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.deps import (
@@ -16,7 +19,12 @@ from app.core.deps import (
 from app.core.ratelimit import SlidingWindowLimiter
 from app.models.session import Session
 from app.models.user import User
-from app.schemas.auth import LoginIn, MeOut, SessionInfo
+from app.models.user_mfa import UserMfa
+from app.models.user_recovery_code import UserRecoveryCode
+from app.schemas.auth import LoginIn, LoginOut, MeOut, SessionInfo
+from app.schemas.mfa import CodeIn
+from app.services import mfa as mfa_svc
+from app.services.app_settings import get_mfa_policy
 from app.services.audit import AuditService
 from app.services.auth import AuthService
 
@@ -36,13 +44,13 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-@router.post("/login", response_model=MeOut)
+@router.post("/login", response_model=LoginOut)
 async def login(
     payload: LoginIn,
     request: Request,
     response: Response,
     session: AsyncSession = Depends(get_session),
-) -> User:
+) -> LoginOut:
     client_ip = _client_ip(request)
     ip = client_ip or "?"
     key = f"{payload.email.lower()}|{ip}"
@@ -93,9 +101,24 @@ async def login(
     old = request.cookies.get(SESSION_COOKIE)
     if old:
         await svc.delete_session_by_token(old)
+
+    # Decide the session kind: enrolled -> challenge (mfa_pending); policy requires but not
+    # enrolled -> setup-only (mfa_setup); otherwise a normal full session.
+    mfa_row = await session.get(UserMfa, user.id)
+    policy = await get_mfa_policy(session)
+    is_priv = user.is_superadmin  # privileged = superadmin (tenant_admin membership is a later refinement)
+    if mfa_row and mfa_row.enabled:
+        kind = "mfa_pending"
+    elif policy == "all" or (policy == "privileged" and is_priv):
+        kind = "mfa_setup"
+    else:
+        kind = "full"
+
+    ttl_hours = settings.session_ttl_hours if kind == "full" else 1
     sess, raw_token = await svc.create_session(
         user,
-        ttl_hours=settings.session_ttl_hours,
+        ttl_hours=ttl_hours,
+        kind=kind,
         ip=client_ip,
         user_agent=request.headers.get("user-agent"),
     )
@@ -104,14 +127,105 @@ async def login(
     except Exception:  # noqa: BLE001 — never let a limiter fault break a successful login
         logger.error("login rate-limiter reset failed", exc_info=True)
     await AuditService(session).record(
-        actor_user_id=user.id, tenant_id=None, action="auth.login",
+        actor_user_id=user.id, tenant_id=None,
+        action=("auth.login" if kind == "full" else f"auth.login.{kind}"),
         target_type="session", target_id=str(sess.id), ip=client_ip, details={},
+    )
+    await session.commit()
+    max_age = ttl_hours * 3600
+    response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
+    response.set_cookie(CSRF_COOKIE, sess.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
+    if kind == "mfa_pending":
+        return LoginOut(status="mfa_required")
+    if kind == "mfa_setup":
+        return LoginOut(
+            status="mfa_setup_required",
+            user=MeOut(
+                id=user.id, email=user.email, name=user.name,
+                is_superadmin=user.is_superadmin, mfa_setup_required=True,
+            ),
+        )
+    return LoginOut(
+        status="ok",
+        user=MeOut(id=user.id, email=user.email, name=user.name, is_superadmin=user.is_superadmin),
+    )
+
+
+@router.post("/login/mfa", response_model=LoginOut, dependencies=[Depends(enforce_csrf)])
+async def login_mfa(
+    body: CodeIn,
+    request: Request,
+    response: Response,
+    sess: Session = Depends(get_current_session),
+    session: AsyncSession = Depends(get_session),
+) -> LoginOut:
+    if sess.kind != "mfa_pending":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No MFA challenge")
+    client_ip = _client_ip(request)
+    key = f"mfa|{sess.user_id}|{client_ip or '?'}"
+    allowed, retry = login_limiter.check(key)
+    if not allowed:
+        raise HTTPException(
+            status_code=429, detail="Too many attempts", headers={"Retry-After": str(retry)}
+        )
+
+    user = await AuthService(session).get_user_for_session(sess)
+    row = await session.get(UserMfa, sess.user_id)
+    if user is None or row is None or not row.enabled:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No MFA challenge")
+
+    secret = crypto.decrypt(row.totp_secret_enc)
+    ok, step = mfa_svc.verify_totp(secret, body.code, last_used_step=row.last_used_step)
+    used_recovery = False
+    if ok:
+        row.last_used_step = step
+    else:
+        # recovery-code fallback (one-time)
+        codes = (
+            await session.execute(
+                select(UserRecoveryCode).where(
+                    UserRecoveryCode.user_id == user.id,
+                    UserRecoveryCode.used_at.is_(None),
+                )
+            )
+        ).scalars().all()
+        idx = mfa_svc.find_recovery_match(body.code, [c.code_hash for c in codes])
+        if idx is not None:
+            codes[idx].used_at = datetime.now(UTC)
+            used_recovery = True
+
+    if not ok and not used_recovery:
+        login_limiter.record_failure(key)
+        await AuditService(session).record(
+            actor_user_id=user.id, tenant_id=None, action="mfa.login_failed",
+            target_type="session", target_id=str(sess.id), ip=client_ip, details={},
+        )
+        await session.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+
+    # upgrade: drop the pending session, mint a full one
+    raw_old = request.cookies.get(SESSION_COOKIE)
+    if raw_old:
+        await AuthService(session).delete_session_by_token(raw_old)
+    settings = get_settings()
+    full, raw_token = await AuthService(session).create_session(
+        user, ttl_hours=settings.session_ttl_hours, kind="full",
+        ip=client_ip, user_agent=request.headers.get("user-agent"),
+    )
+    login_limiter.reset(key)
+    await AuditService(session).record(
+        actor_user_id=user.id, tenant_id=None,
+        action=("mfa.recovery_used" if used_recovery else "mfa.login_success"),
+        target_type="session", target_id=str(full.id), ip=client_ip, details={},
     )
     await session.commit()
     max_age = settings.session_ttl_hours * 3600
     response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
-    response.set_cookie(CSRF_COOKIE, sess.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
-    return user
+    response.set_cookie(CSRF_COOKIE, full.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
+    return LoginOut(
+        status="ok",
+        user=MeOut(id=user.id, email=user.email, name=user.name, is_superadmin=user.is_superadmin),
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(enforce_csrf)])
