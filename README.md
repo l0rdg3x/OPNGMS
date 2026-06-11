@@ -27,10 +27,13 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Device actions** — trigger firmware updates / major upgrades and plugin install/remove from the
   console, now or scheduled, run by a reboot-tolerant worker; plus a one-click deep-link to the
   device's WebGUI.
-- **Configuration templates** — reusable, typed templates (firewall aliases, any introspectable
-  OPNsense setting, Suricata/IDS rulesets) in a shared MSP library with per-customer overrides, and
-  **profiles** (ordered bundles of templates), applied to a device with a redacted preview, now or
-  scheduled.
+- **Configuration templates** — reusable, **value-controlled** templates in a shared MSP library
+  with per-customer overrides, applied with a redacted preview (now or scheduled). Five kinds:
+  firewall aliases, any introspectable OPNsense setting, Suricata/IDS rulesets, "Rules [new]" firewall
+  rules (interface bound at apply time), and Monit health-check tests — plus **profiles** (ordered
+  bundles of templates).
+- **Two-factor auth** — optional/enforceable **TOTP** login with recovery codes, a superadmin
+  enforcement policy, and superadmin / break-glass recovery.
 - **Multi-tenant dashboard** — fleet overview, per-device time-series charts, alert list.
 
 ## Screenshots
@@ -83,7 +86,7 @@ A dark, instrument-grade "operations console" UI (Mantine + IBM Plex), built for
 | Backend | Python 3.14, FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, Pydantic v2 |
 | Storage | TimescaleDB (PostgreSQL 16 + extension), hypertables for metrics & events, Row-Level Security |
 | Worker | ARQ + Redis |
-| Security | argon2 (passwords), Fernet (device secrets), Postgres RLS, SSRF guard, TLS pinning, defusedxml |
+| Security | argon2 (passwords), Fernet (device secrets), TOTP MFA (pyotp), Postgres RLS, SSRF guard, TLS pinning, defusedxml |
 | Reporting | WeasyPrint (HTML/CSS → PDF) + Jinja2 (autoescape) + hand-built SVG charts |
 | Frontend | Vite, React 19, TypeScript, Mantine v9, TanStack Query, React Router, openapi-fetch |
 | Testing | pytest + pytest-asyncio + respx (backend); Vitest + Testing Library + MSW (frontend) |
@@ -122,12 +125,14 @@ arq app.worker.WorkerSettings
 
 # 4. Frontend
 cd ../frontend
-npm install
+npm install --legacy-peer-deps       # (a peer-dep range conflict requires --legacy-peer-deps)
 npm run gen:api                      # (re)generate API types from the backend OpenAPI schema
 npm run dev                          # SPA on http://localhost:5173
 ```
 
-Create the first superadmin once via `POST /api/setup`.
+Create the first superadmin once via `POST /api/setup`. When MFA is enrolled, log in in two steps
+(`POST /api/login` → `POST /api/login/mfa`); a locked-out superadmin recovers with
+`python -m app.cli mfa-reset --email <email>` on the host.
 
 ## Quick start — production
 
@@ -227,17 +232,16 @@ update/upgrade are covered by mocked worker tests only (they reboot the device).
 WebGUI is a separate milestone — the button is currently a deep-link to the WebGUI login.
 
 ³ Configuration templates are a multi-milestone program: **M1** = the engine + the `firewall_alias` kind;
-**M2** = profiles (ordered bundles, fan-out apply); **M3** = the kind-pluggable registries plus three new
+**M2** = profiles (ordered bundles, fan-out apply); **M3** = the kind-pluggable registries plus four new
 kinds — the **generic `opnsense_setting`** (introspection-driven, value-controlled, fleet-portable),
-**`suricata_ruleset`** (enable-only IDS rulesets, charset-guarded against path injection), and
+**`suricata_ruleset`** (enable-only IDS rulesets, charset-guarded against path injection),
 **`firewall_rule`** (Rules [new] / MVC filter rules; interface is an apply-time binding so the template
 stays portable; idempotent upsert by `(description, interface)`; the engine grew a generic apply-time
 `bindings` channel for this, identity-preserving for the other kinds), and **`monit_test`** (portable
 Monit health-check tests — condition + action — upserted by `name`; services are intentionally excluded
-as they reference per-device UUIDs). All merged & live-verified on the real 26.1.9 box. The curated-kinds
-program ("tutti i curati in sequenza") is complete. The M1 live verify surfaced & fixed a real connector bug —
-OPNsense stored a JSON-list alias `content` as the literal `"Array"`; it is now joined to a newline
-string (also fixing the manual config-push path).
+as they reference per-device UUIDs). All merged & live-verified on the real 26.1.9 box. The M1 live verify
+surfaced & fixed a real connector bug — OPNsense stored a JSON-list alias `content` as the literal
+`"Array"`; it is now joined to a newline string (also fixing the manual config-push path).
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 
