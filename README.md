@@ -27,6 +27,8 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Device actions** — trigger firmware updates / major upgrades and plugin install/remove from the
   console, now or scheduled, run by a reboot-tolerant worker; plus a one-click deep-link to the
   device's WebGUI.
+- **Configuration templates** — reusable, typed templates (firewall aliases) in a shared MSP library
+  with per-customer overrides, applied to a device with a redacted preview, now or scheduled.
 - **Multi-tenant dashboard** — fleet overview, per-device time-series charts, alert list.
 
 ## Architecture
@@ -184,6 +186,7 @@ Set via environment (see `.env.example`). Highlights:
 | **Config management** — encrypted backup + drift detection + firewall-aware editing UI + **live alias push** | ✅ Done¹ |
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
+| **Configuration templates (M1)** — a global MSP **template library** (`firewall_alias` kind, superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot); superadmin Library UI + a per-device Apply tab; engine live-verified on real OPNsense 26.1.9³ | ✅ Done |
 | **Deployment** — production Dockerfiles + `docker-compose.prod.yml`, reverse-proxy aware | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
@@ -194,6 +197,11 @@ a rollback point; automatic rollback is a planned follow-up.
 ² Plugin install/remove was exercised end-to-end on the real 26.1.9 box (with guaranteed cleanup); firmware
 update/upgrade are covered by mocked worker tests only (they reboot the device). True single-sign-on into the
 WebGUI is a separate milestone — the button is currently a deep-link to the WebGUI login.
+
+³ Configuration templates ship as **M1** of a multi-milestone program: the engine + the `firewall_alias` kind.
+Next: **M2** profiles (company-tier bundles of templates) and **M3+** additional kinds (Suricata/IDS, firewall
+rules, monit). The live verify surfaced & fixed a real connector bug — OPNsense stored a JSON-list alias
+`content` as the literal `"Array"`; it is now joined to a newline string (also fixing the manual config-push path).
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 
