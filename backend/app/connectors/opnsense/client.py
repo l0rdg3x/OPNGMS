@@ -222,17 +222,22 @@ class OpnsenseClient:
         Verified against OPNsense 26.1.9: POST ids/settings/toggleRuleset/{filename}/1 enables one
         ruleset; ids/service/reconfigure reloads Suricata. Each filename is charset-validated
         (anti path-injection) before it is embedded in the URL path. dry_run performs NO mutation."""
-        rulesets = list(payload.get("rulesets", []))
+        raw = payload.get("rulesets", [])
+        if not isinstance(raw, (list, tuple)):
+            raise ApiError(0, "rulesets must be a list")
+        # Validate EVERY filename up-front (charset/anti path-injection) so the connector is
+        # self-defending and never partially-applies a list with a bad entry mid-loop.
+        rulesets = [self._ruleset_name(name) for name in raw]
         if dry_run:
             return {"dry_run": True, "rulesets": rulesets}
         for name in rulesets:
-            await self._post(f"ids/settings/toggleRuleset/{self._ruleset_name(name)}/1", {})
+            await self._post(f"ids/settings/toggleRuleset/{name}/1", {})
         await self._post("ids/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "enabled": rulesets}
 
     @staticmethod
     def _ruleset_name(name: str) -> str:
-        if not name or not _RULESET_NAME_RE.match(name):
+        if not isinstance(name, str) or not _RULESET_NAME_RE.match(name):
             raise ApiError(0, f"invalid ruleset filename: {name!r}")
         return name
 

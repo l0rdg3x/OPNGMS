@@ -48,3 +48,18 @@ async def test_apply_ids_rulesets_rejects_bad_filename():
     with pytest.raises(ApiError):
         await _c().apply_ids_rulesets(
             "set", {"rulesets": ["../../etc/passwd"]}, dry_run=False)
+
+
+@respx.mock
+async def test_apply_ids_rulesets_is_atomic_on_bad_entry():
+    # a good+bad list must toggle NOTHING (validate the whole list before the first mutation)
+    t = respx.post(url__regex=r".*/api/ids/settings/toggleRuleset/.*")
+    with pytest.raises(ApiError):
+        await _c().apply_ids_rulesets(
+            "set", {"rulesets": ["good.rules", "../bad"]}, dry_run=False)
+    assert not t.called
+
+
+async def test_apply_ids_rulesets_rejects_non_list():
+    with pytest.raises(ApiError):
+        await _c().apply_ids_rulesets("set", {"rulesets": "a.rules"}, dry_run=False)
