@@ -7,6 +7,7 @@ import { ConfigTab } from "../config/ConfigTab";
 import { FirmwareActions } from "../firmware/FirmwareActions";
 import { useT } from "../i18n";
 import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
+import { ApplyProfileSection } from "../profiles/ApplyProfileSection";
 import { ApplyTemplateTab } from "../templates/ApplyTemplateTab";
 import { useTenant } from "../tenant/useTenant";
 
@@ -58,7 +59,12 @@ export function DeviceDetailPage() {
           {deviceId && <FirmwareActions deviceId={deviceId} />}
         </Tabs.Panel>
         <Tabs.Panel value="templates" pt="md">
-          {deviceId && <ApplyTemplateTab deviceId={deviceId} />}
+          {deviceId && (
+            <Stack>
+              <ApplyTemplateTab deviceId={deviceId} />
+              <ApplyProfileSection deviceId={deviceId} />
+            </Stack>
+          )}
         </Tabs.Panel>
       </Tabs>
     </Stack>

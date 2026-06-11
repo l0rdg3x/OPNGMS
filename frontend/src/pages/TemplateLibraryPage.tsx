@@ -1,9 +1,10 @@
-import { Alert, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Group, Stack, Table, Tabs, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useState } from "react";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { useIsSuperadmin } from "../auth/useIsSuperadmin";
 import { useT } from "../i18n";
+import { ProfilesPanel } from "../profiles/ProfilesPanel";
 import { type Template, useDeleteTemplate, useTemplates } from "../templates/hooks";
 import { TemplateFormModal } from "../templates/TemplateFormModal";
 
@@ -22,13 +23,21 @@ export function TemplateLibraryPage() {
 
   return (
     <Stack>
-      <Group justify="space-between">
-        <Title order={3}>{t.templates.libraryTitle}</Title>
-        <Button data-testid="tpl-new" onClick={() => { setEditing(null); setModalOpen(true); }}>
-          {t.templates.create}
-        </Button>
-      </Group>
-      {templates && templates.length > 0 ? (
+      <Title order={3}>{t.templates.libraryTitle}</Title>
+      <Tabs defaultValue="templates">
+        <Tabs.List>
+          <Tabs.Tab value="templates" data-testid="tab-templates">{t.templates.templatesTab}</Tabs.Tab>
+          <Tabs.Tab value="profiles" data-testid="tab-profiles">{t.templates.profiles.tab}</Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="templates" pt="md">
+          <Stack>
+            <Group justify="flex-end">
+              <Button data-testid="tpl-new" onClick={() => { setEditing(null); setModalOpen(true); }}>
+                {t.templates.create}
+              </Button>
+            </Group>
+            {templates && templates.length > 0 ? (
         <Table>
           <Table.Thead><Table.Tr>
             <Table.Th>{t.templates.name}</Table.Th><Table.Th>{t.templates.kind}</Table.Th>
@@ -55,19 +64,26 @@ export function TemplateLibraryPage() {
         </Table>
       ) : <Text c="dimmed">{t.templates.empty}</Text>}
 
-      <TemplateFormModal opened={modalOpen} onClose={() => setModalOpen(false)} editing={editing} />
-      <ConfirmModal
-        opened={!!toDelete}
-        onClose={() => setToDelete(null)}
-        onConfirm={async () => {
-          const tpl = toDelete; setToDelete(null);
-          if (!tpl) return;
-          try { await del.mutateAsync(tpl.id); } catch { notifications.show({ color: "red", message: t.templates.saveFailed }); }
-        }}
-        title={t.templates.delete}
-        body={t.templates.deleteConfirm}
-        loading={del.isPending}
-      />
+            <TemplateFormModal opened={modalOpen} onClose={() => setModalOpen(false)} editing={editing} />
+            <ConfirmModal
+              opened={!!toDelete}
+              onClose={() => setToDelete(null)}
+              onConfirm={async () => {
+                const tpl = toDelete; setToDelete(null);
+                if (!tpl) return;
+                try { await del.mutateAsync(tpl.id); } catch { notifications.show({ color: "red", message: t.templates.saveFailed }); }
+              }}
+              title={t.templates.delete}
+              body={t.templates.deleteConfirm}
+              loading={del.isPending}
+            />
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="profiles" pt="md">
+          <ProfilesPanel />
+        </Tabs.Panel>
+      </Tabs>
     </Stack>
   );
 }
