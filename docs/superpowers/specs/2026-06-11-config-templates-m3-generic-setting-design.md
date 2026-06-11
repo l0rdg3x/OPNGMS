@@ -13,10 +13,13 @@ Let a user define a template for an OPNsense **model-based setting endpoint** (I
 3. **Reference-device introspection at edit time.** The library is global/device-independent, but the model structure (available interfaces, option lists) is device-specific. So building an `opnsense_setting` template requires picking a **reference device** to read `get` from; the resulting payload is then applied to target devices. *Caveat (documented in the UI):* device-specific option values (e.g. an interface name) may not exist on every target — the server-side `set` validation is the backstop.
 4. **Heuristic field inference + server-side validation backstop.** Inference covers the common shapes precisely; unknowns fall back to a text input; the ultimate validation is OPNsense's own `set` (its validation errors are surfaced). "Value control" = strong on options/booleans + server-validated, not a hand-crafted per-field schema.
 5. **Reuse the M3a registries + config-push.** A new template kind `opnsense_setting` (TEMPLATE_KINDS) → a `config_change` kind `opnsense_setting` (CHANGE_APPLIERS) → a new connector write (`apply_setting`). No new tables, no new pipeline.
+6. **No hardware/device-specific settings — templates must be fleet-portable.** A template is meant to be applied across a heterogeneous fleet, so anything bound to a specific device's hardware/topology is NOT templatable. This is enforced at TWO levels: (a) inherently hardware-specific endpoints (interface assignment, NIC settings, …) are NOT added to the catalog at all; (b) within an otherwise-portable endpoint, hardware/device-specific FIELDS are declared per-entry and **omitted from the form** (e.g. IDS-general exposes `enabled`/`mode`/`homenet`/detection tuning but NOT `interfaces`, which is per-device). Only portable, fleet-common config is templatable.
 
 ## 3. Field-inference rules (from a `GET get_path` response)
 
 Walk `response[model_root]` (e.g. `response["ids"]`). For each leaf field:
+**Excluded first:** any field whose dotted path is in the catalog entry's `exclude_fields` (hardware/device-specific — decision 6) is SKIPPED entirely (never inferred, never shown, never in the payload). For the rest:
+
 - **option-dict** — a dict whose values are objects shaped `{ "value": <label>, "selected": 0|1 }`:
   - If **≥2** options are `selected:1` **OR** the field name is in the catalog's `multi_fields` → **MultiSelect** (options = the keys, labels = `.value`, value = the selected keys).
   - Else → **Select** (single; value = the one selected key, or "").
@@ -31,16 +34,17 @@ The inference produces a **field schema**: `list[{ path, label, control, options
 
 ### 4.1 Endpoint catalog (backend)
 
-`app/connectors/opnsense/setting_endpoints.py`: `SETTING_ENDPOINTS: dict[str, SettingEndpoint]`. M3-gen ships ONE entry (the proof):
+`app/connectors/opnsense/setting_endpoints.py`: `SETTING_ENDPOINTS: dict[str, SettingEndpoint]`. Only **fleet-portable** endpoints are listed (no inherently hardware-specific ones — decision 6). M3-gen ships ONE entry (the proof):
 ```
 "ids_general": SettingEndpoint(
     key="ids_general", label="IDS — General settings",
     get_path="ids/settings/get", set_path="ids/settings/set",
     reconfigure_path="ids/service/reconfigure", model_root="ids",
-    multi_fields=("general.interfaces", "general.homenet"),
+    multi_fields=("general.homenet",),                 # portable multi-selects
+    exclude_fields=("general.interfaces",),            # per-device hardware — omitted from the form
 )
 ```
-Adding Unbound/DHCP/… later = appending entries (data-only).
+Adding Unbound/DHCP/… later = appending entries (data-only), each declaring its own `exclude_fields` for any device-specific fields.
 
 ### 4.2 Connector (introspect + apply)
 
@@ -66,7 +70,7 @@ In the superadmin Template form, the **kind selector** gains "OPNsense setting".
 
 ## 5. Data flow
 
-Superadmin creates an `opnsense_setting` template: pick "IDS — General settings" + a reference device → OPNGMS introspects → a validated form (mode Select, interfaces MultiSelect, "enabled" Switch, homenet MultiSelect, …) → save the chosen values as `payload`. A tenant operator applies it to a device → materialize a `config_change(kind="opnsense_setting", payload={endpoint_key, payload})` → the worker's applier POSTs `{ids: {general: {...}}}` to `ids/settings/set` + `ids/service/reconfigure`, behind the advisory lock + staleness guard + snapshot.
+Superadmin creates an `opnsense_setting` template: pick "IDS — General settings" + a reference device → OPNGMS introspects → a validated form of the PORTABLE fields ("enabled" Switch, mode Select, homenet MultiSelect, detection tuning, … — the per-device `interfaces` field is omitted) → save the chosen values as `payload`. A tenant operator applies it to a device → materialize a `config_change(kind="opnsense_setting", payload={endpoint_key, payload})` → the worker's applier POSTs `{ids: {general: {...}}}` to `ids/settings/set` + `ids/service/reconfigure`, behind the advisory lock + staleness guard + snapshot.
 
 ## 6. Error handling / security
 
@@ -98,4 +102,4 @@ Superadmin creates an `opnsense_setting` template: pick "IDS — General setting
 
 - The auto-form covers **model-based** settings reachable via a catalog `get`/`set` endpoint — a large but not total slice of OPNsense (legacy config.xml-only settings are out).
 - Inference is **heuristic**: precise for option/boolean/string fields; ambiguous multi-selects need the `multi_fields` hint; truly unusual fields fall back to text. OPNsense's own `set` validation is the backstop.
-- Device-specific option values (interfaces, rulesets) introspected from the reference device may differ on a target device; `set` validation surfaces a mismatch rather than silently mis-applying.
+- Device-specific option values introspected from the reference device may differ on a target device; `set` validation surfaces a mismatch rather than silently mis-applying. **Hardware/topology-bound fields (interface assignments, NICs) are excluded by design** (decision 6) — templates carry only fleet-portable config, so a `wan`/`opt1` on the reference device is never baked into a template.
