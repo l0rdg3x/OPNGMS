@@ -10,21 +10,28 @@ from app.services.firmware_action import run_firmware_action
 
 
 class FakeClient:
-    """Scriptable client. `status_seq` feeds firmware_upgrade_status; `reach_fail` makes the next
-    N status polls raise ReachabilityError (a reboot) before test_connection succeeds."""
-    def __init__(self, *, check=None, status=None, status_seq=None, reach_fail=0):
-        self._check = check or {"status": "none"}
+    """Scriptable client modelling OPNsense's async+serialized firmware runner.
+    Each issued action makes `firmware_upgrade_status` report 'running' a couple times then 'done'.
+    `reach_fail` makes the next N status/connection polls raise ReachabilityError (a reboot)."""
+    def __init__(self, *, status=None, status_seq=None, reach_fail=0, checks=None):
         self._status = status or {"status": "none", "updates": "0"}
-        self._status_seq = list(status_seq or [{"status": "done"}])
+        self._checks = list(checks) if checks else None
         self._reach_fail = reach_fail
+        self._running = 0
         self.calls = []
 
-    async def firmware_check(self): self.calls.append("check"); return self._check
-    async def firmware_status_raw(self): return self._status
-    async def firmware_update(self): self.calls.append("update"); return {"status": "ok"}
-    async def firmware_upgrade(self): self.calls.append("upgrade"); return {"status": "ok"}
-    async def plugin_install(self, name): self.calls.append(f"install:{name}"); return {"status": "ok"}
-    async def plugin_remove(self, name): self.calls.append(f"remove:{name}"); return {"status": "ok"}
+    def _begin(self):
+        self._running = 2  # the action will be observed running for two polls
+
+    async def firmware_check(self): self.calls.append("check"); self._begin(); return {"status": "ok"}
+    async def firmware_status_raw(self):
+        if self._checks is not None:
+            return self._checks.pop(0) if len(self._checks) > 1 else self._checks[0]
+        return self._status
+    async def firmware_update(self): self.calls.append("update"); self._begin(); return {"status": "ok"}
+    async def firmware_upgrade(self): self.calls.append("upgrade"); self._begin(); return {"status": "ok"}
+    async def plugin_install(self, name): self.calls.append(f"install:{name}"); self._begin(); return {"status": "ok"}
+    async def plugin_remove(self, name): self.calls.append(f"remove:{name}"); self._begin(); return {"status": "ok"}
     async def test_connection(self):
         if self._reach_fail > 0:
             self._reach_fail -= 1
@@ -38,7 +45,10 @@ class FakeClient:
         if self._reach_fail > 0:
             self._reach_fail -= 1
             raise ReachabilityError("rebooting")
-        return self._status_seq.pop(0) if len(self._status_seq) > 1 else self._status_seq[0]
+        if self._running > 0:
+            self._running -= 1
+            return {"status": "running"}
+        return {"status": "done"}
 
 
 async def _action(db_engine, tenant_id, kind, target="", status="scheduled") -> uuid.UUID:
@@ -71,7 +81,7 @@ async def test_plugin_remove_runs(db_engine, two_tenants, monkeypatch):
     monkeypatch.setattr(fa.asyncio, "sleep", lambda *a, **k: _noop())
     ta, _ = two_tenants
     aid = await _action(db_engine, ta, "plugin_remove", target="os-acme-client")
-    client = FakeClient(status_seq=[{"status": "done"}])
+    client = FakeClient()
     st, act = await _run(db_engine, aid, client)
     assert st == "done" and act.status == "done"
     assert "remove:os-acme-client" in client.calls
@@ -94,7 +104,7 @@ async def test_firmware_update_reboot_tolerant(db_engine, two_tenants, monkeypat
     ta, _ = two_tenants
     aid = await _action(db_engine, ta, "firmware_update")
     # status poll raises ReachabilityError twice (reboot) then test_connection comes back, then done
-    client = FakeClient(reach_fail=2, status_seq=[{"status": "done"}])
+    client = FakeClient(reach_fail=2)
     st, act = await _run(db_engine, aid, client)
     assert st == "done" and "update" in client.calls
 
@@ -106,17 +116,41 @@ async def test_firmware_upgrade_multistep_loop(db_engine, two_tenants, monkeypat
     aid = await _action(db_engine, ta, "firmware_upgrade")
 
     # check returns "updates available" for 2 iterations, then "up to date"
-    class UpgradeClient(FakeClient):
-        def __init__(self):
-            super().__init__(status_seq=[{"status": "done"}])
-            self._checks = [{"status": "ok"}, {"status": "ok"}, {"status": "none"}]
-        async def firmware_status_raw(self):
-            return self._checks.pop(0) if len(self._checks) > 1 else self._checks[0]
-
-    client = UpgradeClient()
+    client = FakeClient(checks=[{"status": "ok"}, {"status": "ok"}, {"status": "none"}])
     st, act = await _run(db_engine, aid, client)
     assert st == "done"
     assert client.calls.count("update") + client.calls.count("upgrade") == 2  # two steps then converged
+
+
+async def test_poll_until_done_waits_past_stale_done(monkeypatch):
+    import app.services.firmware_action as fa
+    monkeypatch.setattr(fa.asyncio, "sleep", lambda *a, **k: _noop())
+    seq = [{"status": "done"},            # stale "done" from a prior action
+           {"status": "running"}, {"status": "running"},
+           {"status": "done"}]            # the real completion
+
+    class C:
+        async def firmware_upgrade_status(self):
+            return seq.pop(0) if len(seq) > 1 else seq[0]
+
+    st = await fa.poll_until_done(C())
+    assert st["status"] == "done"
+    assert len(seq) == 1  # consumed through the real "done", not the stale one
+
+
+async def test_poll_until_done_returns_after_grace_when_never_running(monkeypatch):
+    import app.services.firmware_action as fa
+    monkeypatch.setattr(fa.asyncio, "sleep", lambda *a, **k: _noop())
+    calls = {"n": 0}
+
+    class C:
+        async def firmware_upgrade_status(self):
+            calls["n"] += 1
+            return {"status": "done"}  # action never enters "running"
+
+    st = await fa.poll_until_done(C())
+    assert st["status"] == "done"
+    assert calls["n"] == fa.STARTUP_GRACE_POLLS  # bailed exactly after the grace window
 
 
 def _noop():

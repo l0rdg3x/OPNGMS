@@ -44,6 +44,7 @@ async def main() -> int:
     key, secret = _creds(os.environ["OPNSENSE_KEYFILE"])
     client = OpnsenseClient(base, key, secret, verify_tls=False)
     await client.firmware_check()
+    await poll_until_done(client)                          # wait for the mirror check (serialized)
     if updates_pending(await client.firmware_status_raw()):
         print("ABORT: device has pending firmware updates -- OPNsense blocks plugin installs. Update first.")
         print("SKIPPED (not up to date)")
@@ -53,8 +54,9 @@ async def main() -> int:
         print(f"install {name} ...")
         await client.plugin_install(name)
         await poll_until_done(client)
-        print(f"installed -> {await _installed(client, name)}")
-        rc = 0
+        ok = await _installed(client, name)
+        print(f"installed -> {ok}")
+        rc = 0 if ok else 1
     finally:
         try:
             print(f"remove {name} ...")
