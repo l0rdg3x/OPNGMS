@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -26,10 +28,18 @@ from app.api.setup import router as setup_router
 from app.api.templates import router as templates_router
 from app.api.tenants import router as tenants_router
 from app.api.users import router as users_router
-from app.core.config import get_settings
+from app.core.config import assert_secure_secrets, get_settings
 from app.core.security import SecurityHeadersMiddleware
 
-app = FastAPI(title="OPNGMS", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Fail closed at startup if any secret is still an .env.example placeholder (weak default creds).
+    assert_secure_secrets(get_settings())
+    yield
+
+
+app = FastAPI(title="OPNGMS", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 _origins = [o.strip() for o in get_settings().cors_allow_origins.split(",") if o.strip()]

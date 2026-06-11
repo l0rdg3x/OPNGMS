@@ -143,6 +143,11 @@ One compose stack: TimescaleDB + Redis, a one-shot **migrate** job, the **API** 
 `/api` reverse-proxy). The backend image bundles the WeasyPrint system libraries so PDF reporting
 works out of the box.
 
+Every credential is env-driven and **must be changed** — the API **refuses to start** while any secret
+(`DATABASE_URL`/`ADMIN_DATABASE_URL` passwords, `SESSION_SECRET`, `MASTER_KEY`, `APP_ROLE_PASSWORD`)
+still holds its `change-me-*` placeholder. Keep the DB password matched between `DATABASE_URL` and
+`APP_ROLE_PASSWORD` (the app role), and between `ADMIN_DATABASE_URL` and `POSTGRES_PASSWORD` (the owner).
+
 ```bash
 cp .env.example .env   # edit: strong POSTGRES_PASSWORD/APP_ROLE_PASSWORD, SESSION_SECRET, MASTER_KEY,
                        #       and the frontend/TLS block (SERVER_NAME / DOMAIN / ACME_EMAIL). Never commit .env.
