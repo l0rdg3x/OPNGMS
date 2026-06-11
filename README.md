@@ -178,12 +178,14 @@ Set via environment (see `.env.example`). Highlights:
 | **Monitoring** — poller, health + network metrics, alerting, dashboard | ✅ Done |
 | **Event ingest** — Suricata IDS + DNS into the `events` hypertable, query API (keyset-paginated) | ✅ Done |
 | **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 7-language localization | ✅ Done |
-| **Config management** — encrypted backup + drift detection + firewall-aware editing UI | ✅ Core done¹ |
+| **Config management** — encrypted backup + drift detection + firewall-aware editing UI + **live alias push** | ✅ Done¹ |
+| **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Deployment** — production Dockerfiles + `docker-compose.prod.yml`, reverse-proxy aware | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
-¹ Live configuration **push** to a device (4D-b/4D-d) is implemented as a dry-run pipeline; flipping it
-on, and confirming the OPNsense endpoints marked *TO VERIFY*, requires validation against real hardware.
+¹ Live configuration **push** to a device (firewall aliases, 4D-b) is verified against real OPNsense 26.1.9
+and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot as
+a rollback point; automatic rollback is a planned follow-up.
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 
