@@ -6,6 +6,7 @@ import { CapabilitiesPanel } from "../CapabilitiesPanel";
 
 const inv = {
   opnsense_version: "24.7.2",
+  edition: "community",
   interfaces: [
     { name: "wan", nic: "igb0", description: "WAN" },
     { name: "lan", nic: "igb1", description: "LAN" },
