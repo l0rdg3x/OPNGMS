@@ -1,19 +1,19 @@
-from app.models.base import Base
 from app.models.alert import Alert
 from app.models.audit import AuditLog
+from app.models.base import Base
 from app.models.config_change import ConfigChange
-from app.models.config_template import ConfigTemplate  # noqa: F401
-from app.models.firmware_action import FirmwareAction  # noqa: F401
-from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.config_snapshot import ConfigSnapshot
+from app.models.config_template import ConfigTemplate  # noqa: F401
 from app.models.device import Device
 from app.models.event import Event
+from app.models.firmware_action import FirmwareAction  # noqa: F401
 from app.models.generated_report import GeneratedReport
 from app.models.ingest_cursor import IngestCursor
 from app.models.membership import Membership
 from app.models.metric import Metric
 from app.models.report_settings import ReportSettings
 from app.models.session import Session
+from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.tenant import Tenant
 from app.models.user import User
 

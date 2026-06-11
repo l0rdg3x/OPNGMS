@@ -68,6 +68,25 @@ jobs:
       - name: Run pytest
         run: cd backend && python -m pytest -q
 
+  # ── Backend lint ─────────────────────────────────────────────────────────────
+  # Lightweight ruff gate. No DB / WeasyPrint needed — just lint the app package.
+  lint-backend:
+    name: Backend lint (ruff)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install ruff
+        run: pip install ruff>=0.15
+
+      - name: ruff check
+        run: cd backend && ruff check app/
+
   # ── Frontend ─────────────────────────────────────────────────────────────────
   # Installs Node 20, runs tests, build, and lint for the React/Vite frontend.
   frontend:

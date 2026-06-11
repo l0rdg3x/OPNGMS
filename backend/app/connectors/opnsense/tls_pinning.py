@@ -5,6 +5,7 @@ matches it BEFORE sending credentials (MITM-resistant). CERT_NONE is used ONLY t
 certificate for the fingerprint comparison — the comparison itself is the verification.
 """
 import asyncio
+import contextlib
 import hashlib
 import ssl
 
@@ -34,10 +35,8 @@ async def peer_fingerprint(host: str, ip: str, port: int, *, timeout: float) -> 
         der = ssl_obj.getpeercert(binary_form=True) if ssl_obj else None
     finally:
         writer.close()
-        try:
+        with contextlib.suppress(Exception):  # best-effort close
             await writer.wait_closed()
-        except Exception:  # noqa: BLE001 — best-effort close
-            pass
     if not der:
         raise ssl.SSLError("no peer certificate")
     return hashlib.sha256(der).hexdigest()

@@ -1,4 +1,3 @@
-import asyncio
 import re
 import ssl
 from datetime import datetime
@@ -96,7 +95,7 @@ class OpnsenseClient:
                 await verify_pinned(host, pinned_ip, port or 443, self._fingerprint, timeout=self._timeout)
             except PinMismatchError as exc:
                 raise ReachabilityError("certificate fingerprint mismatch") from exc
-            except (ssl.SSLError, OSError, asyncio.TimeoutError) as exc:
+            except (TimeoutError, ssl.SSLError, OSError) as exc:
                 raise ReachabilityError("device unreachable") from exc
         # Connect to the pinned IP (anti DNS-rebinding); the original hostname remains
         # for the Host header and for SNI/TLS cert verification.

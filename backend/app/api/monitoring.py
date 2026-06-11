@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -27,7 +27,7 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
     between naive and tz-aware datetimes (which would otherwise yield a 500).
     """
     if dt is not None and dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -42,7 +42,7 @@ async def get_device_metrics(
     ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
     session: AsyncSession = Depends(get_session),
 ) -> MetricSeriesOut:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Normalize naive datetimes to UTC (e.g. ?from=2026-01-01T00:00:00 without Z)
     # before computing frm/end and the comparisons: avoids the naive-vs-aware TypeError.
     from_ = _ensure_utc(from_)
@@ -90,7 +90,7 @@ async def fleet_health(
             .group_by(Device.status)
         )
     ).all()
-    by_status = {status: count for status, count in status_rows}
+    by_status = dict(status_rows)
     total = sum(by_status.values())
     active_alerts = (
         await session.execute(

@@ -5,9 +5,9 @@ from sqlalchemy.exc import IntegrityError
 
 from app.api.auth import router as auth_router
 from app.api.config import router as config_router
-from app.api.firmware import router as firmware_router
 from app.api.devices import router as devices_router
 from app.api.events import router as events_router
+from app.api.firmware import router as firmware_router
 from app.api.me_tenants import router as me_tenants_router
 from app.api.memberships import router as memberships_router
 from app.api.monitoring import router as monitoring_router

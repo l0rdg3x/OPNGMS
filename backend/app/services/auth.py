@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +42,7 @@ class AuthService:
         user_agent: str | None = None,
     ) -> tuple[Session, str]:
         """Create a session. Returns (session, raw_token). Only the hash is stored."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         raw_token = secrets.token_urlsafe(32)
         sess = Session(
             user_id=user.id,
@@ -60,7 +60,7 @@ class AuthService:
 
     async def get_session_for_token(self, raw_token: str) -> Session | None:
         """Resolve+validate a session from its raw token (absolute + idle expiry)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         idle = timedelta(minutes=get_settings().session_idle_minutes)
         result = await self.session.execute(
             select(Session).where(Session.token_hash == _hash_token(raw_token))
