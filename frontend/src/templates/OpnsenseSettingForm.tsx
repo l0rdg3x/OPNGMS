@@ -1,12 +1,14 @@
-import { Button, Group, MultiSelect, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Button, Group, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useState } from "react";
 import { useT } from "../i18n";
 import { type SettingField, useIntrospectSetting, useSettingEndpoints, useTenantDevices } from "./settingHooks";
+import { AutoFormFields } from "./AutoFormFields";
 
 type SettingBody = { endpoint_key: string; payload: Record<string, string> };
 
-function initialPayload(fields: SettingField[]): Record<string, string> {
+// eslint-disable-next-line react-refresh/only-export-components
+export function initialPayload(fields: SettingField[]): Record<string, string> {
   const payload: Record<string, string> = {};
   for (const f of fields) {
     payload[f.path] = Array.isArray(f.value) ? f.value.join(",") : String(f.value);
@@ -90,56 +92,7 @@ export function OpnsenseSettingForm(
           ? <Text size="sm" c="dimmed" data-testid="setting-no-fields">{t.templates.setting.noFields}</Text>
           : (
           <Stack data-testid="setting-fields">
-            {fields.map((field) => {
-              const current = value.payload[field.path];
-              if (field.control === "switch") {
-                const checked = (current ?? String(field.value)) === "1";
-                return (
-                  <Switch
-                    key={field.path}
-                    label={field.label}
-                    data-testid={`setting-field-${field.path}`}
-                    checked={checked}
-                    onChange={(e) => setField(field.path, e.currentTarget.checked ? "1" : "0")}
-                  />
-                );
-              }
-              if (field.control === "select") {
-                return (
-                  <Select
-                    key={field.path}
-                    label={field.label}
-                    data={field.options ?? []}
-                    data-testid={`setting-field-${field.path}`}
-                    value={current ?? String(field.value)}
-                    onChange={(key) => setField(field.path, key ?? "")}
-                  />
-                );
-              }
-              if (field.control === "multiselect") {
-                const fallback = Array.isArray(field.value) ? field.value.join(",") : "";
-                const selected = (current ?? fallback).split(",").filter(Boolean);
-                return (
-                  <MultiSelect
-                    key={field.path}
-                    label={field.label}
-                    data={field.options ?? []}
-                    data-testid={`setting-field-${field.path}`}
-                    value={selected}
-                    onChange={(keys) => setField(field.path, keys.join(","))}
-                  />
-                );
-              }
-              return (
-                <TextInput
-                  key={field.path}
-                  label={field.label}
-                  data-testid={`setting-field-${field.path}`}
-                  value={current ?? String(field.value)}
-                  onChange={(e) => setField(field.path, e.currentTarget.value)}
-                />
-              );
-            })}
+            <AutoFormFields fields={fields} payload={value.payload} onField={setField} />
           </Stack>
         )}
 
