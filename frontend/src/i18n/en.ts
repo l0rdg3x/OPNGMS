@@ -141,7 +141,6 @@ export const en = {
     templatesTab: "Templates",
     profiles: {
       tab: "Profiles",
-      title: "Profiles",
       name: "Name",
       description: "Description",
       members: "Templates (in apply order)",
