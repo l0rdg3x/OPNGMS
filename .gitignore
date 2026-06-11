@@ -1,6 +1,8 @@
 
-# Local tooling state (ruflo, etc.)
-.claude/
+# Local tooling state (ruflo, settings, MCP, etc.) — but DO share the project agents + skills.
+.claude/*
+!.claude/agents/
+!.claude/skills/
 
 # Production secrets — never commit
 .env
