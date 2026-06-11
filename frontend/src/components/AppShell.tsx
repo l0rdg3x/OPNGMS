@@ -17,6 +17,7 @@ const DeviceDetailPage = lazy(() => import("../pages/DeviceDetailPage").then((m)
 const ReportsPage = lazy(() => import("../pages/ReportsPage").then((m) => ({ default: m.ReportsPage })));
 const ReportSettingsPage = lazy(() => import("../pages/ReportSettingsPage").then((m) => ({ default: m.ReportSettingsPage })));
 const SessionsPage = lazy(() => import("../security/SessionsPage").then((m) => ({ default: m.SessionsPage })));
+const MfaPage = lazy(() => import("../security/MfaPage").then((m) => ({ default: m.MfaPage })));
 const TemplateLibraryPage = lazy(() => import("../pages/TemplateLibraryPage").then((m) => ({ default: m.TemplateLibraryPage })));
 
 // ── Inline icon set (stroke, currentColor) — keeps the bundle dependency-free ──
@@ -30,6 +31,7 @@ const IconAlerts = () => (<svg {...ic}><path d="M10.3 3.6 1.8 18a1.5 1.5 0 0 0 1
 const IconReports = () => (<svg {...ic}><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></svg>);
 const IconSettings = () => (<svg {...ic}><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2.4" /><circle cx="8" cy="17" r="2.4" /></svg>);
 const IconSessions = () => (<svg {...ic}><path d="M12 2 4 5v6c0 5 3.4 8.4 8 11 4.6-2.6 8-6 8-11V5z" /><circle cx="12" cy="10" r="2.2" /><path d="M12 12.2V15" /></svg>);
+const IconMfa = () => (<svg {...ic}><circle cx="8" cy="14" r="3.4" /><path d="M10.4 11.6 19 3M16 6l2.5 2.5M14 8l2.5 2.5" /></svg>);
 const IconTemplates = () => (<svg {...ic}><path d="m12 3 9 5-9 5-9-5 9-5z" /><path d="m3 13 9 5 9-5M3 17l9 5 9-5" /></svg>);
 
 function NavItem({ to, label, icon }: { to: string; label: string; icon: ReactNode }) {
@@ -51,6 +53,7 @@ function AppShellNav() {
         <NavItem to="/reports/settings" label={t.nav.reportSettings} icon={<IconSettings />} />
       )}
       <NavItem to="/security/sessions" label={t.nav.sessions} icon={<IconSessions />} />
+      <NavItem to="/security/mfa" label={t.nav.mfa} icon={<IconMfa />} />
       {me?.is_superadmin && (
         <NavItem to="/admin/templates" label={t.nav.templates} icon={<IconTemplates />} />
       )}
@@ -123,6 +126,7 @@ export function AppShell() {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/reports/settings" element={<ReportSettingsPage />} />
               <Route path="/security/sessions" element={<SessionsPage />} />
+              <Route path="/security/mfa" element={<MfaPage />} />
               <Route path="/admin/templates" element={<TemplateLibraryPage />} />
             </Routes>
           </Suspense>
