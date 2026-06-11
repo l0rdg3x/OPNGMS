@@ -34,8 +34,9 @@ async def collect_and_store(
     network must not fail the cycle). `client` is injectable (test/poller).
     """
     try:
+        ident = await client.get_device_identity()
+        client.set_identity(ident.edition, ident.version)
         info = await client.get_system_info()
-        fw = await client.get_firmware_status()
         interfaces = await client.get_interfaces()
         gateways = await client.get_gateways()
         vpn = await client.get_vpn_status()
@@ -61,7 +62,9 @@ async def collect_and_store(
     session.add_all(rows)
     device.status = "reachable"
     device.last_seen = now
-    version = fw.get("product_version")
+    device.edition = ident.edition
+    device.firmware_series = ident.series
+    version = ident.version
     if version:
         device.firmware_version = version
     await session.flush()

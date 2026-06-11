@@ -46,6 +46,10 @@ async def main() -> int:
     key, secret = _read_creds(os.environ["OPNSENSE_KEYFILE"])
     client = OpnsenseClient(base, key, secret, verify_tls=False)
 
+    ident = await client.get_device_identity()
+    print(f"IDENTITY  edition={ident.edition} version={ident.version} series={ident.series}\n")
+    client.set_identity(ident.edition, ident.version)
+
     checks = {
         "test_connection": client.test_connection(),
         "get_plugin_info": client.get_plugin_info(),

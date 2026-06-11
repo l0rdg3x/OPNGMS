@@ -9,12 +9,21 @@ from app.models.metric import Metric
 from app.services.monitoring import collect_and_store
 
 
+class _Ident:
+    edition = "Community"
+    version = "26.1.9"
+    series = "26.1"
+
+
 class NetClient:
+    def set_identity(self, edition, version):
+        pass
+
+    async def get_device_identity(self):
+        return _Ident()
+
     async def get_system_info(self):
         return {"cpu_pct": 1.0, "mem_pct": 2.0, "disk_pct": 3.0, "uptime_seconds": 4}
-
-    async def get_firmware_status(self):
-        return {"product_version": "24.7"}
 
     async def get_interfaces(self):
         return [{"name": "igb0", "up": True, "bytes_in": 100.0, "bytes_out": 200.0}]

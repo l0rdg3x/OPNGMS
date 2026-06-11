@@ -10,6 +10,8 @@ class ProbeResult:
     reachable: bool
     firmware_version: str | None
     error: str | None
+    edition: str = ""
+    series: str = ""
 
 
 async def probe_device(
@@ -22,13 +24,11 @@ async def probe_device(
 ) -> ProbeResult:
     client = OpnsenseClient(base_url, api_key, api_secret, verify_tls=verify_tls, tls_fingerprint=tls_fingerprint)
     try:
-        version = await client.test_connection()
-        return ProbeResult(reachable=True, firmware_version=version, error=None)
+        ident = await client.get_device_identity()
+        return ProbeResult(reachable=True, firmware_version=ident.version or None,
+                           error=None, edition=ident.edition, series=ident.series)
     except OpnsenseError as exc:
-        # SANITIZED: only the type name, no upstream content/URL.
-        return ProbeResult(
-            reachable=False, firmware_version=None, error=type(exc).__name__
-        )
+        return ProbeResult(reachable=False, firmware_version=None, error=type(exc).__name__)
 
 
 # Type of the injectable "prober" (overridable in the endpoint tests).

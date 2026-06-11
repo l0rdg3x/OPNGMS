@@ -10,6 +10,13 @@ from app.services.monitoring import collect_and_store
 
 
 class FakeClient:
+    async def get_device_identity(self):
+        from app.connectors.opnsense.identity import DeviceIdentity
+        return DeviceIdentity(edition="community", version="26.1.9", series="26.1")
+
+    def set_identity(self, edition, version):
+        pass
+
     async def get_system_info(self):
         return {"cpu_pct": 10.0, "mem_pct": 50.0, "disk_pct": 20.0, "uptime_seconds": 3600}
 
@@ -62,5 +69,5 @@ async def test_collect_and_store_writes_metrics_and_updates_status(db_engine):
         assert all(r.tenant_id == tenant_id for r in rows)
         device = await s.get(Device, device_id)
         assert device.status == "reachable"
-        assert device.firmware_version == "24.7"
+        assert device.firmware_version == "26.1.9"
         assert device.last_seen is not None

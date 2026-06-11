@@ -224,3 +224,25 @@ def parse_dns_rows(data) -> list[dict]:
             "event_key": str(key), "attributes": r,
         })
     return out
+
+
+def parse_version(s) -> tuple[int, int, int, int]:
+    """OPNsense 'YY.M.point[_hotfix]' -> (year, month, point, hotfix); missing parts -> 0.
+
+    The '_hotfix' suffix (e.g. 24.7.1_2) is not PEP 440, so this is parsed by hand. Defensive:
+    non-numeric / unexpected input never raises (best-effort, 0-filled)."""
+    base, _, hot = str(s or "").strip().partition("_")
+    nums = []
+    for part in base.split(".")[:3]:
+        m = re.match(r"\d+", part)
+        nums.append(int(m.group()) if m else 0)
+    while len(nums) < 3:
+        nums.append(0)
+    hm = re.match(r"\d+", hot)
+    return (nums[0], nums[1], nums[2], int(hm.group()) if hm else 0)
+
+
+def series_of(s) -> str:
+    """'26.1.9_1' -> '26.1' (the YY.M series; point/hotfix ignored)."""
+    y, m, _, _ = parse_version(s)
+    return f"{y}.{m}"

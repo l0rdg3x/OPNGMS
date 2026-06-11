@@ -68,6 +68,7 @@ class Capability(BaseModel):
 
 class CapabilityInventory(BaseModel):
     opnsense_version: str
+    edition: str = ""
     interfaces: list[Interface]
     configured_sections: list[str]
     available_capabilities: list[Capability]
