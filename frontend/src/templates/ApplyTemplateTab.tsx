@@ -16,6 +16,7 @@ import { useState } from "react";
 import { useT } from "../i18n";
 import { type Template, useTemplates } from "./hooks";
 import { useApplyTemplate, usePreviewTemplate, useUpsertOverride } from "./applyHooks";
+import { useFirewallRuleModel } from "./settingHooks";
 
 /** Split a textarea value into a trimmed, empty-filtered content list. */
 function parseContent(value: string): string[] {
@@ -38,16 +39,34 @@ export function ApplyTemplateTab({ deviceId }: { deviceId: string }) {
   const [override, setOverride] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [when, setWhen] = useState<string | null>(null);
+  const [iface, setIface] = useState<string>("");
+  const [interfaces, setInterfaces] = useState<{ value: string; label: string }[]>([]);
 
-  // Prefill the override textarea from the newly-picked template's content.
+  const ruleModel = useFirewallRuleModel(deviceId);
+
+  const selected = templates?.find((tpl) => tpl.id === templateId);
+  const isFirewallRule = selected?.kind === "firewall_rule";
+  // Apply-time bindings: firewall rules thread the chosen interface (empty = floating); others none.
+  const bindings: Record<string, unknown> = isFirewallRule ? { interface: iface } : {};
+
+  // Prefill the override textarea from the newly-picked template's content; for a
+  // firewall_rule, load the device's interfaces for the apply-time interface picker.
   function pickTemplate(id: string | null) {
     setTemplateId(id);
-    setOverride(templateContent(templates?.find((tpl) => tpl.id === id)));
+    setIface("");
+    setInterfaces([]);
+    const tpl = templates?.find((t) => t.id === id);
+    setOverride(templateContent(tpl));
+    if (tpl?.kind === "firewall_rule") {
+      ruleModel.mutateAsync().then((res) => setInterfaces(res.interfaces)).catch(() => {});
+    }
   }
 
   const upsert = useUpsertOverride(templateId ?? "");
   const preview = usePreviewTemplate(deviceId);
   const apply = useApplyTemplate(deviceId);
+
+  const interfaceData = [{ value: "", label: t.templates.fw.floating }, ...interfaces];
 
   const previewOut = preview.data?.new as { name?: string; content?: string[] } | undefined;
 
@@ -63,7 +82,7 @@ export function ApplyTemplateTab({ deviceId }: { deviceId: string }) {
 
   function runPreview() {
     if (!templateId) return;
-    preview.mutate(templateId, {
+    preview.mutate({ templateId, bindings }, {
       onError: () => notifications.show({ color: "red", message: t.templates.apply.failed }),
     });
   }
@@ -77,7 +96,7 @@ export function ApplyTemplateTab({ deviceId }: { deviceId: string }) {
     if (!templateId) return;
     const scheduled_at = scheduled && when ? new Date(when.replace(" ", "T")).toISOString() : null;
     try {
-      await apply.mutateAsync({ templateId, scheduled_at });
+      await apply.mutateAsync({ templateId, scheduled_at, bindings });
       notifications.show({ message: t.templates.apply.queued });
     } catch {
       notifications.show({ color: "red", message: t.templates.apply.failed });
@@ -111,6 +130,15 @@ export function ApplyTemplateTab({ deviceId }: { deviceId: string }) {
           />
           {templateId && (
             <>
+              {isFirewallRule && (
+                <Select
+                  label={t.templates.fw.interface}
+                  data={interfaceData}
+                  value={iface}
+                  onChange={(v) => setIface(v ?? "")}
+                  data-testid="fw-apply-interface"
+                />
+              )}
               <Textarea
                 label={t.templates.apply.override}
                 rows={4}
