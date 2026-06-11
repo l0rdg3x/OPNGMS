@@ -17,7 +17,11 @@ describe("login flow", () => {
       ),
       http.post("/api/login", () => {
         authed = true;
-        return HttpResponse.json({ id: "1", email: "a@x.io", name: "A", is_superadmin: true });
+        // New two-step login contract: { status, user }.
+        return HttpResponse.json({
+          status: "ok",
+          user: { id: "1", email: "a@x.io", name: "A", is_superadmin: true },
+        });
       }),
       http.get("/api/me/tenants", () => HttpResponse.json([])),
     );
