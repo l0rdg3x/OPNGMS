@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+import app.services.setting_kind  # noqa: F401  — registers opnsense_setting kind at API-process startup
 from app.api.auth import router as auth_router
 from app.api.config import router as config_router
 from app.api.devices import router as devices_router
