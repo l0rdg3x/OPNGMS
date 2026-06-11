@@ -31,6 +31,23 @@ const DEVICES = [
 
 const RULESETS = [{ filename: "a.rules", description: "Alpha", enabled: "0" }];
 
+const RULE_MODEL = {
+  fields: [
+    {
+      path: "action",
+      label: "action",
+      control: "select",
+      options: [
+        { value: "pass", label: "Pass" },
+        { value: "block", label: "Block" },
+      ],
+      value: "pass",
+    },
+    { path: "description", label: "description", control: "text", value: "" },
+  ],
+  interfaces: [{ value: "wan", label: "WAN" }],
+};
+
 /** Shared providers wrapper. */
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -111,5 +128,90 @@ describe("TemplateFormModal — suricata_ruleset", () => {
         body: { rulesets: ["a.rules"] },
       })
     );
+  });
+});
+
+describe("TemplateFormModal — firewall_rule", () => {
+  it("creates a firewall_rule template with the loaded rule fields as the body", async () => {
+    const capture = vi.fn();
+    server.use(
+      http.get("/api/tenants/t1/devices", () => HttpResponse.json(DEVICES)),
+      http.get(
+        "/api/tenants/t1/devices/d1/opnsense/firewall/rule-model",
+        () => HttpResponse.json(RULE_MODEL),
+      ),
+      http.post("/api/templates", async ({ request }) => {
+        capture(await request.json());
+        return HttpResponse.json(
+          { id: "x", kind: "firewall_rule", name: "Block telnet", version: 1 },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderModal();
+
+    // Name.
+    await userEvent.type(screen.getByTestId("tpl-name"), "Block telnet");
+
+    // Switch the kind to Firewall rule (Mantine Select: click input, then option).
+    await userEvent.click(screen.getByTestId("tpl-kind"));
+    await userEvent.click(await screen.findByText("Firewall rule (Rules [new])"));
+
+    // The firewall-rule form is now shown: pick device + load the model.
+    await userEvent.click(await screen.findByTestId("fw-device"));
+    await userEvent.click(await screen.findByText("fw1"));
+    await userEvent.click(screen.getByTestId("fw-load"));
+
+    // Set the action to Block.
+    const action = await screen.findByTestId("fw-field-action");
+    await userEvent.click(action);
+    await userEvent.click(await screen.findByText("Block"));
+
+    // Set a description.
+    const description = await screen.findByTestId("fw-field-description");
+    await userEvent.type(description, "block-telnet");
+
+    // Save and assert the captured POST body.
+    await userEvent.click(screen.getByTestId("tpl-save"));
+
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "firewall_rule",
+          name: "Block telnet",
+          description: "",
+          body: expect.objectContaining({ action: "block", description: "block-telnet" }),
+        }),
+      )
+    );
+  });
+
+  it("refuses to save a firewall_rule with an empty description (it is the rule identity)", async () => {
+    const capture = vi.fn();
+    server.use(
+      http.get("/api/tenants/t1/devices", () => HttpResponse.json(DEVICES)),
+      http.get(
+        "/api/tenants/t1/devices/d1/opnsense/firewall/rule-model",
+        () => HttpResponse.json(RULE_MODEL),
+      ),
+      http.post("/api/templates", async ({ request }) => {
+        capture(await request.json());
+        return HttpResponse.json({ id: "x", kind: "firewall_rule", name: "n", version: 1 }, { status: 201 });
+      }),
+    );
+
+    renderModal();
+    await userEvent.type(screen.getByTestId("tpl-name"), "No description");
+    await userEvent.click(screen.getByTestId("tpl-kind"));
+    await userEvent.click(await screen.findByText("Firewall rule (Rules [new])"));
+    await userEvent.click(await screen.findByTestId("fw-device"));
+    await userEvent.click(await screen.findByText("fw1"));
+    await userEvent.click(screen.getByTestId("fw-load"));
+    // description left empty -> save is blocked client-side, no POST is made.
+    await screen.findByTestId("fw-field-action");
+    await userEvent.click(screen.getByTestId("tpl-save"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(capture).not.toHaveBeenCalled();
   });
 });

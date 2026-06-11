@@ -152,6 +152,18 @@ export const en = {
       noFields: "No configurable fields.",
       hardwareNote: "Hardware/device-specific fields are intentionally not templatable.",
     },
+    kindFirewallRule: "Firewall rule (Rules [new])",
+    fw: {
+      referenceDevice: "Reference device (to read the available rule fields)",
+      load: "Load fields",
+      loadHint: "Pick a device, then load the rule fields to configure.",
+      noDevice: "No device available in the active tenant to read fields from.",
+      loadFailed: "Could not read the rule model from the device.",
+      descriptionRequired: "A description is required (it is the rule identity).",
+      interface: "Interface (chosen at apply time)",
+      floating: "Floating (no interface)",
+      note: "The interface is chosen at apply time; leave it empty for a floating rule.",
+    },
     kindIdsRulesets: "Suricata/IDS rulesets",
     ids: {
       referenceDevice: "Reference device (to read the available rulesets)",

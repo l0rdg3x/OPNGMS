@@ -857,6 +857,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/opnsense/firewall/rule-model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Firewall Rule Model
+         * @description Value-controlled rule-field schema + the device's interfaces (for the apply-time picker).
+         */
+        get: operations["firewall_rule_model_api_tenants__tenant_id__devices__device_id__opnsense_firewall_rule_model_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -917,6 +937,13 @@ export interface components {
         ApplyTemplateIn: {
             /** Scheduled At */
             scheduled_at?: string | null;
+            /**
+             * Bindings
+             * @default {}
+             */
+            bindings: {
+                [key: string]: unknown;
+            };
         };
         /** Body_upload_report_logo_api_tenants__tenant_id__reports_settings_logo_put */
         Body_upload_report_logo_api_tenants__tenant_id__reports_settings_logo_put: {
@@ -1395,6 +1422,16 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** PreviewTemplateIn */
+        PreviewTemplateIn: {
+            /**
+             * Bindings
+             * @default {}
+             */
+            bindings: {
+                [key: string]: unknown;
+            };
         };
         /** ProfileApplyOut */
         ProfileApplyOut: {
@@ -3374,7 +3411,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PreviewTemplateIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3700,6 +3741,40 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    firewall_rule_model_api_tenants__tenant_id__devices__device_id__opnsense_firewall_rule_model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

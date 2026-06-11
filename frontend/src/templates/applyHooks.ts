@@ -25,18 +25,25 @@ export function useUpsertOverride(templateId: string) {
   });
 }
 
-/** Preview the redacted effective body for a template on this device (POST, no body). */
+/** Preview the redacted effective body for a template on this device (apply-time bindings in the body). */
 export function usePreviewTemplate(deviceId: string) {
   const { activeId } = useTenant();
   const t = useT();
   return useMutation({
-    mutationFn: async (templateId: string): Promise<TemplatePreview> => {
+    mutationFn: async ({
+      templateId,
+      bindings,
+    }: {
+      templateId: string;
+      bindings: Record<string, unknown>;
+    }): Promise<TemplatePreview> => {
       const { data, error } = await api.POST(
         "/api/tenants/{tenant_id}/devices/{device_id}/templates/{template_id}/preview",
         {
           params: {
             path: { tenant_id: activeId!, device_id: deviceId, template_id: templateId },
           },
+          body: { bindings },
         },
       );
       if (error || !data) throw new Error(t.templates.apply.failed);
@@ -54,9 +61,11 @@ export function useApplyTemplate(deviceId: string) {
     mutationFn: async ({
       templateId,
       scheduled_at,
+      bindings,
     }: {
       templateId: string;
       scheduled_at: string | null;
+      bindings: Record<string, unknown>;
     }) => {
       const { data, error } = await api.POST(
         "/api/tenants/{tenant_id}/devices/{device_id}/templates/{template_id}/apply",
@@ -64,7 +73,7 @@ export function useApplyTemplate(deviceId: string) {
           params: {
             path: { tenant_id: activeId!, device_id: deviceId, template_id: templateId },
           },
-          body: { scheduled_at },
+          body: { scheduled_at, bindings },
         },
       );
       if (error || !data) throw new Error(t.templates.apply.failed);

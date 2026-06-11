@@ -188,7 +188,7 @@ Set via environment (see `.env.example`). Highlights:
 | **Config management** — encrypted backup + drift detection + firewall-aware editing UI + **live alias push** | ✅ Done¹ |
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
-| **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot (fan-out to one change per member). A **kind-pluggable engine** ships three kinds: `firewall_alias` (M1), the **generic `opnsense_setting`** (M3) — any introspectable, fleet-portable OPNsense setting rendered as a **value-controlled** auto-form (hardware/device-specific fields excluded), and **`suricata_ruleset`** (M3) — enable a set of Suricata/IDS rulesets, picked from the device's live catalog. Superadmin Library + Profiles UI + per-device Apply tabs; live-verified on real OPNsense 26.1.9³ | ✅ Done |
+| **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot (fan-out to one change per member). A **kind-pluggable engine** ships four kinds: `firewall_alias` (M1), the **generic `opnsense_setting`** (M3) — any introspectable, fleet-portable OPNsense setting rendered as a **value-controlled** auto-form (hardware/device-specific fields excluded), **`suricata_ruleset`** (M3) — enable a set of Suricata/IDS rulesets picked from the device's live catalog, and **`firewall_rule`** (M3) — a portable "Rules [new]" (MVC) filter rule whose target **interface is chosen at apply time** (empty = floating) so the template stays fleet-portable, idempotently upserted by `(description, interface)`. Superadmin Library + Profiles UI + per-device Apply tabs; live-verified on real OPNsense 26.1.9³ | ✅ Done |
 | **Deployment** — production Dockerfiles + `docker-compose.prod.yml`, reverse-proxy aware | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
@@ -201,12 +201,15 @@ update/upgrade are covered by mocked worker tests only (they reboot the device).
 WebGUI is a separate milestone — the button is currently a deep-link to the WebGUI login.
 
 ³ Configuration templates are a multi-milestone program: **M1** = the engine + the `firewall_alias` kind;
-**M2** = profiles (ordered bundles, fan-out apply); **M3** = the kind-pluggable registries plus two new
-kinds — the **generic `opnsense_setting`** (introspection-driven, value-controlled, fleet-portable) and
-**`suricata_ruleset`** (enable-only IDS rulesets, charset-guarded against path injection). All merged &
-live-verified on the real 26.1.9 box. Next curated kinds: firewall rules, monit. The M1 live verify
-surfaced & fixed a real connector bug — OPNsense stored a JSON-list alias `content` as the literal
-`"Array"`; it is now joined to a newline string (also fixing the manual config-push path).
+**M2** = profiles (ordered bundles, fan-out apply); **M3** = the kind-pluggable registries plus three new
+kinds — the **generic `opnsense_setting`** (introspection-driven, value-controlled, fleet-portable),
+**`suricata_ruleset`** (enable-only IDS rulesets, charset-guarded against path injection), and
+**`firewall_rule`** (Rules [new] / MVC filter rules; interface is an apply-time binding so the template
+stays portable; idempotent upsert by `(description, interface)`; the engine grew a generic apply-time
+`bindings` channel for this, identity-preserving for the other kinds). All merged & live-verified on the
+real 26.1.9 box. Next curated kind: monit. The M1 live verify surfaced & fixed a real connector bug —
+OPNsense stored a JSON-list alias `content` as the literal `"Array"`; it is now joined to a newline
+string (also fixing the manual config-push path).
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 

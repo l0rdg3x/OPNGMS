@@ -49,6 +49,29 @@ const PREVIEW = {
   new: { name: "web", content: ["1.2.3.4", "5.6.7.8"] },
 };
 
+const FW_RULE = {
+  id: "tpl2",
+  kind: "firewall_rule",
+  name: "block-telnet",
+  description: "",
+  version: 1,
+  body: { description: "block-telnet", action: "block" },
+  created_at: "2026-06-11T00:00:00Z",
+  updated_at: "2026-06-11T00:00:00Z",
+};
+
+const RULE_MODEL = {
+  fields: [{ path: "action", label: "action", control: "select", value: "block" }],
+  interfaces: [{ value: "wan", label: "WAN" }],
+};
+
+const FW_PREVIEW = {
+  operation: "set",
+  kind: "firewall_rule",
+  target: "block-telnet",
+  new: { description: "block-telnet", action: "block", interface: "wan" },
+};
+
 function withTenant(node: ReactNode) {
   return (
     <TenantContext.Provider
@@ -163,6 +186,100 @@ describe("ApplyTemplateTab", () => {
     await waitFor(() =>
       expect(put).toHaveBeenCalledWith(
         expect.objectContaining({ body_patch: { content: ["1.2.3.4", "9.9.9.9"] } }),
+      ),
+    );
+  });
+
+  it("non-firewall preview sends empty bindings", async () => {
+    server.use(http.get("/api/templates", () => HttpResponse.json([T])));
+    const posted = vi.fn();
+    server.use(
+      http.post("/api/tenants/t1/devices/d1/templates/tpl1/preview", async ({ request }) => {
+        posted(await request.json());
+        return HttpResponse.json(PREVIEW);
+      }),
+    );
+    renderWithProviders(withTenant(<ApplyTemplateTab deviceId="d1" />));
+
+    const pick = await screen.findByTestId("tpl-pick");
+    await userEvent.click(pick);
+    await userEvent.click(await screen.findByText("web"));
+
+    // No interface picker for a non-firewall kind.
+    expect(screen.queryByTestId("fw-apply-interface")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("tpl-preview"));
+    await screen.findByTestId("tpl-preview-out");
+    await waitFor(() =>
+      expect(posted).toHaveBeenCalledWith(expect.objectContaining({ bindings: {} })),
+    );
+  });
+
+  it("firewall_rule shows an interface picker and previews with the chosen binding", async () => {
+    server.use(http.get("/api/templates", () => HttpResponse.json([FW_RULE])));
+    server.use(
+      http.get(
+        "/api/tenants/t1/devices/d1/opnsense/firewall/rule-model",
+        () => HttpResponse.json(RULE_MODEL),
+      ),
+    );
+    const posted = vi.fn();
+    server.use(
+      http.post("/api/tenants/t1/devices/d1/templates/tpl2/preview", async ({ request }) => {
+        posted(await request.json());
+        return HttpResponse.json(FW_PREVIEW);
+      }),
+    );
+    renderWithProviders(withTenant(<ApplyTemplateTab deviceId="d1" />));
+
+    // Pick the firewall_rule template.
+    const pick = await screen.findByTestId("tpl-pick");
+    await userEvent.click(pick);
+    await userEvent.click(await screen.findByText("block-telnet"));
+
+    // The interface picker appears (options from the device rule-model).
+    const iface = await screen.findByTestId("fw-apply-interface");
+    await userEvent.click(iface);
+    await userEvent.click(await screen.findByText("WAN"));
+
+    await userEvent.click(screen.getByTestId("tpl-preview"));
+    await waitFor(() =>
+      expect(posted).toHaveBeenCalledWith(
+        expect.objectContaining({ bindings: { interface: "wan" } }),
+      ),
+    );
+  });
+
+  it("firewall_rule applies with the chosen interface binding", async () => {
+    server.use(http.get("/api/templates", () => HttpResponse.json([FW_RULE])));
+    server.use(
+      http.get(
+        "/api/tenants/t1/devices/d1/opnsense/firewall/rule-model",
+        () => HttpResponse.json(RULE_MODEL),
+      ),
+    );
+    const posted = vi.fn();
+    server.use(
+      http.post("/api/tenants/t1/devices/d1/templates/tpl2/apply", async ({ request }) => {
+        posted(await request.json());
+        return HttpResponse.json({ change_id: "c3", status: "pending" });
+      }),
+    );
+    renderWithProviders(withTenant(<ApplyTemplateTab deviceId="d1" />));
+
+    const pick = await screen.findByTestId("tpl-pick");
+    await userEvent.click(pick);
+    await userEvent.click(await screen.findByText("block-telnet"));
+
+    const iface = await screen.findByTestId("fw-apply-interface");
+    await userEvent.click(iface);
+    await userEvent.click(await screen.findByText("WAN"));
+
+    await userEvent.click(screen.getByTestId("btn-tpl-apply"));
+    await userEvent.click(await screen.findByTestId("btn-tpl-apply-now"));
+    await waitFor(() =>
+      expect(posted).toHaveBeenCalledWith(
+        expect.objectContaining({ scheduled_at: null, bindings: { interface: "wan" } }),
       ),
     );
   });
