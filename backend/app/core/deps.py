@@ -46,10 +46,27 @@ async def get_current_user(
     sess: Session = Depends(get_current_session),
     session: AsyncSession = Depends(get_session),
 ) -> User:
+    # MFA-pending / MFA-setup sessions cannot reach normal app endpoints (fail-closed).
+    if sess.kind != "full":
+        detail = "mfa_setup_required" if sess.kind == "mfa_setup" else "mfa_required"
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
     user = await AuthService(session).get_user_for_session(sess)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
     return user
+
+
+async def get_enrollment_ctx(
+    sess: Session = Depends(get_current_session),
+    session: AsyncSession = Depends(get_session),
+) -> tuple[User, Session]:
+    """User for an endpoint reachable in MFA-setup mode (kind full or mfa_setup, NOT mfa_pending)."""
+    if sess.kind not in ("full", "mfa_setup"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    user = await AuthService(session).get_user_for_session(sess)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
+    return user, sess
 
 
 @dataclass
