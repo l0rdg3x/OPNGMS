@@ -185,6 +185,8 @@ export const en = {
       loadFailed: "Could not read the test model from the device.",
       nameRequired: "A name is required (it is the test identity).",
       note: "A test takes effect once attached to a Monit service.",
+      attachSystem: "Attach this test to the system service so it takes effect",
+      attachSystemNote: "When enabled, applying also attaches the test to the device's Monit system service.",
     },
     kindIdsRulesets: "Suricata/IDS rulesets",
     ids: {

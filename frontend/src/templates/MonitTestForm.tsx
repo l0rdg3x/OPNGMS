@@ -1,4 +1,4 @@
-import { Button, Group, Select, Stack, Text } from "@mantine/core";
+import { Button, Checkbox, Group, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useState } from "react";
 import { useT } from "../i18n";
@@ -72,6 +72,17 @@ export function MonitTestForm(
             <AutoFormFields fields={fields} payload={value.payload} onField={setField} testidPrefix="monit" />
           </Stack>
         )}
+
+      <Checkbox
+        data-testid="monit-attach-system"
+        label={t.templates.monit.attachSystem}
+        description={t.templates.monit.attachSystemNote}
+        checked={value.payload.attach_to_system === "1"}
+        onChange={(e) =>
+          onChange({
+            payload: { ...value.payload, attach_to_system: e.currentTarget.checked ? "1" : "0" },
+          })}
+      />
 
       <Text size="xs" c="dimmed" data-testid="monit-note">{t.templates.monit.note}</Text>
     </Stack>

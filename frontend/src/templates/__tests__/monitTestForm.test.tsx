@@ -132,4 +132,15 @@ describe("MonitTestForm", () => {
     await userEvent.type(name, "CPUHigh");
     expect(latest.payload.name).toBe("CPUHigh");
   });
+
+  it("toggling the attach-to-system checkbox sets attach_to_system to '1'", async () => {
+    mockHappyPath();
+    renderHarness();
+
+    await pickDeviceAndLoad();
+
+    const attach = await screen.findByTestId("monit-attach-system");
+    await userEvent.click(attach);
+    expect(latest.payload.attach_to_system).toBe("1");
+  });
 });

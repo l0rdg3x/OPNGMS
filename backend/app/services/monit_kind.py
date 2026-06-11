@@ -18,6 +18,9 @@ def _validate(body: dict) -> None:
         raise InvalidTemplateError("monit test 'condition' is required")
     if body.get("action") not in _ACTIONS:
         raise InvalidTemplateError(f"monit test 'action' must be one of {sorted(_ACTIONS)}")
+    av = body.get("attach_to_system")
+    if av is not None and str(av) not in ("0", "1"):
+        raise InvalidTemplateError("monit test 'attach_to_system' must be '0' or '1'")
 
 
 register_template_kind("monit_test", TemplateKind(
