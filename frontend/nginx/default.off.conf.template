@@ -1,0 +1,13 @@
+# TLS_MODE=off — plain HTTP. Use when something in front terminates TLS (an external reverse proxy /
+# load balancer / CDN, or the bundled Caddy/Traefik override). The map preserves the original https
+# scheme from the upstream's X-Forwarded-Proto so the backend issues Secure cookies correctly.
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
+server {
+    listen 80;
+    server_name ${SERVER_NAME};
+    include /etc/nginx/snippets/app.conf;
+}

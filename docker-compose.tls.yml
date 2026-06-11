@@ -1,0 +1,21 @@
+# Override: SELF-CONTAINED HTTPS with YOUR OWN certificate (no external proxy).
+# The frontend nginx terminates TLS itself — :80 redirects to :443, :443 serves the SPA + /api.
+#
+#   1) put your PEM cert + key in ${CERT_DIR:-./certs}:  fullchain.pem  +  privkey.pem
+#      (any CA, or a manually obtained Let's Encrypt cert). If missing, a self-signed cert is
+#      generated at startup so the server still boots (browsers will warn).
+#   2) set SERVER_NAME=your.domain in .env
+#   3) docker compose -f docker-compose.prod.yml -f docker-compose.tls.yml up -d --build
+#
+# Pick exactly ONE of the TLS overrides (this, .caddy.yml, or .traefik.yml). Requires Docker
+# Compose v2.24.4+ for the `!override` tag.
+services:
+  frontend:
+    environment:
+      TLS_MODE: builtin
+      SERVER_NAME: ${SERVER_NAME:-_}
+    ports: !override
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${CERT_DIR:-./certs}:/etc/nginx/certs:ro

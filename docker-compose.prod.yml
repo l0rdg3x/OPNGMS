@@ -85,11 +85,24 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # SPA + /api reverse-proxy (nginx). This BASE file serves plain HTTP and is bound to LOCALHOST only,
+  # so it is NOT internet-facing by default — meant to sit behind a TLS-terminating reverse proxy / LB
+  # (Cloudflare, an external nginx/Caddy/Traefik, a cloud ALB, a k8s ingress). The proxy must forward
+  # `X-Forwarded-Proto: https` so the app issues Secure cookies (nginx preserves it end-to-end).
+  # For self-contained HTTPS instead, add ONE override (pick exactly one):
+  #   built-in cert : docker compose -f docker-compose.prod.yml -f docker-compose.tls.yml     up -d
+  #   auto (Caddy)  : docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml   up -d
+  #   auto (Traefik): docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d
   frontend:
     build: ./frontend
     image: opngms-frontend:latest
+    environment:
+      TLS_MODE: ${TLS_MODE:-off}            # overrides flip this to `builtin`; base = terminate TLS upstream
+      SERVER_NAME: ${SERVER_NAME:-_}        # your domain (e.g. opngms.example.com)
     ports:
-      - "80:80"
+      # Localhost-only by default. Point your upstream proxy at 127.0.0.1:${FRONTEND_HTTP_PORT:-8080}.
+      # Set FRONTEND_BIND=0.0.0.0 ONLY if something else terminates TLS in front of this port.
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-8080}:80"
     depends_on:
       - api
     restart: unless-stopped
