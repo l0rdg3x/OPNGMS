@@ -59,15 +59,15 @@ class ThreatRow:
 class ThreatRankedTable:
     title: str
     columns: tuple[str, str]          # (label header, count header); a "Threat" column is implicit
-    rows: list["ThreatRow"]
+    rows: list[ThreatRow]
 
 
 @dataclass
 class ApplicationsBlock:
     timeline_svg: str
-    top_detected: "ThreatRankedTable"
-    top_blocked: "ThreatRankedTable"
-    top_categories: "ThreatRankedTable"
+    top_detected: ThreatRankedTable
+    top_blocked: ThreatRankedTable
+    top_categories: ThreatRankedTable
     top_initiators: RankedTable
     sample: bool = True
 
@@ -75,7 +75,7 @@ class ApplicationsBlock:
 @dataclass
 class WebFilterBlock:
     timeline_svg: str
-    top_categories: "ThreatRankedTable"
+    top_categories: ThreatRankedTable
     top_sites: RankedTable
     top_initiators: RankedTable
     sample: bool = True
@@ -85,11 +85,11 @@ class WebFilterBlock:
 class DeviceSection:
     device_name: str
     attacks: AttacksBlock | None = None
-    web: "WebActivityBlock | None" = None
-    bandwidth: "BandwidthBlock | None" = None
-    status: "StatusBlock | None" = None
-    applications: "ApplicationsBlock | None" = None
-    web_filter: "WebFilterBlock | None" = None
+    web: WebActivityBlock | None = None
+    bandwidth: BandwidthBlock | None = None
+    status: StatusBlock | None = None
+    applications: ApplicationsBlock | None = None
+    web_filter: WebFilterBlock | None = None
 
 
 @dataclass
@@ -103,7 +103,7 @@ class ReportContext:
     range_to: datetime
     sections: list[DeviceSection] = field(default_factory=list)
     logo_data_uri: str | None = None
-    t: "ReportText | None" = None
+    t: ReportText | None = None
 
     def __post_init__(self) -> None:
         # The template always dereferences ctx.t; default to English so any ReportContext renders.
@@ -117,7 +117,7 @@ class ReportContext:
         return [s.device_name for s in self.sections]
 
 
-from datetime import timezone as _tz  # noqa: E402
+from datetime import UTC  # noqa: E402
 
 from app.services.reporting.aggregation import ReportAggregator, pick_bucket  # noqa: E402
 from app.services.reporting.charts import line_chart  # noqa: E402
@@ -152,7 +152,7 @@ async def build_context(
         # Attacks block: timeline + three ranked tables (IDS), per-device.
         tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="ids", device_id=dev.id)
         svg = line_chart(
-            [(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in tl],
+            [(b.astimezone(UTC).strftime("%m-%d %H:%M"), c) for b, c in tl],
             width=520,
             height=140,
             y_label=t.axis_attempts,
@@ -174,7 +174,7 @@ async def build_context(
         # --- Web Activity (DNS) ---
         dns_tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="dns", device_id=dev.id)
         web = WebActivityBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140, y_label=t.axis_dns, x_label=t.axis_time, empty_text=t.no_data),
+            timeline_svg=line_chart([(b.astimezone(UTC).strftime("%m-%d %H:%M"), c) for b, c in dns_tl], width=520, height=140, y_label=t.axis_dns, x_label=t.axis_time, empty_text=t.no_data),
             top_sites=RankedTable(t.t_top_sites, (t.col_site, t.col_hits),
                                   [(r.value, r.count) for r in await aggregator.top(field="name", source="dns", frm=frm, to=to, device_id=dev.id)]),
             top_initiators=RankedTable(t.t_top_initiators, (t.col_initiator, t.col_hits),
@@ -187,14 +187,14 @@ async def build_context(
         bw_tl = await aggregator.bandwidth_timeline(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         tin, tout = await aggregator.bandwidth_totals(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         bandwidth = BandwidthBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140, y_label=t.axis_data, x_label=t.axis_time, y_format=human_bytes, empty_text=t.no_data),
+            timeline_svg=line_chart([(b.astimezone(UTC).strftime("%m-%d %H:%M"), v) for b, v in bw_tl], width=520, height=140, y_label=t.axis_data, x_label=t.axis_time, y_format=human_bytes, empty_text=t.no_data),
             total_in=human_bytes(tin), total_out=human_bytes(tout),
         )
 
         # --- Up/Down status ---
         av_series, uptime = await aggregator.availability_series(frm=frm, to=to, bucket=bucket, device_id=dev.id)
         status = StatusBlock(
-            timeline_svg=line_chart([(b.astimezone(_tz.utc).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80, y_label=t.axis_status, x_label=t.axis_time, y_format=_ud, empty_text=t.no_data),
+            timeline_svg=line_chart([(b.astimezone(UTC).strftime("%m-%d %H:%M"), v) for b, v in av_series], width=520, height=80, y_label=t.axis_status, x_label=t.axis_time, y_format=_ud, empty_text=t.no_data),
             uptime_pct=round(uptime, 1),
         )
 

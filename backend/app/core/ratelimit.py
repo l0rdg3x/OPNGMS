@@ -21,7 +21,7 @@ class SlidingWindowLimiter:
         self.window = window_seconds
         self.max_keys = max_keys
         # OrderedDict gives O(1) LRU: most-recently-touched key moves to the end; eviction pops the front.
-        self._hits: "OrderedDict[str, deque]" = OrderedDict()
+        self._hits: OrderedDict[str, deque] = OrderedDict()
         self._lock = Lock()
 
     def _touch(self, key: str) -> deque:

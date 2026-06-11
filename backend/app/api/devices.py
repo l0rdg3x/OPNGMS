@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,7 +73,7 @@ async def create_device(
         firmware_version=result.firmware_version,
         edition=result.edition,
         firmware_series=result.series,
-        last_seen=datetime.now(timezone.utc) if result.reachable else None,
+        last_seen=datetime.now(UTC) if result.reachable else None,
     )
     device = await DeviceRepository(session, tenant_id).add(device)
     await AuditService(session).record(
@@ -175,7 +175,7 @@ async def test_device_connection(
     )
     device.status = "reachable" if result.reachable else "unverified"
     if result.reachable:
-        device.last_seen = datetime.now(timezone.utc)
+        device.last_seen = datetime.now(UTC)
         device.firmware_version = result.firmware_version
         device.edition = result.edition
         device.firmware_series = result.series

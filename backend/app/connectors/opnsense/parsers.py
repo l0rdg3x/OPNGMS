@@ -6,7 +6,7 @@ spec). Keeping these pure makes them testable against captured fixtures without 
 """
 import hashlib
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def num(v) -> float:
@@ -20,12 +20,12 @@ def num(v) -> float:
 def parse_ts(value) -> datetime:
     """Always tz-aware (naive -> UTC; unparsable -> now UTC)."""
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     try:
         dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
     except (ValueError, TypeError):
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
 
 def event_key(ts: datetime, *parts) -> str:

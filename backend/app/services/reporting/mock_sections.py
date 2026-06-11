@@ -58,17 +58,17 @@ def _timeline_svg(seed: int, *, height: int = 140, y_label: str = "Sessions", x_
 def _threat_table(title: str, columns: tuple[str, str], palette: list[tuple[str, str]], seed: int, n: int) -> ThreatRankedTable:
     rotated = _rotate(palette, seed)[:n]
     counts = _counts(seed, len(rotated))
-    rows = [ThreatRow(label=label, count=c, level=level) for (label, level), c in zip(rotated, counts)]
+    rows = [ThreatRow(label=label, count=c, level=level) for (label, level), c in zip(rotated, counts, strict=False)]
     return ThreatRankedTable(title=title, columns=columns, rows=rows)
 
 
 def _plain_table(title: str, columns: tuple[str, str], items: list[str], seed: int, n: int) -> RankedTable:
     rotated = _rotate(items, seed)[:n]
     counts = _counts(seed, len(rotated))
-    return RankedTable(title=title, columns=columns, rows=list(zip(rotated, counts)))
+    return RankedTable(title=title, columns=columns, rows=list(zip(rotated, counts, strict=False)))
 
 
-def applications_block(device_name: str, t: "ReportText") -> ApplicationsBlock:
+def applications_block(device_name: str, t: ReportText) -> ApplicationsBlock:
     seed = _seed(device_name)
     return ApplicationsBlock(
         timeline_svg=_timeline_svg(seed, y_label=t.axis_sessions, x_label=t.axis_time, empty_text=t.no_data),
@@ -79,7 +79,7 @@ def applications_block(device_name: str, t: "ReportText") -> ApplicationsBlock:
     )
 
 
-def web_filter_block(device_name: str, t: "ReportText") -> WebFilterBlock:
+def web_filter_block(device_name: str, t: ReportText) -> WebFilterBlock:
     seed = _seed(device_name) ^ 0x5F5F
     return WebFilterBlock(
         timeline_svg=_timeline_svg(seed, height=140, y_label=t.axis_requests, x_label=t.axis_time, empty_text=t.no_data),

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from arq import cron
 from arq.connections import RedisSettings
@@ -47,7 +47,7 @@ async def poll_device(ctx: dict, device_id: str) -> str:
             verify_tls=device.verify_tls,
             tls_fingerprint=device.tls_fingerprint,
         )
-        state = await collect_and_store(session, device, client, now=datetime.now(timezone.utc))
+        state = await collect_and_store(session, device, client, now=datetime.now(UTC))
         await evaluate_alerts(session, device, state)
         await session.commit()
         return device.status
@@ -78,7 +78,7 @@ async def ingest_device_events(ctx: dict, device_id: str) -> int:
             verify_tls=device.verify_tls,
             tls_fingerprint=device.tls_fingerprint,
         )
-        n = await ingest_events(session, device, client, now=datetime.now(timezone.utc))
+        n = await ingest_events(session, device, client, now=datetime.now(UTC))
         await session.commit()
         return n
 
@@ -134,7 +134,7 @@ async def apply_config_change(ctx: dict, change_id: str) -> str:
             tls_fingerprint=device.tls_fingerprint,
         )
         status = await apply_change(
-            session, change, client, now=datetime.now(timezone.utc)
+            session, change, client, now=datetime.now(UTC)
         )
         await AuditService(session).record(
             actor_user_id=change.created_by,
@@ -173,7 +173,7 @@ async def run_firmware_action(ctx: dict, action_id: str) -> str:
             tls_fingerprint=device.tls_fingerprint,
         )
         device_id = action.device_id
-        status = await _run(session, action, client, now=datetime.now(timezone.utc))
+        status = await _run(session, action, client, now=datetime.now(UTC))
         await AuditService(session).record(
             actor_user_id=action.created_by,
             tenant_id=action.tenant_id,
@@ -218,7 +218,7 @@ async def cleanup_expired_sessions(ctx: dict) -> str:
     async with factory() as session:
         from app.services.auth import AuthService  # local import avoids a cycle at module load
 
-        n = await AuthService(session).purge_expired(datetime.now(timezone.utc))
+        n = await AuthService(session).purge_expired(datetime.now(UTC))
         await session.commit()
     return f"purged {n} expired sessions"
 
@@ -238,7 +238,7 @@ async def enqueue_scheduled_reports(ctx: dict) -> int:
 
     factory = ctx["session_factory"]
     redis = ctx["redis"]
-    frm, to = _prior_week(datetime.now(timezone.utc))
+    frm, to = _prior_week(datetime.now(UTC))
     async with factory() as session:
         ids = (await session.execute(select(Tenant.id).where(Tenant.status == "active"))).scalars().all()
     for tid in ids:

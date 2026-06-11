@@ -5,7 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.core.deps import CSRF_COOKIE, SESSION_COOKIE, enforce_csrf, get_current_session, get_current_user
+from app.core.deps import (
+    CSRF_COOKIE,
+    SESSION_COOKIE,
+    enforce_csrf,
+    get_current_session,
+    get_current_user,
+)
 from app.core.ratelimit import SlidingWindowLimiter
 from app.models.session import Session
 from app.models.user import User
@@ -46,13 +52,13 @@ async def login(
     # want to surface. Always log it so operators can detect a degraded defense.
     try:
         allowed, retry = login_limiter.check(key)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         logger.error("login rate-limiter check failed; failing closed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Login temporarily unavailable",
             headers={"Retry-After": "5"},
-        )
+        ) from exc
     if not allowed:
         raise HTTPException(
             status_code=429,

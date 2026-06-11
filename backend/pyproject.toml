@@ -31,11 +31,24 @@ dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
     "respx>=0.21",
+    "ruff>=0.15",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    "E501",   # line-too-long — the project never enforced a line length; defer to a formatter pass
+    "B008",   # function-call-in-default-argument — this is FastAPI's Depends()/Query() pattern
+    "UP042",  # str-enum — keep the explicit `class Action(str, enum.Enum)` for now
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

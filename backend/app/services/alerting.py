@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +25,7 @@ async def evaluate_alerts(session: AsyncSession, device: Device, state: PollStat
     Idempotent: uses ONLY the current state + the open alerts (the partial unique constraint
     prevents duplicates on (device, type, label) anyway).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     open_alerts = await _open_alerts(session, device)
 
     key = ("device.down", "")
