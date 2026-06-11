@@ -212,6 +212,42 @@ class OpnsenseClient:
         await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "result": res}
 
+    async def get_firewall_rule_model(self) -> dict:
+        """Blank Rules[new] filter-rule model (option-objects/strings) for the introspection form."""
+        return (await self._get("firewall/filter/getRule")).get("rule", {})
+
+    async def apply_firewall_rule(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
+        """Upsert a Rules[new] filter rule by (description, interface), then apply.
+
+        Verified against OPNsense 26.1.9: firewall/filter addRule/setRule/{uuid}/apply. Identity is
+        (description, interface): exactly one match -> setRule; none -> addRule; many -> refuse
+        (never mutate on doubt). dry_run performs NO mutation."""
+        description = str(payload.get("description", ""))
+        interface = str(payload.get("interface", ""))
+        if dry_run:
+            return {"dry_run": True, "description": description, "interface": interface}
+        uuid_ = await self._resolve_rule_uuid(description, interface)
+        if uuid_ is None:
+            res = await self._post("firewall/filter/addRule", {"rule": payload})
+            op = "add"
+        else:
+            res = await self._post(f"firewall/filter/setRule/{uuid_}", {"rule": payload})
+            op = "set"
+        await self._post("firewall/filter/apply", {}, timeout=RECONFIGURE_TIMEOUT)
+        return {"dry_run": False, "operation": op, "result": res}
+
+    async def _resolve_rule_uuid(self, description: str, interface: str) -> str | None:
+        """Resolve an automation rule by EXACT (description, interface). None if absent; ApiError if many."""
+        if not description:
+            raise ApiError(0, "rule description required (it is the rule identity)")
+        data = await self._post(
+            "firewall/filter/searchRule", {"current": 1, "rowCount": 1000, "searchPhrase": description})
+        matches = [r for r in data.get("rows", [])
+                   if r.get("description") == description and str(r.get("interface", "")) == interface]
+        if len(matches) > 1:
+            raise ApiError(0, f"rule '{description}' on '{interface}' not uniquely resolvable ({len(matches)})")
+        return matches[0]["uuid"] if matches else None
+
     async def list_ids_rulesets(self) -> list[dict]:
         """Catalog of installed Suricata/IDS rulesets: [{filename, description, enabled, ...}]."""
         return (await self._get("ids/settings/listRulesets")).get("rows", [])
