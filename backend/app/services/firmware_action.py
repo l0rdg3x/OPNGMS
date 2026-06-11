@@ -24,20 +24,20 @@ REBOOT_MAX_POLLS = 180       # ~15 min waiting for the box to come back
 POLL_INTERVAL = 5.0
 
 
-def _to_int(v) -> int:
+def to_int(v) -> int:
     try:
         return int(str(v).strip())
     except (ValueError, TypeError):
         return 0
 
 
-def _updates_pending(status: dict) -> bool:
+def updates_pending(status: dict) -> bool:
     """firmware/status: status 'ok' means upgrades available; a positive `updates` count too."""
     status = status or {}
-    return str(status.get("status", "")).lower() == "ok" or _to_int(status.get("updates")) > 0
+    return str(status.get("status", "")).lower() == "ok" or to_int(status.get("updates")) > 0
 
 
-def _major_offered(status: dict) -> bool:
+def major_offered(status: dict) -> bool:
     """A newer MAJOR (different series) is offered."""
     status = status or {}
     cur = status.get("product_version") or (status.get("product") or {}).get("product_version", "")
@@ -56,7 +56,7 @@ async def _wait_until_reachable(client) -> None:
     raise OpnsenseError("device did not come back after reboot within budget")
 
 
-async def _poll_until_done(client) -> dict:
+async def poll_until_done(client) -> dict:
     """Poll upgradestatus until the running op finishes; tolerate a reboot (unreachable -> back)."""
     for _ in range(MAX_STATUS_POLLS):
         try:
@@ -84,31 +84,31 @@ async def run_firmware_action(session: AsyncSession, action: FirmwareAction, cli
     try:
         if action.kind == "plugin_remove":
             await client.plugin_remove(action.target)
-            await _poll_until_done(client)
+            await poll_until_done(client)
         elif action.kind == "plugin_install":
             await client.firmware_check()
-            if _updates_pending(await client.firmware_status_raw()):
+            if updates_pending(await client.firmware_status_raw()):
                 action.status = "failed"
                 action.result = {"error": "device must be up to date before installing plugins"}
                 await session.flush()
                 return "failed"
             await client.plugin_install(action.target)
-            await _poll_until_done(client)
+            await poll_until_done(client)
         elif action.kind == "firmware_update":
             await client.firmware_update()
-            await _poll_until_done(client)
+            await poll_until_done(client)
         elif action.kind == "firmware_upgrade":
             steps = 0
             for _ in range(MAX_UPGRADE_STEPS):
                 await client.firmware_check()
                 st = await client.firmware_status_raw()
-                if not _updates_pending(st) and not _major_offered(st):
+                if not updates_pending(st) and not major_offered(st):
                     break
-                if _major_offered(st):
+                if major_offered(st):
                     await client.firmware_upgrade()
                 else:
                     await client.firmware_update()
-                await _poll_until_done(client)
+                await poll_until_done(client)
                 steps += 1
             else:
                 raise OpnsenseError("upgrade did not converge within MAX_UPGRADE_STEPS")

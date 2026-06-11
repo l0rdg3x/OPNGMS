@@ -151,6 +151,44 @@ async def apply_config_change(ctx: dict, change_id: str) -> str:
         return status
 
 
+async def run_firmware_action(ctx: dict, action_id: str) -> str:
+    """Job: run a scheduled/now firmware action against a device."""
+    from app.models.firmware_action import FirmwareAction
+    from app.services.audit import AuditService
+    from app.services.firmware_action import run_firmware_action as _run
+
+    factory = ctx["session_factory"]
+    async with factory() as session:
+        action = await session.get(FirmwareAction, uuid.UUID(action_id))
+        if action is None:
+            return "missing"
+        device = await session.get(Device, action.device_id)
+        if device is None:
+            return "missing-device"
+        client = OpnsenseClient(
+            device.base_url,
+            crypto.decrypt(device.api_key_enc),
+            crypto.decrypt(device.api_secret_enc),
+            verify_tls=device.verify_tls,
+            tls_fingerprint=device.tls_fingerprint,
+        )
+        device_id = action.device_id
+        status = await _run(session, action, client, now=datetime.now(timezone.utc))
+        await AuditService(session).record(
+            actor_user_id=action.created_by,
+            tenant_id=action.tenant_id,
+            action="device.firmware.action",
+            target_type="firmware_action",
+            target_id=str(action.id),
+            ip=None,
+            details={"kind": action.kind, "status": status},
+        )
+        await session.commit()
+        if status == "done":
+            await ctx["redis"].enqueue_job("backup_device_config", str(device_id))
+        return status
+
+
 async def generate_tenant_report(ctx: dict, tenant_id: str, frm: str, to: str, kind: str) -> str:
     """Job: build a report for a tenant + range and store it. Runs as owner; the aggregator's explicit
     tenant_id filters scope the data (RLS is bypassed for the owner, like the poller)."""
@@ -224,7 +262,7 @@ _ingest_step = min(30, max(1, _settings.ingest_every_minutes))
 
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, generate_tenant_report]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, run_firmware_action, generate_tenant_report]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, _ingest_step))),  # events, every N minutes
