@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.device_log_forwarding import DeviceLogForwarding
@@ -60,15 +61,22 @@ async def detect_and_alert(session: AsyncSession, settings, *, send_alert: SendA
                                     threshold_hours=settings.silent_alert_after_hours)
     existing = {row.tenant_id: row for row in
                 (await session.execute(select(SilentTenantAlert))).scalars().all()}
-    new_ids = [tid for tid in silent if tid not in existing]
     recovered = [row for tid, row in existing.items() if tid not in silent]
-    for tid in new_ids:
-        session.add(SilentTenantAlert(tenant_id=tid, tenant_name=silent[tid]["tenant_name"],
-                                      silent_since=now, last_alert_at=now))
+    # ON CONFLICT DO NOTHING + RETURNING: race-safe (a concurrent run can't raise IntegrityError),
+    # and only rows WE actually inserted are emailed (an already-present row returns nothing -> dedup).
+    inserted: list[uuid.UUID] = []
+    for tid in (t for t in silent if t not in existing):
+        stmt = (pg_insert(SilentTenantAlert)
+                .values(id=uuid.uuid4(), tenant_id=tid, tenant_name=silent[tid]["tenant_name"],
+                        silent_since=now, last_alert_at=now)
+                .on_conflict_do_nothing(index_elements=["tenant_id"])
+                .returning(SilentTenantAlert.tenant_id))
+        if (await session.execute(stmt)).scalar_one_or_none() is not None:
+            inserted.append(tid)
     for row in recovered:
         await session.delete(row)
     await session.flush()
     emailed = False
-    if new_ids:
-        emailed = await send_alert([(tid, silent[tid]["tenant_name"]) for tid in new_ids])
-    return {"silent": len(silent), "new": len(new_ids), "recovered": len(recovered), "emailed": emailed}
+    if inserted:
+        emailed = await send_alert([(tid, silent[tid]["tenant_name"]) for tid in inserted])
+    return {"silent": len(silent), "new": len(inserted), "recovered": len(recovered), "emailed": emailed}

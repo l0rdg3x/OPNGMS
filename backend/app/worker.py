@@ -463,7 +463,9 @@ async def detect_silent_tenants(ctx: dict) -> dict:
             )).all()]
             if not recipients:
                 return False
-            names = [name for _id, name in new_silent]
+            # Defuse header injection at the call site too (subject sanitisation lives in smtp._strip,
+            # but tenant_name is operator-controlled — strip CR/LF here so it can't escape a refactor).
+            names = [name.replace("\r", " ").replace("\n", " ") for _id, name in new_silent]
             body = (
                 "These OPNGMS tenant(s) have enabled log forwarding but stopped shipping logs "
                 f"(silent > {settings.silent_alert_after_hours}h):\n\n  "
