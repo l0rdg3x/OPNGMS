@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   Alert, Button, Card, Group, NumberInput, Select, Stack, Switch, Text, Textarea, Title,
 } from "@mantine/core";
@@ -6,9 +6,9 @@ import { notifications } from "@mantine/notifications";
 
 import { useTenant } from "../tenant/useTenant";
 import {
-  useReportSchedules, useSendScheduleNow, useUpsertReportSchedule,
+  type ScheduleIn, type ScheduleOut, useReportSchedules, useSendScheduleNow, useUpsertReportSchedule,
 } from "../reports/scheduleHooks";
-import type { ScheduleIn } from "../reports/scheduleHooks";
+import { useTenantDevices } from "../templates/settingHooks";
 
 const WEEKDAYS = [
   { value: "0", label: "Monday" }, { value: "1", label: "Tuesday" }, { value: "2", label: "Wednesday" },
@@ -16,40 +16,23 @@ const WEEKDAYS = [
   { value: "6", label: "Sunday" },
 ];
 
-export function ReportSchedulePage() {
-  const { activeId, tenants } = useTenant();
-  const role = tenants.find((tn) => tn.id === activeId)?.role ?? null;
-  const query = useReportSchedules();
+function ScheduleEditor({ prefix, deviceId, existing }: {
+  prefix: string;
+  deviceId: string | null;
+  existing: ScheduleOut | undefined;
+}) {
   const upsert = useUpsertReportSchedule();
   const sendNow = useSendScheduleNow();
-  const loaded = useRef(false);
-
-  const [enabled, setEnabled] = useState(true);
-  const [frequency, setFrequency] = useState("weekly");
-  const [weekday, setWeekday] = useState<string | null>("0");
-  const [hour, setHour] = useState(4);
-  const [recipients, setRecipients] = useState("");
-
-  const fleet = query.data?.find((s) => s.device_id === null);
-
-  useEffect(() => {
-    if (query.data && !loaded.current) {
-      if (fleet) {
-        setEnabled(fleet.enabled); setFrequency(fleet.frequency);
-        setWeekday(fleet.weekday === null ? null : String(fleet.weekday));
-        setHour(fleet.hour); setRecipients((fleet.recipients ?? []).join("\n"));
-      }
-      loaded.current = true;
-    }
-  }, [query.data]);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (role !== "tenant_admin") {
-    return <Alert color="red" data-testid="schedule-forbidden">Tenant admins only.</Alert>;
-  }
+  const [enabled, setEnabled] = useState(existing?.enabled ?? (deviceId === null));
+  const [frequency, setFrequency] = useState<string>(existing?.frequency ?? "weekly");
+  const [weekday, setWeekday] = useState<string | null>(
+    existing?.weekday != null ? String(existing.weekday) : "0");
+  const [hour, setHour] = useState<number>(existing?.hour ?? 4);
+  const [recipients, setRecipients] = useState((existing?.recipients ?? []).join("\n"));
 
   async function save() {
     const body: ScheduleIn = {
-      device_id: null, enabled, frequency,
+      device_id: deviceId, enabled, frequency,
       weekday: frequency === "weekly" ? Number(weekday ?? 0) : null,
       hour, recipients: recipients.split(/[\n,]/).map((r) => r.trim()).filter(Boolean),
     };
@@ -62,9 +45,9 @@ export function ReportSchedulePage() {
   }
 
   async function triggerNow() {
-    if (!fleet) return;
+    if (!existing) return;
     try {
-      await sendNow.mutateAsync(fleet.id);
+      await sendNow.mutateAsync(existing.id);
       notifications.show({ message: "Report send queued" });
     } catch {
       notifications.show({ color: "red", message: "Failed to queue send" });
@@ -72,29 +55,68 @@ export function ReportSchedulePage() {
   }
 
   return (
-    <Stack maw={560}>
+    <Stack>
+      <Switch label="Enabled" checked={enabled} onChange={(e) => setEnabled(e.currentTarget.checked)} data-testid={`${prefix}-enabled`} />
+      <Select label="Frequency" data={[
+        { value: "weekly", label: "Weekly" }, { value: "monthly", label: "Monthly (1st)" },
+        { value: "on_demand", label: "On demand only" },
+      ]} value={frequency} onChange={(v) => setFrequency(v ?? "weekly")} data-testid={`${prefix}-frequency`} />
+      {frequency === "weekly" && (
+        <Select label="Day of week" data={WEEKDAYS} value={weekday} onChange={setWeekday} data-testid={`${prefix}-weekday`} />
+      )}
+      {frequency !== "on_demand" && (
+        <NumberInput label="Hour (UTC)" min={0} max={23} value={hour} onChange={(v) => setHour(Number(v))} data-testid={`${prefix}-hour`} />
+      )}
+      <Textarea label="Recipients (one per line)" value={recipients} onChange={(e) => setRecipients(e.currentTarget.value)} data-testid={`${prefix}-recipients`} minRows={3} rows={3} />
+      <Group>
+        <Button onClick={save} loading={upsert.isPending} data-testid={`${prefix}-save`}>Save</Button>
+        {existing && <Button variant="light" onClick={triggerNow} loading={sendNow.isPending} data-testid={`${prefix}-send-now`}>Send now</Button>}
+      </Group>
+    </Stack>
+  );
+}
+
+export function ReportSchedulePage() {
+  const { activeId, tenants } = useTenant();
+  const role = tenants.find((tn) => tn.id === activeId)?.role ?? null;
+  const schedules = useReportSchedules();
+  const devices = useTenantDevices();
+
+  if (role !== "tenant_admin") {
+    return <Alert color="red" data-testid="schedule-forbidden">Tenant admins only.</Alert>;
+  }
+
+  const fleet = schedules.data?.find((s) => s.device_id === null);
+  const deviceList = devices.data ?? [];
+
+  return (
+    <Stack maw={640}>
       <Title order={3}>Report delivery schedule</Title>
-      <Text size="sm" c="dimmed">Email the fleet report to recipients on a cadence.</Text>
+      <Text size="sm" c="dimmed">Email reports to recipients on a cadence — for the whole fleet and per device.</Text>
+
       <Card withBorder padding="lg" radius="md">
         <Stack>
-          <Switch label="Enabled" checked={enabled} onChange={(e) => setEnabled(e.currentTarget.checked)} data-testid="fleet-enabled" />
-          <Select label="Frequency" data={[
-            { value: "weekly", label: "Weekly" }, { value: "monthly", label: "Monthly (1st)" },
-            { value: "on_demand", label: "On demand only" },
-          ]} value={frequency} onChange={(v) => setFrequency(v ?? "weekly")} data-testid="fleet-frequency" />
-          {frequency === "weekly" && (
-            <Select label="Day of week" data={WEEKDAYS} value={weekday} onChange={setWeekday} data-testid="fleet-weekday" />
+          <Title order={5}>Fleet report</Title>
+          {schedules.isSuccess && (
+            <ScheduleEditor key={fleet?.id ?? "fleet-new"} prefix="fleet" deviceId={null} existing={fleet} />
           )}
-          {frequency !== "on_demand" && (
-            <NumberInput label="Hour (UTC)" min={0} max={23} value={hour} onChange={(v) => setHour(Number(v))} data-testid="fleet-hour" />
-          )}
-          <Textarea label="Recipients (one per line)" value={recipients} onChange={(e) => setRecipients(e.currentTarget.value)} data-testid="fleet-recipients" minRows={3} rows={3} />
-          <Group>
-            <Button onClick={save} loading={upsert.isPending} data-testid="fleet-save">Save</Button>
-            {fleet && <Button variant="light" onClick={triggerNow} loading={sendNow.isPending} data-testid="fleet-send-now">Send now</Button>}
-          </Group>
         </Stack>
       </Card>
+
+      <Title order={5}>Per-device reports</Title>
+      {deviceList.map((d) => {
+        const existing = schedules.data?.find((s) => s.device_id === d.id);
+        return (
+          <Card withBorder padding="lg" radius="md" key={d.id} data-testid={`device-schedule-row-${d.id}`}>
+            <Stack>
+              <Text fw={600}>{d.name}</Text>
+              {schedules.isSuccess && (
+                <ScheduleEditor key={existing?.id ?? `device-${d.id}-new`} prefix={`device-${d.id}`} deviceId={d.id} existing={existing} />
+              )}
+            </Stack>
+          </Card>
+        );
+      })}
     </Stack>
   );
 }
