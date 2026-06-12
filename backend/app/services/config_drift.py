@@ -78,6 +78,9 @@ def _check_opnsense_setting(change: ConfigChange, live: LiveState) -> tuple[str,
 def _check_alias(change: ConfigChange, live: LiveState) -> tuple[str, list[str]]:
     name = change.target or (change.payload or {}).get("name", "")
     cur = alias_from_config_xml(live.config_xml, name)
+    if change.operation == "delete":
+        # We applied a deletion: the alias being absent is IN_SYNC; its reappearance is drift.
+        return (DRIFTED if cur is not None else IN_SYNC), []
     if cur is None:
         return MISSING, []
     applied: dict = change.payload or {}
