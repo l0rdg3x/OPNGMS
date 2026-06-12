@@ -49,3 +49,24 @@ async def test_report_settings_explicit_values(db_engine, two_tenants):
     assert fetched.owner == "ACME Corp"
     assert fetched.timezone == "Europe/Rome"
     assert fetched.logo is None
+
+
+async def test_report_settings_from_email_default_and_set(db_engine):
+    import uuid
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from app.repositories.report_settings import ReportSettingsRepository
+
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    tid = uuid.uuid4()
+    async with factory() as s:
+        await s.execute(
+            text("INSERT INTO tenants (id, name, slug, status) VALUES (:id, 'A', 'a', 'active')"),
+            {"id": tid},
+        )
+        repo = ReportSettingsRepository(s, tid)
+        row = await repo.upsert(title="T", owner="o", timezone="UTC", language="en",
+                                from_email="brand@x.io")
+        assert row.from_email == "brand@x.io"
+        default = await ReportSettingsRepository(s, uuid.uuid4()).get_or_default()
+        assert default.from_email == ""

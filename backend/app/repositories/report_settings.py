@@ -29,15 +29,18 @@ class ReportSettingsRepository:
             owner="",
             timezone="UTC",
             language="en",
+            from_email="",
         )
 
-    async def upsert(self, *, title: str, owner: str, timezone: str, language: str = "en") -> ReportSettings:
+    async def upsert(self, *, title: str, owner: str, timezone: str, language: str = "en",
+                     from_email: str = "") -> ReportSettings:
         row = await self.get()
         if row is None:
             row = ReportSettings(tenant_id=self.tenant_id)
             self.session.add(row)
         row.title, row.owner, row.timezone = title, owner, timezone
         row.language = language
+        row.from_email = from_email
         await self.session.flush()
         return row
 
