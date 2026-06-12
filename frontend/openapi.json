@@ -4423,6 +4423,27 @@
         }
       }
     },
+    "/api/admin/log-fleet": {
+      "get": {
+        "tags": [
+          "log-fleet"
+        ],
+        "summary": "Get Log Fleet",
+        "operationId": "get_log_fleet_api_admin_log_fleet_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogFleetOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Healthz",
@@ -5469,8 +5490,24 @@
             "title": "Pit Id"
           },
           "after": {
-            "items": {},
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "type": "array",
+            "maxItems": 10,
             "title": "After"
           }
         },
@@ -5480,6 +5517,118 @@
           "after"
         ],
         "title": "LogCursor"
+      },
+      "LogFleetOut": {
+        "properties": {
+          "tenants": {
+            "items": {
+              "$ref": "#/components/schemas/LogFleetRow"
+            },
+            "type": "array",
+            "title": "Tenants"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/LogFleetTotals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenants",
+          "totals"
+        ],
+        "title": "LogFleetOut"
+      },
+      "LogFleetRow": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenant Id"
+          },
+          "tenant_name": {
+            "type": "string",
+            "title": "Tenant Name"
+          },
+          "enabled": {
+            "type": "integer",
+            "title": "Enabled"
+          },
+          "disabled": {
+            "type": "integer",
+            "title": "Disabled"
+          },
+          "revoked": {
+            "type": "integer",
+            "title": "Revoked"
+          },
+          "total_devices": {
+            "type": "integer",
+            "title": "Total Devices"
+          },
+          "last_log_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Log At"
+          },
+          "volume_24h": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume 24H"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "tenant_name",
+          "enabled",
+          "disabled",
+          "revoked",
+          "total_devices",
+          "last_log_at",
+          "volume_24h"
+        ],
+        "title": "LogFleetRow"
+      },
+      "LogFleetTotals": {
+        "properties": {
+          "tenants_with_forwarding": {
+            "type": "integer",
+            "title": "Tenants With Forwarding"
+          },
+          "enabled_devices": {
+            "type": "integer",
+            "title": "Enabled Devices"
+          },
+          "volume_24h": {
+            "type": "integer",
+            "title": "Volume 24H"
+          },
+          "silent_tenants": {
+            "type": "integer",
+            "title": "Silent Tenants"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenants_with_forwarding",
+          "enabled_devices",
+          "volume_24h",
+          "silent_tenants"
+        ],
+        "title": "LogFleetTotals"
       },
       "LogForwardingOut": {
         "properties": {

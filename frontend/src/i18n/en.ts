@@ -18,6 +18,7 @@ export const en = {
     mfa: "Two-factor auth",
     templates: "Template library",
     smtp: "SMTP",
+    logFleet: "Log fleet",
   },
   login: {
     title: "OPNGMS",
