@@ -128,6 +128,7 @@ def send_syslog(
     ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     ctx.load_verify_locations(ca_cert_file)
     ctx.load_cert_chain(certfile=client_cert_file, keyfile=client_key_file)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2  # never negotiate down to TLS 1.0/1.1
     # Intentional: server SAN may not match 'localhost' when running from host.
     # We still require + verify the server cert against our CA (CERT_REQUIRED).
     ctx.check_hostname = False  # noqa: S501
