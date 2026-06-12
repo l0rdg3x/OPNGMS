@@ -1,12 +1,13 @@
 import uuid
-from typing import Any
 
 from pydantic import AwareDatetime, BaseModel, Field
 
 
 class LogCursor(BaseModel):
     pit_id: str = Field(max_length=8192)
-    after: list[Any]
+    # Bounded, scalar-only sort values (the [@timestamp, _shard_doc] cursor is 2 values). Caps an
+    # authenticated DoS vector — a huge/nested `after` would otherwise be forwarded to OpenSearch.
+    after: list[str | int | float | None] = Field(max_length=10)
 
 
 class LogSearchIn(BaseModel):
