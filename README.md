@@ -23,7 +23,7 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - [Repository layout](#repository-layout)
 - [Quick start — development](#quick-start--development)
 - [Deployment (production)](#deployment-production) ← **the production guide**
-- [Log lake (optional, Phase 1)](#log-lake-optional-phase-1)
+- [Log lake (optional)](#log-lake-optional)
 - [Configuration reference](#configuration-reference)
 - [Security & multi-tenancy](#security--multi-tenancy)
 - [Project status](#project-status)
@@ -338,16 +338,17 @@ Replace `https://<your-domain>` with `http://127.0.0.1:8080` if you're on Model 
 | Scheduled reports never arrive | SMTP not enabled/incorrect (use **Send a test email**); or the schedule is disabled / has no recipients. Check the worker logs and the audit log. |
 | Let's Encrypt won't issue a cert (Model 3) | DNS for `DOMAIN` must resolve to the host and ports 80/443 must be reachable from the internet. |
 
-## Log lake (optional, Phase 1)
+## Log lake (optional)
 
 > **What it is.** An opt-in push-based log pipeline that complements the existing API-pull event
 > ingest: managed OPNsense boxes ship their syslog stream (system, filterlog, Suricata EVE JSON) over
 > **mTLS** to an in-stack **syslog-ng** receiver, which indexes every message into **OpenSearch**
 > (plain HTTP, security plugin disabled, **not published to the host** — internal network only). The
-> result is a per-tenant, per-device full log lake for forensic incident analysis.
+> result is a per-tenant, per-device full log lake for forensic incident analysis, searchable from an
+> in-app **Logs** investigation page.
 >
 > The existing API-pull ingest (Suricata alerts, DNS) continues to work unchanged; the log lake is an
-> additional, orthogonal data path. **A search UI is Phase 2.**
+> additional, orthogonal data path.
 
 ### How it works
 
@@ -362,6 +363,19 @@ Replace `https://<your-domain>` with `http://127.0.0.1:8080` if you're on Model 
 - A disk-buffer (256 MiB) on the syslog-ng side absorbs log bursts during OpenSearch restarts — no
   logs are dropped for transient outages within the buffer window.
 - Daily indices (`opngms-logs-YYYY.MM.DD`) simplify retention management via ISM policies (Phase 2).
+
+### Searching the logs
+
+The browser **never** talks to OpenSearch. A tenant-scoped, backend-mediated search powers an in-app
+**Logs** page (tenant admins and operators only — `read_only` is excluded):
+
+- `POST /api/tenants/{tenant}/logs/search` accepts a time range, an optional device filter, and a
+  guarded **Lucene `query_string`** (e.g. `action:block AND src_ip:10.0.0.1`). The backend **always**
+  injects the `tenant_id` filter from the RBAC-verified path — a crafted query can never widen past the
+  caller's tenant. Leading wildcards are disabled, page size and the time range are capped, and deep
+  paging is rejected before reaching OpenSearch.
+- The Logs page renders matches in a table (time, device, program, message) and opens the full raw
+  document on row click for forensic detail.
 
 ### Bring it up
 
@@ -473,7 +487,8 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **Login MFA (TOTP)** — TOTP second factor + one-time recovery codes; self-enroll + superadmin enforcement policy (off/all/privileged) with a fail-closed setup gate; two-step login (pending→full session); superadmin reset of a user's MFA + a host **break-glass CLI**; adversarially security-reviewed | ✅ Done |
 | **Deployment** — production Dockerfiles + a base `docker-compose.prod.yml` (frontend HTTP, localhost-bound, safe-by-default) with override files for every TLS model (behind your proxy / built-in cert / automatic **Caddy** or **Traefik**); configurable container **timezone** | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
-| **Log lake Phase 1** — opt-in `docker-compose.logs.yml` overlay; mTLS syslog-ng receiver (port 6514, CA-signed per-device client certs, CN/O → device_id/tenant_id); Suricata EVE JSON parsed inline; disk-buffered OpenSearch ingest (plain HTTP, internal-only, security disabled); daily indices; search UI is Phase 2 | 🔧 Infra ready |
+| **Log lake Phase 1** — opt-in `docker-compose.logs.yml` overlay; mTLS syslog-ng receiver (port 6514, CA-signed per-device client certs, CN/O → device_id/tenant_id); Suricata EVE JSON parsed inline; disk-buffered OpenSearch ingest (plain HTTP, internal-only, security disabled); daily indices | 🔧 Infra ready |
+| **Log lake Phase 2** — tenant-scoped, backend-mediated log **search API** (`LOG_VIEW`: tenant admins + operators) with a mandatory path-injected `tenant_id` filter a Lucene query can't escape, guarded query_string, capped page size / time range / paging depth; an in-app **Logs** investigation page (time + device + Lucene filters, results table, raw-document modal) | ✅ Done |
 
 ¹ Live configuration **push** to a device (firewall aliases) is verified against real OPNsense 26.1.9
 and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot as
