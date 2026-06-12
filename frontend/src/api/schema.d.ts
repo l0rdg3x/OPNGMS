@@ -1240,6 +1240,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/log-fleet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Log Fleet */
+        get: operations["get_log_fleet_api_admin_log_fleet_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1683,7 +1700,46 @@ export interface components {
             /** Pit Id */
             pit_id: string;
             /** After */
-            after: unknown[];
+            after: (string | number | null)[];
+        };
+        /** LogFleetOut */
+        LogFleetOut: {
+            /** Tenants */
+            tenants: components["schemas"]["LogFleetRow"][];
+            totals: components["schemas"]["LogFleetTotals"];
+        };
+        /** LogFleetRow */
+        LogFleetRow: {
+            /**
+             * Tenant Id
+             * Format: uuid
+             */
+            tenant_id: string;
+            /** Tenant Name */
+            tenant_name: string;
+            /** Enabled */
+            enabled: number;
+            /** Disabled */
+            disabled: number;
+            /** Revoked */
+            revoked: number;
+            /** Total Devices */
+            total_devices: number;
+            /** Last Log At */
+            last_log_at: string | null;
+            /** Volume 24H */
+            volume_24h: number | null;
+        };
+        /** LogFleetTotals */
+        LogFleetTotals: {
+            /** Tenants With Forwarding */
+            tenants_with_forwarding: number;
+            /** Enabled Devices */
+            enabled_devices: number;
+            /** Volume 24H */
+            volume_24h: number;
+            /** Silent Tenants */
+            silent_tenants: number;
         };
         /** LogForwardingOut */
         LogForwardingOut: {
@@ -5209,6 +5265,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_log_fleet_api_admin_log_fleet_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogFleetOut"];
                 };
             };
         };
