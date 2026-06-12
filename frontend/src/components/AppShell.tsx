@@ -23,6 +23,7 @@ const MfaPage = lazy(() => import("../security/MfaPage").then((m) => ({ default:
 const TemplateLibraryPage = lazy(() => import("../pages/TemplateLibraryPage").then((m) => ({ default: m.TemplateLibraryPage })));
 const SmtpSettingsPage = lazy(() => import("../pages/SmtpSettingsPage").then((m) => ({ default: m.SmtpSettingsPage })));
 const LogFleetPage = lazy(() => import("../pages/LogFleetPage").then((m) => ({ default: m.LogFleetPage })));
+const SystemSettingsPage = lazy(() => import("../pages/SystemSettingsPage").then((m) => ({ default: m.SystemSettingsPage })));
 
 // ── Inline icon set (stroke, currentColor) — keeps the bundle dependency-free ──
 const ic = {
@@ -75,6 +76,9 @@ function AppShellNav() {
       )}
       {me?.is_superadmin && (
         <NavItem to="/admin/log-fleet" label={t.nav.logFleet} icon={<IconLogs />} />
+      )}
+      {me?.is_superadmin && (
+        <NavItem to="/admin/system" label={t.nav.system} icon={<IconSettings />} />
       )}
     </Stack>
   );
@@ -151,6 +155,7 @@ export function AppShell() {
               <Route path="/admin/templates" element={<TemplateLibraryPage />} />
               <Route path="/admin/smtp" element={<SmtpSettingsPage />} />
               <Route path="/admin/log-fleet" element={<LogFleetPage />} />
+              <Route path="/admin/system" element={<SystemSettingsPage />} />
             </Routes>
           </Suspense>
         </MantineAppShell.Main>

@@ -19,6 +19,7 @@ export const en = {
     templates: "Template library",
     smtp: "SMTP",
     logFleet: "Log fleet",
+    system: "System",
   },
   login: {
     title: "OPNGMS",

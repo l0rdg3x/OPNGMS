@@ -1,0 +1,30 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "../api/client";
+import type { components } from "../api/schema";
+
+export type LivePushOut = components["schemas"]["LivePushOut"];
+
+const livePushKey = () => ["live-push"] as const;
+
+export function useLivePush() {
+  return useQuery({
+    queryKey: livePushKey(),
+    queryFn: async (): Promise<LivePushOut> => {
+      const { data, error } = await api.GET("/api/admin/live-push");
+      if (error || !data) throw new Error("Failed to load live-push setting");
+      return data;
+    },
+  });
+}
+
+export function useSetLivePush() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean): Promise<LivePushOut> => {
+      const { data, error } = await api.PUT("/api/admin/live-push", { body: { enabled } });
+      if (error || !data) throw new Error("Failed to update live-push setting");
+      return data;
+    },
+    onSuccess: (data) => qc.setQueryData(livePushKey(), data),
+  });
+}
