@@ -41,6 +41,9 @@ def build_ca() -> tuple[bytes, bytes]:
             x509.KeyUsage(digital_signature=False, content_commitment=False, key_encipherment=False,
                           data_encipherment=False, key_agreement=False, key_cert_sign=True,
                           crl_sign=True, encipher_only=False, decipher_only=False), critical=True)
+        # SubjectKeyIdentifier on the CA so leaf certs can carry a matching AuthorityKeyIdentifier;
+        # strict OpenSSL 3.x (clients, syslog-ng, OPNsense) refuses chains without it.
+        .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
         .sign(key, hashes.SHA256())
     )
     return _cert_pem(cert), _key_pem(key)
@@ -62,6 +65,11 @@ def _issue(ca_cert_pem, ca_key_pem, *, subject, sans, eku, days) -> tuple[bytes,
         .not_valid_before(now - timedelta(minutes=5)).not_valid_after(now + timedelta(days=days))
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .add_extension(x509.ExtendedKeyUsage(eku), critical=False)
+        # SKI on the leaf + AKI pointing at the CA's key: required for chain building by strict
+        # OpenSSL 3.x (the receiver verifying client certs, OPNsense verifying the server cert).
+        .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
+        .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()),
+                       critical=False)
     )
     if sans:
         builder = builder.add_extension(x509.SubjectAlternativeName(sans), critical=False)

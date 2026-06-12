@@ -139,7 +139,11 @@ def send_syslog(
         socket.create_connection((SYSLOG_HOST, SYSLOG_TLS_PORT), timeout=10) as raw,
         ctx.wrap_socket(raw, server_hostname=SYSLOG_HOST) as tls,
     ):
+        # Newline-delimited RFC 5424 frame, then a clean TLS shutdown so the receiver processes the
+        # whole line before the socket closes (an abrupt close races into "connection reset by peer"
+        # and the line is discarded). This receiver uses non-transparent (newline) framing.
         tls.sendall(SYSLOG_LINE.encode())
+        tls.unwrap()
     print("  Syslog line sent.")
 
 
