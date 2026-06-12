@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -68,6 +68,35 @@ describe("LogFleetPage", () => {
 
     await userEvent.click(screen.getByText("7d"));
     await waitFor(() => expect(seen).toContain("7d"));
+  });
+
+  it("exports CSV for the currently selected window", async () => {
+    const cap: { url?: string } = {};
+    const origCreate = URL.createObjectURL;
+    const origRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:x");
+    URL.revokeObjectURL = vi.fn();
+    try {
+      server.use(
+        fleetHandler(),
+        http.get("http://localhost:3000/api/admin/log-fleet/export", ({ request }) => {
+          cap.url = request.url;
+          return HttpResponse.text("tenant_name,enabled\nAcme,2\n", {
+            headers: { "Content-Type": "text/csv" },
+          });
+        }),
+      );
+      renderWithProviders(<LogFleetPage />);
+      await screen.findByText("Acme");
+      await userEvent.click(screen.getByRole("button", { name: /export csv/i }));
+      await waitFor(() => expect(cap.url).toBeTruthy());
+      const u = new URL(cap.url!);
+      expect(u.searchParams.get("format")).toBe("csv");
+      expect(u.searchParams.get("window")).toBe("24h");
+    } finally {
+      URL.createObjectURL = origCreate;
+      URL.revokeObjectURL = origRevoke;
+    }
   });
 
   it("drills into a tenant's per-device list with a silent device flagged", async () => {

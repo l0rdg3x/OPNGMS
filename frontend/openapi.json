@@ -4520,6 +4520,58 @@
         }
       }
     },
+    "/api/admin/log-fleet/export": {
+      "get": {
+        "tags": [
+          "log-fleet"
+        ],
+        "summary": "Export Log Fleet",
+        "description": "Download the fleet table as CSV or PDF (honours the volume window). Buffered attachment.",
+        "operationId": "export_log_fleet_api_admin_log_fleet_export_get",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "24h",
+              "title": "Window"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "csv",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/log-fleet/tenants/{tenant_id}/devices": {
       "get": {
         "tags": [
