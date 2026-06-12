@@ -13,6 +13,7 @@ export const en = {
     reportSettings: "Report settings",
     reportSchedule: "Report schedule",
     reports: "Reports",
+    logs: "Logs",
     sessions: "Active sessions",
     mfa: "Two-factor auth",
     templates: "Template library",

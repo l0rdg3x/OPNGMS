@@ -17,6 +17,7 @@ const DeviceDetailPage = lazy(() => import("../pages/DeviceDetailPage").then((m)
 const ReportsPage = lazy(() => import("../pages/ReportsPage").then((m) => ({ default: m.ReportsPage })));
 const ReportSettingsPage = lazy(() => import("../pages/ReportSettingsPage").then((m) => ({ default: m.ReportSettingsPage })));
 const ReportSchedulePage = lazy(() => import("../pages/ReportSchedulePage").then((m) => ({ default: m.ReportSchedulePage })));
+const LogsPage = lazy(() => import("../pages/LogsPage").then((m) => ({ default: m.LogsPage })));
 const SessionsPage = lazy(() => import("../security/SessionsPage").then((m) => ({ default: m.SessionsPage })));
 const MfaPage = lazy(() => import("../security/MfaPage").then((m) => ({ default: m.MfaPage })));
 const TemplateLibraryPage = lazy(() => import("../pages/TemplateLibraryPage").then((m) => ({ default: m.TemplateLibraryPage })));
@@ -37,6 +38,7 @@ const IconMfa = () => (<svg {...ic}><circle cx="8" cy="14" r="3.4" /><path d="M1
 const IconTemplates = () => (<svg {...ic}><path d="m12 3 9 5-9 5-9-5 9-5z" /><path d="m3 13 9 5 9-5M3 17l9 5 9-5" /></svg>);
 const IconSmtp = () => (<svg {...ic}><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="m3 7 9 6 9-6" /></svg>);
 const IconSchedule = () => (<svg {...ic}><rect x="3" y="4" width="18" height="17" rx="1.5" /><path d="M3 9h18M8 2v4M16 2v4" /><path d="M12 13v3l2 1.5" /></svg>);
+const IconLogs = () => (<svg {...ic}><rect x="4" y="3" width="16" height="18" rx="1.5" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>);
 
 function NavItem({ to, label, icon }: { to: string; label: string; icon: ReactNode }) {
   return <NavLink component={RouterNavLink} to={to} end={to === "/"} label={label} leftSection={icon} />;
@@ -53,6 +55,9 @@ function AppShellNav() {
       <NavItem to="/devices" label={t.nav.devices} icon={<IconDevices />} />
       <NavItem to="/alerts" label={t.nav.alerts} icon={<IconAlerts />} />
       <NavItem to="/reports" label={t.nav.reports} icon={<IconReports />} />
+      {(role === "tenant_admin" || role === "operator") && (
+        <NavItem to="/logs" label={t.nav.logs} icon={<IconLogs />} />
+      )}
       {role === "tenant_admin" && (
         <NavItem to="/reports/settings" label={t.nav.reportSettings} icon={<IconSettings />} />
       )}
@@ -136,6 +141,7 @@ export function AppShell() {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/reports/settings" element={<ReportSettingsPage />} />
               <Route path="/reports/schedule" element={<ReportSchedulePage />} />
+              <Route path="/logs" element={<LogsPage />} />
               <Route path="/security/sessions" element={<SessionsPage />} />
               <Route path="/security/mfa" element={<MfaPage />} />
               <Route path="/admin/templates" element={<TemplateLibraryPage />} />
