@@ -56,13 +56,14 @@ For each of the two tables, in **its own transaction per row** (one bad row neve
 
 | Condition | Action |
 |-----------|--------|
-| `status='scheduled'` AND `COALESCE(scheduled_at, created_at) < now − ORPHAN_GRACE` AND `created_at ≥ now − ORPHAN_MAX_AGE` | **Re-enqueue** the original job (`apply_config_change` / `run_firmware_action`). Idempotent: the job re-checks `status=='scheduled'` and re-takes the lock. |
-| `status='scheduled'` AND `created_at < now − ORPHAN_MAX_AGE` | **Give up**: `status='failed'`, `result={"error":"orphaned: device lock never acquired"}`, raise an alert. |
+| `status='scheduled'` AND `COALESCE(scheduled_at, created_at) < now − ORPHAN_GRACE` | **Re-enqueue** the original job (`apply_config_change` / `run_firmware_action`). Cheap + idempotent: the job re-checks `status=='scheduled'` and re-takes the lock, so re-enqueuing one that is legitimately waiting behind a long op is harmless. |
+| `status='scheduled'` AND overdue by `> ORPHAN_MAX_AGE` AND **no in-progress action on the same device** (`applying`/`running`) | **Give up**: `status='failed'`, `result={"error":"orphaned: device lock never acquired"}`, raise an alert. The device-in-progress gate prevents falsely giving up a change that is correctly queued behind a legitimately long-running op (a firmware upgrade can hold the device lock for a while). |
 | `status IN ('applying','running')` AND `updated_at < now − STUCK_TIMEOUT[pipeline]` | **Mark stuck**: `status='failed'`, `result={"error":"stuck: in-progress past timeout (worker likely crashed)"}`, raise an alert. **Never re-run** (a partial apply must not be blindly retried). |
 
-- `STUCK_TIMEOUT` is **per pipeline**: `config_stuck_minutes` (default 15) and `firmware_stuck_minutes` (default 240 — comfortably above the worker's reboot-wait + `MAX_UPGRADE_STEPS` budget, so a long healthy upgrade is never falsely marked stuck).
+- **Heartbeat (enables short, safe timeouts).** A long firmware op legitimately runs for many minutes while holding the device lock, so `updated_at` would otherwise look stale and be falsely flagged "stuck." The firmware worker therefore **heartbeats** `updated_at` on every status/reboot poll via a short-lived **side-channel session** (independent of the lock-holding transaction): a tiny `UPDATE firmware_actions SET updated_at = now() WHERE id = :id`. With a live worker touching the row every poll interval, "no heartbeat for `STUCK_TIMEOUT`" reliably means the worker died — so the timeout can be short. Config-push applies in seconds (no poll loop), so it needs no heartbeat.
+- `STUCK_TIMEOUT` is **per pipeline**: `config_stuck_minutes` (default 10) and `firmware_stuck_minutes` (default 15 — safe because of the heartbeat, not because it exceeds the worker budget).
 - Alerts reuse `Alert(tenant_id, device_id, type='action_stuck'|'action_orphaned', label=…)`; the sweeper returns a small summary `{re_enqueued, gave_up, marked_stuck}` for logging.
-- **New settings** (`app/core/config.py`): `sweep_every_minutes=5`, `orphan_grace_minutes=5`, `orphan_max_age_hours=24`, `config_stuck_minutes=15`, `firmware_stuck_minutes=240`.
+- **New settings** (`app/core/config.py`): `sweep_every_minutes=5`, `orphan_grace_minutes=5`, `orphan_max_age_minutes=60`, `config_stuck_minutes=10`, `firmware_stuck_minutes=15`.
 
 ## Component 2 — Operator-triggered Revert (config-push only)
 
@@ -122,7 +123,8 @@ In the device's **config-changes history** (existing component), add a **"Revert
 |-----------|-----------|
 | Sweeper: a single row errors (DB/enqueue) | caught per-row, logged; the sweep continues with the next row |
 | Sweeper: re-enqueued job still lock-misses | stays `scheduled`; re-tried next sweep until `ORPHAN_MAX_AGE`, then given up + alert |
-| Stuck firmware that is actually still upgrading | avoided by `firmware_stuck_minutes` > worker max budget; if mis-set, marking stuck is a no-op vs the live op (status overwrite is the only effect) — documented |
+| Stuck firmware that is actually still upgrading | avoided by the **heartbeat**: a live worker bumps `updated_at` every poll, so a healthy long upgrade is never past `firmware_stuck_minutes` |
+| Orphan queued behind a legitimately long-running op | not given up: the give-up rule requires **no in-progress action on the device**; it is simply re-enqueued each sweep until the op ahead of it finishes |
 | Revert on a non-invertible kind / wrong state | 400/409 with a clear reason; button hidden/disabled |
 | Revert of `delete`/`set` with no pre-apply snapshot | 409 "no pre-apply snapshot to reconstruct from" |
 | Inverse apply itself fails / conflicts | a normal `failed`/`conflict` change — surfaced to the operator like any apply |
@@ -136,7 +138,8 @@ In the device's **config-changes history** (existing component), add a **"Revert
 
 ## Testing
 
-- **Sweeper (pure classifier + job):** orphan (`scheduled`, overdue, young) → re-enqueue; orphan too old → `failed`+alert; in-progress past timeout → `failed`+alert (no re-enqueue); `scheduled` within grace → untouched; healthy firmware within `firmware_stuck_minutes` → untouched; both tables covered; per-row isolation (one error doesn't abort).
+- **Sweeper (pure classifier + job):** orphan (`scheduled`, overdue) → re-enqueue; orphan overdue past `orphan_max_age` **with no in-progress action on the device** → `failed`+alert; orphan overdue past max-age **but another action is in-progress on the device** → only re-enqueued, NOT given up; in-progress past timeout → `failed`+alert (no re-enqueue); `scheduled` within grace → untouched; both tables covered; per-row isolation (one error doesn't abort).
+- **Heartbeat:** the firmware worker bumps `updated_at` via the side-channel session during its poll loop (a recently-heartbeated `running` row is not flagged stuck; a row whose heartbeat is older than `firmware_stuck_minutes` is).
 - **Inverse builders:** alias `add`→`delete`; `delete`→`add` from snapshot; `set`→`set` previous from snapshot; missing-snapshot → error for `delete`/`set`; `has_inverse` for registered vs unregistered kinds.
 - **Revert flow:** applied change → revert creates a linked inverse (`reverts_change_id`) → applies (mocked connector) → device state reverted; failed/partial source → idempotent convergence; RBAC (read_only denied), CSRF, tenant/device scoping; non-invertible kind → 400.
 - **API + migration:** 0023 column exists + FK; revert endpoint happy path + guards.
@@ -144,11 +147,12 @@ In the device's **config-changes history** (existing component), add a **"Revert
 
 ## Build phases (informs the plan; one cohesive milestone)
 
-- **Phase A — Sweeper** (backend-only): settings + `action_sweeper.py` classifier + `sweep_stuck_actions` cron + alerts + tests. Ships independently.
+- **Phase A — Sweeper** (backend-only): settings + `action_sweeper.py` classifier (re-enqueue / give-up-with-device-gate / mark-stuck) + `sweep_stuck_actions` cron + alerts + the firmware-worker **heartbeat** + tests. Ships independently.
 - **Phase B — Revert**: migration 0023 + `reverts_change_id`; `config_revert.py` (registry + alias inverse + snapshot helper) + `revert_change`; revert API; frontend button + list field; tests. Behind `LIVE_PUSH_ENABLED` like all pushes.
 
 ## Out of scope / future
 
 - Inverse builders for the other kinds (`opnsense_setting`, `firewall_rule`, `monit_test`, `suricata_ruleset`) — the registry makes these incremental follow-ups; v1 disables the button for them.
 - Firmware revert (no un-upgrade); full-config restore (no OPNsense API).
-- A heartbeat to distinguish a healthy long-running firmware op from a crashed one (would replace the generous timeout) — future refinement.
+
+(These out-of-scope items are recorded as TODOs in project memory.)
