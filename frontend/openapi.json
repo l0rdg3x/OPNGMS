@@ -2129,6 +2129,79 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/changes/{change_id}/revert": {
+      "post": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Revert Config Change",
+        "operationId": "revert_config_change_api_tenants__tenant_id__devices__device_id__config_changes__change_id__revert_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Change Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigChangeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/devices/{device_id}/config/changes/{change_id}/cancel": {
       "post": {
         "tags": [
@@ -4338,6 +4411,23 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "reverts_change_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverts Change Id"
+          },
+          "revertible": {
+            "type": "boolean",
+            "title": "Revertible",
+            "default": false
           }
         },
         "type": "object",
