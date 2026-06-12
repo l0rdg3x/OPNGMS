@@ -5,6 +5,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
+import httpx
+
 MAX_SIZE = 200
 
 
@@ -58,3 +60,31 @@ class SearchResult:
 
 class LogSearchError(Exception):
     """OpenSearch transport/query failure (mapped to 502 by the API)."""
+
+
+async def search_logs(settings, *, tenant_id, frm, to, query, device_id, page, size) -> SearchResult:
+    """POST the search to OpenSearch (internal URL, plain HTTP) and map the response."""
+    body = build_search_body(tenant_id=tenant_id, frm=frm, to=to, query=query,
+                             device_id=device_id, page=page, size=size)
+    url = f"{settings.opensearch_url}/opngms-logs-*/_search"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(url, params={"ignore_unavailable": "true"}, json=body)
+        resp.raise_for_status()
+        data = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise LogSearchError(str(exc)[:200]) from exc
+    total = (data.get("hits", {}).get("total", {}) or {}).get("value", 0)
+    hits: list[LogHit] = []
+    for h in data.get("hits", {}).get("hits", []):
+        src = h.get("_source", {}) or {}
+        hits.append(LogHit(
+            id=str(h.get("_id", "")),
+            timestamp=str(src.get("@timestamp", "")),
+            device_id=str(src.get("device_id", "")),
+            host=str(src.get("host", "")),
+            program=str(src.get("program", "")),
+            message=str(src.get("message", "")),
+            source=src,
+        ))
+    return SearchResult(total=int(total), hits=hits)
