@@ -19,6 +19,7 @@ const ReportSettingsPage = lazy(() => import("../pages/ReportSettingsPage").then
 const SessionsPage = lazy(() => import("../security/SessionsPage").then((m) => ({ default: m.SessionsPage })));
 const MfaPage = lazy(() => import("../security/MfaPage").then((m) => ({ default: m.MfaPage })));
 const TemplateLibraryPage = lazy(() => import("../pages/TemplateLibraryPage").then((m) => ({ default: m.TemplateLibraryPage })));
+const SmtpSettingsPage = lazy(() => import("../pages/SmtpSettingsPage").then((m) => ({ default: m.SmtpSettingsPage })));
 
 // ── Inline icon set (stroke, currentColor) — keeps the bundle dependency-free ──
 const ic = {
@@ -33,6 +34,7 @@ const IconSettings = () => (<svg {...ic}><path d="M4 7h10M18 7h2M4 17h2M10 17h10
 const IconSessions = () => (<svg {...ic}><path d="M12 2 4 5v6c0 5 3.4 8.4 8 11 4.6-2.6 8-6 8-11V5z" /><circle cx="12" cy="10" r="2.2" /><path d="M12 12.2V15" /></svg>);
 const IconMfa = () => (<svg {...ic}><circle cx="8" cy="14" r="3.4" /><path d="M10.4 11.6 19 3M16 6l2.5 2.5M14 8l2.5 2.5" /></svg>);
 const IconTemplates = () => (<svg {...ic}><path d="m12 3 9 5-9 5-9-5 9-5z" /><path d="m3 13 9 5 9-5M3 17l9 5 9-5" /></svg>);
+const IconSmtp = () => (<svg {...ic}><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="m3 7 9 6 9-6" /></svg>);
 
 function NavItem({ to, label, icon }: { to: string; label: string; icon: ReactNode }) {
   return <NavLink component={RouterNavLink} to={to} end={to === "/"} label={label} leftSection={icon} />;
@@ -56,6 +58,9 @@ function AppShellNav() {
       <NavItem to="/security/mfa" label={t.nav.mfa} icon={<IconMfa />} />
       {me?.is_superadmin && (
         <NavItem to="/admin/templates" label={t.nav.templates} icon={<IconTemplates />} />
+      )}
+      {me?.is_superadmin && (
+        <NavItem to="/admin/smtp" label={t.nav.smtp} icon={<IconSmtp />} />
       )}
     </Stack>
   );
@@ -128,6 +133,7 @@ export function AppShell() {
               <Route path="/security/sessions" element={<SessionsPage />} />
               <Route path="/security/mfa" element={<MfaPage />} />
               <Route path="/admin/templates" element={<TemplateLibraryPage />} />
+              <Route path="/admin/smtp" element={<SmtpSettingsPage />} />
             </Routes>
           </Suspense>
         </MantineAppShell.Main>

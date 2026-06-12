@@ -15,6 +15,7 @@ export const en = {
     sessions: "Active sessions",
     mfa: "Two-factor auth",
     templates: "Template library",
+    smtp: "SMTP",
   },
   login: {
     title: "OPNGMS",
@@ -318,6 +319,7 @@ export const en = {
       title: "Report title",
       owner: "Owner",
       timezone: "Timezone",
+      fromEmail: "From email (report delivery)",
       logo: "Logo",
       upload: "Upload logo",
       remove: "Remove logo",
