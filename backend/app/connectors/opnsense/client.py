@@ -48,11 +48,21 @@ _RULESET_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 # the safe charset to block path traversal before building the path.
 _OPN_UUID_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
+# An embedded endpoint path (e.g. "unbound/settings/addHostOverride") — MVC API paths are
+# slash-separated alphanumerics; reject anything that could escape the /api/ prefix (.., //, etc.).
+_OPN_PATH_RE = re.compile(r"\A[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+)+\Z")
+
 
 def _safe_uuid(value: str) -> str:
     if not value or not _OPN_UUID_RE.match(value):
         raise ValueError(f"unsafe OPNsense uuid: {value!r}")
     return value
+
+
+def _safe_endpoint(path: str) -> str:
+    if not path or not _OPN_PATH_RE.match(path):
+        raise ApiError(0, f"unsafe catalog endpoint: {path!r}")
+    return path
 
 
 def _unflatten(flat: dict) -> dict:
@@ -227,6 +237,33 @@ class OpnsenseClient:
     async def reconfigure(self, reconfigure_path: str) -> dict:
         """Run a model's reconfigure/reload endpoint once (slow; long timeout)."""
         return await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
+
+    async def apply_grid_item(self, op: str, endpoints: dict, *, row: str,
+                              uuid: str | None = None, item: dict | None = None,
+                              dry_run: bool = True) -> dict:
+        """Apply ONE ArrayField grid op (add/set/del) under a catalog model's grid endpoints.
+
+        add  -> POST endpoints['add']            {row: item}
+        set  -> POST endpoints['set']/{uuid}     {row: item}
+        del  -> POST endpoints['del']/{uuid}
+        Embedded paths + uuid are charset-validated (anti path-injection). No reconfigure here —
+        the catalog applier batches a single reconfigure after all ops. dry_run performs NO mutation."""
+        if dry_run:
+            return {"dry_run": True, "op": op, "row": row, "uuid": uuid}
+        if op == "add":
+            path = _safe_endpoint(endpoints["add"])
+            res = await self._post(path, {row: item or {}})
+        elif op in ("set", "del"):
+            # uuid comes from the editor (user input) -> validate to an ApiError (which the apply
+            # pipeline handles), not the bare ValueError that _safe_uuid raises for trusted callers.
+            if not uuid or not _OPN_UUID_RE.match(uuid):
+                raise ApiError(0, f"unsafe grid uuid: {uuid!r}")
+            path = _safe_endpoint(endpoints[op])
+            body = {row: item or {}} if op == "set" else {}
+            res = await self._post(f"{path}/{uuid}", body)
+        else:
+            raise ApiError(0, f"unknown grid op: {op!r}")
+        return {"dry_run": False, "op": op, "result": res}
 
     async def get_firewall_rule_model(self) -> dict:
         """Blank Rules[new] filter-rule model (option-objects/strings) for the introspection form."""
