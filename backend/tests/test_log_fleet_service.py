@@ -9,10 +9,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.db import make_engine, set_tenant_context
 from app.services.log_fleet import (
+    fleet_device_log_stats,
     fleet_forwarding_counts,
     fleet_log_stats,
     log_fleet_overview,
+    tenant_device_fleet,
 )
+
+
+def _app_engine():
+    app_url = make_url(os.environ["TEST_DATABASE_URL"]).set(username="opngms_app", password="opngms_app")
+    return make_engine(app_url.render_as_string(hide_password=False))
 
 
 async def _seed_tenant(s, *, slug, enabled, revoked, disabled):
@@ -136,6 +143,70 @@ async def test_fleet_log_stats_warns_on_truncation(caplog):
 async def test_fleet_log_stats_empty_on_error():
     respx.post(_OS).mock(return_value=httpx.Response(503, json={}))
     assert await fleet_log_stats(_S()) == {}
+
+
+@respx.mock
+async def test_fleet_device_log_stats_maps_buckets_and_filters_tenant():
+    import json
+    tid = uuid.uuid4()
+    route = respx.post(_OS).mock(return_value=httpx.Response(200, json={"aggregations": {"by_device": {"buckets": [
+        {"key": "dev-a", "doc_count": 9, "last_log": {"value_as_string": "2026-06-01T10:00:00.000Z"},
+         "in_window": {"doc_count": 3}},
+    ]}}}))
+    stats = await fleet_device_log_stats(_S(), tid, window_hours=168)
+    assert stats["dev-a"] == {"last_log_at": "2026-06-01T10:00:00.000Z", "volume": 3}
+    body = json.loads(route.calls[0].request.content)
+    # aggregates on device_id, filtered to the one tenant, with the selected window
+    assert body["aggs"]["by_device"]["terms"]["field"] == "device_id"
+    assert body["query"]["bool"]["filter"] == [{"term": {"tenant_id": str(tid)}}]
+    assert body["aggs"]["by_device"]["aggs"]["in_window"]["filter"]["range"]["@timestamp"]["gte"] == "now-168h"
+
+
+async def test_tenant_device_fleet_combines_and_flags_silent(db_engine, monkeypatch):
+    from datetime import UTC, datetime
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    tid = uuid.uuid4()
+    d_live, d_silent, d_revoked = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    async with factory() as s:
+        await s.execute(text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,'Acme','acme','active')"), {"i": tid})
+        await set_tenant_context(s, tid)
+        for did, name in [(d_live, "a-live"), (d_silent, "b-silent"), (d_revoked, "c-revoked")]:
+            await s.execute(text(
+                "INSERT INTO devices (id,tenant_id,name,base_url,api_key_enc,api_secret_enc,verify_tls,status,tags) "
+                "VALUES (:i,:t,:nm,'https://x',''::bytea,''::bytea,true,'reachable','{}')"),
+                {"i": did, "t": tid, "nm": name})
+        await s.execute(text(
+            "INSERT INTO device_log_forwarding (device_id,tenant_id,enabled,cert_serial,cert_fingerprint) "
+            "VALUES (:d,:t,true,'s','f')"), {"d": d_live, "t": tid})
+        await s.execute(text(
+            "INSERT INTO device_log_forwarding (device_id,tenant_id,enabled,cert_serial,cert_fingerprint) "
+            "VALUES (:d,:t,true,'s','f')"), {"d": d_silent, "t": tid})
+        await s.execute(text(
+            "INSERT INTO device_log_forwarding (device_id,tenant_id,enabled,cert_serial,cert_fingerprint,revoked_at) "
+            "VALUES (:d,:t,false,'s','f',now())"), {"d": d_revoked, "t": tid})
+        await s.commit()
+
+    recent = datetime.now(UTC).isoformat()
+
+    async def fake_stats(settings, tenant_id, *, window_hours=24):
+        return {str(d_live): {"last_log_at": recent, "volume": 9}}  # d_silent absent -> silent
+
+    monkeypatch.setattr("app.services.log_fleet.fleet_device_log_stats", fake_stats)
+    app_engine = _app_engine()
+    try:
+        async with async_sessionmaker(app_engine, expire_on_commit=False)() as s:
+            res = await tenant_device_fleet(s, _S(), tenant_id=tid, window_hours=24)
+    finally:
+        await app_engine.dispose()
+
+    by_id = {r["device_id"]: r for r in res["devices"]}
+    assert by_id[d_live]["forwarding"] == "enabled" and by_id[d_live]["is_silent"] is False
+    assert by_id[d_live]["volume"] == 9
+    assert by_id[d_silent]["forwarding"] == "enabled" and by_id[d_silent]["is_silent"] is True
+    assert by_id[d_revoked]["forwarding"] == "revoked" and by_id[d_revoked]["is_silent"] is False
+    assert res["totals"]["enabled_devices"] == 2  # live + silent (revoked not counted)
+    assert res["totals"]["silent_devices"] == 1
+    assert res["totals"]["volume"] == 9
 
 
 async def test_log_fleet_overview_combines_and_flags_silent(db_engine, monkeypatch):

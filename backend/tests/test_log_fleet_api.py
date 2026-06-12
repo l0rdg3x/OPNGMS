@@ -120,3 +120,38 @@ async def test_non_superadmin_denied(api_client, db_engine):
     await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
     r = await api_client.get("/api/admin/log-fleet")
     assert r.status_code == 403
+
+
+async def test_superadmin_drills_into_tenant_devices(api_client, db_engine, monkeypatch):
+    async def fake_stats(settings, tenant_id, *, window_hours=24):
+        return {}  # no logs -> the enabled device is silent
+    monkeypatch.setattr("app.services.log_fleet.fleet_device_log_stats", fake_stats)
+    tid = await _seed_one_tenant(db_engine)
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    r = await api_client.get(f"/api/admin/log-fleet/tenants/{tid}/devices", params={"window": "7d"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["tenant_name"] == "Acme"
+    assert body["window"] == "7d"
+    assert len(body["devices"]) == 1
+    dev = body["devices"][0]
+    assert dev["forwarding"] == "enabled" and dev["is_silent"] is True
+    assert body["totals"]["enabled_devices"] == 1 and body["totals"]["silent_devices"] == 1
+
+
+async def test_tenant_devices_unknown_tenant_404(api_client, db_engine):
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    r = await api_client.get(f"/api/admin/log-fleet/tenants/{uuid.uuid4()}/devices")
+    assert r.status_code == 404
+
+
+async def test_tenant_devices_non_superadmin_denied(api_client, db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await s.commit()
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    r = await api_client.get(f"/api/admin/log-fleet/tenants/{uuid.uuid4()}/devices")
+    assert r.status_code == 403

@@ -4520,6 +4520,60 @@
         }
       }
     },
+    "/api/admin/log-fleet/tenants/{tenant_id}/devices": {
+      "get": {
+        "tags": [
+          "log-fleet"
+        ],
+        "summary": "Get Log Fleet Tenant Devices",
+        "description": "Per-device drill-down for one tenant (superadmin cross-tenant view): every device + its\nforwarding status, last log, windowed volume and a per-device silent flag.",
+        "operationId": "get_log_fleet_tenant_devices_api_admin_log_fleet_tenants__tenant_id__devices_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "24h",
+              "title": "Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogFleetDevicesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/live-push": {
       "get": {
         "tags": [
@@ -5751,6 +5805,119 @@
           "after"
         ],
         "title": "LogCursor"
+      },
+      "LogFleetDeviceRow": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Device Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "forwarding": {
+            "type": "string",
+            "title": "Forwarding"
+          },
+          "last_log_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Log At"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          },
+          "is_silent": {
+            "type": "boolean",
+            "title": "Is Silent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "name",
+          "forwarding",
+          "last_log_at",
+          "volume",
+          "is_silent"
+        ],
+        "title": "LogFleetDeviceRow"
+      },
+      "LogFleetDevicesOut": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenant Id"
+          },
+          "tenant_name": {
+            "type": "string",
+            "title": "Tenant Name"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/LogFleetDeviceRow"
+            },
+            "type": "array",
+            "title": "Devices"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/LogFleetDevicesTotals"
+          },
+          "window": {
+            "type": "string",
+            "title": "Window",
+            "default": "24h"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "tenant_name",
+          "devices",
+          "totals"
+        ],
+        "title": "LogFleetDevicesOut"
+      },
+      "LogFleetDevicesTotals": {
+        "properties": {
+          "enabled_devices": {
+            "type": "integer",
+            "title": "Enabled Devices"
+          },
+          "silent_devices": {
+            "type": "integer",
+            "title": "Silent Devices"
+          },
+          "volume": {
+            "type": "integer",
+            "title": "Volume"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled_devices",
+          "silent_devices",
+          "volume"
+        ],
+        "title": "LogFleetDevicesTotals"
       },
       "LogFleetOut": {
         "properties": {

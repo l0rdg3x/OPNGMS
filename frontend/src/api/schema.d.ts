@@ -1282,6 +1282,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/log-fleet/tenants/{tenant_id}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Log Fleet Tenant Devices
+         * @description Per-device drill-down for one tenant (superadmin cross-tenant view): every device + its
+         *     forwarding status, last log, windowed volume and a per-device silent flag.
+         */
+        get: operations["get_log_fleet_tenant_devices_api_admin_log_fleet_tenants__tenant_id__devices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/live-push": {
         parameters: {
             query?: never;
@@ -1784,6 +1805,51 @@ export interface components {
             pit_id: string;
             /** After */
             after: (string | number | null)[];
+        };
+        /** LogFleetDeviceRow */
+        LogFleetDeviceRow: {
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Name */
+            name: string;
+            /** Forwarding */
+            forwarding: string;
+            /** Last Log At */
+            last_log_at: string | null;
+            /** Volume */
+            volume: number | null;
+            /** Is Silent */
+            is_silent: boolean;
+        };
+        /** LogFleetDevicesOut */
+        LogFleetDevicesOut: {
+            /**
+             * Tenant Id
+             * Format: uuid
+             */
+            tenant_id: string;
+            /** Tenant Name */
+            tenant_name: string;
+            /** Devices */
+            devices: components["schemas"]["LogFleetDeviceRow"][];
+            totals: components["schemas"]["LogFleetDevicesTotals"];
+            /**
+             * Window
+             * @default 24h
+             */
+            window: string;
+        };
+        /** LogFleetDevicesTotals */
+        LogFleetDevicesTotals: {
+            /** Enabled Devices */
+            enabled_devices: number;
+            /** Silent Devices */
+            silent_devices: number;
+            /** Volume */
+            volume: number;
         };
         /** LogFleetOut */
         LogFleetOut: {
@@ -5407,6 +5473,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogFleetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_log_fleet_tenant_devices_api_admin_log_fleet_tenants__tenant_id__devices_get: {
+        parameters: {
+            query?: {
+                window?: string;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogFleetDevicesOut"];
                 };
             };
             /** @description Validation Error */

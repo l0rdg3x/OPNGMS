@@ -8,6 +8,25 @@ import { server } from "../../test/server";
 import { renderWithProviders } from "../../test/utils";
 
 const FLEET = "http://localhost:3000/api/admin/log-fleet";
+const DEVICES = "http://localhost:3000/api/admin/log-fleet/tenants/a/devices";
+
+function devicesHandler() {
+  return http.get(DEVICES, ({ request }) => {
+    const window = new URL(request.url).searchParams.get("window") ?? "24h";
+    return HttpResponse.json({
+      tenant_id: "a",
+      tenant_name: "Acme",
+      devices: [
+        { device_id: "d1", name: "fw-live", forwarding: "enabled",
+          last_log_at: new Date(Date.now() - 60 * 1000).toISOString(), volume: 7, is_silent: false },
+        { device_id: "d2", name: "fw-quiet", forwarding: "enabled",
+          last_log_at: null, volume: null, is_silent: true },
+      ],
+      totals: { enabled_devices: 2, silent_devices: 1, volume: 7 },
+      window,
+    });
+  });
+}
 
 function fleetHandler(seenWindows?: string[]) {
   return http.get(FLEET, ({ request }) => {
@@ -49,5 +68,19 @@ describe("LogFleetPage", () => {
 
     await userEvent.click(screen.getByText("7d"));
     await waitFor(() => expect(seen).toContain("7d"));
+  });
+
+  it("drills into a tenant's per-device list with a silent device flagged", async () => {
+    server.use(fleetHandler(), devicesHandler());
+    renderWithProviders(<LogFleetPage />);
+    await screen.findByText("Acme");
+
+    await userEvent.click(screen.getByTestId("fleet-row-a"));
+
+    expect(await screen.findByText("fw-quiet")).toBeInTheDocument();
+    expect(screen.getByText("fw-live")).toBeInTheDocument();
+    // the server-flagged silent device shows a badge; the live one does not
+    expect(screen.getByTestId("device-silent-d2")).toBeInTheDocument();
+    expect(screen.queryByTestId("device-silent-d1")).toBeNull();
   });
 });

@@ -26,3 +26,26 @@ class LogFleetOut(BaseModel):
     tenants: list[LogFleetRow]
     totals: LogFleetTotals
     window: str = "24h"
+
+
+class LogFleetDeviceRow(BaseModel):
+    device_id: uuid.UUID
+    name: str
+    forwarding: str  # enabled | disabled | revoked | none
+    last_log_at: datetime | None
+    volume: int | None
+    is_silent: bool
+
+
+class LogFleetDevicesTotals(BaseModel):
+    enabled_devices: int
+    silent_devices: int
+    volume: int
+
+
+class LogFleetDevicesOut(BaseModel):
+    tenant_id: uuid.UUID
+    tenant_name: str
+    devices: list[LogFleetDeviceRow]
+    totals: LogFleetDevicesTotals
+    window: str = "24h"

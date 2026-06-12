@@ -5,6 +5,7 @@ import {
   Card,
   Group,
   Loader,
+  Modal,
   SegmentedControl,
   SimpleGrid,
   Stack,
@@ -13,14 +14,73 @@ import {
   Title,
 } from "@mantine/core";
 
-import { useLogFleet } from "../logs/logFleetHooks";
+import { useLogFleet, useLogFleetDevices } from "../logs/logFleetHooks";
 
 const WINDOWS = ["24h", "7d", "30d"];
+
+// Device forwarding label -> badge color.
+const FWD_COLOR: Record<string, string> = {
+  enabled: "green",
+  disabled: "gray",
+  revoked: "red",
+  none: "gray",
+};
 
 function isSilent(enabled: number, lastLogAt: string | null): boolean {
   if (enabled <= 0) return false;
   if (!lastLogAt) return true;
   return Date.now() - new Date(lastLogAt).getTime() > 60 * 60 * 1000; // > 1h
+}
+
+// Drill-down: the per-device list for one tenant (silent flag computed server-side).
+function TenantDevicesModal({
+  tenant,
+  window,
+  onClose,
+}: {
+  tenant: { id: string; name: string } | null;
+  window: string;
+  onClose: () => void;
+}) {
+  const q = useLogFleetDevices(tenant?.id ?? null, window);
+  return (
+    <Modal opened={!!tenant} onClose={onClose} size="xl" title={tenant ? `Devices — ${tenant.name}` : ""}>
+      {q.isLoading && <Loader size="sm" />}
+      {q.isError && <Alert color="red">Failed to load devices.</Alert>}
+      {q.data && q.data.devices.length === 0 && <Text c="dimmed">No devices.</Text>}
+      {q.data && q.data.devices.length > 0 && (
+        <Table>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Device</Table.Th><Table.Th>Forwarding</Table.Th>
+              <Table.Th>Last log</Table.Th><Table.Th>Volume {q.data.window}</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {q.data.devices.map((d) => (
+              <Table.Tr key={d.device_id} data-testid={`fleet-device-${d.device_id}`}>
+                <Table.Td>
+                  <Group gap="xs">
+                    {d.name}
+                    {d.is_silent && (
+                      <Badge color="red" variant="light" data-testid={`device-silent-${d.device_id}`}>
+                        silent
+                      </Badge>
+                    )}
+                  </Group>
+                </Table.Td>
+                <Table.Td>
+                  <Badge color={FWD_COLOR[d.forwarding] ?? "gray"} variant="light">{d.forwarding}</Badge>
+                </Table.Td>
+                <Table.Td>{d.last_log_at ?? "—"}</Table.Td>
+                <Table.Td>{d.volume ?? "—"}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Modal>
+  );
 }
 
 function StatCard({ label, value, testid }: { label: string; value: number; testid?: string }) {
@@ -34,6 +94,7 @@ function StatCard({ label, value, testid }: { label: string; value: number; test
 
 export function LogFleetPage() {
   const [window, setWindow] = useState("24h");
+  const [drill, setDrill] = useState<{ id: string; name: string } | null>(null);
   const fleet = useLogFleet(window);
 
   const selector = (
@@ -93,7 +154,12 @@ export function LogFleetPage() {
         </Table.Thead>
         <Table.Tbody>
           {tenants.map((t) => (
-            <Table.Tr key={t.tenant_id}>
+            <Table.Tr
+              key={t.tenant_id}
+              style={{ cursor: "pointer" }}
+              data-testid={`fleet-row-${t.tenant_id}`}
+              onClick={() => setDrill({ id: t.tenant_id, name: t.tenant_name })}
+            >
               <Table.Td>
                 <Group gap="xs">
                   {t.tenant_name}
@@ -110,6 +176,8 @@ export function LogFleetPage() {
           ))}
         </Table.Tbody>
       </Table>
+
+      <TenantDevicesModal tenant={drill} window={window} onClose={() => setDrill(null)} />
     </Stack>
   );
 }
