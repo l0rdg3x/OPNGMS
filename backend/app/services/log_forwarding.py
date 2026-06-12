@@ -66,6 +66,7 @@ async def provision_device(session: AsyncSession, *, tenant_id: uuid.UUID, devic
     row.cert_not_after = not_after
     row.opnsense_ca_uuid, row.opnsense_cert_uuid, row.opnsense_dest_uuid = ca_uuid, cert_uuid, dest_uuid
     row.provisioned_at = datetime.now(UTC)
+    row.revoked_at = None
     await session.flush()
     return row
 
