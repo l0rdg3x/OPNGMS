@@ -22,3 +22,21 @@ async def set_mfa_policy(session: AsyncSession, mode: str) -> None:
         session.add(AppSetting(key=_MFA_KEY, value={"mode": mode}))
     else:
         row.value = {"mode": mode}
+
+
+_LIVE_PUSH_KEY = "live_push_enabled"
+
+
+async def get_live_push(session: AsyncSession, *, env_default: bool) -> bool:
+    row = (await session.execute(select(AppSetting).where(AppSetting.key == _LIVE_PUSH_KEY))).scalar_one_or_none()
+    if row is None:
+        return env_default
+    return bool((row.value or {}).get("enabled", env_default))
+
+
+async def set_live_push(session: AsyncSession, enabled: bool) -> None:
+    row = (await session.execute(select(AppSetting).where(AppSetting.key == _LIVE_PUSH_KEY))).scalar_one_or_none()
+    if row is None:
+        session.add(AppSetting(key=_LIVE_PUSH_KEY, value={"enabled": bool(enabled)}))
+    else:
+        row.value = {"enabled": bool(enabled)}

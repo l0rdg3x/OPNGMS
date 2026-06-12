@@ -12,6 +12,7 @@ from app.models.config_change import ConfigChange
 from app.models.config_snapshot import ConfigSnapshot
 from app.models.device import Device
 from app.repositories.config_snapshot import ConfigSnapshotRepository
+from app.services.app_settings import get_live_push
 from app.services.config_apply import apply_for_kind
 from app.services.config_diff import canonical_hash
 
@@ -118,7 +119,7 @@ async def apply_change(
         return "conflict"
     change.status = "applying"
     await session.flush()
-    live = get_settings().live_push_enabled
+    live = await get_live_push(session, env_default=get_settings().live_push_enabled)
     try:
         if live:
             # rollback point: persist the pre-apply config (the `xml` already read above).
