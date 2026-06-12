@@ -17,6 +17,9 @@ export function DeviceActions({
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const pathParams = { params: { path: { tenant_id: tenantId, device_id: deviceId } } } as const;
+  // Only render the WebGUI link for an http(s) URL — a device whose base_url is a `javascript:`/`data:`
+  // URI must never become a clickable href (stored XSS in the OPNGMS origin).
+  const safeWebGui = baseUrl && /^https?:\/\//i.test(baseUrl) ? baseUrl : undefined;
 
   const test = useMutation({
     mutationFn: async () => {
@@ -53,10 +56,10 @@ export function DeviceActions({
   return (
     <>
       <Group mt="md">
-        {baseUrl && (
+        {safeWebGui && (
           <Button
             component="a"
-            href={baseUrl}
+            href={safeWebGui}
             target="_blank"
             rel="noopener noreferrer"
             variant="light"
