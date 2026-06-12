@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Alert,
   Badge,
+  Button,
   Card,
   Group,
   Loader,
@@ -13,8 +14,17 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 
-import { useLogFleet, useLogFleetDevices } from "../logs/logFleetHooks";
+import { downloadLogFleet, useLogFleet, useLogFleetDevices } from "../logs/logFleetHooks";
+
+async function exportFleet(window: string, format: "csv" | "pdf") {
+  try {
+    await downloadLogFleet(window, format);
+  } catch {
+    notifications.show({ color: "red", message: "Export failed." });
+  }
+}
 
 const WINDOWS = ["24h", "7d", "30d"];
 
@@ -136,7 +146,15 @@ export function LogFleetPage() {
     <Stack>
       <Group justify="space-between">
         <Title order={3}>Log fleet</Title>
-        {selector}
+        <Group gap="sm">
+          <Button variant="default" size="xs" onClick={() => exportFleet(window, "csv")}>
+            Export CSV
+          </Button>
+          <Button variant="default" size="xs" onClick={() => exportFleet(window, "pdf")}>
+            Export PDF
+          </Button>
+          {selector}
+        </Group>
       </Group>
       <SimpleGrid cols={{ base: 2, md: 4 }}>
         <StatCard label="Tenants forwarding" value={totals.tenants_with_forwarding} />

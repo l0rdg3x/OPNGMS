@@ -18,6 +18,23 @@ export function useLogFleet(window: string) {
   });
 }
 
+// Download the fleet table as CSV or PDF for the current window (triggers a browser download).
+export async function downloadLogFleet(window: string, format: "csv" | "pdf"): Promise<void> {
+  const { data, error } = await api.GET("/api/admin/log-fleet/export", {
+    params: { query: { window, format } },
+    parseAs: "blob",
+  });
+  if (error || !data) throw new Error("export failed");
+  const url = URL.createObjectURL(data as Blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `log-fleet-${window}.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // Per-device drill-down for one tenant; enabled only while a tenant is selected.
 export function useLogFleetDevices(tenantId: string | null, window: string) {
   return useQuery({
