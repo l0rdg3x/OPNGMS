@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import crypto
 from app.models.device_log_forwarding import DeviceLogForwarding
+from app.models.revoked_syslog_cert import RevokedSyslogCert
 from app.models.syslog_ca import SINGLETON_ID, SyslogCa
 from app.services.syslog_ca import (
     build_ca,
@@ -66,6 +67,7 @@ async def provision_device(session: AsyncSession, *, tenant_id: uuid.UUID, devic
     row.cert_not_after = not_after
     row.opnsense_ca_uuid, row.opnsense_cert_uuid, row.opnsense_dest_uuid = ca_uuid, cert_uuid, dest_uuid
     row.provisioned_at = datetime.now(UTC)
+    row.revoked_at = None
     await session.flush()
     return row
 
@@ -84,3 +86,56 @@ async def deprovision_device(session: AsyncSession, *, device_id: uuid.UUID, cli
     row.opnsense_cert_uuid = None
     await session.flush()
     return True
+
+
+async def rotate_device_cert(session: AsyncSession, *, tenant_id: uuid.UUID, device_id: uuid.UUID,
+                             client, receiver_host: str, receiver_port: int) -> DeviceLogForwarding:
+    """Issue a fresh device cert and swap it on the box: add the new destination BEFORE deleting the
+    old one (no log gap). Requires the device to be currently forwarding."""
+    row = await session.get(DeviceLogForwarding, device_id)
+    if row is None or not row.enabled:
+        raise ValueError("device is not currently forwarding")
+    svc = SyslogCaService(session)
+    ca = await svc.ensure_ca()
+    cert_pem, key_pem = svc.device_cert(ca, tenant_id=tenant_id, device_id=device_id)
+    serial, fp = cert_serial_and_fingerprint(cert_pem)
+    not_after = cert_not_after(cert_pem)
+    old_cert_uuid, old_dest_uuid = row.opnsense_cert_uuid, row.opnsense_dest_uuid
+    new_cert_uuid = await client.import_cert(cert_pem.decode(), key_pem.decode(),
+                                             descr=f"opngms-logs {device_id}")
+    new_dest_uuid = await client.add_syslog_destination(
+        hostname=receiver_host, port=receiver_port, certificate_uuid=new_cert_uuid)
+    if old_dest_uuid:
+        await client.delete_syslog_destination(old_dest_uuid)
+    if old_cert_uuid:
+        await client.delete_cert(old_cert_uuid)
+    row.cert_serial, row.cert_fingerprint, row.cert_not_after = serial, fp, not_after
+    row.opnsense_cert_uuid, row.opnsense_dest_uuid = new_cert_uuid, new_dest_uuid
+    row.provisioned_at = datetime.now(UTC)
+    await session.flush()
+    return row
+
+
+async def revoke_device(session: AsyncSession, *, tenant_id: uuid.UUID, device_id: uuid.UUID,
+                        client, reason: str | None) -> DeviceLogForwarding:
+    """Soft-revoke: snapshot the serial into the ledger, deprovision the box, mark the row revoked.
+    One box-gated unit of work (the caller commits only on success)."""
+    row = await session.get(DeviceLogForwarding, device_id)
+    if row is None or not row.enabled:
+        raise ValueError("device is not currently forwarding")
+    revoked_serial = row.cert_serial
+    # Box calls first, THEN record the ledger entry: this keeps the ledger insert strictly inside the
+    # box-gated unit of work (a box failure raises before the add, so no ledger row is ever staged for
+    # a revocation that did not take effect). 3.2-bis deliberately inverts this for CRL-first enforcement.
+    if row.opnsense_dest_uuid:
+        await client.delete_syslog_destination(row.opnsense_dest_uuid)
+    if row.opnsense_cert_uuid:
+        await client.delete_cert(row.opnsense_cert_uuid)
+    session.add(RevokedSyslogCert(tenant_id=tenant_id, device_id=device_id,
+                                  serial=revoked_serial, reason=reason))
+    row.enabled = False
+    row.opnsense_dest_uuid = None
+    row.opnsense_cert_uuid = None
+    row.revoked_at = datetime.now(UTC)
+    await session.flush()
+    return row

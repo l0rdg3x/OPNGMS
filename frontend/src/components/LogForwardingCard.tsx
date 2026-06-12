@@ -6,6 +6,7 @@ import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
 import {
   useDisableLogForwarding, useEnableLogForwarding, useLogForwardingStatus,
+  useRevokeLogForwarding, useRotateLogForwarding,
 } from "../logs/logForwardingHooks";
 import { ConfirmModal } from "./ConfirmModal";
 
@@ -25,11 +26,15 @@ export function LogForwardingCard({ deviceId }: { deviceId: string }) {
   const status = useLogForwardingStatus(deviceId);
   const enable = useEnableLogForwarding(deviceId);
   const disable = useDisableLogForwarding(deviceId);
+  const rotate = useRotateLogForwarding(deviceId);
+  const revoke = useRevokeLogForwarding(deviceId);
   const [confirm, setConfirm] = useState<null | "enable" | "disable">(null);
+  const [lifecycle, setLifecycle] = useState<null | "rotate" | "revoke">(null);
 
   if (status.isLoading) return <Loader data-testid="lf-loader" />;
   const s = status.data;
   const enabled = s?.enabled ?? false;
+  const revoked = !enabled && !!s?.revoked_at;
   const live = liveness(s?.last_log_at);
   const expiry = s?.cert_not_after ? dayjs(s.cert_not_after) : null;
   const expSoon = expiry !== null && expiry.diff(dayjs(), "day") <= 30;
@@ -45,13 +50,23 @@ export function LogForwardingCard({ deviceId }: { deviceId: string }) {
     }
   }
 
+  async function runLifecycle(action: "rotate" | "revoke") {
+    setLifecycle(null);
+    try {
+      if (action === "rotate") await rotate.mutateAsync();
+      else await revoke.mutateAsync(null);
+    } catch {
+      // isError drives the alert
+    }
+  }
+
   return (
     <Card withBorder padding="md" radius="md">
       <Stack>
         <Group justify="space-between">
           <Title order={4}>{t.logForwarding.tab}</Title>
-          <Badge color={enabled ? "green" : "gray"} data-testid="lf-status">
-            {enabled ? "Enabled" : "Disabled"}
+          <Badge color={enabled ? "green" : revoked ? "red" : "gray"} data-testid="lf-status">
+            {enabled ? "Enabled" : revoked ? "Revoked" : "Disabled"}
           </Badge>
         </Group>
 
@@ -74,7 +89,7 @@ export function LogForwardingCard({ deviceId }: { deviceId: string }) {
           </>
         )}
 
-        {(enable.isError || disable.isError) && (
+        {(enable.isError || disable.isError || rotate.isError || revoke.isError) && (
           <Alert color="red">The device rejected the change. Please retry.</Alert>
         )}
 
@@ -83,6 +98,18 @@ export function LogForwardingCard({ deviceId }: { deviceId: string }) {
             {!enabled && (
               <Button data-testid="lf-enable" loading={enable.isPending} onClick={() => setConfirm("enable")}>
                 Enable
+              </Button>
+            )}
+            {enabled && (
+              <Button data-testid="lf-rotate" variant="light" loading={rotate.isPending}
+                      onClick={() => setLifecycle("rotate")}>
+                Rotate cert
+              </Button>
+            )}
+            {enabled && (
+              <Button data-testid="lf-revoke" color="red" loading={revoke.isPending}
+                      onClick={() => setLifecycle("revoke")}>
+                Revoke
               </Button>
             )}
             {enabled && (
@@ -103,6 +130,16 @@ export function LogForwardingCard({ deviceId }: { deviceId: string }) {
         body={confirm === "enable"
           ? "This imports a client certificate and configures a TLS syslog target on the device."
           : "This removes the syslog target and certificate from the device."}
+      />
+
+      <ConfirmModal
+        opened={lifecycle !== null}
+        onClose={() => setLifecycle(null)}
+        onConfirm={() => runLifecycle(lifecycle!)}
+        title={lifecycle === "rotate" ? "Rotate certificate?" : "Revoke certificate?"}
+        body={lifecycle === "rotate"
+          ? "Issues a new client certificate and swaps it on the device — no logs are lost."
+          : "Removes the certificate and marks it revoked. Re-enabling will issue a brand-new certificate."}
       />
     </Card>
   );

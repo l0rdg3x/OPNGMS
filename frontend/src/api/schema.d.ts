@@ -1189,6 +1189,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rotate Log Forwarding */
+        post: operations["rotate_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_rotate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Log Forwarding */
+        post: operations["revoke_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/logs/search": {
         parameters: {
             query?: never;
@@ -1663,6 +1697,8 @@ export interface components {
             cert_not_after?: string | null;
             /** Last Log At */
             last_log_at?: string | null;
+            /** Revoked At */
+            revoked_at?: string | null;
         };
         /** LogHitOut */
         LogHitOut: {
@@ -2063,6 +2099,11 @@ export interface components {
             language: string;
             /** From Email */
             from_email: string;
+        };
+        /** RevokeIn */
+        RevokeIn: {
+            /** Reason */
+            reason?: string | null;
         };
         /** RotateSecretIn */
         RotateSecretIn: {
@@ -5044,6 +5085,74 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogForwardingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotate_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_rotate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogForwardingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

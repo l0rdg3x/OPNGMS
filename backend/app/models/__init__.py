@@ -16,6 +16,7 @@ from app.models.membership import Membership
 from app.models.metric import Metric
 from app.models.report_schedule import ReportSchedule  # noqa: F401
 from app.models.report_settings import ReportSettings
+from app.models.revoked_syslog_cert import RevokedSyslogCert  # noqa: F401
 from app.models.session import Session
 from app.models.smtp_settings import SmtpSettings  # noqa: F401
 from app.models.syslog_ca import SyslogCa  # noqa: F401
@@ -52,5 +53,6 @@ __all__ = [
     "UserMfa",
     "UserRecoveryCode",
     "DeviceLogForwarding",
+    "RevokedSyslogCert",
     "SyslogCa",
 ]

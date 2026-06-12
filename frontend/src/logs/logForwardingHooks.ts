@@ -49,3 +49,33 @@ export function useDisableLogForwarding(deviceId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["log-forwarding", activeId, deviceId] }),
   });
 }
+
+export function useRotateLogForwarding(deviceId: string) {
+  const { activeId } = useTenant();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<LogForwardingOut> => {
+      const { data, error } = await api.POST(
+        "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding/rotate",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId } } });
+      if (error || !data) throw new Error("rotate failed");
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["log-forwarding", activeId, deviceId] }),
+  });
+}
+
+export function useRevokeLogForwarding(deviceId: string) {
+  const { activeId } = useTenant();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (reason: string | null): Promise<LogForwardingOut> => {
+      const { data, error } = await api.POST(
+        "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding/revoke",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId } }, body: { reason } });
+      if (error || !data) throw new Error("revoke failed");
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["log-forwarding", activeId, deviceId] }),
+  });
+}
