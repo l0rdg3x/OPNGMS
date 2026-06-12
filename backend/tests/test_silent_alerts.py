@@ -68,25 +68,21 @@ async def test_detect_creates_alerts_emails_once_and_recovers(db_engine, monkeyp
         return {str(tb): {"last_log_at": fresh}}
 
     monkeypatch.setattr("app.services.silent_alerts.fleet_log_stats", fake_stats)
-    emails: list[list] = []
 
-    async def fake_send(new_silent):
-        emails.append(new_silent)
-        return True
-
+    # detect_and_alert reconciles state + returns newly_silent (the CALLER emails, after commit).
     async with factory() as s:
-        r1 = await detect_and_alert(s, _S(), send_alert=fake_send)
+        r1 = await detect_and_alert(s, _S())
         await s.commit()
-    assert r1["new"] == 1 and r1["emailed"] is True
-    assert len(emails) == 1 and emails[0][0][1] == "Acme"
+    assert r1["new"] == 1
+    assert [name for _id, name in r1["newly_silent"]] == ["Acme"]
 
-    # second run: Acme still silent -> NO new row, NO email (dedup)
+    # second run: Acme still silent -> NO new row, nothing to email (dedup)
     async with factory() as s:
-        r2 = await detect_and_alert(s, _S(), send_alert=fake_send)
+        r2 = await detect_and_alert(s, _S())
         await s.commit()
         rows = (await s.execute(select(SilentTenantAlert))).scalars().all()
-    assert r2["new"] == 0 and r2["emailed"] is False
-    assert len(emails) == 1 and len(rows) == 1 and rows[0].tenant_name == "Acme"
+    assert r2["new"] == 0 and r2["newly_silent"] == []
+    assert len(rows) == 1 and rows[0].tenant_name == "Acme"
 
     # Acme recovers (now has fresh logs) -> its alert row is deleted
     async def fake_stats_recovered(settings, *, window_hours=24):
@@ -94,11 +90,10 @@ async def test_detect_creates_alerts_emails_once_and_recovers(db_engine, monkeyp
 
     monkeypatch.setattr("app.services.silent_alerts.fleet_log_stats", fake_stats_recovered)
     async with factory() as s:
-        r3 = await detect_and_alert(s, _S(), send_alert=fake_send)
+        r3 = await detect_and_alert(s, _S())
         await s.commit()
         rows = (await s.execute(select(SilentTenantAlert))).scalars().all()
-    assert r3["recovered"] == 1 and rows == []
-    assert len(emails) == 1  # still no extra email
+    assert r3["recovered"] == 1 and rows == [] and r3["newly_silent"] == []
 
 
 async def test_detect_disabled_is_noop(db_engine, monkeypatch):
@@ -114,10 +109,7 @@ async def test_detect_disabled_is_noop(db_engine, monkeypatch):
     monkeypatch.setattr("app.services.silent_alerts.fleet_log_stats", fake_stats)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
 
-    async def fake_send(_):
-        return True
-
     async with factory() as s:
-        r = await detect_and_alert(s, _Off(), send_alert=fake_send)
-    assert r == {"silent": 0, "new": 0, "recovered": 0, "emailed": False}
+        r = await detect_and_alert(s, _Off())
+    assert r == {"silent": 0, "new": 0, "recovered": 0, "newly_silent": []}
     assert called["stats"] is False  # short-circuits before any work

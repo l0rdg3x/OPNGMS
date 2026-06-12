@@ -8,7 +8,6 @@ GROUP BY (correct regardless of RLS).
 from __future__ import annotations
 
 import uuid
-from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
@@ -19,9 +18,6 @@ from app.models.device_log_forwarding import DeviceLogForwarding
 from app.models.silent_tenant_alert import SilentTenantAlert
 from app.repositories.tenant import TenantRepository
 from app.services.log_fleet import _parse_iso, fleet_log_stats
-
-# Given the newly-silent tenants [(tenant_id, tenant_name), ...], return True iff an email was sent.
-SendAlert = Callable[[list[tuple[uuid.UUID, str]]], Awaitable[bool]]
 
 
 async def enabled_forwarding_by_tenant(session: AsyncSession) -> dict[uuid.UUID, int]:
@@ -49,10 +45,13 @@ def compute_silent_tenants(enabled: dict[uuid.UUID, int], names: dict[uuid.UUID,
     return out
 
 
-async def detect_and_alert(session: AsyncSession, settings, *, send_alert: SendAlert) -> dict:
-    """Reconcile the silent-tenant alert state and email the newly-silent ones (once). Owner session."""
+async def detect_and_alert(session: AsyncSession, settings) -> dict:
+    """Reconcile the silent-tenant alert state (DB only — flush, no commit). Returns the summary plus
+    `newly_silent` (the tenants that just entered the silent state). The CALLER must commit and THEN
+    email `newly_silent`: committing before sending guarantees a post-email commit failure can't make
+    the next run re-insert + re-email the same episode (dedup survives). Owner session."""
     if not settings.silent_alert_enabled:
-        return {"silent": 0, "new": 0, "recovered": 0, "emailed": False}
+        return {"silent": 0, "new": 0, "recovered": 0, "newly_silent": []}
     enabled = await enabled_forwarding_by_tenant(session)
     names = {t.id: t.name for t in await TenantRepository(session).list()}
     stats = await fleet_log_stats(settings, window_hours=settings.silent_alert_after_hours)
@@ -63,7 +62,7 @@ async def detect_and_alert(session: AsyncSession, settings, *, send_alert: SendA
                 (await session.execute(select(SilentTenantAlert))).scalars().all()}
     recovered = [row for tid, row in existing.items() if tid not in silent]
     # ON CONFLICT DO NOTHING + RETURNING: race-safe (a concurrent run can't raise IntegrityError),
-    # and only rows WE actually inserted are emailed (an already-present row returns nothing -> dedup).
+    # and only rows WE actually inserted are reported (an already-present row returns nothing -> dedup).
     inserted: list[uuid.UUID] = []
     for tid in (t for t in silent if t not in existing):
         stmt = (pg_insert(SilentTenantAlert)
@@ -76,7 +75,5 @@ async def detect_and_alert(session: AsyncSession, settings, *, send_alert: SendA
     for row in recovered:
         await session.delete(row)
     await session.flush()
-    emailed = False
-    if inserted:
-        emailed = await send_alert([(tid, silent[tid]["tenant_name"]) for tid in inserted])
-    return {"silent": len(silent), "new": len(inserted), "recovered": len(recovered), "emailed": emailed}
+    return {"silent": len(silent), "new": len(inserted), "recovered": len(recovered),
+            "newly_silent": [(tid, silent[tid]["tenant_name"]) for tid in inserted]}

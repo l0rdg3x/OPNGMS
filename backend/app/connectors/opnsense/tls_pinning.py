@@ -7,6 +7,7 @@ certificate for the fingerprint comparison — the comparison itself is the veri
 import asyncio
 import contextlib
 import hashlib
+import secrets
 import ssl
 
 
@@ -45,5 +46,7 @@ async def peer_fingerprint(host: str, ip: str, port: int, *, timeout: float) -> 
 async def verify_pinned(host: str, ip: str, port: int, expected: str, *, timeout: float) -> None:
     """Raise PinMismatchError if the peer cert's SHA-256 != the pinned fingerprint."""
     actual = await peer_fingerprint(host, ip, port, timeout=timeout)
-    if actual != normalize_fingerprint(expected):
+    # Constant-time compare: the match gates whether device credentials are sent, so don't leak
+    # how many leading bytes matched via a short-circuiting `!=`.
+    if not secrets.compare_digest(actual, normalize_fingerprint(expected)):
         raise PinMismatchError()

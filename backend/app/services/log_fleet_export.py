@@ -32,12 +32,20 @@ def _cells(row: dict, *, now: datetime, stale_after: timedelta) -> list:
     ]
 
 
+def _csv_safe(value: object) -> object:
+    """Neutralise CSV formula injection: a text cell starting with = + - @ (or a control char) is
+    prefixed with a single quote so spreadsheet apps treat it as text, not a formula."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 def fleet_rows_to_csv(rows: list[dict], *, now: datetime, stale_after: timedelta) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow(_COLUMNS)
     for row in rows:
-        writer.writerow(_cells(row, now=now, stale_after=stale_after))
+        writer.writerow([_csv_safe(c) for c in _cells(row, now=now, stale_after=stale_after)])
     return buf.getvalue()
 
 
