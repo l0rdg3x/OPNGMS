@@ -21,8 +21,8 @@ async def _login_superadmin(api_client, db_engine):
         t = await make_tenant(s, slug="acme")
         await s.commit()
         tid = t.id
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     return tid
 
 

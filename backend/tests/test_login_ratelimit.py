@@ -23,7 +23,7 @@ def reset_limiter():
     login_limiter.reset(_key())
 
 
-async def _setup_user(api_client, email: str = _TEST_EMAIL, password: str = "pw12345"):
+async def _setup_user(api_client, email: str = _TEST_EMAIL, password: str = "pw12345-secure"):
     """Create the first user via /api/setup (superadmin)."""
     r = await api_client.post(
         "/api/setup", json={"email": email, "name": "RLTest", "password": password}
@@ -99,7 +99,7 @@ async def test_correct_login_resets_counter(api_client, db_engine):
 
     # Correct login resets the counter
     r_ok = await api_client.post(
-        "/api/login", json={"email": _TEST_EMAIL, "password": "pw12345"}
+        "/api/login", json={"email": _TEST_EMAIL, "password": "pw12345-secure"}
     )
     assert r_ok.status_code == 200
 
@@ -166,7 +166,7 @@ async def test_successful_login_after_full_reset_via_limiter(api_client, db_engi
         )
 
     r = await api_client.post(
-        "/api/login", json={"email": _TEST_EMAIL, "password": "pw12345"}
+        "/api/login", json={"email": _TEST_EMAIL, "password": "pw12345-secure"}
     )
     assert r.status_code == 200
 

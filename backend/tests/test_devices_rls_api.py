@@ -16,14 +16,14 @@ async def _setup_two_tenants(app_role_api_client, db_engine):
         ta, tb = a.id, b.id
     # superadmin via /api/setup (can access all tenants)
     await app_role_api_client.post(
-        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
+        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"}
     )
 
     async def _fake(*ar, **kw):
         return ProbeResult(reachable=True, firmware_version="24.7", error=None)
 
     app.dependency_overrides[get_prober] = lambda: _fake
-    await app_role_api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await app_role_api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     return ta, tb
 
 

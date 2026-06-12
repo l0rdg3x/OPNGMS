@@ -7,9 +7,9 @@ pytestmark = pytest.mark.asyncio
 
 async def _login_superadmin(api_client):
     await api_client.post(
-        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
+        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"}
     )
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
 
 
 async def test_superadmin_can_create_and_list_tenants(api_client):
@@ -31,9 +31,9 @@ async def test_non_superadmin_cannot_create_tenant(api_client, db_engine):
 
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await make_user(s, email="op@x.io", password="pw12345-secure", is_superadmin=False)
         await s.commit()
-    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345-secure"})
     resp = await api_client.post(
         "/api/tenants", json={"name": "X", "slug": "x"}, headers=csrf_headers(api_client)
     )

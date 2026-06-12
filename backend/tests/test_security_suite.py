@@ -32,9 +32,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 async def _login_csrf_user(api_client):
     """Create and authenticate a throwaway superadmin user."""
     await api_client.post(
-        "/api/setup", json={"email": "csrf_suite@x.io", "name": "CSRFSuite", "password": "pw12345"}
+        "/api/setup", json={"email": "csrf_suite@x.io", "name": "CSRFSuite", "password": "pw12345-secure"}
     )
-    await api_client.post("/api/login", json={"email": "csrf_suite@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "csrf_suite@x.io", "password": "pw12345-secure"})
 
 
 @pytest.mark.asyncio
@@ -66,7 +66,7 @@ async def _rls_setup_two_tenants(app_role_api_client, db_engine):
         await s.commit()
         ta, tb = a.id, b.id
     await app_role_api_client.post(
-        "/api/setup", json={"email": "rls_sa@x.io", "name": "RLSSA", "password": "pw12345"}
+        "/api/setup", json={"email": "rls_sa@x.io", "name": "RLSSA", "password": "pw12345-secure"}
     )
 
     async def _fake_prober(*ar, **kw):
@@ -74,7 +74,7 @@ async def _rls_setup_two_tenants(app_role_api_client, db_engine):
 
     app.dependency_overrides[get_prober] = lambda: _fake_prober
     await app_role_api_client.post(
-        "/api/login", json={"email": "rls_sa@x.io", "password": "pw12345"}
+        "/api/login", json={"email": "rls_sa@x.io", "password": "pw12345-secure"}
     )
     return ta, tb
 
@@ -221,7 +221,7 @@ async def test_login_rate_limit_triggers_429(_reset_rl_key, api_client):
     """After 5 failed logins the 6th must return 429 with a Retry-After header."""
     await api_client.post(
         "/api/setup",
-        json={"email": _RL_EMAIL, "name": "RLSuite", "password": "pw12345"},
+        json={"email": _RL_EMAIL, "name": "RLSuite", "password": "pw12345-secure"},
     )
     for attempt in range(5):
         r = await api_client.post(
@@ -271,9 +271,9 @@ async def test_sql_injection_field_returns_400_via_api(api_client, db_engine):
         await s.commit()
         tid = t.id
     await api_client.post(
-        "/api/setup", json={"email": "inj_sa@x.io", "name": "InjSA", "password": "pw12345"}
+        "/api/setup", json={"email": "inj_sa@x.io", "name": "InjSA", "password": "pw12345-secure"}
     )
-    await api_client.post("/api/login", json={"email": "inj_sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "inj_sa@x.io", "password": "pw12345-secure"})
     r = await api_client.get(
         f"/api/tenants/{tid}/events/top",
         params={"field": "tenant_id; DROP TABLE events"},
