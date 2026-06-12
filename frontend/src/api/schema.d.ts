@@ -620,6 +620,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/changes/{change_id}/revert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revert Config Change */
+        post: operations["revert_config_change_api_tenants__tenant_id__devices__device_id__config_changes__change_id__revert_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/devices/{device_id}/config/changes/{change_id}/cancel": {
         parameters: {
             query?: never;
@@ -1282,6 +1299,13 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Reverts Change Id */
+            reverts_change_id?: string | null;
+            /**
+             * Revertible
+             * @default false
+             */
+            revertible: boolean;
         };
         /** ConfigDiffEntry */
         ConfigDiffEntry: {
@@ -3528,6 +3552,43 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigChangeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revert_config_change_api_tenants__tenant_id__devices__device_id__config_changes__change_id__revert_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+                change_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

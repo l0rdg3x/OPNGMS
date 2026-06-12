@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     report_hour: int = 4  # weekly report hour (UTC, 0..23)  # (legacy: superseded by per-schedule weekday/hour in report_schedule)
     session_cleanup_minute: int = 0  # expired-session cleanup minute-of-hour (hourly)
     live_push_enabled: bool = False  # master switch: real config push (default OFF -> dry-run)
+    sweep_every_minutes: int = 5  # orphaned-action sweeper cadence (1..30)
+    orphan_grace_minutes: int = 5  # don't touch a scheduled row until this overdue
+    max_reenqueue_attempts: int = 5  # give up an orphan after this many device-free re-enqueues
 
 
 @lru_cache

@@ -23,6 +23,7 @@ import {
   useCancelChange,
   useConfigChanges,
   usePreviewChange,
+  useRevertChange,
   useScheduleChange,
 } from "./changeHooks";
 import { ProposeAliasModal } from "./ProposeAliasModal";
@@ -142,6 +143,34 @@ function ChangeRowActions({
   );
 }
 
+// Revert action for an already-applied, revertible change. Mirrors the
+// direct-mutate pattern used by the other row actions (no confirm modal).
+function RevertButton({ deviceId, c }: { deviceId: string; c: ConfigChange }) {
+  const t = useT();
+  const revert = useRevertChange(deviceId);
+
+  async function handleRevert() {
+    try {
+      await revert.mutateAsync(c.id);
+    } catch {
+      notifications.show({ color: "red", message: t.errors.configChangeAction });
+    }
+  }
+
+  return (
+    <Button
+      size="xs"
+      color="orange"
+      variant="light"
+      data-testid={`revert-${c.id}`}
+      onClick={handleRevert}
+      loading={revert.isPending}
+    >
+      {t.config.changes.revert}
+    </Button>
+  );
+}
+
 // Preview modal: displays the server-returned preview dict read-only.
 function PreviewModal({
   deviceId,
@@ -214,6 +243,11 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
                   <Badge color={STATUS_COLOR[c.status] ?? "gray"}>
                     {c.status}
                   </Badge>
+                  {c.reverts_change_id && (
+                    <Text size="xs" c="dimmed">
+                      {`${t.config.changes.reverts}${c.reverts_change_id.slice(0, 7)}`}
+                    </Text>
+                  )}
                 </Table.Td>
                 <Table.Td>{c.scheduled_at ?? "—"}</Table.Td>
                 {canEdit && (
@@ -225,6 +259,7 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
                         onPreview={setPreviewId}
                       />
                     )}
+                    {c.revertible && <RevertButton deviceId={deviceId} c={c} />}
                   </Table.Td>
                 )}
               </Table.Tr>

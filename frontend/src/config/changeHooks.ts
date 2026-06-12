@@ -78,6 +78,25 @@ export function useCancelChange(deviceId: string) {
   });
 }
 
+export function useRevertChange(deviceId: string) {
+  const { activeId } = useTenant();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (changeId: string) => {
+      const { data, error } = await api.POST(
+        "/api/tenants/{tenant_id}/devices/{device_id}/config/changes/{change_id}/revert",
+        {
+          params: { path: { tenant_id: activeId!, device_id: deviceId, change_id: changeId } },
+          body: {},
+        },
+      );
+      if (error || !data) throw new Error(en.errors.configChangeAction);
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: listKey(activeId, deviceId) }),
+  });
+}
+
 export function usePreviewChange(deviceId: string, changeId: string | null) {
   const { activeId } = useTenant();
   return useQuery({

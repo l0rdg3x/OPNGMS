@@ -38,6 +38,8 @@ class ConfigChangeOut(BaseModel):
     scheduled_at: datetime | None
     applied_at: datetime | None
     created_at: datetime
+    reverts_change_id: uuid.UUID | None = None
+    revertible: bool = False
     # NB: payload/result/baseline_hash are internal and NEVER exposed.
 
     model_config = {"from_attributes": True}

@@ -272,6 +272,8 @@ export const en = {
       preview: "Preview",
       schedule: "Schedule",
       cancel: "Cancel",
+      revert: "Revert",
+      reverts: "reverts #",
       applyNow: "Apply now",
       pickTime: "Pick date/time",
       // form

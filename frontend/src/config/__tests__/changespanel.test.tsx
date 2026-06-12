@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
@@ -32,9 +33,20 @@ const change = {
   scheduled_at: null,
   applied_at: null,
   created_at: "2026-06-10T10:00:00Z",
+  revertible: false,
+  reverts_change_id: null,
+};
+
+const appliedRevertible = {
+  ...change,
+  status: "applied",
+  applied_at: "2026-06-11T09:00:00Z",
+  revertible: true,
+  reverts_change_id: null,
 };
 
 const CHANGES_URL = "/api/tenants/t1/devices/d1/config/changes";
+const REVERT_URL = "/api/tenants/t1/devices/d1/config/changes/c1/revert";
 
 describe("ChangesPanel", () => {
   it("renders the change rows with a status badge and a propose button (tenant_admin)", async () => {
@@ -79,5 +91,44 @@ describe("ChangesPanel", () => {
     renderWithProviders(withTenant(<ChangesPanel deviceId="d1" />, "tenant_admin"));
 
     expect(await screen.findByText(/no pending changes/i)).toBeInTheDocument();
+  });
+
+  it("shows a Revert control for an applied revertible change and POSTs on click", async () => {
+    let revertCalled = false;
+    server.use(
+      http.get(CHANGES_URL, () => HttpResponse.json([appliedRevertible])),
+      http.post(REVERT_URL, () => {
+        revertCalled = true;
+        return HttpResponse.json({
+          ...appliedRevertible,
+          id: "c2",
+          status: "draft",
+          revertible: false,
+          reverts_change_id: "c1",
+        });
+      }),
+    );
+
+    renderWithProviders(withTenant(<ChangesPanel deviceId="d1" />, "tenant_admin"));
+
+    const revertBtn = await screen.findByTestId("revert-c1");
+    await userEvent.click(revertBtn);
+
+    await waitFor(() => {
+      expect(revertCalled).toBe(true);
+    });
+  });
+
+  it("renders a reverts-#chain badge when reverts_change_id is set", async () => {
+    const inverse = {
+      ...change,
+      id: "c2",
+      status: "draft",
+      reverts_change_id: "c1abc234",
+    };
+    server.use(http.get(CHANGES_URL, () => HttpResponse.json([inverse])));
+    renderWithProviders(withTenant(<ChangesPanel deviceId="d1" />, "tenant_admin"));
+
+    expect(await screen.findByText(/reverts #c1abc23/i)).toBeInTheDocument();
   });
 });

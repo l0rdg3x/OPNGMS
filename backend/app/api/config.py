@@ -30,6 +30,7 @@ from app.services.capability import build_inventory
 from app.services.config_diff import structural_diff
 from app.services.config_model import build_tree
 from app.services.config_push import create_change, preview_change
+from app.services.config_revert import NoInverseError, RevertError, has_inverse, revert_change
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["config"])
 
@@ -153,6 +154,16 @@ async def config_capabilities(
 # ConfigChangeOut deliberately hides payload/result/baseline_hash (internal).
 
 
+def _change_out(change) -> ConfigChangeOut:
+    return ConfigChangeOut(
+        id=change.id, device_id=change.device_id, kind=change.kind, operation=change.operation,
+        target=change.target, status=change.status, scheduled_at=change.scheduled_at,
+        applied_at=change.applied_at, created_at=change.created_at,
+        reverts_change_id=change.reverts_change_id,
+        revertible=(change.status in ("applied", "failed") and has_inverse(change.kind)),
+    )
+
+
 @router.post(
     "/devices/{device_id}/config/changes",
     response_model=ConfigChangeOut,
@@ -205,8 +216,8 @@ async def list_config_changes(
     device_id: uuid.UUID,
     ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
     session: AsyncSession = Depends(get_session),
-) -> list[ConfigChange]:
-    return list(await ConfigChangeRepository(session, tenant_id).list(device_id))
+) -> list[ConfigChangeOut]:
+    return [_change_out(c) for c in await ConfigChangeRepository(session, tenant_id).list(device_id)]
 
 
 @router.get("/devices/{device_id}/config/changes/{change_id}/preview")
@@ -267,6 +278,45 @@ async def schedule_config_change(
     # Immediate -> defer_until=None; deferred -> defer_until=scheduled_at.
     await enqueue("apply_config_change", str(change.id), defer_until=body.scheduled_at)
     return change
+
+
+@router.post(
+    "/devices/{device_id}/config/changes/{change_id}/revert",
+    response_model=ConfigChangeOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def revert_config_change(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    change_id: uuid.UUID,
+    body: ScheduleIn,
+    request: Request,
+    ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
+    session: AsyncSession = Depends(get_session),
+    enqueue=Depends(get_enqueuer),
+) -> ConfigChangeOut:
+    repo = ConfigChangeRepository(session, tenant_id)
+    change = await repo.get(change_id)
+    if change is None or change.device_id != device_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Change not found")
+    try:
+        inverse = await revert_change(session, change, actor_id=ctx.user.id)
+    except (RevertError, NoInverseError) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    inverse.status = "scheduled"
+    inverse.scheduled_at = body.scheduled_at
+    await session.flush()
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id, tenant_id=tenant_id, action="config.change.revert",
+        target_type="config_change", target_id=str(inverse.id),
+        ip=request.client.host if request.client else None,
+        details={"reverts": str(change_id), "operation": inverse.operation},
+    )
+    out = _change_out(inverse)
+    await session.commit()
+    await enqueue("apply_config_change", str(inverse.id), defer_until=body.scheduled_at)
+    return out
 
 
 @router.post(
