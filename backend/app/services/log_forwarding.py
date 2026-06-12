@@ -123,12 +123,16 @@ async def revoke_device(session: AsyncSession, *, tenant_id: uuid.UUID, device_i
     row = await session.get(DeviceLogForwarding, device_id)
     if row is None or not row.enabled:
         raise ValueError("device is not currently forwarding")
-    session.add(RevokedSyslogCert(tenant_id=tenant_id, device_id=device_id,
-                                  serial=row.cert_serial, reason=reason))
+    revoked_serial = row.cert_serial
+    # Box calls first, THEN record the ledger entry: this keeps the ledger insert strictly inside the
+    # box-gated unit of work (a box failure raises before the add, so no ledger row is ever staged for
+    # a revocation that did not take effect). 3.2-bis deliberately inverts this for CRL-first enforcement.
     if row.opnsense_dest_uuid:
         await client.delete_syslog_destination(row.opnsense_dest_uuid)
     if row.opnsense_cert_uuid:
         await client.delete_cert(row.opnsense_cert_uuid)
+    session.add(RevokedSyslogCert(tenant_id=tenant_id, device_id=device_id,
+                                  serial=revoked_serial, reason=reason))
     row.enabled = False
     row.opnsense_dest_uuid = None
     row.opnsense_cert_uuid = None

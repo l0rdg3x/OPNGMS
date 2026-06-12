@@ -23,6 +23,6 @@ class RevokedSyslogCert(Base):
     device_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE")
     )
-    serial: Mapped[str] = mapped_column(String)
+    serial: Mapped[str] = mapped_column(String(64))  # hex cert serial (<= 20 octets -> 40 hex chars)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     revoked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

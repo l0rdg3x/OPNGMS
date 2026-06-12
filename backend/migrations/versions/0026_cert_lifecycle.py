@@ -22,7 +22,7 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("device_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("serial", sa.String(), nullable=False),
+        sa.Column("serial", sa.String(length=64), nullable=False),
         sa.Column("reason", sa.String(), nullable=True),
         sa.Column("revoked_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),

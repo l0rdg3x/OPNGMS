@@ -60,6 +60,14 @@ async def test_rotate_read_only_denied(api_client, db_engine):
     assert r.status_code == 403
 
 
+async def test_revoke_read_only_denied(api_client, db_engine):
+    tid, did = await _seed(db_engine)
+    await _login(api_client, "ro@x.io")
+    r = await api_client.post(f"/api/tenants/{tid}/devices/{did}/log-forwarding/revoke",
+                              json={"reason": "x"})
+    assert r.status_code == 403
+
+
 async def test_rotate_409_when_not_forwarding(api_client, db_engine, monkeypatch):
     tid, did = await _seed(db_engine)
 
