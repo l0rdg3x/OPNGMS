@@ -7,12 +7,16 @@ inverse-generation is new. v1 registers the firewall_alias kind; other kinds rai
 from __future__ import annotations
 
 import gzip
+import uuid
 from collections.abc import Callable
 
 from defusedxml import ElementTree as DET
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import crypto
 from app.models.config_change import ConfigChange
+from app.repositories.config_snapshot import ConfigSnapshotRepository
+from app.services.config_push import create_change
 
 # (operation, target, payload) for the inverse change.
 InverseBuilder = Callable[[ConfigChange, str | None], tuple[str, str, dict]]
@@ -70,3 +74,43 @@ def _invert_alias(change: ConfigChange, snapshot_xml: str | None) -> tuple[str, 
 
 
 register_inverse_builder("alias", _invert_alias)
+
+
+# --- revert flow ---
+
+
+class RevertError(Exception):
+    """The change cannot be reverted (wrong state, or no inverse for its kind)."""
+
+
+REVERTIBLE_STATES = ("applied", "failed")
+
+
+async def revert_change(session: AsyncSession, change: ConfigChange, *, actor_id: uuid.UUID) -> ConfigChange:
+    """Build the inverse of `change` as a new draft config_change linked via reverts_change_id.
+
+    The caller schedules/applies the returned draft through the normal pipeline.
+    """
+    if change.status not in REVERTIBLE_STATES:
+        raise RevertError(f"cannot revert a change in status {change.status!r}")
+    if not has_inverse(change.kind):
+        raise RevertError(f"revert not supported for kind {change.kind!r}")
+    snapshot_xml: str | None = None
+    if change.pre_apply_snapshot_id is not None:
+        snap = await ConfigSnapshotRepository(session, change.tenant_id).get(change.pre_apply_snapshot_id)
+        if snap is not None:
+            snapshot_xml = snapshot_to_xml(snap.content_enc)
+    op, target, payload = build_inverse(change, snapshot_xml)  # may raise NoInverseError
+    inverse = await create_change(
+        session,
+        tenant_id=change.tenant_id,
+        device_id=change.device_id,
+        created_by=actor_id,
+        kind=change.kind,
+        operation=op,
+        target=target,
+        payload=payload,
+    )
+    inverse.reverts_change_id = change.id
+    await session.flush()
+    return inverse
