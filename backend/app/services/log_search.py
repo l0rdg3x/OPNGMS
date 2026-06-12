@@ -69,20 +69,45 @@ class LogSearchError(Exception):
     """OpenSearch transport/query failure (mapped to 502 by the API)."""
 
 
-async def search_logs(settings, *, tenant_id, frm, to, query, device_id, page, size) -> SearchResult:
-    """POST the search to OpenSearch (internal URL, plain HTTP) and map the response."""
-    body = build_search_body(tenant_id=tenant_id, frm=frm, to=to, query=query,
-                             device_id=device_id, page=page, size=size)
-    url = f"{settings.opensearch_url}/opngms-logs-*/_search"
+async def open_pit(settings) -> str:
+    """Open an OpenSearch Point-In-Time over the log indices; returns its id."""
+    url = f"{settings.opensearch_url}/opngms-logs-*/_pit"
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(url, params={"ignore_unavailable": "true"}, json=body)
+            resp = await client.post(url, params={"keep_alive": PIT_KEEPALIVE, "ignore_unavailable": "true"})
+        resp.raise_for_status()
+        data = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise LogSearchError(str(exc)[:200]) from exc
+    pit_id = data.get("pit_id") or data.get("id")
+    if not pit_id:
+        raise LogSearchError("OpenSearch did not return a pit_id")
+    return str(pit_id)
+
+
+async def search_logs(settings, *, tenant_id, frm, to, query, device_id, size, cursor=None) -> SearchResult:
+    """Tenant-scoped PIT + search_after search. With no cursor, opens a PIT and returns page 1; with a
+    cursor ({pit_id, after}) it continues. Returns hits + a next_cursor (None on the last page)."""
+    eff_size = min(size, MAX_SIZE)
+    if cursor is None:
+        pit_id = await open_pit(settings)
+        search_after = None
+    else:
+        pit_id = cursor["pit_id"]
+        search_after = cursor["after"]
+    body = build_search_body(tenant_id=tenant_id, frm=frm, to=to, query=query, device_id=device_id,
+                             size=eff_size, pit_id=pit_id, search_after=search_after)
+    url = f"{settings.opensearch_url}/_search"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(url, json=body)
         resp.raise_for_status()
         data = resp.json()
     except (httpx.HTTPError, ValueError) as exc:
         raise LogSearchError(str(exc)[:200]) from exc
     total = (data.get("hits", {}).get("total", {}) or {}).get("value", 0)
     hits: list[LogHit] = []
+    last_sort = None
     for h in data.get("hits", {}).get("hits", []):
         src = h.get("_source", {}) or {}
         hits.append(LogHit(
@@ -94,7 +119,11 @@ async def search_logs(settings, *, tenant_id, frm, to, query, device_id, page, s
             message=str(src.get("message", "")),
             source=src,
         ))
-    return SearchResult(total=int(total), hits=hits)
+        last_sort = h.get("sort")
+    next_cursor = None
+    if len(hits) == eff_size and last_sort is not None:
+        next_cursor = {"pit_id": str(data.get("pit_id") or pit_id), "after": last_sort}
+    return SearchResult(total=int(total), hits=hits, next_cursor=next_cursor)
 
 
 async def latest_log_at(settings, *, tenant_id: uuid.UUID, device_id: uuid.UUID) -> datetime | None:
