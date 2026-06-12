@@ -258,6 +258,26 @@ async def sweep_orphaned_actions(ctx: dict) -> dict:
     return summary
 
 
+async def renew_device_certs(ctx: dict) -> dict:
+    """Cron: rotate per-device forwarding certs nearing expiry (owner session, RLS-exempt)."""
+    from app.connectors.opnsense.client import OpnsenseClient
+    from app.core import crypto
+    from app.services.cert_renewal import renew_expiring_device_certs
+
+    settings = get_settings()
+    factory = ctx["session_factory"]
+
+    def client_for(device):
+        return OpnsenseClient(device.base_url, crypto.decrypt(device.api_key_enc),
+                              crypto.decrypt(device.api_secret_enc), verify_tls=device.verify_tls,
+                              tls_fingerprint=device.tls_fingerprint)
+
+    async with factory() as session:
+        summary = await renew_expiring_device_certs(session, settings, client_for=client_for)
+        await session.commit()
+    return summary
+
+
 async def enqueue_due_reports(ctx: dict) -> int:
     """Cron (hourly): enqueue a delivery job for each enabled schedule whose next_run_at is due."""
     from app.models.report_schedule import ReportSchedule
@@ -459,6 +479,7 @@ class WorkerSettings:
         cron(enqueue_due_reports, minute={0}),  # hourly: fire due report schedules
         cron(cleanup_expired_sessions, minute={_settings.session_cleanup_minute}),  # hourly: reap sessions
         cron(sweep_orphaned_actions, minute=set(range(0, 60, min(30, max(1, _settings.sweep_every_minutes))))),
+        cron(renew_device_certs, hour={_settings.cert_renewal_hour}, minute={0}),  # daily: renew expiring certs
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
