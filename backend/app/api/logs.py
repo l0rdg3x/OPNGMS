@@ -10,14 +10,7 @@ from app.core.deps import TenantContext, require_tenant
 from app.core.rbac import Action
 from app.models.device import Device
 from app.schemas.logs import LogHitOut, LogSearchIn, LogSearchOut
-from app.services.log_search import (
-    MAX_SIZE,
-    LogSearchError,
-    search_logs,
-)
-
-# Legacy from/size paging guard — kept here while the API endpoint is migrated to PIT cursors.
-MAX_RESULT_WINDOW = 10000
+from app.services.log_search import MAX_SIZE, LogSearchError, search_logs
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}/logs", tags=["logs"])
 
@@ -38,14 +31,8 @@ async def search_logs_endpoint(
             detail=f"range must not exceed {s.log_search_max_range_days} days",
         )
     # The operator-tunable `log_search_max_size` is the soft cap; MAX_SIZE is the
-    # hard ceiling. This is the size actually sent to OpenSearch, so the deep-paging
-    # window guard below uses it too.
+    # hard ceiling. This is the size actually sent to OpenSearch.
     effective_size = min(body.size, s.log_search_max_size, MAX_SIZE)
-    if (body.page + 1) * effective_size > MAX_RESULT_WINDOW:
-        raise HTTPException(
-            status_code=400,
-            detail="paging too deep; narrow the time range or reduce the page number",
-        )
     if body.device_id is not None:
         device = await session.get(Device, body.device_id)
         if device is None or device.tenant_id != tenant_id:
@@ -58,8 +45,8 @@ async def search_logs_endpoint(
             to=body.to,
             query=body.query,
             device_id=body.device_id,
-            page=body.page,
             size=effective_size,
+            cursor=body.cursor.model_dump() if body.cursor else None,
         )
     except LogSearchError as exc:
         raise HTTPException(
@@ -67,6 +54,7 @@ async def search_logs_endpoint(
         ) from exc
     return LogSearchOut(
         total=res.total,
+        next_cursor=res.next_cursor,
         hits=[
             LogHitOut(
                 id=h.id,
