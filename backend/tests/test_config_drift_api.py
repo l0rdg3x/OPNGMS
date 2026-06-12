@@ -78,6 +78,22 @@ async def test_drift_check_reports_drift(api_client, db_engine, monkeypatch):
     assert res["drifted_fields"] == ["general.enabled"]
 
 
+class _BadXmlClient(_FakeClient):
+    async def get_config_backup(self) -> str:
+        return "<opnsense><unclosed>"  # malformed/partial backup from the device
+
+
+async def test_drift_check_malformed_device_xml_is_unreachable_not_500(api_client, db_engine, monkeypatch):
+    import app.api.config as config_api
+    monkeypatch.setattr(config_api, "OpnsenseClient", _BadXmlClient)
+    tid, did, _ = await _seed(db_engine, payload={"endpoint_key": "ids_general",
+                                                  "payload": {"general.enabled": "0"}})
+    await _login(api_client)
+    r = await api_client.get(f"/api/tenants/{tid}/devices/{did}/config/drift-check")
+    assert r.status_code == 200, r.text
+    assert r.json()["reachable"] is False
+
+
 async def test_drift_check_in_sync(api_client, db_engine, monkeypatch):
     import app.api.config as config_api
     monkeypatch.setattr(config_api, "OpnsenseClient", _FakeClient)

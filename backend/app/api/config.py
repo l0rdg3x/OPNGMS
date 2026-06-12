@@ -1,8 +1,10 @@
 import gzip
 import uuid
 from datetime import UTC, datetime
+from xml.etree.ElementTree import ParseError
 
 from cryptography.fernet import InvalidToken
+from defusedxml.common import DefusedXmlException
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,12 +89,13 @@ async def config_drift_check(
     reachable=False (drift is meaningless without live data). The response carries field NAMES and a
     status only — never raw config values.
     """
-    changes = await ConfigChangeRepository(session, tenant_id).list(device_id)
-    checked_at = datetime.now(UTC)
-    unsupported = unsupported_kinds(changes)
+    # Ownership gate first (RLS hides another tenant's device -> None -> 404), then read.
     device = await session.get(Device, device_id)
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    changes = await ConfigChangeRepository(session, tenant_id).list(device_id)
+    checked_at = datetime.now(UTC)
+    unsupported = unsupported_kinds(changes)
     try:
         client = OpnsenseClient(
             device.base_url,
@@ -102,9 +105,12 @@ async def config_drift_check(
             tls_fingerprint=device.tls_fingerprint,
         )
         live = await gather_live_state(client, changes)
-    except (OpnsenseError, InvalidToken):
+        # compute_drift parses the device-served config.xml; a corrupt/partial backup
+        # (ParseError) or an entity-attack payload (DefusedXmlException) degrades to
+        # reachable=false rather than a 500.
+        results = [DriftResultOut(**vars(r)) for r in compute_drift(changes, live)]
+    except (OpnsenseError, InvalidToken, ParseError, DefusedXmlException):
         return DriftReport(reachable=False, checked_at=checked_at, results=[], unsupported_kinds=unsupported)
-    results = [DriftResultOut(**vars(r)) for r in compute_drift(changes, live)]
     return DriftReport(reachable=True, checked_at=checked_at, results=results, unsupported_kinds=unsupported)
 
 
