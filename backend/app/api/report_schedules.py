@@ -83,6 +83,10 @@ async def delete_schedule(
 ) -> None:
     if not await ReportScheduleRepository(session, tenant_id).delete(schedule_id):
         raise HTTPException(status_code=404, detail="Schedule not found")
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id, tenant_id=tenant_id, action="report.schedule.delete",
+        target_type="report_schedule", target_id=str(schedule_id), ip=None, details={},
+    )
     await session.commit()
 
 

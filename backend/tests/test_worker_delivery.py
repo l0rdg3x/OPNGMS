@@ -109,3 +109,44 @@ async def test_send_job_retries_then_gives_up(db_engine, monkeypatch):
     assert redis.calls[0][2].get("_defer_by") == worker.RETRY_INTERVAL
     r_last = await worker.send_report_email_job({"session_factory": factory, "redis": redis}, report_id, str(sid), worker.MAX_SEND_ATTEMPTS)
     assert r_last == "failed"
+
+
+async def test_generate_failure_advances_next_run_and_audits(db_engine, monkeypatch):
+    from sqlalchemy import select
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    await _seed_schedule(factory, next_run_at=datetime(2020, 1, 1, tzinfo=UTC))
+    async with factory() as s:
+        sid = (await s.execute(select(ReportSchedule.id))).scalar_one()
+
+    async def boom(self, **kw):
+        raise RuntimeError("weasyprint exploded")
+    monkeypatch.setattr("app.services.reporting.service.ReportService.build_report", boom)
+
+    redis = FakeRedis()
+    res = await worker.deliver_scheduled_report({"session_factory": factory, "redis": redis}, str(sid))
+    assert res == "generate-failed"
+    assert redis.calls == []  # no send enqueued
+    async with factory() as s:
+        sched = await s.get(ReportSchedule, sid)
+        assert sched.next_run_at > datetime(2020, 1, 1, tzinfo=UTC)  # advanced -> no storm
+
+
+async def test_send_job_tenant_mismatch_is_refused(db_engine):
+    from sqlalchemy import select
+
+    from app.models.generated_report import GeneratedReport
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    tid, _ = await _seed_schedule(factory, next_run_at=datetime(2020, 1, 1, tzinfo=UTC))
+    async with factory() as s:
+        sid = (await s.execute(select(ReportSchedule.id))).scalar_one()
+        # a generated report belonging to a DIFFERENT tenant
+        other = uuid.uuid4()
+        await s.execute(text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,'Other','other','active')"), {"i": other})
+        rep = GeneratedReport(tenant_id=other, kind="scheduled",
+                              period_from=datetime(2026,6,1,tzinfo=UTC), period_to=datetime(2026,6,8,tzinfo=UTC),
+                              created_by=None, pdf=b"%PDF-", size=5)
+        s.add(rep)
+        await s.commit()
+        rid = rep.id
+    res = await worker.send_report_email_job({"session_factory": factory, "redis": FakeRedis()}, str(rid), str(sid), 1)
+    assert res == "tenant-mismatch"

@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     # Worker cron cadences (configurable; see app/worker.py).
     ingest_every_minutes: int = 5  # event ingest cadence (1..30)
     config_backup_hour: int = 3  # daily config backup hour (UTC, 0..23)
-    report_weekday: str = "mon"  # weekly report day (mon..sun)
-    report_hour: int = 4  # weekly report hour (UTC, 0..23)
+    report_weekday: str = "mon"  # weekly report day (mon..sun)  # (legacy: superseded by per-schedule weekday/hour in report_schedule)
+    report_hour: int = 4  # weekly report hour (UTC, 0..23)  # (legacy: superseded by per-schedule weekday/hour in report_schedule)
     session_cleanup_minute: int = 0  # expired-session cleanup minute-of-hour (hourly)
     live_push_enabled: bool = False  # master switch: real config push (default OFF -> dry-run)
 

@@ -231,6 +231,12 @@ async def deliver_scheduled_report(ctx: dict, schedule_id: str, manual: bool = F
     factory = ctx["session_factory"]
     redis = ctx["redis"]
     now = datetime.now(UTC)
+
+    def _advance(s) -> None:
+        s.last_run_at = now
+        if not manual and s.frequency != ON_DEMAND:
+            s.next_run_at = _next_run_at(s.frequency, s.weekday, s.hour, after=now)
+
     async with factory() as session:
         sched = await session.get(ReportSchedule, uuid.UUID(schedule_id))
         if sched is None:
@@ -240,27 +246,39 @@ async def deliver_scheduled_report(ctx: dict, schedule_id: str, manual: bool = F
         tenant = await session.get(Tenant, sched.tenant_id)
         if tenant is None:
             return "missing-tenant"
-        if sched.device_id is not None and await session.get(Device, sched.device_id) is None:
-            sched.enabled = False
+        if sched.device_id is not None:
+            from app.models.device import Device
+            if await session.get(Device, sched.device_id) is None:
+                sched.enabled = False
+                await AuditService(session).record(
+                    actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.device_missing",
+                    target_type="report_schedule", target_id=str(sched.id), ip=None, details={},
+                )
+                await session.commit()
+                return "device-missing"
+        try:
+            frm, to = report_window(sched.frequency, run_at=now)
+            settings = await ReportSettingsRepository(session, sched.tenant_id).get_or_default()
+            pdf = await ReportService(session, sched.tenant_id).build_report(
+                tenant_name=tenant.name, frm=frm, to=to, locale=settings.language,
+                device_id=sched.device_id,
+            )
+            report = await GeneratedReportRepository(session, sched.tenant_id).create(
+                kind="scheduled", period_from=frm, period_to=to, created_by=None, pdf=pdf,
+                device_id=sched.device_id,
+            )
+        except Exception as exc:  # noqa: BLE001 — advance cadence so a broken build doesn't re-fire hourly
+            await session.rollback()
+            sched = await session.get(ReportSchedule, uuid.UUID(schedule_id))
+            _advance(sched)
             await AuditService(session).record(
-                actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.device_missing",
-                target_type="report_schedule", target_id=str(sched.id), ip=None, details={},
+                actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.generate_failed",
+                target_type="report_schedule", target_id=str(sched.id), ip=None,
+                details={"error": str(exc)[:200]},
             )
             await session.commit()
-            return "device-missing"
-        frm, to = report_window(sched.frequency, run_at=now)
-        settings = await ReportSettingsRepository(session, sched.tenant_id).get_or_default()
-        pdf = await ReportService(session, sched.tenant_id).build_report(
-            tenant_name=tenant.name, frm=frm, to=to, locale=settings.language,
-            device_id=sched.device_id,
-        )
-        report = await GeneratedReportRepository(session, sched.tenant_id).create(
-            kind="scheduled", period_from=frm, period_to=to, created_by=None, pdf=pdf,
-            device_id=sched.device_id,
-        )
-        sched.last_run_at = now
-        if not manual and sched.frequency != ON_DEMAND:
-            sched.next_run_at = _next_run_at(sched.frequency, sched.weekday, sched.hour, after=now)
+            return "generate-failed"
+        _advance(sched)
         await session.commit()
         await redis.enqueue_job("send_report_email_job", str(report.id), str(sched.id), 1)
         return "generated"
@@ -296,6 +314,13 @@ async def send_report_email_job(ctx: dict, report_id: str, schedule_id: str, att
         report = await session.get(GeneratedReport, uuid.UUID(report_id))
         if sched is None or report is None:
             return "missing"
+        if report.tenant_id != sched.tenant_id:
+            await AuditService(session).record(
+                actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.tenant_mismatch",
+                target_type="report_schedule", target_id=str(sched.id), ip=None, details={},
+            )
+            await session.commit()
+            return "tenant-mismatch"
         recipients = list(sched.recipients or [])
         if not recipients:
             await AuditService(session).record(
@@ -313,6 +338,8 @@ async def send_report_email_job(ctx: dict, report_id: str, schedule_id: str, att
         if settings.from_email:
             cfg.from_email = settings.from_email
         tenant = await session.get(Tenant, sched.tenant_id)
+        if tenant is None:
+            return "missing-tenant"
         subject = (f"{settings.title} — {tenant.name} — "
                    f"{report.period_from:%Y-%m-%d}..{report.period_to:%Y-%m-%d}")
         try:

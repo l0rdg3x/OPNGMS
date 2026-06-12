@@ -11,7 +11,7 @@ class SmtpSettingsIn(BaseModel):
     username: str | None = Field(default=None, max_length=255)
     from_email: EmailStr
     from_name: str = Field(default="", max_length=255)
-    password: str | None = Field(default=None, max_length=1024)  # None=keep, ""=clear
+    password: str | None = Field(default=None, max_length=1024)  # None or "" -> keep existing; use clear_password=True to wipe
     clear_password: bool = False
 
 

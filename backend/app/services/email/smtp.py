@@ -30,6 +30,14 @@ def _strip(value: str) -> str:
     return value.replace("\r", " ").replace("\n", " ").strip()
 
 
+def _safe_smtp_error(exc: Exception) -> str:
+    msg = str(exc)
+    idx = msg.upper().find("AUTH")
+    if idx != -1:
+        msg = msg[:idx] + "AUTH <redacted>"
+    return msg[:200]
+
+
 def _build_message(
     cfg: SmtpSendConfig,
     *,
@@ -74,4 +82,4 @@ async def send_report_email(
     try:
         await aiosmtplib.send(message, **kwargs)
     except (aiosmtplib.SMTPException, OSError) as exc:
-        raise EmailSendError(str(exc)) from exc
+        raise EmailSendError(_safe_smtp_error(exc)) from exc

@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, Field
+
+from app.services.report_schedule import MAX_RECIPIENTS
 
 
 class ReportScheduleIn(BaseModel):
@@ -10,7 +13,7 @@ class ReportScheduleIn(BaseModel):
     frequency: str  # weekly | monthly | on_demand
     weekday: int | None = Field(default=None, ge=0, le=6)
     hour: int = Field(default=4, ge=0, le=23)
-    recipients: list[str] = Field(default_factory=list, max_length=200)
+    recipients: list[Annotated[str, Field(max_length=320)]] = Field(default_factory=list, max_length=MAX_RECIPIENTS)
 
 
 class ReportScheduleOut(BaseModel):
