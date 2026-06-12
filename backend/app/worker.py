@@ -159,6 +159,43 @@ async def apply_config_change(ctx: dict, change_id: str) -> str:
         return status
 
 
+async def apply_profile_changes(ctx: dict, change_ids: list[str]) -> dict:
+    """Job: apply a profile's member changes IN ORDER under one device lock (no false sibling
+    conflicts). One job for the whole profile, audited per member, then refresh the snapshot."""
+    from app.models.config_change import ConfigChange
+    from app.services.audit import AuditService
+    from app.services.config_push import apply_profile_sequence
+
+    factory = ctx["session_factory"]
+    async with factory() as session:
+        changes = []
+        for cid in change_ids:
+            c = await session.get(ConfigChange, uuid.UUID(cid))
+            if c is not None:
+                changes.append(c)
+        if not changes:
+            return {"status": "missing"}
+        device = await session.get(Device, changes[0].device_id)
+        if device is None:
+            return {"status": "missing-device"}
+        client = OpnsenseClient(
+            device.base_url,
+            crypto.decrypt(device.api_key_enc),
+            crypto.decrypt(device.api_secret_enc),
+            verify_tls=device.verify_tls,
+            tls_fingerprint=device.tls_fingerprint,
+        )
+        result = await apply_profile_sequence(session, changes, client, now=datetime.now(UTC))
+        for c in changes:
+            await AuditService(session).record(
+                actor_user_id=c.created_by, tenant_id=c.tenant_id, action="config.change.apply",
+                target_type="config_change", target_id=str(c.id), ip=None,
+                details={"status": c.status, "profile": True})
+        await session.commit()
+        await ctx["redis"].enqueue_job("backup_device_config", str(changes[0].device_id))
+        return result
+
+
 async def run_firmware_action(ctx: dict, action_id: str) -> str:
     """Job: run a scheduled/now firmware action against a device."""
     from app.models.firmware_action import FirmwareAction
@@ -519,7 +556,7 @@ RETRY_INTERVAL = 600            # seconds between send retries
 
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, run_firmware_action, deliver_scheduled_report, send_report_email_job]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, _ingest_step))),  # events, every N minutes

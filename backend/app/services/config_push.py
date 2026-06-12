@@ -141,3 +141,62 @@ async def apply_change(
         change.result = {"error": "unknown change kind"}
     await session.flush()
     return change.status
+
+
+async def apply_profile_sequence(
+    session: AsyncSession, changes: list[ConfigChange], client, now: datetime
+) -> dict:
+    """Apply a profile's member changes IN ORDER under ONE device advisory lock.
+
+    The members share a baseline_hash captured at proposal time (before any of them applied). Applying
+    them as independent jobs makes members 2..N falsely conflict (member 1 mutates config.xml). Here we
+    check external staleness ONCE against that shared baseline, then apply the members sequentially —
+    without re-checking the baseline between siblings (the lock makes us the only writer), so a member
+    that changes the config can't make the next sibling conflict. One pre-apply snapshot is the
+    profile's rollback point; on the first member failure the rest are aborted (marked failed)."""
+    scheduled = [c for c in changes if c.status == "scheduled"]
+    if not scheduled:
+        return {"applied": 0, "failed": 0, "conflict": 0, "status": "noop"}
+    device_id = scheduled[0].device_id
+    got = (await session.execute(
+        text("SELECT pg_try_advisory_xact_lock(:k)"), {"k": _advisory_key(device_id)})).scalar_one()
+    if not got:
+        return {"applied": 0, "failed": 0, "conflict": 0, "status": "locked"}  # leave scheduled to retry
+    try:
+        xml = await client.get_config_backup()
+        current = canonical_hash(xml)
+    except (OpnsenseError, ValueError, SyntaxError):
+        for c in scheduled:
+            c.status, c.result = "failed", {"error": "could not read current config"}
+        await session.flush()
+        return {"applied": 0, "failed": len(scheduled), "conflict": 0, "status": "read-failed"}
+    baseline = scheduled[0].baseline_hash
+    if baseline and current != baseline:
+        for c in scheduled:
+            c.status, c.result = "conflict", {"reason": "config changed since proposal", "baseline": baseline}
+        await session.flush()
+        return {"applied": 0, "failed": 0, "conflict": len(scheduled), "status": "conflict"}
+    live = await get_live_push(session, env_default=get_settings().live_push_enabled)
+    snap_id = await _save_pre_apply_snapshot(session, scheduled[0], xml) if live else None
+    applied = failed = 0
+    aborted = False
+    for c in scheduled:
+        c.pre_apply_snapshot_id = snap_id
+        if aborted:
+            c.status, c.result = "failed", {"error": "aborted: an earlier profile member failed"}
+            failed += 1
+            continue
+        try:
+            c.result = await apply_for_kind(client, c.kind, c.operation, c.payload, dry_run=not live)
+            c.status, c.applied_at = "applied", now
+            applied += 1
+        except OpnsenseError:
+            c.status, c.result = "failed", {"error": "apply failed"}
+            failed += 1
+            aborted = True
+        except UnknownChangeKindError:
+            c.status, c.result = "failed", {"error": "unknown change kind"}
+            failed += 1
+            aborted = True
+    await session.flush()
+    return {"applied": applied, "failed": failed, "conflict": 0, "status": "done"}
