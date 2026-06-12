@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Alert, Button, Card, Group, NumberInput, Select, Stack, Switch, Text, Textarea, Title,
+  Accordion, Alert, Badge, Button, Card, Group, NumberInput, Select, Stack, Switch, Text, Textarea, Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
@@ -15,6 +15,30 @@ const WEEKDAYS = [
   { value: "3", label: "Thursday" }, { value: "4", label: "Friday" }, { value: "5", label: "Saturday" },
   { value: "6", label: "Sunday" },
 ];
+
+const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function ScheduleStatus({ existing }: { existing: ScheduleOut | undefined }) {
+  if (!existing) {
+    return <Text size="sm" c="dimmed">Not scheduled</Text>;
+  }
+  if (!existing.enabled) {
+    return <Badge color="gray" variant="light">Disabled</Badge>;
+  }
+  const hh = String(existing.hour).padStart(2, "0");
+  const recipients = existing.recipients?.length ?? 0;
+  const recipientSuffix = recipients > 0 ? ` · ${recipients} recipient${recipients === 1 ? "" : "s"}` : "";
+  let summary: string;
+  if (existing.frequency === "weekly") {
+    const day = WEEKDAY_SHORT[existing.weekday ?? 0] ?? WEEKDAY_SHORT[0];
+    summary = `Weekly · ${day} ${hh}:00`;
+  } else if (existing.frequency === "monthly") {
+    summary = `Monthly · ${hh}:00`;
+  } else {
+    summary = "On demand";
+  }
+  return <Badge color="teal" variant="light">{`${summary}${recipientSuffix}`}</Badge>;
+}
 
 function ScheduleEditor({ prefix, deviceId, existing }: {
   prefix: string;
@@ -104,19 +128,30 @@ export function ReportSchedulePage() {
       </Card>
 
       <Title order={5}>Per-device reports</Title>
-      {deviceList.map((d) => {
-        const existing = schedules.data?.find((s) => s.device_id === d.id);
-        return (
-          <Card withBorder padding="lg" radius="md" key={d.id} data-testid={`device-schedule-row-${d.id}`}>
-            <Stack>
-              <Text fw={600}>{d.name}</Text>
-              {schedules.isSuccess && (
-                <ScheduleEditor key={existing?.id ?? `device-${d.id}-new`} prefix={`device-${d.id}`} deviceId={d.id} existing={existing} />
-              )}
-            </Stack>
-          </Card>
-        );
-      })}
+      {deviceList.length === 0 ? (
+        <Text size="sm" c="dimmed">No devices in this tenant.</Text>
+      ) : (
+        <Accordion variant="separated" multiple>
+          {deviceList.map((d) => {
+            const existing = schedules.data?.find((s) => s.device_id === d.id);
+            return (
+              <Accordion.Item value={d.id} key={d.id}>
+                <Accordion.Control data-testid={`device-schedule-row-${d.id}`}>
+                  <Group justify="space-between" wrap="nowrap" pr="sm">
+                    <Text fw={600}>{d.name}</Text>
+                    <ScheduleStatus existing={existing} />
+                  </Group>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  {schedules.isSuccess && (
+                    <ScheduleEditor key={existing?.id ?? `device-${d.id}-new`} prefix={`device-${d.id}`} deviceId={d.id} existing={existing} />
+                  )}
+                </Accordion.Panel>
+              </Accordion.Item>
+            );
+          })}
+        </Accordion>
+      )}
     </Stack>
   );
 }

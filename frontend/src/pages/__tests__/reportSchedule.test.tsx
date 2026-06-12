@@ -64,7 +64,8 @@ describe("ReportSchedulePage", () => {
     renderWithProviders(withTenant(<ReportSchedulePage />, "tenant_admin"));
     await screen.findByTestId("device-schedule-row-d1");
     expect(screen.getByTestId("device-schedule-row-d2")).toBeInTheDocument();
-    await userEvent.type(screen.getByTestId("device-d1-recipients"), "a@x.io");
+    await userEvent.click(await screen.findByTestId("device-schedule-row-d1"));
+    await userEvent.type(await screen.findByTestId("device-d1-recipients"), "a@x.io");
     await userEvent.click(screen.getByTestId("device-d1-save"));
     await waitFor(() => expect(putBody.device_id).toBe("d1"));
   });
