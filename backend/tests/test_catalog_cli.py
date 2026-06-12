@@ -1,9 +1,12 @@
+import hashlib
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from tools.opnsense_catalog.cli import main
+from tools.opnsense_catalog.publish import sha256_hex
 
 _FIX = Path(__file__).parent / "fixtures/opnsense_catalog/minicore"
 
@@ -33,6 +36,26 @@ def test_diff_command(tmp_path, capsys):
     assert rc == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["models"]["ids"]["changed_fields"][0]["after"] == "int"
+
+
+def test_generate_all_emits_catalogs_and_manifest(tmp_path):
+    # Two "versions" both sourced from the same vendored minicore tree.
+    root = tmp_path / "src"
+    for v in ("26.1.7", "26.1.8"):
+        shutil.copytree(_FIX, root / v)
+    out = tmp_path / "out"
+    rc = main(["generate-all", "--edition", "community",
+               "--versions", "26.1.7,26.1.8",
+               "--source-root", str(root), "--out-dir", str(out)])
+    assert rc == 0
+    cat = json.loads((out / "community-26.1.8.json").read_text())
+    assert cat["version"] == "26.1.8"
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert set(manifest["catalogs"]) == {"community/26.1.7", "community/26.1.8"}
+    # The manifest sha must match the exact bytes written for that catalog.
+    blob = (out / "community-26.1.8.json").read_bytes()
+    assert manifest["catalogs"]["community/26.1.8"] == sha256_hex(blob)
+    assert "generated_at" in manifest
 
 
 def test_module_runs_as_main(tmp_path):

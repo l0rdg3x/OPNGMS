@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from tools.opnsense_catalog.diff import diff_catalogs
@@ -13,6 +14,7 @@ from tools.opnsense_catalog.endpoints import resolve_endpoints
 from tools.opnsense_catalog.fetch import fetch_source
 from tools.opnsense_catalog.form_parser import parse_forms
 from tools.opnsense_catalog.model_parser import parse_model
+from tools.opnsense_catalog.publish import build_manifest
 
 
 def _generate(edition: str, version: str, source: Path) -> dict:
@@ -31,6 +33,15 @@ def _generate(edition: str, version: str, source: Path) -> dict:
                          generated_from={"core": version})
 
 
+def _write_catalog(edition: str, version: str, source: Path, out_dir: Path) -> tuple[str, bytes]:
+    """Generate one catalog, write community-<version>.json, return (manifest-key, file bytes)."""
+    cat = _generate(edition, version, source)
+    blob = (json.dumps(cat, indent=2, sort_keys=False) + "\n").encode("utf-8")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{edition}-{version}.json").write_bytes(blob)
+    return f"{edition}/{version}", blob
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="opnsense-catalog")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -43,6 +54,12 @@ def main(argv: list[str]) -> int:
     d = sub.add_parser("diff")
     d.add_argument("a")
     d.add_argument("b")
+    ga = sub.add_parser("generate-all")
+    ga.add_argument("--edition", default="community")
+    ga.add_argument("--versions", required=True, help="comma-separated, e.g. 26.1.7,26.1.8")
+    ga.add_argument("--source-root", help="dir with one extracted source tree per version: <root>/<version>/")
+    ga.add_argument("--fetch", action="store_true", help="download each tag instead of --source-root")
+    ga.add_argument("--out-dir", required=True)
     args = ap.parse_args(argv)
 
     if args.cmd == "generate":
@@ -52,6 +69,24 @@ def main(argv: list[str]) -> int:
         Path(args.out).write_text(json.dumps(cat, indent=2, sort_keys=False) + "\n")
         rep = coverage_report(cat)
         print(json.dumps({"wrote": args.out, "coverage": rep}))
+        return 0
+    if args.cmd == "generate-all":
+        versions = [v.strip() for v in args.versions.split(",") if v.strip()]
+        out_dir = Path(args.out_dir)
+        entries: dict[str, bytes] = {}
+        for version in versions:
+            if args.fetch:
+                with tempfile.TemporaryDirectory() as tmp:
+                    source = fetch_source("core", version, Path(tmp))
+                    key, blob = _write_catalog(args.edition, version, source, out_dir)
+            else:
+                source = Path(args.source_root) / version
+                key, blob = _write_catalog(args.edition, version, source, out_dir)
+            entries[key] = blob
+        manifest = build_manifest(entries)
+        manifest["generated_at"] = datetime.now(UTC).isoformat()
+        (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        print(json.dumps({"wrote": str(out_dir), "versions": versions}))
         return 0
     if args.cmd == "diff":
         a = json.loads(Path(args.a).read_text())
