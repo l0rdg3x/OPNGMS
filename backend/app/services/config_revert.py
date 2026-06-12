@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import gzip
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from defusedxml import ElementTree as DET
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.connectors.opnsense.setting_endpoints import SETTING_ENDPOINTS
 from app.core import crypto
 from app.models.config_change import ConfigChange
 from app.repositories.config_snapshot import ConfigSnapshotRepository
@@ -74,6 +75,36 @@ def _invert_alias(change: ConfigChange, snapshot_xml: str | None) -> tuple[str, 
 
 
 register_inverse_builder("alias", _invert_alias)
+
+
+def setting_from_config_xml(xml: str, xml_path: str, dotted_keys: Iterable[str]) -> dict:
+    """Read prior values for `dotted_keys` from config.xml under `xml_path`.
+
+    A dotted key `general.enabled` resolves to the element `{xml_path}/general/enabled`.
+    A missing element maps to "" (revert clears the field — the safest default)."""
+    root = DET.fromstring(xml)
+    out: dict = {}
+    for key in dotted_keys:
+        el = root.find(f"{xml_path}/{key.replace('.', '/')}")
+        out[key] = (el.text or "") if el is not None else ""
+    return out
+
+
+def _invert_opnsense_setting(change: ConfigChange, snapshot_xml: str | None) -> tuple[str, str, dict]:
+    endpoint_key = change.target or (change.payload or {}).get("endpoint_key", "")
+    ep = SETTING_ENDPOINTS.get(endpoint_key)
+    if ep is None:
+        raise NoInverseError(f"unknown setting endpoint {endpoint_key!r}")
+    if not snapshot_xml:
+        raise NoInverseError("no pre-apply snapshot to reconstruct the setting from")
+    changed = (change.payload or {}).get("payload", {})
+    if not changed:
+        raise NoInverseError("setting change has no fields to invert")
+    prev = setting_from_config_xml(snapshot_xml, ep.xml_path, changed.keys())
+    return "set", endpoint_key, {"endpoint_key": endpoint_key, "payload": prev}
+
+
+register_inverse_builder("opnsense_setting", _invert_opnsense_setting)
 
 
 # --- revert flow ---

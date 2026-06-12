@@ -16,6 +16,7 @@ class SettingEndpoint:
     model_root: str
     multi_fields: tuple[str, ...] = ()       # dotted paths that are multi-select option fields
     exclude_fields: tuple[str, ...] = ()      # dotted paths to OMIT (hardware/device-specific)
+    xml_path: str = ""                         # config.xml location of model_root (for revert), e.g. "OPNsense/IDS"
 
 
 SETTING_ENDPOINTS: dict[str, SettingEndpoint] = {
@@ -25,5 +26,6 @@ SETTING_ENDPOINTS: dict[str, SettingEndpoint] = {
         reconfigure_path="ids/service/reconfigure", model_root="ids",
         multi_fields=("general.homenet",),
         exclude_fields=("general.interfaces",),   # per-device hardware — not templatable
+        xml_path="OPNsense/IDS",                  # the IDS model lives at OPNsense/IDS in config.xml
     ),
 }
