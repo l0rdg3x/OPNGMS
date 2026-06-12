@@ -8,6 +8,10 @@ from datetime import datetime
 import httpx
 
 MAX_SIZE = 200
+# OpenSearch's default index.max_result_window. `from + size` beyond this is
+# rejected by the cluster *after* it has done the query work, so the API caps
+# paging depth pre-flight to avoid that within-tenant amplification.
+MAX_RESULT_WINDOW = 10000
 
 
 def build_search_body(*, tenant_id: uuid.UUID, frm: datetime, to: datetime, query: str,

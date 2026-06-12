@@ -96,3 +96,64 @@ async def test_bad_range_400(api_client, db_engine, monkeypatch):
         json={"frm": "2026-06-02T00:00:00Z", "to": "2026-06-01T00:00:00Z"},
     )
     assert r.status_code == 400
+
+
+async def test_cross_tenant_device_404(api_client, db_engine, monkeypatch):
+    # A device owned by another tenant must not be addressable from this tenant.
+    _patch_search(monkeypatch, {})
+    tid, _ = await _seed(db_engine)
+    other_tid, other_did = uuid.uuid4(), uuid.uuid4()
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(
+            text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,'B','b','active')"),
+            {"i": other_tid},
+        )
+        await set_tenant_context(s, other_tid)
+        await s.execute(
+            text(
+                "INSERT INTO devices (id,tenant_id,name,base_url,api_key_enc,api_secret_enc,verify_tls,status,tags) "
+                "VALUES (:i,:t,'fw2','https://y',''::bytea,''::bytea,true,'reachable','{}')"
+            ),
+            {"i": other_did, "t": other_tid},
+        )
+        await s.commit()
+    await _login(api_client, "op@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/logs/search",
+        json={
+            "device_id": str(other_did),
+            "frm": "2026-06-01T00:00:00Z",
+            "to": "2026-06-02T00:00:00Z",
+        },
+    )
+    assert r.status_code == 404
+
+
+async def test_naive_datetime_rejected_422(api_client, db_engine, monkeypatch):
+    # Timezone-naive bounds are rejected before any comparison/OpenSearch round-trip.
+    _patch_search(monkeypatch, {})
+    tid, _ = await _seed(db_engine)
+    await _login(api_client, "op@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/logs/search",
+        json={"frm": "2026-06-01T00:00:00", "to": "2026-06-02T00:00:00"},
+    )
+    assert r.status_code == 422
+
+
+async def test_deep_paging_rejected_400(api_client, db_engine, monkeypatch):
+    # `from + size` beyond OpenSearch's result window is refused pre-flight.
+    _patch_search(monkeypatch, {})
+    tid, _ = await _seed(db_engine)
+    await _login(api_client, "op@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/logs/search",
+        json={
+            "frm": "2026-06-01T00:00:00Z",
+            "to": "2026-06-02T00:00:00Z",
+            "page": 10000,
+            "size": 200,
+        },
+    )
+    assert r.status_code == 400

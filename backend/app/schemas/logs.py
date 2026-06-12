@@ -1,14 +1,16 @@
 import uuid
-from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 
 class LogSearchIn(BaseModel):
     query: str = Field(default="", max_length=2048)
     device_id: uuid.UUID | None = None
-    frm: datetime
-    to: datetime
+    # Require timezone-aware bounds: a naive datetime would make the frm/to
+    # comparison raise TypeError (-> 500) and would be sent to OpenSearch
+    # without an offset, silently interpreted as the host's local time.
+    frm: AwareDatetime
+    to: AwareDatetime
     page: int = Field(default=0, ge=0)
     size: int = Field(default=100, ge=1)
 

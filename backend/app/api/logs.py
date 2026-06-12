@@ -10,7 +10,12 @@ from app.core.deps import TenantContext, require_tenant
 from app.core.rbac import Action
 from app.models.device import Device
 from app.schemas.logs import LogHitOut, LogSearchIn, LogSearchOut
-from app.services.log_search import LogSearchError, search_logs
+from app.services.log_search import (
+    MAX_RESULT_WINDOW,
+    MAX_SIZE,
+    LogSearchError,
+    search_logs,
+)
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}/logs", tags=["logs"])
 
@@ -29,6 +34,12 @@ async def search_logs_endpoint(
         raise HTTPException(
             status_code=400,
             detail=f"range must not exceed {s.log_search_max_range_days} days",
+        )
+    effective_size = min(body.size, MAX_SIZE)
+    if (body.page + 1) * effective_size > MAX_RESULT_WINDOW:
+        raise HTTPException(
+            status_code=400,
+            detail="paging too deep; narrow the time range or reduce the page number",
         )
     if body.device_id is not None:
         device = await session.get(Device, body.device_id)
