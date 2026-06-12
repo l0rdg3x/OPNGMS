@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, func, text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,10 @@ class ConfigChange(UUIDPKMixin, Base):
     payload: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     baseline_hash: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="draft", server_default="draft")
+    sweep_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    reverts_change_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("config_changes.id", ondelete="SET NULL"), nullable=True
+    )
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     result: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
