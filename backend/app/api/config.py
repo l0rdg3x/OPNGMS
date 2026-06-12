@@ -42,8 +42,19 @@ router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["config"])
 
 
 def _xml(snapshot: ConfigSnapshot) -> str:
-    """Decrypt + decompress a snapshot's content server-side (never exposed to clients)."""
-    return gzip.decompress(crypto.decrypt_bytes(snapshot.content_enc)).decode("utf-8")
+    """Decrypt + decompress a snapshot's content server-side (never exposed to clients).
+
+    A decrypt/decompress failure (e.g. a snapshot encrypted under a MASTER_KEY that has since been
+    dropped from the rotation set) becomes a clean 500 with a safe message — not an unhandled
+    exception that would leak a stack trace / snapshot id to the caller.
+    """
+    try:
+        return gzip.decompress(crypto.decrypt_bytes(snapshot.content_enc)).decode("utf-8")
+    except (InvalidToken, gzip.BadGzipFile, EOFError, UnicodeDecodeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="stored config snapshot could not be read",
+        ) from exc
 
 
 @router.get(
@@ -91,7 +102,7 @@ async def config_drift_check(
     """
     # Ownership gate first (RLS hides another tenant's device -> None -> 404), then read.
     device = await session.get(Device, device_id)
-    if device is None:
+    if device is None or device.tenant_id != tenant_id:  # explicit ownership guard (defence-in-depth vs RLS)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     changes = await ConfigChangeRepository(session, tenant_id).list(device_id)
     checked_at = datetime.now(UTC)
@@ -176,7 +187,7 @@ async def config_capabilities(
     # Live probe; degrade gracefully to empirical-only on any connector/credential error.
     plugin_info: dict = {"plugins": []}
     device = await session.get(Device, device_id)
-    if device is not None:
+    if device is not None and device.tenant_id == tenant_id:  # never build a client for another tenant's device
         try:
             client = OpnsenseClient(
                 device.base_url,
@@ -227,7 +238,7 @@ async def create_config_change(
     # and loads the device by id, so a change must never be created for a device the
     # caller cannot see. Under RLS this lookup returns None for another tenant's device.
     device = await session.get(Device, device_id)
-    if device is None:
+    if device is None or device.tenant_id != tenant_id:  # explicit ownership guard (defence-in-depth vs RLS)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     change = await create_change(
         session,
