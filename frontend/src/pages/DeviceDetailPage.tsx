@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import { DeviceActions } from "../components/DeviceActions";
 import { ConfigTab } from "../config/ConfigTab";
 import { FirmwareActions } from "../firmware/FirmwareActions";
+import { LogForwardingCard } from "../components/LogForwardingCard";
 import { useT } from "../i18n";
 import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
 import { ApplyProfileSection } from "../profiles/ApplyProfileSection";
@@ -37,6 +38,7 @@ export function DeviceDetailPage() {
           <Tabs.Tab value="health">{t.config.tabHealth}</Tabs.Tab>
           <Tabs.Tab value="config">{t.config.tabConfig}</Tabs.Tab>
           <Tabs.Tab value="firmware">{t.firmware.tab}</Tabs.Tab>
+          <Tabs.Tab value="forwarding">{t.logForwarding.tab}</Tabs.Tab>
           <Tabs.Tab value="templates">{t.templates.tab}</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="info" pt="md">
@@ -57,6 +59,9 @@ export function DeviceDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="firmware" pt="md">
           {deviceId && <FirmwareActions deviceId={deviceId} />}
+        </Tabs.Panel>
+        <Tabs.Panel value="forwarding" pt="md">
+          {deviceId && <LogForwardingCard deviceId={deviceId} />}
         </Tabs.Panel>
         <Tabs.Panel value="templates" pt="md">
           {deviceId && (
