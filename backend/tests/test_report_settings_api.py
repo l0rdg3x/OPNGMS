@@ -393,3 +393,26 @@ async def test_get_languages_returns_en(api_client, db_engine):
     assert "en" in codes
     en_entry = next(lang for lang in languages if lang["code"] == "en")
     assert en_entry["name"] == "English"
+
+
+# ---------------------------------------------------------------------------
+# from_email field — Task A12
+# ---------------------------------------------------------------------------
+
+async def test_from_email_roundtrips(api_client, db_engine):
+    tid = await _login_superadmin(api_client, db_engine)
+    p = await api_client.put(f"/api/tenants/{tid}/reports/settings", headers=csrf_headers(api_client),
+                             json={"title": "T", "owner": "o", "timezone": "UTC", "language": "en",
+                                   "from_email": "brand@x.io"})
+    assert p.status_code == 200, p.text
+    assert p.json()["from_email"] == "brand@x.io"
+    g = await api_client.get(f"/api/tenants/{tid}/reports/settings")
+    assert g.json()["from_email"] == "brand@x.io"
+
+
+async def test_invalid_from_email_rejected(api_client, db_engine):
+    tid = await _login_superadmin(api_client, db_engine)
+    r = await api_client.put(f"/api/tenants/{tid}/reports/settings", headers=csrf_headers(api_client),
+                             json={"title": "T", "owner": "o", "timezone": "UTC", "language": "en",
+                                   "from_email": "not-an-email"})
+    assert r.status_code == 400

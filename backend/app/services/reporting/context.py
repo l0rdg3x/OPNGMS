@@ -1,6 +1,7 @@
 """Report data model: plain dataclasses assembled from aggregations, rendered by the template."""
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -135,6 +136,7 @@ async def build_context(
     title: str = "Security & Activity Report",
     logo_data_uri: str | None = None,
     locale: str = "en",
+    device_id: uuid.UUID | None = None,
 ) -> ReportContext:
     # Local import: mock_sections imports the dataclasses from this module, so importing it here
     # (rather than at module top) avoids a circular-import cycle and lets mock_sections be imported
@@ -147,7 +149,7 @@ async def build_context(
 
     bucket = pick_bucket(to - frm)
     sections: list[DeviceSection] = []
-    devices = await aggregator.devices()
+    devices = await aggregator.devices(device_id=device_id)
     for dev in devices:
         # Attacks block: timeline + three ranked tables (IDS), per-device.
         tl = await aggregator.timeline(frm=frm, to=to, bucket=bucket, source="ids", device_id=dev.id)

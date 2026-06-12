@@ -43,13 +43,13 @@ class ReportAggregator:
         self.session = session
         self.tenant_id = tenant_id
 
-    async def devices(self) -> list[DeviceRow]:
-        rows = (
-            await self.session.execute(
-                text("SELECT id, name FROM devices WHERE tenant_id = :tid ORDER BY name"),
-                {"tid": self.tenant_id},
-            )
-        ).all()
+    async def devices(self, *, device_id: uuid.UUID | None = None) -> list[DeviceRow]:
+        sql = "SELECT id, name FROM devices WHERE tenant_id = :tid"
+        params: dict = {"tid": self.tenant_id}
+        if device_id is not None:
+            sql += " AND id = :did"
+            params["did"] = device_id
+        rows = (await self.session.execute(text(sql + " ORDER BY name"), params)).all()
         return [DeviceRow(id=r.id, name=r.name) for r in rows]
 
     async def _ranked(

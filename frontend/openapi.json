@@ -2786,6 +2786,201 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/report-schedules": {
+      "get": {
+        "tags": [
+          "report-schedules"
+        ],
+        "summary": "List Schedules",
+        "operationId": "list_schedules_api_tenants__tenant_id__report_schedules_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReportScheduleOut"
+                  },
+                  "title": "Response List Schedules Api Tenants  Tenant Id  Report Schedules Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "report-schedules"
+        ],
+        "summary": "Upsert Schedule",
+        "operationId": "upsert_schedule_api_tenants__tenant_id__report_schedules_put",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportScheduleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportScheduleOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/report-schedules/{schedule_id}": {
+      "delete": {
+        "tags": [
+          "report-schedules"
+        ],
+        "summary": "Delete Schedule",
+        "operationId": "delete_schedule_api_tenants__tenant_id__report_schedules__schedule_id__delete",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/report-schedules/{schedule_id}/send-now": {
+      "post": {
+        "tags": [
+          "report-schedules"
+        ],
+        "summary": "Send Now",
+        "operationId": "send_now_api_tenants__tenant_id__report_schedules__schedule_id__send_now_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/templates": {
       "get": {
         "tags": [
@@ -3709,6 +3904,107 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Monit Test Model Api Tenants  Tenant Id  Devices  Device Id  Opnsense Monit Test Model Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/smtp": {
+      "get": {
+        "tags": [
+          "smtp"
+        ],
+        "summary": "Get Smtp",
+        "operationId": "get_smtp_api_admin_smtp_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmtpSettingsOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "smtp"
+        ],
+        "summary": "Put Smtp",
+        "operationId": "put_smtp_api_admin_smtp_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmtpSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmtpSettingsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/smtp/test": {
+      "post": {
+        "tags": [
+          "smtp"
+        ],
+        "summary": "Test Smtp",
+        "operationId": "test_smtp_api_admin_smtp_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmtpTestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmtpTestOut"
                 }
               }
             }
@@ -5283,6 +5579,153 @@
         ],
         "title": "ReportRequest"
       },
+      "ReportScheduleIn": {
+        "properties": {
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "frequency": {
+            "type": "string",
+            "title": "Frequency"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "hour": {
+            "type": "integer",
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Hour",
+            "default": 4
+          },
+          "recipients": {
+            "items": {
+              "type": "string",
+              "maxLength": 320
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Recipients"
+          }
+        },
+        "type": "object",
+        "required": [
+          "frequency"
+        ],
+        "title": "ReportScheduleIn"
+      },
+      "ReportScheduleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "frequency": {
+            "type": "string",
+            "title": "Frequency"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "hour": {
+            "type": "integer",
+            "title": "Hour"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recipients"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "device_id",
+          "enabled",
+          "frequency",
+          "weekday",
+          "hour",
+          "recipients",
+          "next_run_at",
+          "last_run_at"
+        ],
+        "title": "ReportScheduleOut"
+      },
       "ReportSettingsIn": {
         "properties": {
           "title": {
@@ -5303,6 +5746,11 @@
             "type": "string",
             "title": "Language",
             "default": "en"
+          },
+          "from_email": {
+            "type": "string",
+            "title": "From Email",
+            "default": ""
           }
         },
         "type": "object",
@@ -5343,6 +5791,10 @@
           "language": {
             "type": "string",
             "title": "Language"
+          },
+          "from_email": {
+            "type": "string",
+            "title": "From Email"
           }
         },
         "type": "object",
@@ -5352,7 +5804,8 @@
           "timezone",
           "has_logo",
           "logo_mime",
-          "language"
+          "language",
+          "from_email"
         ],
         "title": "ReportSettingsOut"
       },
@@ -5494,6 +5947,229 @@
           "secret"
         ],
         "title": "SetupOut"
+      },
+      "SmtpSettingsIn": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port"
+          },
+          "security": {
+            "type": "string",
+            "title": "Security",
+            "default": "starttls"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "from_email": {
+            "type": "string",
+            "format": "email",
+            "title": "From Email"
+          },
+          "from_name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "From Name",
+            "default": ""
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "clear_password": {
+            "type": "boolean",
+            "title": "Clear Password",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "host",
+          "port",
+          "from_email"
+        ],
+        "title": "SmtpSettingsIn"
+      },
+      "SmtpSettingsOut": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port"
+          },
+          "security": {
+            "type": "string",
+            "title": "Security"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "from_email": {
+            "type": "string",
+            "title": "From Email"
+          },
+          "from_name": {
+            "type": "string",
+            "title": "From Name"
+          },
+          "has_password": {
+            "type": "boolean",
+            "title": "Has Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "host",
+          "port",
+          "security",
+          "username",
+          "from_email",
+          "from_name",
+          "has_password"
+        ],
+        "title": "SmtpSettingsOut"
+      },
+      "SmtpTestIn": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port"
+          },
+          "security": {
+            "type": "string",
+            "title": "Security",
+            "default": "starttls"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "from_email": {
+            "type": "string",
+            "format": "email",
+            "title": "From Email"
+          },
+          "from_name": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "From Name",
+            "default": ""
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "clear_password": {
+            "type": "boolean",
+            "title": "Clear Password",
+            "default": false
+          },
+          "to": {
+            "type": "string",
+            "format": "email",
+            "title": "To"
+          }
+        },
+        "type": "object",
+        "required": [
+          "host",
+          "port",
+          "from_email",
+          "to"
+        ],
+        "title": "SmtpTestIn"
+      },
+      "SmtpTestOut": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "SmtpTestOut"
       },
       "TemplateIn": {
         "properties": {

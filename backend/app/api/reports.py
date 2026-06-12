@@ -31,6 +31,7 @@ def _settings_to_out(settings) -> ReportSettingsOut:
         has_logo=settings.logo is not None,
         logo_mime=settings.logo_mime,
         language=settings.language,
+        from_email=settings.from_email,
     )
 
 
@@ -141,9 +142,16 @@ async def update_report_settings(
 ) -> ReportSettingsOut:
     if body.language not in REPORT_LOCALES:
         raise HTTPException(status_code=400, detail="unsupported language")
+    if body.from_email:
+        from email_validator import EmailNotValidError, validate_email
+        try:
+            validate_email(body.from_email, check_deliverability=False)
+        except EmailNotValidError as exc:
+            raise HTTPException(status_code=400, detail="invalid from_email") from exc
     repo = ReportSettingsRepository(session, tenant_id)
     settings = await repo.upsert(
-        title=body.title, owner=body.owner, timezone=body.timezone, language=body.language
+        title=body.title, owner=body.owner, timezone=body.timezone, language=body.language,
+        from_email=body.from_email,
     )
     await AuditService(session).record(
         actor_user_id=ctx.user.id,
@@ -157,6 +165,7 @@ async def update_report_settings(
             "owner": body.owner,
             "timezone": body.timezone,
             "language": body.language,
+            "from_email": body.from_email,
         },
     )
     # Capture response within the same transaction before commit (keeps RLS context active).

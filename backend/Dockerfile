@@ -18,6 +18,7 @@ RUN apt-get update \
         libffi8 \
         shared-mime-info \
         fonts-dejavu-core \
+        tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

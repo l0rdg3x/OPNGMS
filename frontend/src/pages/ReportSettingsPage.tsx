@@ -58,6 +58,7 @@ function ReportSettingsForm() {
       owner: "",
       timezone: "UTC",
       language: "en",
+      from_email: "",
     },
   });
 
@@ -71,6 +72,7 @@ function ReportSettingsForm() {
         owner: settingsQuery.data.owner,
         timezone: settingsQuery.data.timezone,
         language: settingsQuery.data.language ?? "en",
+        from_email: settingsQuery.data.from_email ?? "",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,6 +90,7 @@ function ReportSettingsForm() {
         owner: form.values.owner,
         timezone: form.values.timezone,
         language: form.values.language,
+        from_email: form.values.from_email,
       });
       notifications.show({ message: t.reports.settings.saved });
     } catch {
@@ -143,6 +146,11 @@ function ReportSettingsForm() {
         label={t.reports.settings.timezone}
         {...form.getInputProps("timezone")}
         data-testid="field-timezone"
+      />
+      <TextInput
+        label={t.reports.settings.fromEmail}
+        {...form.getInputProps("from_email")}
+        data-testid="field-from-email"
       />
 
       <Select

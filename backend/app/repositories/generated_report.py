@@ -20,10 +20,11 @@ class GeneratedReportRepository:
         self.tenant_id = tenant_id
 
     async def create(self, *, kind: str, period_from: datetime, period_to: datetime,
-                     created_by: uuid.UUID | None, pdf: bytes) -> GeneratedReport:
+                     created_by: uuid.UUID | None, pdf: bytes,
+                     device_id: uuid.UUID | None = None) -> GeneratedReport:
         row = GeneratedReport(
-            tenant_id=self.tenant_id, kind=kind, period_from=period_from, period_to=period_to,
-            created_by=created_by, pdf=pdf, size=len(pdf),
+            tenant_id=self.tenant_id, device_id=device_id, kind=kind, period_from=period_from,
+            period_to=period_to, created_by=created_by, pdf=pdf, size=len(pdf),
         )
         self.session.add(row)
         await self.session.flush()

@@ -13,8 +13,10 @@ from app.models.generated_report import GeneratedReport
 from app.models.ingest_cursor import IngestCursor
 from app.models.membership import Membership
 from app.models.metric import Metric
+from app.models.report_schedule import ReportSchedule  # noqa: F401
 from app.models.report_settings import ReportSettings
 from app.models.session import Session
+from app.models.smtp_settings import SmtpSettings  # noqa: F401
 from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -39,8 +41,10 @@ __all__ = [
     "IngestCursor",
     "Membership",
     "Metric",
+    "ReportSchedule",
     "ReportSettings",
     "Session",
+    "SmtpSettings",
     "Tenant",
     "User",
     "UserMfa",

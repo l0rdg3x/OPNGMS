@@ -36,6 +36,7 @@ const defaultSettings = {
   owner: "NOC",
   timezone: "UTC",
   language: "en",
+  from_email: "",
   has_logo: false,
   logo_mime: null,
 };
@@ -255,6 +256,36 @@ describe("ReportSettingsPage — tenant_admin", () => {
     // Select should show English as the default
     const languageSelect = screen.getByTestId("field-language");
     expect(languageSelect).toHaveValue("English");
+  });
+
+  it("from_email round-trip: typed value is sent in the PUT body", async () => {
+    let putBody: unknown;
+
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
+      http.put(SETTINGS_URL, async ({ request }) => {
+        putBody = await request.json();
+        return HttpResponse.json({ ...defaultSettings, ...(putBody as object) });
+      }),
+    );
+
+    renderWithProviders(withTenant(<ReportSettingsPage />, "tenant_admin"));
+
+    // Wait for form to load
+    const fromEmailInput = await screen.findByTestId("field-from-email");
+
+    // Type an email address into the from_email field
+    await userEvent.clear(fromEmailInput);
+    await userEvent.type(fromEmailInput, "brand@x.io");
+
+    // Click save
+    await userEvent.click(screen.getByTestId("btn-save"));
+
+    // Assert the PUT body contains the typed from_email
+    await waitFor(() =>
+      expect((putBody as { from_email: string }).from_email).toBe("brand@x.io"),
+    );
   });
 });
 

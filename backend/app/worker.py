@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from arq import cron
 from arq.connections import RedisSettings
@@ -17,8 +17,11 @@ from app.models.device import Device
 from app.services.alerting import evaluate_alerts
 from app.services.config_backup import backup_config
 from app.services.config_push import apply_change
+from app.services.email.smtp import EmailSendError, send_report_email
 from app.services.ingest import ingest_events
 from app.services.monitoring import collect_and_store
+from app.services.report_schedule import ON_DEMAND, report_window
+from app.services.report_schedule import next_run_at as _next_run_at
 
 
 def _owner_url() -> str:
@@ -193,27 +196,167 @@ async def run_firmware_action(ctx: dict, action_id: str) -> str:
         return status
 
 
-async def generate_tenant_report(ctx: dict, tenant_id: str, frm: str, to: str, kind: str) -> str:
-    """Job: build a report for a tenant + range and store it. Runs as owner; the aggregator's explicit
-    tenant_id filters scope the data (RLS is bypassed for the owner, like the poller)."""
+async def enqueue_due_reports(ctx: dict) -> int:
+    """Cron (hourly): enqueue a delivery job for each enabled schedule whose next_run_at is due."""
+    from app.models.report_schedule import ReportSchedule
+
+    factory = ctx["session_factory"]
+    redis = ctx["redis"]
+    now = datetime.now(UTC)
+    async with factory() as session:
+        ids = (await session.execute(
+            select(ReportSchedule.id).where(
+                ReportSchedule.enabled.is_(True),
+                ReportSchedule.next_run_at.isnot(None),
+                ReportSchedule.next_run_at <= now,
+            )
+        )).scalars().all()
+    for sid in ids:
+        await redis.enqueue_job("deliver_scheduled_report", str(sid))
+    return len(ids)
+
+
+async def deliver_scheduled_report(ctx: dict, schedule_id: str, manual: bool = False) -> str:
+    """Job: build + store a report for a schedule, advance its cadence, enqueue the send.
+
+    Runs as owner (RLS bypassed); the repositories scope every query by explicit tenant_id.
+    """
+    from app.models.report_schedule import ReportSchedule
     from app.models.tenant import Tenant
     from app.repositories.generated_report import GeneratedReportRepository
+    from app.repositories.report_settings import ReportSettingsRepository
+    from app.services.audit import AuditService
     from app.services.reporting.service import ReportService
 
     factory = ctx["session_factory"]
-    frm_dt, to_dt = datetime.fromisoformat(frm), datetime.fromisoformat(to)
+    redis = ctx["redis"]
+    now = datetime.now(UTC)
+
+    def _advance(s) -> None:
+        s.last_run_at = now
+        if not manual and s.frequency != ON_DEMAND:
+            s.next_run_at = _next_run_at(s.frequency, s.weekday, s.hour, after=now)
+
     async with factory() as session:
-        tenant = await session.get(Tenant, uuid.UUID(tenant_id))
+        sched = await session.get(ReportSchedule, uuid.UUID(schedule_id))
+        if sched is None:
+            return "missing"
+        if not manual and (not sched.enabled or sched.next_run_at is None or sched.next_run_at > now):
+            return "skip"
+        tenant = await session.get(Tenant, sched.tenant_id)
         if tenant is None:
             return "missing-tenant"
-        pdf = await ReportService(session, uuid.UUID(tenant_id)).build_report(
-            tenant_name=tenant.name, frm=frm_dt, to=to_dt
-        )
-        await GeneratedReportRepository(session, uuid.UUID(tenant_id)).create(
-            kind=kind, period_from=frm_dt, period_to=to_dt, created_by=None, pdf=pdf
+        if sched.device_id is not None:
+            from app.models.device import Device
+            if await session.get(Device, sched.device_id) is None:
+                sched.enabled = False
+                await AuditService(session).record(
+                    actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.device_missing",
+                    target_type="report_schedule", target_id=str(sched.id), ip=None, details={},
+                )
+                await session.commit()
+                return "device-missing"
+        try:
+            frm, to = report_window(sched.frequency, run_at=now)
+            settings = await ReportSettingsRepository(session, sched.tenant_id).get_or_default()
+            pdf = await ReportService(session, sched.tenant_id).build_report(
+                tenant_name=tenant.name, frm=frm, to=to, locale=settings.language,
+                device_id=sched.device_id,
+            )
+            report = await GeneratedReportRepository(session, sched.tenant_id).create(
+                kind="scheduled", period_from=frm, period_to=to, created_by=None, pdf=pdf,
+                device_id=sched.device_id,
+            )
+        except Exception as exc:  # noqa: BLE001 — advance cadence so a broken build doesn't re-fire hourly
+            await session.rollback()
+            sched = await session.get(ReportSchedule, uuid.UUID(schedule_id))
+            _advance(sched)
+            await AuditService(session).record(
+                actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.generate_failed",
+                target_type="report_schedule", target_id=str(sched.id), ip=None,
+                details={"error": str(exc)[:200]},
+            )
+            await session.commit()
+            return "generate-failed"
+        _advance(sched)
+        await session.commit()
+        await redis.enqueue_job("send_report_email_job", str(report.id), str(sched.id), 1)
+        return "generated"
+
+
+async def send_report_email_job(ctx: dict, report_id: str, schedule_id: str, attempt: int) -> str:
+    """Job: email an already-stored report PDF to a schedule's recipients, with retry."""
+    from app.models.generated_report import GeneratedReport
+    from app.models.report_schedule import ReportSchedule
+    from app.models.tenant import Tenant
+    from app.repositories.report_settings import ReportSettingsRepository
+    from app.services.audit import AuditService
+    from app.services.smtp_settings import SmtpSettingsService
+
+    factory = ctx["session_factory"]
+    redis = ctx["redis"]
+
+    async def _retry_or_give_up(session, sched, reason: str) -> str:
+        if attempt < MAX_SEND_ATTEMPTS:
+            await redis.enqueue_job("send_report_email_job", report_id, schedule_id, attempt + 1,
+                                    _defer_by=RETRY_INTERVAL)
+            return "retry"
+        await AuditService(session).record(
+            actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.failed",
+            target_type="report_schedule", target_id=str(sched.id), ip=None,
+            details={"error": reason, "attempts": attempt},
         )
         await session.commit()
-        return "stored"
+        return "failed"
+
+    async with factory() as session:
+        sched = await session.get(ReportSchedule, uuid.UUID(schedule_id))
+        report = await session.get(GeneratedReport, uuid.UUID(report_id))
+        if sched is None or report is None:
+            return "missing"
+        if report.tenant_id != sched.tenant_id:
+            await AuditService(session).record(
+                actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.tenant_mismatch",
+                target_type="report_schedule", target_id=str(sched.id), ip=None, details={},
+            )
+            await session.commit()
+            return "tenant-mismatch"
+        recipients = list(sched.recipients or [])
+        if not recipients:
+            await AuditService(session).record(
+                actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.no_recipients",
+                target_type="report_schedule", target_id=str(sched.id), ip=None, details={},
+            )
+            await session.commit()
+            return "no-recipients"
+        svc = SmtpSettingsService(session)
+        smtp = await svc.get()
+        if smtp is None or not smtp.enabled:
+            return await _retry_or_give_up(session, sched, "smtp not configured")
+        cfg = svc.to_send_config(smtp)
+        settings = await ReportSettingsRepository(session, sched.tenant_id).get_or_default()
+        if settings.from_email:
+            cfg.from_email = settings.from_email
+        tenant = await session.get(Tenant, sched.tenant_id)
+        if tenant is None:
+            return "missing-tenant"
+        subject = (f"{settings.title} — {tenant.name} — "
+                   f"{report.period_from:%Y-%m-%d}..{report.period_to:%Y-%m-%d}")
+        try:
+            await send_report_email(
+                cfg, subject=subject, recipients=recipients,
+                body_text="Your scheduled OPNGMS report is attached.",
+                attachment=("opngms-report.pdf", report.pdf, "application/pdf"),
+            )
+        except EmailSendError as exc:
+            return await _retry_or_give_up(session, sched, str(exc))
+        await AuditService(session).record(
+            actor_user_id=None, tenant_id=sched.tenant_id, action="report.schedule.delivered",
+            target_type="report_schedule", target_id=str(sched.id), ip=None,
+            details={"recipients": len(recipients), "report_id": str(report.id)},
+        )
+        await session.commit()
+        return "delivered"
 
 
 async def cleanup_expired_sessions(ctx: dict) -> str:
@@ -225,29 +368,6 @@ async def cleanup_expired_sessions(ctx: dict) -> str:
         n = await AuthService(session).purge_expired(datetime.now(UTC))
         await session.commit()
     return f"purged {n} expired sessions"
-
-
-def _prior_week(now: datetime) -> tuple[datetime, datetime]:
-    # [Monday 00:00 of last week, Monday 00:00 of this week)
-    this_week_start = (now - timedelta(days=now.weekday())).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    prev_week_start = this_week_start - timedelta(days=7)
-    return prev_week_start, this_week_start
-
-
-async def enqueue_scheduled_reports(ctx: dict) -> int:
-    """Cron: enqueue a weekly report for every active tenant (prior calendar week)."""
-    from app.models.tenant import Tenant
-
-    factory = ctx["session_factory"]
-    redis = ctx["redis"]
-    frm, to = _prior_week(datetime.now(UTC))
-    async with factory() as session:
-        ids = (await session.execute(select(Tenant.id).where(Tenant.status == "active"))).scalars().all()
-    for tid in ids:
-        await redis.enqueue_job("generate_tenant_report", str(tid), frm.isoformat(), to.isoformat(), "scheduled")
-    return len(ids)
 
 
 async def on_startup(ctx: dict) -> None:
@@ -264,19 +384,17 @@ _settings = get_settings()
 # Event-ingest cadence: every N minutes (clamped to 1..30 so the range step is valid).
 _ingest_step = min(30, max(1, _settings.ingest_every_minutes))
 
+MAX_SEND_ATTEMPTS = 12          # 1 send + retries every RETRY_INTERVAL, ~2h total
+RETRY_INTERVAL = 600            # seconds between send retries
+
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, run_firmware_action, generate_tenant_report]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, run_firmware_action, deliver_scheduled_report, send_report_email_job]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, _ingest_step))),  # events, every N minutes
         cron(enqueue_config_backups, hour={_settings.config_backup_hour}, minute={0}),  # config, daily
-        cron(
-            enqueue_scheduled_reports,
-            weekday=_settings.report_weekday,
-            hour={_settings.report_hour},
-            minute={0},
-        ),  # weekly reports
+        cron(enqueue_due_reports, minute={0}),  # hourly: fire due report schedules
         cron(cleanup_expired_sessions, minute={_settings.session_cleanup_minute}),  # hourly: reap sessions
     ]
     on_startup = on_startup
