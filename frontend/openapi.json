@@ -5624,10 +5624,11 @@
           },
           "recipients": {
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 320
             },
             "type": "array",
-            "maxItems": 200,
+            "maxItems": 50,
             "title": "Recipients"
           }
         },

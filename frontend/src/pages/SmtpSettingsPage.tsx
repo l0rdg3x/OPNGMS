@@ -44,13 +44,14 @@ export function SmtpSettingsPage() {
     return {
       enabled: v.enabled, host: v.host, port: v.port, security: v.security,
       username: v.username || null, from_email: v.from_email, from_name: v.from_name,
+      clear_password: false,
       ...(v.password ? { password: v.password } : {}),
     };
   }
 
   async function handleSave() {
     try {
-      await update.mutateAsync(payload() as never);
+      await update.mutateAsync(payload());
       form.setFieldValue("password", "");
       notifications.show({ message: "SMTP settings saved" });
     } catch {
@@ -60,7 +61,7 @@ export function SmtpSettingsPage() {
 
   async function handleTest() {
     try {
-      const res = await test.mutateAsync({ ...payload(), to: testTo } as never);
+      const res = await test.mutateAsync({ ...payload(), to: testTo });
       notifications.show({ color: res.ok ? "green" : "red", message: res.ok ? "Test email sent" : `Test failed: ${res.detail}` });
     } catch {
       notifications.show({ color: "red", message: "Test send failed" });
