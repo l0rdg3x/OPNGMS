@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+import app.services.catalog_kind  # noqa: F401  — registers catalog_setting kind at API-process startup
 import app.services.firewall_rule_kind  # noqa: F401  — registers firewall_rule kind at API-process startup
 import app.services.ids_kind  # noqa: F401  — registers suricata_ruleset kind at API-process startup
 import app.services.monit_kind  # noqa: F401  — registers monit_test kind at startup

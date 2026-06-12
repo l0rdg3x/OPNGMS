@@ -6,6 +6,7 @@ from arq.connections import RedisSettings
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+import app.services.catalog_kind  # noqa: F401  — registers catalog_setting kind at worker-process startup
 import app.services.firewall_rule_kind  # noqa: F401  — registers firewall_rule kind at worker-process startup
 import app.services.ids_kind  # noqa: F401  — registers suricata_ruleset kind at worker-process startup
 import app.services.monit_kind  # noqa: F401  — registers monit_test kind at startup
