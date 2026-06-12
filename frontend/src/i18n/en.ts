@@ -11,6 +11,7 @@ export const en = {
     devices: "Devices",
     alerts: "Alerts",
     reportSettings: "Report settings",
+    reportSchedule: "Report schedule",
     reports: "Reports",
     sessions: "Active sessions",
     mfa: "Two-factor auth",
