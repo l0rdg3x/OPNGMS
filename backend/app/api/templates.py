@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,6 +52,7 @@ router = APIRouter(prefix="/api", tags=["templates"])
 )
 async def create_template(
     body: TemplateIn,
+    request: Request,
     user: User = Depends(require_org(Action.TEMPLATE_MANAGE)),
     session: AsyncSession = Depends(get_session),
 ) -> TemplateOut:
@@ -74,7 +75,7 @@ async def create_template(
         action="template.create",
         target_type="config_template",
         target_id=str(tpl.id),
-        ip=None,
+        ip=request.client.host if request.client else None,
         details={"kind": tpl.kind, "name": tpl.name},
     )
     await session.commit()
@@ -106,6 +107,7 @@ async def list_templates(
 async def update_template(
     template_id: uuid.UUID,
     body: TemplateUpdateIn,
+    request: Request,
     user: User = Depends(require_org(Action.TEMPLATE_MANAGE)),
     session: AsyncSession = Depends(get_session),
 ) -> TemplateOut:
@@ -129,7 +131,7 @@ async def update_template(
         action="template.update",
         target_type="config_template",
         target_id=str(tpl.id),
-        ip=None,
+        ip=request.client.host if request.client else None,
         details={"version": tpl.version},
     )
     await session.commit()
@@ -144,6 +146,7 @@ async def update_template(
 )
 async def delete_template(
     template_id: uuid.UUID,
+    request: Request,
     user: User = Depends(require_org(Action.TEMPLATE_MANAGE)),
     session: AsyncSession = Depends(get_session),
 ) -> None:
@@ -158,7 +161,7 @@ async def delete_template(
             action="template.delete",
             target_type="config_template",
             target_id=tid,
-            ip=None,
+            ip=request.client.host if request.client else None,
             details={},
         )
         await session.commit()
@@ -183,6 +186,7 @@ async def upsert_override(
     tenant_id: uuid.UUID,
     template_id: uuid.UUID,
     body: OverrideIn,
+    request: Request,
     ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
     session: AsyncSession = Depends(get_session),
 ) -> OverrideOut:
@@ -208,7 +212,7 @@ async def upsert_override(
         action="template.override",
         target_type="template_override",
         target_id=str(template_id),
-        ip=None,
+        ip=request.client.host if request.client else None,
         details={},
     )
     await session.commit()
@@ -277,6 +281,7 @@ async def apply_template(
     device_id: uuid.UUID,
     template_id: uuid.UUID,
     body: ApplyTemplateIn,
+    request: Request,
     ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
     session: AsyncSession = Depends(get_session),
     enqueue=Depends(get_enqueuer),
@@ -305,7 +310,7 @@ async def apply_template(
         action="template.apply",
         target_type="config_change",
         target_id=str(change.id),
-        ip=None,
+        ip=request.client.host if request.client else None,
         details={"template_id": str(template_id), "status": "scheduled"},
     )
     await session.commit()
