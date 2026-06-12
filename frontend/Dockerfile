@@ -17,7 +17,7 @@ FROM nginx:alpine
 # CVE-2026-6732) so the image stays patched on every rebuild without chasing individual CVEs.
 # openssl: the self-signed fallback for TLS_MODE=builtin. gettext: envsubst (also used by the stock
 # image's template step) — installed explicitly so the render script never depends on it implicitly.
-RUN apk upgrade --no-cache && apk add --no-cache openssl gettext
+RUN apk upgrade --no-cache && apk add --no-cache openssl gettext tzdata
 COPY --from=build /app/dist /usr/share/nginx/html
 # Mode-aware config: a shared server body + two templates (TLS off / built-in) rendered at startup by
 # the render script from TLS_MODE. Templates live OUTSIDE /etc/nginx/templates so the stock image's
