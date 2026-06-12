@@ -1707,6 +1707,11 @@ export interface components {
             /** Tenants */
             tenants: components["schemas"]["LogFleetRow"][];
             totals: components["schemas"]["LogFleetTotals"];
+            /**
+             * Window
+             * @default 24h
+             */
+            window: string;
         };
         /** LogFleetRow */
         LogFleetRow: {
@@ -1727,8 +1732,8 @@ export interface components {
             total_devices: number;
             /** Last Log At */
             last_log_at: string | null;
-            /** Volume 24H */
-            volume_24h: number | null;
+            /** Volume */
+            volume: number | null;
         };
         /** LogFleetTotals */
         LogFleetTotals: {
@@ -1736,8 +1741,8 @@ export interface components {
             tenants_with_forwarding: number;
             /** Enabled Devices */
             enabled_devices: number;
-            /** Volume 24H */
-            volume_24h: number;
+            /** Volume */
+            volume: number;
             /** Silent Tenants */
             silent_tenants: number;
         };
@@ -5271,7 +5276,9 @@ export interface operations {
     };
     get_log_fleet_api_admin_log_fleet_get: {
         parameters: {
-            query?: never;
+            query?: {
+                window?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5285,6 +5292,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogFleetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

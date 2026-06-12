@@ -4,11 +4,13 @@ import type { components } from "../api/schema";
 
 export type LogFleetOut = components["schemas"]["LogFleetOut"];
 
-export function useLogFleet() {
+export function useLogFleet(window: string) {
   return useQuery({
-    queryKey: ["log-fleet"],
+    queryKey: ["log-fleet", window],
     queryFn: async (): Promise<LogFleetOut> => {
-      const { data, error } = await api.GET("/api/admin/log-fleet");
+      const { data, error } = await api.GET("/api/admin/log-fleet", {
+        params: { query: { window } },
+      });
       if (error || !data) throw new Error("log fleet failed");
       return data;
     },
