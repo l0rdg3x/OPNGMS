@@ -1282,6 +1282,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/silent-tenant-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Silent Tenant Alerts
+         * @description Tenants currently in the silent-alert state (the worker cron creates/clears these rows).
+         */
+        get: operations["get_silent_tenant_alerts_api_admin_silent_tenant_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/log-fleet/export": {
         parameters: {
             query?: never;
@@ -2398,6 +2418,21 @@ export interface components {
             otpauth_uri: string;
             /** Secret */
             secret: string;
+        };
+        /** SilentTenantAlertOut */
+        SilentTenantAlertOut: {
+            /**
+             * Tenant Id
+             * Format: uuid
+             */
+            tenant_id: string;
+            /** Tenant Name */
+            tenant_name: string;
+            /**
+             * Silent Since
+             * Format: date-time
+             */
+            silent_since: string;
         };
         /** SmtpSettingsIn */
         SmtpSettingsIn: {
@@ -5502,6 +5537,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_silent_tenant_alerts_api_admin_silent_tenant_alerts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SilentTenantAlertOut"][];
                 };
             };
         };

@@ -4520,6 +4520,32 @@
         }
       }
     },
+    "/api/admin/silent-tenant-alerts": {
+      "get": {
+        "tags": [
+          "log-fleet"
+        ],
+        "summary": "Get Silent Tenant Alerts",
+        "description": "Tenants currently in the silent-alert state (the worker cron creates/clears these rows).",
+        "operationId": "get_silent_tenant_alerts_api_admin_silent_tenant_alerts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SilentTenantAlertOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Silent Tenant Alerts Api Admin Silent Tenant Alerts Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/log-fleet/export": {
       "get": {
         "tags": [
@@ -7217,6 +7243,31 @@
           "secret"
         ],
         "title": "SetupOut"
+      },
+      "SilentTenantAlertOut": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenant Id"
+          },
+          "tenant_name": {
+            "type": "string",
+            "title": "Tenant Name"
+          },
+          "silent_since": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Silent Since"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "tenant_name",
+          "silent_since"
+        ],
+        "title": "SilentTenantAlertOut"
       },
       "SmtpSettingsIn": {
         "properties": {

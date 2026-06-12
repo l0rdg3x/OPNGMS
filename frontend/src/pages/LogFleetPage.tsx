@@ -16,7 +16,12 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
-import { downloadLogFleet, useLogFleet, useLogFleetDevices } from "../logs/logFleetHooks";
+import {
+  downloadLogFleet,
+  useLogFleet,
+  useLogFleetDevices,
+  useSilentTenantAlerts,
+} from "../logs/logFleetHooks";
 
 async function exportFleet(window: string, format: "csv" | "pdf") {
   try {
@@ -106,6 +111,7 @@ export function LogFleetPage() {
   const [window, setWindow] = useState("24h");
   const [drill, setDrill] = useState<{ id: string; name: string } | null>(null);
   const fleet = useLogFleet(window);
+  const silentAlerts = useSilentTenantAlerts();
 
   const selector = (
     <SegmentedControl
@@ -142,8 +148,15 @@ export function LogFleetPage() {
   // Label the volume column with the window actually applied by the API.
   const windowLabel = fleet.data.window;
 
+  const alerts = silentAlerts.data ?? [];
+
   return (
     <Stack>
+      {alerts.length > 0 && (
+        <Alert color="red" title="Silent-tenant alerts" data-testid="silent-alert-banner">
+          {alerts.map((a) => a.tenant_name).join(", ")} — enabled forwarding but no recent logs.
+        </Alert>
+      )}
       <Group justify="space-between">
         <Title order={3}>Log fleet</Title>
         <Group gap="sm">

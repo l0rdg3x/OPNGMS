@@ -122,6 +122,35 @@ async def test_non_superadmin_denied(api_client, db_engine):
     assert r.status_code == 403
 
 
+async def test_silent_tenant_alerts_lists_active_rows(api_client, db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    tid = uuid.uuid4()
+    async with factory() as s:
+        await s.execute(text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,'Acme','acme','active')"), {"i": tid})
+        await s.execute(text(
+            "INSERT INTO silent_tenant_alerts (id,tenant_id,tenant_name) VALUES (:i,:t,'Acme')"),
+            {"i": uuid.uuid4(), "t": tid})
+        await s.commit()
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    r = await api_client.get("/api/admin/silent-tenant-alerts")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert len(body) == 1
+    assert body[0]["tenant_id"] == str(tid) and body[0]["tenant_name"] == "Acme"
+    assert body[0]["silent_since"]
+
+
+async def test_silent_tenant_alerts_non_superadmin_denied(api_client, db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await s.commit()
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    r = await api_client.get("/api/admin/silent-tenant-alerts")
+    assert r.status_code == 403
+
+
 async def test_export_csv(api_client, db_engine, monkeypatch):
     async def fake_stats(settings, *, window_hours=24):
         return {}
