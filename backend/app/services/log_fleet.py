@@ -89,6 +89,90 @@ async def fleet_log_stats(settings, *, window_hours: int = 24) -> dict[str, dict
     return out
 
 
+async def fleet_device_log_stats(settings, tenant_id: uuid.UUID, *, window_hours: int = 24) -> dict[str, dict]:
+    """Per-DEVICE {last_log_at, volume} for ONE tenant via a single OpenSearch terms agg on
+    ``device_id``, filtered to ``tenant_id``. Best-effort: returns {} on any OpenSearch error."""
+    body = {
+        "size": 0,
+        "query": {"bool": {"filter": [{"term": {"tenant_id": str(tenant_id)}}]}},
+        "aggs": {"by_device": {
+            "terms": {"field": "device_id", "size": settings.log_fleet_terms_size},
+            "aggs": {
+                "last_log": {"max": {"field": "@timestamp"}},
+                "in_window": {"filter": {"range": {"@timestamp": {"gte": f"now-{window_hours}h"}}}},
+            },
+        }},
+    }
+    url = f"{settings.opensearch_url}/opngms-logs-*/_search"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(url, params={"ignore_unavailable": "true"}, json=body)
+        resp.raise_for_status()
+        data = resp.json()
+    except (httpx.HTTPError, ValueError):
+        return {}
+    by_device = data.get("aggregations", {}).get("by_device", {})
+    if (by_device.get("sum_other_doc_count") or 0) > 0:
+        logger.warning(
+            "log-fleet per-device terms agg truncated at size=%d for tenant %s; some devices are "
+            "missing volume/last-log — raise LOG_FLEET_TERMS_SIZE", settings.log_fleet_terms_size, tenant_id)
+    out: dict[str, dict] = {}
+    for b in by_device.get("buckets", []):
+        out[str(b.get("key", ""))] = {
+            "last_log_at": (b.get("last_log", {}) or {}).get("value_as_string"),
+            "volume": (b.get("in_window", {}) or {}).get("doc_count"),
+        }
+    return out
+
+
+def _forwarding_status(enabled: bool | None, revoked_at) -> str:
+    """Map a device's DeviceLogForwarding state to a label (None = no forwarding row)."""
+    if revoked_at is not None:
+        return "revoked"
+    if enabled:
+        return "enabled"
+    if enabled is False:
+        return "disabled"
+    return "none"
+
+
+async def tenant_device_fleet(session: AsyncSession, settings, *, tenant_id: uuid.UUID,
+                              window_hours: int = 24) -> dict:
+    """Per-DEVICE drill-down for one tenant: every device + its forwarding status, last log and
+    windowed volume, with a per-device 'silent' flag (forwarding enabled but no recent log).
+
+    Sets the RLS context to ``tenant_id`` and reads devices under it (no bypass role), so this is
+    safe for the superadmin to call for any tenant from the org-level fleet endpoint."""
+    await set_tenant_context(session, tenant_id)
+    device_rows = (await session.execute(
+        select(Device.id, Device.name, DeviceLogForwarding.enabled, DeviceLogForwarding.revoked_at)
+        .outerjoin(DeviceLogForwarding, DeviceLogForwarding.device_id == Device.id)
+        .order_by(Device.name)
+    )).all()
+    stats = await fleet_device_log_stats(settings, tenant_id, window_hours=window_hours)
+    now = datetime.now(UTC)
+    devices: list[dict] = []
+    silent = enabled_devices = volume_total = 0
+    for did, name, enabled, revoked_at in device_rows:
+        st = stats.get(str(did), {})
+        last_dt = _parse_iso(st["last_log_at"]) if st.get("last_log_at") else None
+        vol = st.get("volume")
+        forwarding = _forwarding_status(enabled, revoked_at)
+        is_forwarding = forwarding == "enabled"
+        is_silent = is_forwarding and (last_dt is None or (now - last_dt) > STALE_AFTER)
+        if is_forwarding:
+            enabled_devices += 1
+        volume_total += vol or 0
+        if is_silent:
+            silent += 1
+        devices.append({
+            "device_id": did, "name": name, "forwarding": forwarding,
+            "last_log_at": last_dt, "volume": vol, "is_silent": is_silent,
+        })
+    return {"devices": devices, "totals": {
+        "enabled_devices": enabled_devices, "silent_devices": silent, "volume": volume_total}}
+
+
 async def log_fleet_overview(session: AsyncSession, settings, *, window_hours: int = 24) -> dict:
     """Combine the relational forwarding counts with the OpenSearch log stats into per-tenant rows +
     totals. A tenant is 'silent' when it has enabled devices but no recent log. The per-tenant +
