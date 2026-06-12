@@ -195,6 +195,7 @@ async def test_apply_profile_fans_out_two_jobs(api_client, db_engine):
     assert len(rows) == 1
     assert rows[0].tenant_id == tid
     assert rows[0].details.get("count") == 2
+    assert rows[0].ip == "127.0.0.1"  # per-operation client IP is now recorded
 
 
 async def test_apply_empty_profile_is_400(api_client, db_engine):

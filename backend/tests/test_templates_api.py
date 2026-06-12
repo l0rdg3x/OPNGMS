@@ -194,6 +194,7 @@ async def test_apply_template_writes_audit_row(api_client, db_engine):
     assert row.target_id == change_id
     assert row.tenant_id == tid
     assert row.details.get("template_id") == str(template_id)
+    assert row.ip == "127.0.0.1"  # per-operation client IP is now recorded
 
 
 async def test_create_template_writes_audit_row(api_client, db_engine):

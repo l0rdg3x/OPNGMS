@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -107,6 +107,7 @@ async def _profile_or_404(session: AsyncSession, profile_id: uuid.UUID) -> Confi
 )
 async def create_profile(
     body: ProfileIn,
+    request: Request,
     user: User = Depends(require_org(Action.TEMPLATE_MANAGE)),
     session: AsyncSession = Depends(get_session),
 ) -> ProfileOut:
@@ -124,7 +125,7 @@ async def create_profile(
         action="profile.create",
         target_type="config_profile",
         target_id=str(profile.id),
-        ip=None,
+        ip=request.client.host if request.client else None,
         details={"name": profile.name, "members": len(body.template_ids)},
     )
     await session.commit()
@@ -158,6 +159,7 @@ async def list_profiles(
 async def update_profile(
     profile_id: uuid.UUID,
     body: ProfileUpdateIn,
+    request: Request,
     user: User = Depends(require_org(Action.TEMPLATE_MANAGE)),
     session: AsyncSession = Depends(get_session),
 ) -> ProfileOut:
@@ -180,7 +182,7 @@ async def update_profile(
         action="profile.update",
         target_type="config_profile",
         target_id=str(profile.id),
-        ip=None,
+        ip=request.client.host if request.client else None,
         details={"version": profile.version},
     )
     await session.commit()
@@ -196,6 +198,7 @@ async def update_profile(
 )
 async def delete_profile(
     profile_id: uuid.UUID,
+    request: Request,
     user: User = Depends(require_org(Action.TEMPLATE_MANAGE)),
     session: AsyncSession = Depends(get_session),
 ) -> None:
@@ -210,7 +213,7 @@ async def delete_profile(
             action="profile.delete",
             target_type="config_profile",
             target_id=pid,
-            ip=None,
+            ip=request.client.host if request.client else None,
             details={},
         )
         await session.commit()
@@ -272,6 +275,7 @@ async def apply_profile(
     device_id: uuid.UUID,
     profile_id: uuid.UUID,
     body: ApplyProfileIn,
+    request: Request,
     ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
     session: AsyncSession = Depends(get_session),
     enqueue=Depends(get_enqueuer),
@@ -298,7 +302,7 @@ async def apply_profile(
         action="profile.apply",
         target_type="config_profile",
         target_id=str(profile.id),
-        ip=None,
+        ip=request.client.host if request.client else None,
         details={"profile_id": str(profile.id), "count": len(changes)},
     )
     await session.commit()
