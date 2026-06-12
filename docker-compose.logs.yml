@@ -1,0 +1,58 @@
+# Opt-in log lake (Phase 1). Bring up with:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.logs.yml up -d
+# OpenSearch runs plain-HTTP, security disabled, internal-network only (NOT published).
+# The trust boundary is the mTLS device->syslog-ng hop (port 6514). No search UI yet (Phase 2).
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.17.1
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      TZ: ${TZ:-UTC}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opngms_os:/usr/share/opensearch/data
+    restart: unless-stopped
+
+  syslog-bootstrap:
+    image: opngms-backend:latest
+    command: ["python", "-m", "app.cli", "syslog-bootstrap", "--cert-dir", "/certs"]
+    env_file: .env
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - opngms_syslog_certs:/certs
+    depends_on:
+      opensearch:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  syslog-ng:
+    image: balabit/syslog-ng:4.5.0
+    command: ["--no-caps", "-F"]
+    environment:
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch:9200}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${SYSLOG_TLS_PORT:-6514}:6514"
+    volumes:
+      - ./deploy/syslog-ng/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro
+      - opngms_syslog_certs:/certs:ro
+      - opngms_syslog_buffer:/var/lib/syslog-ng
+    depends_on:
+      syslog-bootstrap:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  opngms_os:
+  opngms_syslog_certs:
+  opngms_syslog_buffer:
