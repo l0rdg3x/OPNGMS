@@ -1138,6 +1138,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status Log Forwarding */
+        get: operations["status_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable Log Forwarding */
+        post: operations["enable_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_enable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable Log Forwarding */
+        post: operations["disable_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/logs/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Search Logs Endpoint */
+        post: operations["search_logs_endpoint_api_tenants__tenant_id__logs_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1575,6 +1643,78 @@ export interface components {
             nic: string;
             /** Description */
             description: string;
+        };
+        /** LogForwardingOut */
+        LogForwardingOut: {
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Cert Serial */
+            cert_serial: string;
+            /** Cert Fingerprint */
+            cert_fingerprint: string;
+            /** Provisioned At */
+            provisioned_at: string | null;
+        };
+        /** LogHitOut */
+        LogHitOut: {
+            /** Id */
+            id: string;
+            /** Timestamp */
+            timestamp: string;
+            /** Device Id */
+            device_id: string;
+            /** Host */
+            host: string;
+            /** Program */
+            program: string;
+            /** Message */
+            message: string;
+            /** Source */
+            source: {
+                [key: string]: unknown;
+            };
+        };
+        /** LogSearchIn */
+        LogSearchIn: {
+            /**
+             * Query
+             * @default
+             */
+            query: string;
+            /** Device Id */
+            device_id?: string | null;
+            /**
+             * Frm
+             * Format: date-time
+             */
+            frm: string;
+            /**
+             * To
+             * Format: date-time
+             */
+            to: string;
+            /**
+             * Page
+             * @default 0
+             */
+            page: number;
+            /**
+             * Size
+             * @default 100
+             */
+            size: number;
+        };
+        /** LogSearchOut */
+        LogSearchOut: {
+            /** Total */
+            total: number;
+            /** Hits */
+            hits: components["schemas"]["LogHitOut"][];
         };
         /** LoginIn */
         LoginIn: {
@@ -4812,6 +4952,137 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SmtpTestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    status_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogForwardingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enable_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_enable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogForwardingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogForwardingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_logs_endpoint_api_tenants__tenant_id__logs_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogSearchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogSearchOut"];
                 };
             };
             /** @description Validation Error */

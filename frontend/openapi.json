@@ -4095,6 +4095,218 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding": {
+      "get": {
+        "tags": [
+          "log-forwarding"
+        ],
+        "summary": "Status Log Forwarding",
+        "operationId": "status_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogForwardingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding/enable": {
+      "post": {
+        "tags": [
+          "log-forwarding"
+        ],
+        "summary": "Enable Log Forwarding",
+        "operationId": "enable_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_enable_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogForwardingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding/disable": {
+      "post": {
+        "tags": [
+          "log-forwarding"
+        ],
+        "summary": "Disable Log Forwarding",
+        "operationId": "disable_log_forwarding_api_tenants__tenant_id__devices__device_id__log_forwarding_disable_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogForwardingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/logs/search": {
+      "post": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Search Logs Endpoint",
+        "operationId": "search_logs_endpoint_api_tenants__tenant_id__logs_search_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogSearchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogSearchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Healthz",
@@ -5132,6 +5344,163 @@
           "description"
         ],
         "title": "Interface"
+      },
+      "LogForwardingOut": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Device Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "cert_serial": {
+            "type": "string",
+            "title": "Cert Serial"
+          },
+          "cert_fingerprint": {
+            "type": "string",
+            "title": "Cert Fingerprint"
+          },
+          "provisioned_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisioned At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "enabled",
+          "cert_serial",
+          "cert_fingerprint",
+          "provisioned_at"
+        ],
+        "title": "LogForwardingOut"
+      },
+      "LogHitOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "program": {
+            "type": "string",
+            "title": "Program"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "source": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "timestamp",
+          "device_id",
+          "host",
+          "program",
+          "message",
+          "source"
+        ],
+        "title": "LogHitOut"
+      },
+      "LogSearchIn": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Query",
+            "default": ""
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "frm": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Frm"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "title": "To"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Page",
+            "default": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Size",
+            "default": 100
+          }
+        },
+        "type": "object",
+        "required": [
+          "frm",
+          "to"
+        ],
+        "title": "LogSearchIn"
+      },
+      "LogSearchOut": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/LogHitOut"
+            },
+            "type": "array",
+            "title": "Hits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "hits"
+        ],
+        "title": "LogSearchOut"
       },
       "LoginIn": {
         "properties": {
