@@ -49,3 +49,11 @@ class LogFleetDevicesOut(BaseModel):
     devices: list[LogFleetDeviceRow]
     totals: LogFleetDevicesTotals
     window: str = "24h"
+
+
+class SilentTenantAlertOut(BaseModel):
+    tenant_id: uuid.UUID
+    tenant_name: str
+    silent_since: datetime
+
+    model_config = {"from_attributes": True}

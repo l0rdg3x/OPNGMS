@@ -44,7 +44,7 @@ def _build_message(
     subject: str,
     recipients: list[str],
     body_text: str,
-    attachment: tuple[str, bytes, str],
+    attachment: tuple[str, bytes, str] | None = None,
 ) -> EmailMessage:
     msg = EmailMessage()
     from_name = _strip(cfg.from_name)
@@ -52,21 +52,22 @@ def _build_message(
     msg["To"] = ", ".join(recipients)
     msg["Subject"] = _strip(subject)
     msg.set_content(body_text)
-    filename, data, mime = attachment
-    maintype, _, subtype = mime.partition("/")
-    msg.add_attachment(data, maintype=maintype, subtype=subtype or "octet-stream", filename=filename)
+    if attachment is not None:
+        filename, data, mime = attachment
+        maintype, _, subtype = mime.partition("/")
+        msg.add_attachment(data, maintype=maintype, subtype=subtype or "octet-stream", filename=filename)
     return msg
 
 
-async def send_report_email(
+async def send_email(
     cfg: SmtpSendConfig,
     *,
     subject: str,
     recipients: list[str],
     body_text: str,
-    attachment: tuple[str, bytes, str],
+    attachment: tuple[str, bytes, str] | None = None,
 ) -> None:
-    """Send one email with a single attachment. Raises EmailSendError on any failure."""
+    """Send one email, optionally with a single attachment. Raises EmailSendError on any failure."""
     message = _build_message(
         cfg, subject=subject, recipients=recipients, body_text=body_text, attachment=attachment
     )
@@ -83,3 +84,15 @@ async def send_report_email(
         await aiosmtplib.send(message, **kwargs)
     except (aiosmtplib.SMTPException, OSError) as exc:
         raise EmailSendError(_safe_smtp_error(exc)) from exc
+
+
+async def send_report_email(
+    cfg: SmtpSendConfig,
+    *,
+    subject: str,
+    recipients: list[str],
+    body_text: str,
+    attachment: tuple[str, bytes, str],
+) -> None:
+    """Send one email with a single attachment. Raises EmailSendError on any failure."""
+    await send_email(cfg, subject=subject, recipients=recipients, body_text=body_text, attachment=attachment)

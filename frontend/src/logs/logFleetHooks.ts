@@ -4,6 +4,20 @@ import type { components } from "../api/schema";
 
 export type LogFleetOut = components["schemas"]["LogFleetOut"];
 export type LogFleetDevicesOut = components["schemas"]["LogFleetDevicesOut"];
+export type SilentTenantAlert = components["schemas"]["SilentTenantAlertOut"];
+
+// Tenants currently in the silent-alert state (worker-maintained); polled for the dashboard banner.
+export function useSilentTenantAlerts() {
+  return useQuery({
+    queryKey: ["silent-tenant-alerts"],
+    queryFn: async (): Promise<SilentTenantAlert[]> => {
+      const { data, error } = await api.GET("/api/admin/silent-tenant-alerts");
+      if (error || !data) throw new Error("silent alerts failed");
+      return data;
+    },
+    refetchInterval: 5 * 60 * 1000,
+  });
+}
 
 export function useLogFleet(window: string) {
   return useQuery({

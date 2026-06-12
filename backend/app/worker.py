@@ -441,6 +441,50 @@ async def send_report_email_job(ctx: dict, report_id: str, schedule_id: str, att
         return "delivered"
 
 
+async def detect_silent_tenants(ctx: dict) -> dict:
+    """Cron: detect tenants gone silent (enabled forwarding, no recent logs), persist the alert
+    state, and email the MSP superadmins ONCE per silent episode. Owner session (RLS-exempt)."""
+    from app.models.user import User
+    from app.services.email.smtp import EmailSendError, send_email
+    from app.services.silent_alerts import detect_and_alert
+    from app.services.smtp_settings import SmtpSettingsService
+
+    settings = get_settings()
+    factory = ctx["session_factory"]
+
+    async with factory() as session:
+        async def send_alert(new_silent: list[tuple[uuid.UUID, str]]) -> bool:
+            svc = SmtpSettingsService(session)
+            smtp = await svc.get()
+            if smtp is None or not smtp.enabled:
+                return False
+            recipients = [row[0] for row in (await session.execute(
+                select(User.email).where(User.is_superadmin.is_(True), User.status == "active")
+            )).all()]
+            if not recipients:
+                return False
+            # Defuse header injection at the call site too (subject sanitisation lives in smtp._strip,
+            # but tenant_name is operator-controlled — strip CR/LF here so it can't escape a refactor).
+            names = [name.replace("\r", " ").replace("\n", " ") for _id, name in new_silent]
+            body = (
+                "These OPNGMS tenant(s) have enabled log forwarding but stopped shipping logs "
+                f"(silent > {settings.silent_alert_after_hours}h):\n\n  "
+                + "\n  ".join(names)
+                + "\n\nOpen the Log fleet dashboard to investigate."
+            )
+            try:
+                await send_email(svc.to_send_config(smtp),
+                                 subject=f"OPNGMS: {len(names)} tenant(s) silent — {', '.join(names)}",
+                                 recipients=recipients, body_text=body)
+            except EmailSendError:
+                return False
+            return True
+
+        summary = await detect_and_alert(session, settings, send_alert=send_alert)
+        await session.commit()
+    return summary
+
+
 async def cleanup_expired_sessions(ctx: dict) -> str:
     """Cron: delete expired/idle sessions. Returns a short status string."""
     factory = ctx["session_factory"]
@@ -480,6 +524,7 @@ class WorkerSettings:
         cron(cleanup_expired_sessions, minute={_settings.session_cleanup_minute}),  # hourly: reap sessions
         cron(sweep_orphaned_actions, minute=set(range(0, 60, min(30, max(1, _settings.sweep_every_minutes))))),
         cron(renew_device_certs, hour={_settings.cert_renewal_hour}, minute={0}),  # daily: renew expiring certs
+        cron(detect_silent_tenants, minute={_settings.silent_alert_cron_minute}),  # hourly: silent-tenant alerts
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     log_search_max_size: int = 200
     log_search_max_range_days: int = 31
     log_fleet_terms_size: int = 10000  # max tenants in the MSP log-fleet terms agg (no silent truncation)
+    silent_alert_enabled: bool = True  # master switch for the silent-tenant detector cron
+    silent_alert_after_hours: int = 6  # alert a tenant silent for longer than this (UI badge uses 1h)
+    silent_alert_cron_minute: int = 0  # minute of each hour the silent-tenant detector runs
 
 
 @lru_cache

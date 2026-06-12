@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -9,6 +9,7 @@ import { renderWithProviders } from "../../test/utils";
 
 const FLEET = "http://localhost:3000/api/admin/log-fleet";
 const DEVICES = "http://localhost:3000/api/admin/log-fleet/tenants/a/devices";
+const SILENT = "http://localhost:3000/api/admin/silent-tenant-alerts";
 
 function devicesHandler() {
   return http.get(DEVICES, ({ request }) => {
@@ -49,6 +50,10 @@ function fleetHandler(seenWindows?: string[]) {
 }
 
 describe("LogFleetPage", () => {
+  // Default: no silent-tenant alerts (overridable per-test). Avoids unhandled-request errors
+  // from the banner hook that fires on every render.
+  beforeEach(() => server.use(http.get(SILENT, () => HttpResponse.json([]))));
+
   it("renders totals + per-tenant rows and flags a silent tenant", async () => {
     server.use(fleetHandler());
     renderWithProviders(<LogFleetPage />);
@@ -68,6 +73,20 @@ describe("LogFleetPage", () => {
 
     await userEvent.click(screen.getByText("7d"));
     await waitFor(() => expect(seen).toContain("7d"));
+  });
+
+  it("shows a banner when there are active silent-tenant alerts", async () => {
+    server.use(
+      fleetHandler(),
+      http.get(SILENT, () =>
+        HttpResponse.json([
+          { tenant_id: "a", tenant_name: "Acme", silent_since: "2026-06-12T06:00:00Z" },
+        ]),
+      ),
+    );
+    renderWithProviders(<LogFleetPage />);
+    const banner = await screen.findByTestId("silent-alert-banner");
+    expect(banner).toHaveTextContent("Acme");
   });
 
   it("exports CSV for the currently selected window", async () => {

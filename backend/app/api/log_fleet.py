@@ -2,15 +2,17 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.deps import require_org
 from app.core.rbac import Action
+from app.models.silent_tenant_alert import SilentTenantAlert
 from app.models.user import User
 from app.repositories.tenant import TenantRepository
-from app.schemas.log_fleet import LogFleetDevicesOut, LogFleetOut
+from app.schemas.log_fleet import LogFleetDevicesOut, LogFleetOut, SilentTenantAlertOut
 from app.services.log_fleet import STALE_AFTER, log_fleet_overview, tenant_device_fleet
 from app.services.log_fleet_export import fleet_rows_to_csv, fleet_rows_to_html
 from app.services.reporting.service import html_to_pdf
@@ -34,6 +36,18 @@ async def get_log_fleet(
     window_hours, label = _window(window)
     data = await log_fleet_overview(session, get_settings(), window_hours=window_hours)
     return LogFleetOut(**data, window=label)
+
+
+@router.get("/silent-tenant-alerts", response_model=list[SilentTenantAlertOut])
+async def get_silent_tenant_alerts(
+    user: User = Depends(require_org(Action.LOG_FLEET_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> list[SilentTenantAlertOut]:
+    """Tenants currently in the silent-alert state (the worker cron creates/clears these rows)."""
+    rows = (await session.execute(
+        select(SilentTenantAlert).order_by(SilentTenantAlert.silent_since)
+    )).scalars().all()
+    return [SilentTenantAlertOut.model_validate(r) for r in rows]
 
 
 @router.get("/log-fleet/export")
