@@ -116,6 +116,7 @@ export function useUsers() {
 
 /** Admin-reset a user's MFA (superadmin). */
 export function useResetUserMfa() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (userId: string): Promise<void> => {
       const { error } = await api.POST("/api/users/{user_id}/mfa/reset", {
@@ -123,5 +124,6 @@ export function useResetUserMfa() {
       });
       if (error) throw new Error(en.mfa.resetError);
     },
+    onSuccess: () => qc.invalidateQueries({ queryKey: usersKey() }),  // refresh the users table
   });
 }
