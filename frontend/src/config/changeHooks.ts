@@ -97,6 +97,26 @@ export function useRevertChange(deviceId: string) {
   });
 }
 
+// On-demand drift check: a lazy query (enabled:false) that the user triggers via refetch().
+// Returns the DriftReport (reachable flag + per-change results, field NAMES only).
+export type DriftReport = components["schemas"]["DriftReport"];
+
+export function useDriftCheck(deviceId: string) {
+  const { activeId } = useTenant();
+  return useQuery({
+    queryKey: ["config-drift", activeId, deviceId],
+    enabled: false,
+    queryFn: async (): Promise<DriftReport> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/devices/{device_id}/config/drift-check",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId } } },
+      );
+      if (error || !data) throw new Error(en.errors.configChangeAction);
+      return data;
+    },
+  });
+}
+
 export function usePreviewChange(deviceId: string, changeId: string | null) {
   const { activeId } = useTenant();
   return useQuery({

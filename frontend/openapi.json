@@ -1686,6 +1686,60 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/drift-check": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Config Drift Check",
+        "description": "Live, on-demand drift check: for each applied template change, compare what we applied to\nthe device's current config and report the drifted field names.\n\nBuilds an OpnsenseClient like config_capabilities; on ANY connector/credential error it returns\nreachable=False (drift is meaningless without live data). The response carries field NAMES and a\nstatus only \u2014 never raw config values.",
+        "operationId": "config_drift_check_api_tenants__tenant_id__devices__device_id__config_drift_check_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriftReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/devices/{device_id}/config/diff": {
       "get": {
         "tags": [
@@ -5179,6 +5233,78 @@
         },
         "type": "object",
         "title": "DeviceUpdateIn"
+      },
+      "DriftReport": {
+        "properties": {
+          "reachable": {
+            "type": "boolean",
+            "title": "Reachable"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Checked At"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/DriftResultOut"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "unsupported_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unsupported Kinds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reachable",
+          "checked_at",
+          "results",
+          "unsupported_kinds"
+        ],
+        "title": "DriftReport"
+      },
+      "DriftResultOut": {
+        "properties": {
+          "change_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Change Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "drifted_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Drifted Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "change_id",
+          "kind",
+          "target",
+          "status",
+          "drifted_fields"
+        ],
+        "title": "DriftResultOut"
       },
       "DriftSummary": {
         "properties": {

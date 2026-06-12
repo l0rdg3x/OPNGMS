@@ -13,6 +13,7 @@ import {
   Table,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
@@ -20,13 +21,54 @@ import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
 import type { ConfigChange } from "./changeTypes";
 import {
+  type DriftReport,
   useCancelChange,
   useConfigChanges,
+  useDriftCheck,
   usePreviewChange,
   useRevertChange,
   useScheduleChange,
 } from "./changeHooks";
 import { ProposeAliasModal } from "./ProposeAliasModal";
+
+type DriftResultItem = DriftReport["results"][number];
+
+// Drift status -> badge color (label comes from i18n).
+const DRIFT_COLOR: Record<string, string> = {
+  in_sync: "green",
+  drifted: "red",
+  missing: "orange",
+  unsupported: "gray",
+};
+
+// Per-change drift badge; a tooltip lists the drifted field names when drifted.
+function DriftBadge({ res }: { res: DriftResultItem }) {
+  const t = useT();
+  const label =
+    res.status === "drifted"
+      ? t.config.changes.driftDrifted
+      : res.status === "missing"
+        ? t.config.changes.driftMissing
+        : res.status === "in_sync"
+          ? t.config.changes.driftInSync
+          : t.config.changes.driftUnsupported;
+  const badge = (
+    <Badge ml="xs" size="sm" variant="light" color={DRIFT_COLOR[res.status] ?? "gray"}>
+      {label}
+    </Badge>
+  );
+  if (res.status === "drifted" && res.drifted_fields.length > 0) {
+    return (
+      <Tooltip
+        withinPortal
+        label={`${t.config.changes.driftFields}${res.drifted_fields.join(", ")}`}
+      >
+        {badge}
+      </Tooltip>
+    );
+  }
+  return badge;
+}
 
 // Pipeline status -> Mantine badge color.
 const STATUS_COLOR: Record<string, string> = {
@@ -203,19 +245,39 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
   const role = tenants.find((x) => x.id === activeId)?.role ?? null;
   const canEdit = role === "tenant_admin" || role === "operator";
   const q = useConfigChanges(deviceId);
+  const drift = useDriftCheck(deviceId);
   const [proposeOpen, setProposeOpen] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
+
+  const driftByChange = new Map<string, DriftResultItem>(
+    (drift.data?.results ?? []).map((r) => [r.change_id, r]),
+  );
 
   return (
     <Card withBorder>
       <Group justify="space-between" mb="xs">
         <Title order={5}>{t.config.changes.title}</Title>
-        {canEdit && (
-          <Button size="xs" onClick={() => setProposeOpen(true)}>
-            {t.config.changes.propose}
+        <Group gap="xs">
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => drift.refetch()}
+            loading={drift.isFetching}
+          >
+            {t.config.changes.checkDrift}
           </Button>
-        )}
+          {canEdit && (
+            <Button size="xs" onClick={() => setProposeOpen(true)}>
+              {t.config.changes.propose}
+            </Button>
+          )}
+        </Group>
       </Group>
+      {drift.data && !drift.data.reachable && (
+        <Alert color="orange" mb="xs">
+          {t.config.changes.driftUnreachable}
+        </Alert>
+      )}
       {q.isLoading && <Loader size="sm" />}
       {q.isError && <Alert color="red">{t.errors.configChangesLoad}</Alert>}
       {q.data && q.data.length === 0 && (
@@ -243,6 +305,9 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
                   <Badge color={STATUS_COLOR[c.status] ?? "gray"}>
                     {c.status}
                   </Badge>
+                  {driftByChange.get(c.id) && (
+                    <DriftBadge res={driftByChange.get(c.id)!} />
+                  )}
                   {c.reverts_change_id && (
                     <Text size="xs" c="dimmed">
                       {`${t.config.changes.reverts}${c.reverts_change_id.slice(0, 7)}`}
