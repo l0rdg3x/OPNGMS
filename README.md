@@ -352,9 +352,12 @@ Replace `https://<your-domain>` with `http://127.0.0.1:8080` if you're on Model 
 
 ### How it works
 
-- Each device is enrolled via `POST /api/tenants/{tenant}/devices/{device}/log-forwarding/enable`,
-  which issues a **per-device mTLS client certificate** (CN = device ID, O = tenant ID), imports it
-  into the OPNsense box, and configures a TLS syslog target pointing at `SYSLOG_RECEIVER_HOST:SYSLOG_TLS_PORT`.
+- Each device is enrolled from the **device page → "Log forwarding" tab** (Enable/Disable behind a
+  confirm), or via `POST /api/tenants/{tenant}/devices/{device}/log-forwarding/enable`. Enrolling
+  issues a **per-device mTLS client certificate** (CN = device ID, O = tenant ID), imports it into the
+  OPNsense box, and configures a TLS syslog target pointing at `SYSLOG_RECEIVER_HOST:SYSLOG_TLS_PORT`.
+  The tab also shows the certificate expiry and a **liveness** indicator ("last log received") so an
+  operator can confirm logs are actually flowing.
 - syslog-ng verifies every incoming connection against the OPNGMS CA — only CA-signed client certs are
   accepted. The CN and O RDNs are extracted from the peer certificate to stamp `device_id` and
   `tenant_id` on every indexed document, with no reliance on user-supplied headers.
@@ -489,6 +492,7 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 | **Log lake Phase 1** — opt-in `docker-compose.logs.yml` overlay; mTLS syslog-ng receiver (port 6514, CA-signed per-device client certs, CN/O → device_id/tenant_id); Suricata EVE JSON parsed inline; disk-buffered OpenSearch ingest (plain HTTP, internal-only, security disabled); daily indices | 🔧 Infra ready |
 | **Log lake Phase 2** — tenant-scoped, backend-mediated log **search API** (`LOG_VIEW`: tenant admins + operators) with a mandatory path-injected `tenant_id` filter a Lucene query can't escape, guarded query_string, capped page size / time range / paging depth; an in-app **Logs** investigation page (time + device + Lucene filters, results table, raw-document modal) | ✅ Done |
+| **Log lake Phase 3.1** — **provisioning UX**: a device-page "Log forwarding" tab to enable/disable forwarding (confirm-gated, `CONFIG_PUSH`), showing the client-cert expiry and a tenant-scoped **liveness** indicator ("last log received", best-effort OpenSearch lookup) | ✅ Done |
 
 ¹ Live configuration **push** to a device (firewall aliases) is verified against real OPNsense 26.1.9
 and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot as
