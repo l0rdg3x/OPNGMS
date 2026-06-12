@@ -1,5 +1,4 @@
 import gzip
-import hashlib
 import uuid
 from datetime import datetime
 
@@ -57,11 +56,10 @@ def preview_change(change: ConfigChange) -> dict:
 def _advisory_key(device_id: uuid.UUID) -> int:
     """Stable signed 64-bit key for pg_try_advisory_xact_lock, derived from device_id.
 
-    SHA1 here is a non-cryptographic hash-to-int for lock partitioning, NOT a security digest
-    (usedforsecurity=False makes that explicit); the value is never authenticated or stored.
+    A UUID is already a uniform 128-bit value, so the first 8 bytes are a fine lock-partition key —
+    no hash needed (avoids a spurious weak-hash finding; the key is never authenticated or stored).
     """
-    digest = hashlib.sha1(str(device_id).encode(), usedforsecurity=False).digest()
-    return int.from_bytes(digest[:8], "big", signed=True)
+    return int.from_bytes(device_id.bytes[:8], "big", signed=True)
 
 
 async def _save_pre_apply_snapshot(session: AsyncSession, change: ConfigChange, xml: str) -> uuid.UUID:
