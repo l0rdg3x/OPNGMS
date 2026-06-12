@@ -1,9 +1,9 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from arq import cron
 from arq.connections import RedisSettings
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.services.firewall_rule_kind  # noqa: F401  — registers firewall_rule kind at worker-process startup
@@ -14,9 +14,10 @@ from app.connectors.opnsense.client import OpnsenseClient
 from app.core import crypto
 from app.core.config import get_settings
 from app.models.device import Device
+from app.services.action_sweeper import decide_orphan
 from app.services.alerting import evaluate_alerts
 from app.services.config_backup import backup_config
-from app.services.config_push import apply_change
+from app.services.config_push import _advisory_key, apply_change
 from app.services.email.smtp import EmailSendError, send_report_email
 from app.services.ingest import ingest_events
 from app.services.monitoring import collect_and_store
@@ -194,6 +195,67 @@ async def run_firmware_action(ctx: dict, action_id: str) -> str:
         if status == "done":
             await ctx["redis"].enqueue_job("backup_device_config", str(device_id))
         return status
+
+
+async def sweep_orphaned_actions(ctx: dict) -> dict:
+    """Cron: re-enqueue scheduled config/firmware actions dropped by a device lock-miss.
+
+    For each overdue scheduled row, try the device advisory lock: if a real op holds it, skip; if
+    free, the row is a genuine orphan — re-enqueue (counting device-free attempts) or give up.
+    Runs as owner (RLS-exempt); each row in its own transaction so one bad row can't abort the sweep.
+    """
+    from app.models.alert import Alert as AlertModel
+    from app.models.config_change import ConfigChange
+    from app.models.firmware_action import FirmwareAction
+
+    settings = get_settings()
+    grace = timedelta(minutes=settings.orphan_grace_minutes)
+    max_attempts = settings.max_reenqueue_attempts
+    now = datetime.now(UTC)
+    cutoff = now - grace
+    factory = ctx["session_factory"]
+    redis = ctx["redis"]
+    summary = {"re_enqueued": 0, "gave_up": 0, "skipped": 0}
+
+    specs = [(ConfigChange, "apply_config_change"), (FirmwareAction, "run_firmware_action")]
+    for model, job_name in specs:
+        async with factory() as session:
+            ids = (await session.execute(
+                select(model.id).where(
+                    model.status == "scheduled",
+                    func.coalesce(model.scheduled_at, model.created_at) < cutoff,
+                )
+            )).scalars().all()
+        for row_id in ids:
+            try:
+                async with factory() as session:
+                    row = await session.get(model, row_id)
+                    if row is None or row.status != "scheduled":
+                        continue
+                    got = (await session.execute(
+                        text("SELECT pg_try_advisory_xact_lock(:k)"),
+                        {"k": _advisory_key(row.device_id)},
+                    )).scalar_one()
+                    if not got:
+                        summary["skipped"] += 1
+                        await session.rollback()
+                        continue
+                    if decide_orphan(sweep_attempts=row.sweep_attempts, max_attempts=max_attempts) == "re-enqueue":
+                        row.sweep_attempts += 1
+                        await session.commit()
+                        await redis.enqueue_job(job_name, str(row_id))
+                        summary["re_enqueued"] += 1
+                    else:
+                        row.status = "failed"
+                        row.result = {"error": f"orphaned: never applied after {row.sweep_attempts} re-enqueue attempts"}
+                        session.add(AlertModel(tenant_id=row.tenant_id, device_id=row.device_id,
+                                               type="action_orphaned",
+                                               label=f"{job_name} {row_id} given up after {row.sweep_attempts} attempts"))
+                        await session.commit()
+                        summary["gave_up"] += 1
+            except Exception:  # noqa: BLE001 — one bad row must not abort the sweep
+                continue
+    return summary
 
 
 async def enqueue_due_reports(ctx: dict) -> int:
@@ -396,6 +458,7 @@ class WorkerSettings:
         cron(enqueue_config_backups, hour={_settings.config_backup_hour}, minute={0}),  # config, daily
         cron(enqueue_due_reports, minute={0}),  # hourly: fire due report schedules
         cron(cleanup_expired_sessions, minute={_settings.session_cleanup_minute}),  # hourly: reap sessions
+        cron(sweep_orphaned_actions, minute=set(range(0, 60, min(30, max(1, _settings.sweep_every_minutes))))),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
