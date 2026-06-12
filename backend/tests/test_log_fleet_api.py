@@ -122,6 +122,53 @@ async def test_non_superadmin_denied(api_client, db_engine):
     assert r.status_code == 403
 
 
+async def test_export_csv(api_client, db_engine, monkeypatch):
+    async def fake_stats(settings, *, window_hours=24):
+        return {}
+    monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
+    await _seed_one_tenant(db_engine)
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    r = await api_client.get("/api/admin/log-fleet/export", params={"format": "csv", "window": "7d"})
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"].startswith("text/csv")
+    assert "attachment" in r.headers["content-disposition"]
+    assert "log-fleet-7d.csv" in r.headers["content-disposition"]
+    lines = r.text.strip().splitlines()
+    assert lines[0].startswith("tenant_name,enabled")
+    assert any(line.startswith("Acme,") for line in lines[1:])
+
+
+async def test_export_pdf(api_client, db_engine, monkeypatch):
+    async def fake_stats(settings, *, window_hours=24):
+        return {}
+    monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
+    await _seed_one_tenant(db_engine)
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    r = await api_client.get("/api/admin/log-fleet/export", params={"format": "pdf"})
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "application/pdf"
+    assert r.content[:5] == b"%PDF-"
+
+
+async def test_export_invalid_format_400(api_client, db_engine):
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    r = await api_client.get("/api/admin/log-fleet/export", params={"format": "xlsx"})
+    assert r.status_code == 400
+
+
+async def test_export_non_superadmin_denied(api_client, db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await s.commit()
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    r = await api_client.get("/api/admin/log-fleet/export", params={"format": "csv"})
+    assert r.status_code == 403
+
+
 async def test_superadmin_drills_into_tenant_devices(api_client, db_engine, monkeypatch):
     async def fake_stats(settings, tenant_id, *, window_hours=24):
         return {}  # no logs -> the enabled device is silent
