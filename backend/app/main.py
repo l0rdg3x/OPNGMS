@@ -30,6 +30,7 @@ from app.api.reports import router as reports_router
 from app.api.settings import router as settings_router
 from app.api.setup import router as setup_router
 from app.api.smtp import router as smtp_router
+from app.api.system import router as system_router
 from app.api.templates import router as templates_router
 from app.api.tenants import router as tenants_router
 from app.api.users import router as users_router
@@ -81,6 +82,7 @@ app.include_router(smtp_router)
 app.include_router(log_forwarding_router)
 app.include_router(logs_router)
 app.include_router(log_fleet_router)
+app.include_router(system_router)
 
 
 @app.exception_handler(IntegrityError)

@@ -13,6 +13,7 @@ class Action(str, enum.Enum):
     USER_MANAGE = "user.manage"
     TEMPLATE_MANAGE = "template.manage"
     LOG_FLEET_VIEW = "log_fleet.view"
+    SYSTEM_MANAGE = "system.manage"
     # tenant-level
     MEMBERSHIP_MANAGE = "membership.manage"
     DEVICE_VIEW = "device.view"
@@ -25,7 +26,13 @@ class Action(str, enum.Enum):
 
 
 # Org-level actions: allowed ONLY to the superadmin (no per-tenant role grants them).
-_ORG_ACTIONS = {Action.TENANT_MANAGE, Action.USER_MANAGE, Action.TEMPLATE_MANAGE, Action.LOG_FLEET_VIEW}
+_ORG_ACTIONS = {
+    Action.TENANT_MANAGE,
+    Action.USER_MANAGE,
+    Action.TEMPLATE_MANAGE,
+    Action.LOG_FLEET_VIEW,
+    Action.SYSTEM_MANAGE,
+}
 
 # Tenant-level actions -> roles that grant them (besides the superadmin, always allowed).
 _TENANT_MATRIX: dict[Action, set[str]] = {
