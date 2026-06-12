@@ -1,4 +1,5 @@
 import httpx
+import pytest
 import respx
 
 from app.connectors.opnsense.client import OpnsenseClient
@@ -53,3 +54,11 @@ async def test_delete_syslog_destination_then_reconfigure():
         return_value=httpx.Response(200, json={"status": "ok"}))
     await _client().delete_syslog_destination("dest-uuid")
     assert d.called and rec.called
+
+
+async def test_delete_rejects_unsafe_uuid():
+    c = _client()
+    with pytest.raises(ValueError):
+        await c.delete_cert("../../admin")
+    with pytest.raises(ValueError):
+        await c.delete_syslog_destination("a/b")

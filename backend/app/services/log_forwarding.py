@@ -41,11 +41,16 @@ async def provision_device(session: AsyncSession, *, tenant_id: uuid.UUID, devic
     ca = await svc.ensure_ca()
     cert_pem, key_pem = svc.device_cert(ca, tenant_id=tenant_id, device_id=device_id)
     serial, fp = cert_serial_and_fingerprint(cert_pem)
-    ca_uuid = await client.import_ca(ca.cert_pem, descr="OPNGMS Syslog CA")
+    # Load the existing row first so we can reuse an already-imported CA (re-provisioning a device
+    # must NOT import a duplicate CA into the box's trust store).
+    row = await session.get(DeviceLogForwarding, device_id)
+    if row is not None and row.opnsense_ca_uuid:
+        ca_uuid = row.opnsense_ca_uuid
+    else:
+        ca_uuid = await client.import_ca(ca.cert_pem, descr="OPNGMS Syslog CA")
     cert_uuid = await client.import_cert(cert_pem.decode(), key_pem.decode(), descr=f"opngms-logs {device_id}")
     dest_uuid = await client.add_syslog_destination(
         hostname=receiver_host, port=receiver_port, certificate_uuid=cert_uuid)
-    row = await session.get(DeviceLogForwarding, device_id)
     if row is None:
         row = DeviceLogForwarding(device_id=device_id, tenant_id=tenant_id)
         session.add(row)
@@ -69,5 +74,6 @@ async def deprovision_device(session: AsyncSession, *, device_id: uuid.UUID, cli
         await client.delete_cert(row.opnsense_cert_uuid)
     row.enabled = False
     row.opnsense_dest_uuid = None
+    row.opnsense_cert_uuid = None
     await session.flush()
     return True

@@ -105,6 +105,9 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
             print(f"  [skip] {dest} already exists (use --force to overwrite)")
         else:
             dest.write_bytes(data)
+            # Private keys must not be world/group-readable.
+            if dest.name.endswith(".key"):
+                dest.chmod(0o600)
             print(f"  [write] {dest}")
 
     # --- 4. Apply OpenSearch index template + ISM retention policy (plain HTTP, no auth). ---
@@ -122,7 +125,9 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
 
         url_ism = f"{settings.opensearch_url}/_plugins/_ism/policies/opngms-logs-retention"
         resp = client.put(url_ism, json=ism_policy)
-        resp.raise_for_status()
+        # A pre-existing policy returns 409 (PUT without seq_no/primary_term); treat as already-applied.
+        if resp.status_code != 409:
+            resp.raise_for_status()
         print(f"  [opensearch] ISM policy applied: {resp.status_code} (retention={settings.log_retention_days}d)")
 
 

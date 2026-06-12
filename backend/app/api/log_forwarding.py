@@ -25,9 +25,9 @@ def _client(device: Device) -> OpnsenseClient:
                           tls_fingerprint=device.tls_fingerprint)
 
 
-def _out(row) -> LogForwardingOut:
+def _out(row, *, device_id: uuid.UUID) -> LogForwardingOut:
     if row is None:
-        return LogForwardingOut(device_id=uuid.UUID(int=0), enabled=False, cert_serial="",
+        return LogForwardingOut(device_id=device_id, enabled=False, cert_serial="",
                                 cert_fingerprint="", provisioned_at=None)
     return LogForwardingOut(device_id=row.device_id, enabled=row.enabled, cert_serial=row.cert_serial,
                             cert_fingerprint=row.cert_fingerprint, provisioned_at=row.provisioned_at)
@@ -47,7 +47,7 @@ async def status_log_forwarding(
     session: AsyncSession = Depends(get_session),
 ) -> LogForwardingOut:
     await _device(session, tenant_id, device_id)
-    return _out(await DeviceLogForwardingRepository(session, tenant_id).get(device_id))
+    return _out(await DeviceLogForwardingRepository(session, tenant_id).get(device_id), device_id=device_id)
 
 
 @router.post("/enable", response_model=LogForwardingOut, dependencies=[Depends(enforce_csrf)])
@@ -68,7 +68,7 @@ async def enable_log_forwarding(
         actor_user_id=ctx.user.id, tenant_id=tenant_id, action="log_forwarding.enable",
         target_type="device", target_id=str(device_id),
         ip=request.client.host if request.client else None, details={"serial": row.cert_serial})
-    out = _out(row)
+    out = _out(row, device_id=device_id)
     await session.commit()
     return out
 
@@ -88,6 +88,6 @@ async def disable_log_forwarding(
         actor_user_id=ctx.user.id, tenant_id=tenant_id, action="log_forwarding.disable",
         target_type="device", target_id=str(device_id),
         ip=request.client.host if request.client else None, details={})
-    out = _out(await DeviceLogForwardingRepository(session, tenant_id).get(device_id))
+    out = _out(await DeviceLogForwardingRepository(session, tenant_id).get(device_id), device_id=device_id)
     await session.commit()
     return out

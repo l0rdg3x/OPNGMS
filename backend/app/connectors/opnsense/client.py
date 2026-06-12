@@ -44,6 +44,16 @@ _PLUGIN_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 # (verified: all real-box ruleset filenames match this) to prevent path injection.
 _RULESET_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
+# OPNsense uuids (RFC4122 + the box's own ids) embed directly in del* URL paths; restrict to
+# the safe charset to block path traversal before building the path.
+_OPN_UUID_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
+
+
+def _safe_uuid(value: str) -> str:
+    if not value or not _OPN_UUID_RE.match(value):
+        raise ValueError(f"unsafe OPNsense uuid: {value!r}")
+    return value
+
 
 def _unflatten(flat: dict) -> dict:
     """{'a.b': 1, 'a.c': 2, 'x': 3} -> {'a': {'b': 1, 'c': 2}, 'x': 3}."""
@@ -454,10 +464,12 @@ class OpnsenseClient:
 
     async def delete_syslog_destination(self, dest_uuid: str) -> dict:
         """Delete a remote-syslog destination by uuid and reconfigure."""
+        dest_uuid = _safe_uuid(dest_uuid)
         res = await self._post(f"syslog/settings/delDestination/{dest_uuid}", {})
         await self._post("syslog/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
         return res
 
     async def delete_cert(self, cert_uuid: str) -> dict:
         """Delete a certificate from the trust store by uuid."""
+        cert_uuid = _safe_uuid(cert_uuid)
         return await self._post(f"trust/cert/del/{cert_uuid}", {})
