@@ -1,12 +1,18 @@
 import os
 import uuid
 
+import httpx
+import respx
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.db import make_engine, set_tenant_context
-from app.services.log_fleet import fleet_forwarding_counts
+from app.services.log_fleet import (
+    fleet_forwarding_counts,
+    fleet_log_stats,
+    log_fleet_overview,
+)
 
 
 async def _seed_tenant(s, *, slug, enabled, revoked, disabled):
@@ -74,3 +80,53 @@ async def test_fleet_forwarding_counts_per_tenant(db_engine):
     assert counts[ta]["total_devices"] == 3 and counts[ta]["tenant_name"] == "ACME"
     assert counts[tb]["enabled"] == 1 and counts[tb]["disabled"] == 1 and counts[tb]["revoked"] == 0
     assert counts[tb]["total_devices"] == 2
+
+
+class _S:
+    opensearch_url = "http://opensearch:9200"
+
+
+_OS = "http://opensearch:9200/opngms-logs-*/_search"
+
+
+@respx.mock
+async def test_fleet_log_stats_maps_buckets():
+    respx.post(_OS).mock(return_value=httpx.Response(200, json={"aggregations": {"by_tenant": {"buckets": [
+        {"key": "tid-a", "doc_count": 9, "last_log": {"value_as_string": "2026-06-01T10:00:00.000Z"},
+         "last_24h": {"doc_count": 4}},
+    ]}}}))
+    stats = await fleet_log_stats(_S())
+    assert stats["tid-a"]["volume_24h"] == 4
+    assert stats["tid-a"]["last_log_at"] == "2026-06-01T10:00:00.000Z"
+
+
+@respx.mock
+async def test_fleet_log_stats_empty_on_error():
+    respx.post(_OS).mock(return_value=httpx.Response(503, json={}))
+    assert await fleet_log_stats(_S()) == {}
+
+
+async def test_log_fleet_overview_combines_and_flags_silent(db_engine, monkeypatch):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        ta = await _seed_tenant(s, slug="acme", enabled=2, revoked=0, disabled=0)  # forwarding -> will be silent
+        await _seed_tenant(s, slug="beta", enabled=0, revoked=0, disabled=1)       # no forwarding
+        await s.commit()
+
+    async def fake_stats(settings):
+        return {}  # OpenSearch returns nothing -> acme has enabled>0 + no last_log -> silent
+
+    monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
+    app_url = make_url(os.environ["TEST_DATABASE_URL"]).set(username="opngms_app", password="opngms_app")
+    app_engine = make_engine(app_url.render_as_string(hide_password=False))
+    try:
+        app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
+        async with app_factory() as s:
+            ov = await log_fleet_overview(s, _S())
+    finally:
+        await app_engine.dispose()
+    by_id = {r["tenant_id"]: r for r in ov["tenants"]}
+    assert by_id[ta]["enabled"] == 2 and by_id[ta]["last_log_at"] is None
+    assert ov["totals"]["tenants_with_forwarding"] == 1
+    assert ov["totals"]["silent_tenants"] == 1
+    assert ov["totals"]["enabled_devices"] == 2

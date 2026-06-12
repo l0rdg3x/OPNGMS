@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,3 +36,72 @@ async def fleet_forwarding_counts(session: AsyncSession) -> dict[uuid.UUID, dict
             "total_devices": int(total_devices),
         }
     return out
+
+
+STALE_AFTER = timedelta(hours=1)
+
+
+def _parse_iso(value: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
+async def fleet_log_stats(settings) -> dict[str, dict]:
+    """Per-tenant {last_log_at, volume_24h} via ONE OpenSearch terms agg on tenant_id (NO tenant
+    filter — superadmin-only, aggregates only). Best-effort: returns {} on any OpenSearch error."""
+    body = {
+        "size": 0,
+        "aggs": {"by_tenant": {
+            "terms": {"field": "tenant_id", "size": 1000},
+            "aggs": {
+                "last_log": {"max": {"field": "@timestamp"}},
+                "last_24h": {"filter": {"range": {"@timestamp": {"gte": "now-24h"}}}},
+            },
+        }},
+    }
+    url = f"{settings.opensearch_url}/opngms-logs-*/_search"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(url, params={"ignore_unavailable": "true"}, json=body)
+        resp.raise_for_status()
+        data = resp.json()
+    except (httpx.HTTPError, ValueError):
+        return {}
+    out: dict[str, dict] = {}
+    for b in data.get("aggregations", {}).get("by_tenant", {}).get("buckets", []):
+        out[str(b.get("key", ""))] = {
+            "last_log_at": (b.get("last_log", {}) or {}).get("value_as_string"),
+            "volume_24h": (b.get("last_24h", {}) or {}).get("doc_count"),
+        }
+    return out
+
+
+async def log_fleet_overview(session: AsyncSession, settings) -> dict:
+    """Combine the relational forwarding counts with the OpenSearch log stats into per-tenant rows +
+    totals. A tenant is 'silent' when it has enabled devices but no recent log."""
+    counts = await fleet_forwarding_counts(session)
+    stats = await fleet_log_stats(settings)
+    now = datetime.now(UTC)
+    rows: list[dict] = []
+    silent = enabled_devices = volume_total = with_fwd = 0
+    for tid, c in counts.items():
+        st = stats.get(str(tid), {})
+        last_dt = _parse_iso(st["last_log_at"]) if st.get("last_log_at") else None
+        vol = st.get("volume_24h")
+        rows.append({
+            "tenant_id": tid, "tenant_name": c["tenant_name"],
+            "enabled": c["enabled"], "disabled": c["disabled"], "revoked": c["revoked"],
+            "total_devices": c["total_devices"], "last_log_at": last_dt, "volume_24h": vol,
+        })
+        enabled_devices += c["enabled"]
+        volume_total += vol or 0
+        if c["enabled"] > 0:
+            with_fwd += 1
+            if last_dt is None or (now - last_dt) > STALE_AFTER:
+                silent += 1
+    rows.sort(key=lambda r: r["tenant_name"])
+    return {"tenants": rows, "totals": {
+        "tenants_with_forwarding": with_fwd, "enabled_devices": enabled_devices,
+        "volume_24h": volume_total, "silent_tenants": silent}}
