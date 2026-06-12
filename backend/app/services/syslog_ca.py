@@ -11,6 +11,14 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 CA_CN = "OPNGMS Syslog CA"
 
+# The internal CA is private, single-purpose and access-controlled, and device certs are
+# short-lived + auto-renewed — so the CA itself is "set and forget": a ~1000-year validity removes
+# any expiry-driven re-key (the only remaining reason to rotate would be a key compromise, handled
+# out of band). Well within datetime's year-9999 ceiling; dates >= 2050 use GeneralizedTime, which
+# OpenSSL 3 (syslog-ng, OPNsense) handles. NB: only NEW CAs get this — an already-built CA row is
+# left untouched (rebuilding it would mean a full fleet re-provision).
+CA_VALIDITY_DAYS = 365_250  # 1000 * 365.25
+
 
 def _gen_key() -> rsa.RSAPrivateKey:
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -35,7 +43,7 @@ def build_ca() -> tuple[bytes, bytes]:
         .subject_name(name).issuer_name(name).public_key(key.public_key())
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - timedelta(minutes=5))
-        .not_valid_after(now + timedelta(days=3650))
+        .not_valid_after(now + timedelta(days=CA_VALIDITY_DAYS))
         .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
         .add_extension(
             x509.KeyUsage(digital_signature=False, content_commitment=False, key_encipherment=False,

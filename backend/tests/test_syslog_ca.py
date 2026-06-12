@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 from cryptography import x509
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
@@ -10,6 +12,17 @@ def test_build_ca_is_a_ca():
     bc = cert.extensions.get_extension_for_class(x509.BasicConstraints).value
     assert bc.ca is True
     assert cert.subject.rfc4514_string().endswith("OPNGMS Syslog CA")
+
+
+def test_ca_is_effectively_non_expiring():
+    # A new CA is "set and forget" (~1000y) so it never needs an expiry-driven re-key. A device
+    # cert issued from it still chains (GeneralizedTime notAfter parses + verifies under OpenSSL 3).
+    ca_cert_pem, ca_key_pem = build_ca()
+    ca = x509.load_pem_x509_certificate(ca_cert_pem)
+    assert ca.not_valid_after_utc > datetime.now(UTC) + timedelta(days=365 * 900)
+    cert_pem, _ = issue_device_cert(ca_cert_pem, ca_key_pem, tenant_id="t", device_id="d")
+    leaf = x509.load_pem_x509_certificate(cert_pem)
+    assert leaf.issuer == ca.subject
 
 
 def test_issue_device_cert_subject_and_chain():
