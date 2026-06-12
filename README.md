@@ -2,7 +2,8 @@
 
 A multi-tenant console for MSPs to **manage and monitor a fleet of [OPNsense](https://opnsense.org/)
 firewalls** from a single pane of glass: device inventory, health & network monitoring, alerting,
-security/event ingest, per-customer white-label PDF reporting, and configuration backup/drift.
+security/event ingest, per-customer white-label PDF reporting **with scheduled email delivery**,
+configuration templates, and configuration backup/drift.
 
 [![CI](https://github.com/l0rdg3x/OPNGMS/actions/workflows/ci.yml/badge.svg)](https://github.com/l0rdg3x/OPNGMS/actions/workflows/ci.yml)
 [![Container Image Scan](https://github.com/l0rdg3x/OPNGMS/actions/workflows/trivy.yml/badge.svg)](https://github.com/l0rdg3x/OPNGMS/actions/workflows/trivy.yml)
@@ -10,6 +11,23 @@ security/event ingest, per-customer white-label PDF reporting, and configuration
 
 Tenant isolation is **structural**, not advisory: a shared schema with `tenant_id` and Postgres
 **Row-Level Security** (`ENABLE` + `FORCE`, fail-closed), with the API running as a non-superuser role.
+
+---
+
+## Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Repository layout](#repository-layout)
+- [Quick start — development](#quick-start--development)
+- [Deployment (production)](#deployment-production) ← **the production guide**
+- [Configuration reference](#configuration-reference)
+- [Security & multi-tenancy](#security--multi-tenancy)
+- [Project status](#project-status)
+- [Tests](#tests)
+- [License](#license)
 
 ---
 
@@ -21,10 +39,12 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Alerting** — threshold-based alerts evaluated on every poll, with an active/historical view.
 - **Event ingest** — incremental, deduplicated pull of Suricata IDS/IPS alerts and DNS queries.
 - **Reporting** — per-customer white-label PDF reports (attacks, web activity, data usage), localized
-  per tenant (en/it/es/fr/de/pt/nl), with **email delivery**: per-tenant and per-device schedules
-  (weekly / monthly / on-demand), multiple recipients, white-label sender override, and a manual
-  "send now" trigger. SMTP is configured by the superadmin in-app; a failed send retries for up to
-  2 hours without regenerating the PDF.
+  per tenant (en/it/es/fr/de/pt/nl).
+- **Report email delivery** — schedule reports per **tenant** (whole fleet) **and per device** (one
+  site), on a **weekly / monthly / on-demand** cadence, each with its own list of recipient emails.
+  One **superadmin-configured SMTP relay** (credentials encrypted at rest) sends them; tenants can set
+  a **white-label sender** address. A **"send now"** button triggers an immediate delivery, and a
+  failed send **retries every 10 min for up to 2 h** without regenerating the PDF.
 - **Config management** — versioned, encrypted configuration backup with drift detection and a
   firewall-aware editing UI.
 - **Device actions** — trigger firmware updates / major upgrades and plugin install/remove from the
@@ -41,15 +61,19 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 
 ## Screenshots
 
-A dark, instrument-grade "operations console" UI (Mantine + IBM Plex), built for SOC/NOC workflows.
+A dark, instrument-grade "operations console" UI (Mantine v9 + IBM Plex), built for SOC/NOC workflows.
 
 | Sign in | Fleet overview |
 |---|---|
 | [![Login](docs/ui/login.png)](docs/ui/login.png) | [![Overview](docs/ui/overview.png)](docs/ui/overview.png) |
 
-| Template library | New-template (kind picker) |
+| Report delivery schedule (fleet + per-device) | SMTP delivery (superadmin) |
 |---|---|
-| [![Template library](docs/ui/template-library.png)](docs/ui/template-library.png) | [![New template](docs/ui/template-modal.png)](docs/ui/template-modal.png) |
+| [![Report schedule](docs/ui/report-schedule.png)](docs/ui/report-schedule.png) | [![SMTP settings](docs/ui/smtp.png)](docs/ui/smtp.png) |
+
+| Per-tenant report settings (branding & sender) | Configuration templates |
+|---|---|
+| [![Report settings](docs/ui/report-settings.png)](docs/ui/report-settings.png) | [![Template library](docs/ui/template-library.png)](docs/ui/template-library.png) |
 
 | Two-factor login (TOTP) | Two-factor settings & policy |
 |---|---|
@@ -61,24 +85,29 @@ A dark, instrument-grade "operations console" UI (Mantine + IBM Plex), built for
               ┌───────────────┐   cron         ┌───────────────┐
               │ ARQ scheduler │───────────────►│ Redis (broker)│
               └───────────────┘  enqueue jobs   └──────┬────────┘
-            poll_device / ingest_device_events         │
+   poll_device / ingest_device_events / enqueue_due_reports     │
                                               ┌─────────▼────────┐  OpnsenseClient   ┌──────────┐
                                               │   ARQ worker(s)  │──────HTTPS───────►│ OPNsense │
-                                              └─────────┬────────┘  (SSRF-guarded,   │ sys, IDS │
-                                                        │           optional TLS pin) └──────────┘
+                                              └────┬──────┬──────┘  (SSRF-guarded,   │ sys, IDS │
+                                       PDF reports │      │ aiosmtplib  TLS pin)      └──────────┘
+                                          ┌────────▼──┐  ┌▼───────────────┐
+                                          │ WeasyPrint│  │ SMTP relay     │──► report recipients
+                                          └───────────┘  └────────────────┘
                                                         │ metrics / status / alerts / events
   React + Mantine ──HTTP──► FastAPI ──RLS──►  ┌─────────▼─────────────────────────┐  (owner, RLS-exempt)
   (SPA, nginx)              (opngms_app role)  │ TimescaleDB: metrics & events      │
                                                │ (hypertables) + tenants, devices,  │
-                                               │ alerts, sessions, reports, ...     │
+                                               │ alerts, sessions, reports,         │
+                                               │ smtp_settings, report_schedule, …  │
                                                └────────────────────────────────────┘
 ```
 
 - **API** — async FastAPI. Session auth + per-session CSRF, 4-role RBAC, tenant-scoped endpoints.
   Connects as the non-superuser `opngms_app` role, so RLS filters every read per customer.
-- **Worker** — ARQ + Redis. Cron jobs enqueue per-device work; `OpnsenseClient` is the single
-  outbound HTTP boundary (SSRF guard + optional certificate pinning). The worker connects as the DB
-  owner (RLS-exempt: trusted infrastructure, never user-facing).
+- **Worker** — ARQ + Redis. Cron jobs enqueue per-device work; an **hourly cron fires due report
+  schedules** (generate → store → email, with send-retry). `OpnsenseClient` is the single outbound
+  HTTP boundary (SSRF guard + optional certificate pinning). The worker connects as the DB owner
+  (RLS-exempt: trusted infrastructure, never user-facing).
 - **Frontend** — Vite + React 19 + Mantine v9 SPA with a typed API client generated from the backend
   OpenAPI schema, served by nginx which also reverse-proxies `/api` (same origin → no CORS needed).
 
@@ -89,7 +118,8 @@ A dark, instrument-grade "operations console" UI (Mantine + IBM Plex), built for
 | Backend | Python 3.14, FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, Pydantic v2 |
 | Storage | TimescaleDB (PostgreSQL 16 + extension), hypertables for metrics & events, Row-Level Security |
 | Worker | ARQ + Redis |
-| Security | argon2 (passwords), Fernet (device secrets), TOTP MFA (pyotp), Postgres RLS, SSRF guard, TLS pinning, defusedxml |
+| Email | aiosmtplib (STARTTLS / implicit TLS / plain), Fernet-encrypted SMTP credentials |
+| Security | argon2 (passwords), Fernet (device & SMTP secrets), TOTP MFA (pyotp), Postgres RLS, SSRF guard, TLS pinning, defusedxml |
 | Reporting | WeasyPrint (HTML/CSS → PDF) + Jinja2 (autoescape) + hand-built SVG charts |
 | Frontend | Vite, React 19, TypeScript, Mantine v9, TanStack Query, React Router, openapi-fetch |
 | Testing | pytest + pytest-asyncio + respx (backend); Vitest + Testing Library + MSW (frontend) |
@@ -100,8 +130,10 @@ A dark, instrument-grade "operations console" UI (Mantine + IBM Plex), built for
 backend/             FastAPI API, ARQ worker, OPNsense connector, models, Alembic migrations, tests
 frontend/            React/Mantine SPA (shell, pages, typed API client, tests); nginx/ = mode-aware serving
 docs/superpowers/    design specs and implementation plans, one per milestone
+docs/ui/             UI screenshots used in this README
 deploy/              Caddy config for the automatic-HTTPS override
 docker-compose*.yml  base prod stack + TLS overrides (tls / caddy / traefik)
+.env.example         every deployment variable, documented
 .github/workflows/   CI + security workflows (tests, audit, CodeQL, Trivy, gitleaks)
 ```
 
@@ -125,108 +157,216 @@ export MASTER_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fe
 alembic upgrade head                 # apply migrations (as the owner ADMIN_DATABASE_URL)
 uvicorn app.main:app --reload        # API on http://localhost:8000
 
-# 3. Worker (in another shell)
+# 3. Worker (in another shell, same env)
 arq app.worker.WorkerSettings
 
 # 4. Frontend
 cd ../frontend
 npm install --legacy-peer-deps       # (a peer-dep range conflict requires --legacy-peer-deps)
 npm run gen:api                      # (re)generate API types from the backend OpenAPI schema
-npm run dev                          # SPA on http://localhost:5173
+npm run dev                          # SPA on http://localhost:5173 (proxies /api → :8000)
 ```
 
 Create the first superadmin once via `POST /api/setup`. When MFA is enrolled, log in in two steps
 (`POST /api/login` → `POST /api/login/mfa`); a locked-out superadmin recovers with
 `python -m app.cli mfa-reset --email <email>` on the host.
 
+---
+
 ## Deployment (production)
 
-One compose stack: TimescaleDB + Redis, a one-shot **migrate** job, the **API** (uvicorn as
-`opngms_app` → RLS enforced), the **worker** (ARQ as the owner), and an **nginx frontend** (SPA +
-`/api` reverse-proxy). The backend image bundles the WeasyPrint system libraries so PDF reporting
-works out of the box.
+The production stack is **one Docker Compose project** of six services:
 
-Every credential is env-driven and **must be changed** — the API **refuses to start** while any secret
-(`DATABASE_URL`/`ADMIN_DATABASE_URL` passwords, `SESSION_SECRET`, `MASTER_KEY`, `APP_ROLE_PASSWORD`)
-still holds its `change-me-*` placeholder. Keep the DB password matched between `DATABASE_URL` and
-`APP_ROLE_PASSWORD` (the app role), and between `ADMIN_DATABASE_URL` and `POSTGRES_PASSWORD` (the owner).
+| Service | Role |
+|---------|------|
+| `db` | TimescaleDB (PostgreSQL 16 + extension) — the only stateful service (named volume `opngms_pg`). |
+| `redis` | ARQ broker. |
+| `migrate` | One-shot: runs `alembic upgrade head` as the **owner**, creating the schema, the non-superuser `opngms_app` role, RLS policies and grants. Runs to completion before `api`/`worker` start. |
+| `api` | uvicorn, connects as **`opngms_app`** (RLS enforced), behind `--proxy-headers`. Not published to the host — only the frontend reaches it on the compose network. |
+| `worker` | ARQ as the **owner** — polling, ingest, backups, and the hourly **report-delivery** cron. |
+| `frontend` | nginx serving the SPA and reverse-proxying `/api` to `api` (single origin → no CORS). |
+
+The backend image bundles the WeasyPrint system libraries (PDF rendering) and `tzdata`; aiosmtplib
+ships with the Python dependencies. SMTP is **not** a container — it is an external relay you configure
+in the app after the first login (see *First run*).
+
+### Prerequisites
+
+- A Linux host with **Docker Engine** and **Docker Compose v2.24.4+** (the TLS override files use the
+  `!override` YAML tag, which needs that version). Check with `docker compose version`.
+- For **automatic** TLS (models 3a/3b): a public DNS name pointing at the host, with ports **80 and
+  443** reachable from the internet (Let's Encrypt validation).
+- Outbound HTTPS from the host to each managed OPNsense box, and outbound SMTP to your mail relay.
+
+### Step 1 — Configure the environment
 
 ```bash
-cp .env.example .env   # edit: strong POSTGRES_PASSWORD/APP_ROLE_PASSWORD, SESSION_SECRET, MASTER_KEY,
-                       #       and the frontend/TLS block (SERVER_NAME / DOMAIN / ACME_EMAIL). Never commit .env.
+cp .env.example .env      # then edit .env — never commit it (.env is gitignored)
 ```
 
-The SPA carries logins, MFA and `Secure` cookies, so **serve it over HTTPS** in production (plain HTTP
-is for localhost/dev only). Pick **exactly one** of the four models below — the overrides are mutually
-exclusive (Docker Compose **v2.24.4+** is required for the `!override` tag they use):
+Set strong, unique values. Two password pairs **must match**, or the app won't connect:
 
-**1. Behind your own reverse proxy / load balancer (recommended).** The base stack serves the SPA as
-plain HTTP bound to **`127.0.0.1:8080`** — not internet-facing. Put your TLS terminator (Cloudflare, a
-cloud LB, an existing nginx/Caddy/Traefik, a Kubernetes ingress) in front, forwarding to
-`127.0.0.1:8080` with `X-Forwarded-Proto: https`.
+| Set this… | …to match this | Why |
+|-----------|----------------|-----|
+| `DATABASE_URL` password | `APP_ROLE_PASSWORD` | the API logs in as `opngms_app`; migration creates that role from `APP_ROLE_PASSWORD`. |
+| `ADMIN_DATABASE_URL` password | `POSTGRES_PASSWORD` | the worker/migrate log in as the owner the DB container creates. |
+
+Also generate fresh secrets:
+
 ```bash
+python -c "import secrets; print('SESSION_SECRET=' + secrets.token_urlsafe(48))"
+python -c "from cryptography.fernet import Fernet; print('MASTER_KEY=' + Fernet.generate_key().decode())"
+```
+
+> **Fail-closed guard.** The API **refuses to start** while any of `DATABASE_URL` /
+> `ADMIN_DATABASE_URL` passwords, `SESSION_SECRET`, `MASTER_KEY`, or `APP_ROLE_PASSWORD` still contains
+> the shipped `change-me` placeholder. This is intentional — you cannot accidentally run on defaults.
+
+Optional but recommended:
+
+- **`TZ`** — an IANA timezone (e.g. `Europe/Rome`) applied to all containers so logs read in your
+  local time. Data is always stored in **UTC**, and report-schedule **hours are interpreted in UTC by
+  design** — changing `TZ` does *not* shift when a report is sent, only how log timestamps appear.
+- The **frontend/TLS block** (`SERVER_NAME`, `DOMAIN`, `ACME_EMAIL`, `CERT_DIR`, ports) — fill in the
+  fields for the model you pick in Step 2.
+
+### Step 2 — Choose how TLS is terminated
+
+The SPA carries logins, MFA and **`Secure` cookies**, so it **must be served over HTTPS** in
+production (plain HTTP works only on localhost/dev — browsers drop `Secure` cookies over HTTP on a real
+domain, which breaks login). Pick **exactly one** model — the override files are mutually exclusive:
+
+| # | Compose files | TLS terminated by | Certificate | Published host ports |
+|---|---------------|-------------------|-------------|----------------------|
+| **1** | base only | **your** edge proxy / LB / ingress | yours (upstream) | `127.0.0.1:8080` (HTTP, localhost-only) |
+| **2** | `+ docker-compose.tls.yml` | the bundled **nginx** | yours — mount `fullchain.pem` + `privkey.pem` in `./certs` | `80` → `443` |
+| **3a** | `+ docker-compose.caddy.yml` | bundled **Caddy** | Let's Encrypt (automatic) | `80` + `443` |
+| **3b** | `+ docker-compose.traefik.yml` | bundled **Traefik** | Let's Encrypt (automatic) | `80` + `443` |
+
+- **Model 1 — behind your own reverse proxy / LB (recommended for most.)** The base stack serves the
+  SPA as plain HTTP bound to **`127.0.0.1:8080`**, never internet-facing. Put your TLS terminator
+  (Cloudflare, a cloud load balancer, an existing nginx/Caddy/Traefik, a Kubernetes ingress) in front,
+  forwarding to `127.0.0.1:8080` with the header **`X-Forwarded-Proto: https`** (so the app issues
+  `Secure` cookies).
+- **Model 2 — built-in TLS with your own certificate.** nginx terminates TLS itself (with an HTTP→HTTPS
+  redirect). Drop your PEM files into `CERT_DIR` (`./certs`) and set `SERVER_NAME`. If no certificate is
+  present, a **self-signed** one is generated at startup so the server still boots.
+- **Model 3 — built-in TLS with automatic certificates.** A bundled **Caddy** *or* **Traefik** obtains
+  and auto-renews a real Let's Encrypt certificate. Set `DOMAIN` + `ACME_EMAIL` and point DNS at the
+  host. Choose one controller (Traefik is the same one many already run on Docker/Kubernetes).
+
+### Step 3 — Build and start
+
+Run the command for the model you chose (the first run builds the images; `migrate` applies the schema
+before `api`/`worker` come up):
+
+```bash
+# Model 1 — behind your proxy / LB
 docker compose -f docker-compose.prod.yml up -d --build
-```
 
-**2. Self-contained HTTPS with your own certificate.** nginx terminates TLS itself (80 → 443
-redirect). Drop `fullchain.pem` + `privkey.pem` into `./certs` (`CERT_DIR`) and set `SERVER_NAME`; if
-no cert is present a self-signed one is generated at startup so the server still boots.
-```bash
+# Model 2 — built-in TLS, your cert
 docker compose -f docker-compose.prod.yml -f docker-compose.tls.yml up -d --build
+
+# Model 3a — automatic TLS via Caddy
+docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml up -d --build
+
+# Model 3b — automatic TLS via Traefik
+docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d --build
 ```
 
-**3. Self-contained HTTPS with automatic certificates (Let's Encrypt).** A proxy in front
-auto-obtains + auto-renews a real cert. Point `DOMAIN`'s DNS at the host (ports 80/443 reachable) and
-set `DOMAIN` + `ACME_EMAIL`. Choose **Caddy** *or* **Traefik** (Traefik is the same controller many
-already run on Docker & Kubernetes) — never both:
+Watch it come up and confirm health:
+
 ```bash
-docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml   up -d --build   # Caddy
-docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d --build   # Traefik
+docker compose -f docker-compose.prod.yml ps          # api should be "healthy"
+docker compose -f docker-compose.prod.yml logs -f api  # follow logs (Ctrl-C to stop)
 ```
 
-| # | Files | TLS terminated by | Certificate | Host ports |
-|---|-------|-------------------|-------------|------------|
-| 1 | base only | your edge proxy / LB / ingress | yours (upstream) | `127.0.0.1:8080` (HTTP) |
-| 2 | `+ docker-compose.tls.yml` | the bundled nginx | yours (mount PEM in `./certs`) | `80`→`443` |
-| 3a | `+ docker-compose.caddy.yml` | bundled Caddy | Let's Encrypt (auto) | `80` + `443` |
-| 3b | `+ docker-compose.traefik.yml` | bundled Traefik | Let's Encrypt (auto) | `80` + `443` |
+### Step 4 — First run
 
-**Create the first superadmin** (one-time) against your public URL (or `http://127.0.0.1:8080` in
-model 1):
-```bash
-curl -X POST https://<your-domain>/api/setup -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","name":"Admin","password":"<strong-password>"}'
-```
-Then enrol MFA under **Two-factor auth** (two-step login: `POST /api/login` → `POST /api/login/mfa`; a
-locked-out superadmin recovers with `python -m app.cli mfa-reset --email <email>` on the host).
+Replace `https://<your-domain>` with `http://127.0.0.1:8080` if you're on Model 1 without a proxy yet.
 
-**Real client IP through a proxy.** nginx forwards `X-Forwarded-Proto` (preserving the upstream
-HTTPS scheme so `Secure` cookies work) and a sanitised `X-Forwarded-For`; uvicorn runs with
-`--proxy-headers`. To recover the true client IP behind an external proxy (for the login
-rate-limit/lockout), set `set_real_ip_from` in `frontend/nginx/snippets/app.conf`.
+1. **Create the first superadmin** (one-time; refuses if any user already exists):
+   ```bash
+   curl -X POST https://<your-domain>/api/setup -H 'Content-Type: application/json' \
+     -d '{"email":"admin@example.com","name":"Admin","password":"<strong-password>"}'
+   ```
+   > Use a real email domain — addresses on reserved TLDs (`.local`, `.internal`, `.test`, …) are
+   > rejected by RFC-compliant validation.
+2. **Sign in** and, under **Two-factor auth**, enrol TOTP and (optionally) set the enforcement policy
+   (`off` / `all` / `privileged`).
+3. **Configure SMTP delivery** under **Admin → SMTP delivery**: host, port, security
+   (STARTTLS / TLS / none), username, password, the default *from* address and name, then **enable
+   delivery**. Use **Send a test email** to verify before saving real recipients. The password is
+   encrypted at rest with `MASTER_KEY` and is never returned by the API.
+4. **Onboard tenants and devices**, then per tenant set **Report settings** (title, logo, language,
+   and an optional white-label *sender* address that overrides the global one) and **Report schedule**
+   — a fleet schedule plus per-device schedules, each weekly/monthly/on-demand with its own recipients.
+   Use **Send now** to deliver immediately.
 
-## Configuration
+### Operations
 
-Set via environment (see `.env.example`). Highlights:
+- **Upgrades & migrations.** Pull the new code and re-run your `up` command with `--build`:
+  ```bash
+  git pull && docker compose -f docker-compose.prod.yml up -d --build
+  ```
+  The one-shot `migrate` service runs `alembic upgrade head` automatically before `api`/`worker`
+  restart, so new database migrations are applied on every deploy.
+- **Backups.** All durable state is in the `opngms_pg` volume. Take logical backups with:
+  ```bash
+  docker compose -f docker-compose.prod.yml exec db \
+    pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > opngms-$(date +%F).sql
+  ```
+- **`MASTER_KEY` rotation (zero downtime).** Set a new `MASTER_KEY`, move the old key into
+  `MASTER_KEY_OLD_KEYS`, deploy, run `python -m app.scripts.rekey_secrets` (as the owner) to
+  re-encrypt device & SMTP secrets, then clear the old key and redeploy.
+- **Timezone.** Set `TZ` in `.env` and redeploy; it affects container/log time only (see Step 1).
+- **Real client IP behind a proxy.** nginx forwards `X-Forwarded-Proto` (preserving the upstream HTTPS
+  scheme so `Secure` cookies work) and a sanitised `X-Forwarded-For`; uvicorn runs with
+  `--proxy-headers`. To recover the true client IP behind an *external* proxy (for the login
+  rate-limit/lockout), set `set_real_ip_from` in `frontend/nginx/snippets/app.conf`.
+- **Logs.** `docker compose -f docker-compose.prod.yml logs -f worker` shows report-delivery activity;
+  delivery successes/failures are also written to the in-app audit log.
+
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---------|-------------|
+| API container exits immediately with a "refusing to start" message | A secret still says `change-me`. Set real values in `.env` (Step 1). |
+| Login succeeds via curl but the browser keeps returning to the sign-in page | The SPA is served over plain HTTP on a real domain → `Secure` cookies are dropped. Terminate TLS (Step 2) and forward `X-Forwarded-Proto: https`. |
+| `docker compose` errors on the `!override` tag | Compose is older than **v2.24.4**. Upgrade Docker Compose. |
+| Scheduled reports never arrive | SMTP not enabled/incorrect (use **Send a test email**); or the schedule is disabled / has no recipients. Check the worker logs and the audit log. |
+| Let's Encrypt won't issue a cert (Model 3) | DNS for `DOMAIN` must resolve to the host and ports 80/443 must be reachable from the internet. |
+
+## Configuration reference
+
+Set via environment (see [`.env.example`](.env.example) for the full, documented list). Highlights:
 
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | App connection — the **non-superuser** `opngms_app` role (RLS applies). |
 | `ADMIN_DATABASE_URL` | Owner connection for migrations and the worker (RLS-exempt). |
+| `APP_ROLE_PASSWORD` / `POSTGRES_PASSWORD` | App-role and owner passwords (must match their URL above). |
 | `SESSION_SECRET` | Server-side session signing secret. |
-| `MASTER_KEY` | Fernet key encrypting device credentials at rest. |
+| `MASTER_KEY` | Fernet key encrypting device **and SMTP** credentials at rest. |
 | `MASTER_KEY_OLD_KEYS` | Comma-separated retired keys, decryption-only — used during key rotation. |
+| `TZ` | Container/log timezone (IANA name). Data is UTC; report hours are UTC. |
 | `SESSION_TTL_HOURS` / `SESSION_IDLE_MINUTES` | Absolute and idle session timeouts. |
 | `CORS_ALLOW_ORIGINS` | Comma-separated allowed origins; empty = CORS disabled (same-origin). |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_WINDOW_SECONDS` | Login rate-limit / lockout. |
-| `INGEST_EVERY_MINUTES`, `CONFIG_BACKUP_HOUR`, `REPORT_WEEKDAY`, `REPORT_HOUR` | Worker cron cadences. |
-| *(in-app)* | **SMTP for report email delivery** is configured by the superadmin under *Admin → SMTP delivery* (not an env var). The password is encrypted at rest with `MASTER_KEY`. An hourly worker cron fires due report schedules; failed sends retry every 10 min for up to 2 h. |
+| `INGEST_EVERY_MINUTES`, `CONFIG_BACKUP_HOUR` | Worker cron cadences. |
+| `SERVER_NAME` / `CERT_DIR` / `DOMAIN` / `ACME_EMAIL` / `FRONTEND_BIND` / `FRONTEND_HTTP_PORT` / `HTTP_PORT` / `HTTPS_PORT` | Frontend exposure & TLS (per the model chosen above). |
+
+> **Report email delivery is configured in-app**, not via env: the superadmin sets the SMTP relay
+> under *Admin → SMTP delivery*, and tenant admins set schedules + recipients per tenant/device. The
+> hourly worker cron fires due schedules; failed sends retry every 10 min for up to 2 h. *(OAuth-based
+> sending for Gmail/M365 is a planned follow-up.)*
 
 ## Security & multi-tenancy
 
 - **Tenant isolation** — every tenant-scoped table carries a `tenant_id` and a fail-closed RLS policy
-  (`ENABLE` + `FORCE`). The API sets `app.current_tenant` per transaction and runs as `opngms_app`;
-  cross-tenant isolation is covered by SQL-level and real-API tests.
+  (`ENABLE` + `FORCE`), including `report_schedule`. The API sets `app.current_tenant` per transaction
+  and runs as `opngms_app`; cross-tenant isolation is covered by SQL-level and real-API tests. The
+  global SMTP relay is **non-tenant** and reachable only by superadmin-gated endpoints.
 - **Sessions & CSRF** — opaque session tokens stored only as a SHA-256 hash (a DB dump yields no usable
   sessions); idle + absolute expiry; rotation on login; "log out everywhere" + an active-sessions view;
   an hourly cleanup cron. CSRF uses a per-session token validated in constant time on every mutation.
@@ -239,13 +379,14 @@ Set via environment (see `.env.example`). Highlights:
   a fail-closed setup-only session until they enroll. Superadmins can **reset** another user's MFA, and
   a host-level **break-glass CLI** (`python -m app.cli mfa-reset --email <e>`, audited) recovers the
   last locked-out superadmin.
-- **Credentials** — argon2 password hashing; device secrets encrypted with Fernet (`MASTER_KEY`),
-  never returned or logged. Rotate with zero downtime: set the new `MASTER_KEY`, move the old key into
-  `MASTER_KEY_OLD_KEYS`, deploy, run `python -m app.scripts.rekey_secrets` (as the owner), then clear
-  the old key and redeploy.
+- **Credentials** — argon2 password hashing; device **and SMTP** secrets encrypted with Fernet
+  (`MASTER_KEY`), never returned by any API or written to logs (SMTP error text is sanitised before it
+  reaches the audit log). Rotate with zero downtime via `MASTER_KEY_OLD_KEYS` + the re-key script.
 - **Outbound safety** — SSRF guard on the connector (HTTPS only, no redirects, blocks
   loopback/link-local incl. cloud metadata, private ranges allowed, IP-pinned, sanitised errors), plus
-  opt-in **TLS certificate fingerprint pinning** (verified before credentials are sent).
+  opt-in **TLS certificate fingerprint pinning** (verified before credentials are sent). Email is sent
+  over STARTTLS/TLS with certificate validation on by default; report recipients are validated and
+  capped, and mail headers are injection-hardened.
 - **Web hardening** — security response headers (CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy,
   Permissions-Policy); CORS closed by default; login rate-limiting that fails closed + failed-login
   auditing; hardened XML parsing (defusedxml).
@@ -262,16 +403,16 @@ Set via environment (see `.env.example`). Highlights:
 | **Monitoring** — poller, health + network metrics, alerting, dashboard | ✅ Done |
 | **Event ingest** — Suricata IDS + DNS into the `events` hypertable, query API (keyset-paginated) | ✅ Done |
 | **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 7-language localization | ✅ Done |
+| **Report email delivery & scheduling** — per-tenant **and per-device** schedules (weekly/monthly/on-demand), each with a UTC hour and a recipient list; one superadmin **SMTP relay** (host/port/security/credentials, encrypted at rest) with a built-in test-send; per-tenant white-label **sender override**; manual **"send now"**; an hourly cron fires due schedules; send failures **retry every 10 min for up to 2 h** without re-rendering the PDF | ✅ Done |
 | **Config management** — encrypted backup + drift detection + firewall-aware editing UI + **live alias push** | ✅ Done¹ |
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
-| **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot (fan-out to one change per member). A **kind-pluggable engine** ships five kinds: `firewall_alias` (M1), the **generic `opnsense_setting`** (M3) — any introspectable, fleet-portable OPNsense setting rendered as a **value-controlled** auto-form (hardware/device-specific fields excluded), **`suricata_ruleset`** (M3) — enable a set of Suricata/IDS rulesets picked from the device's live catalog, **`firewall_rule`** (M3) — a portable "Rules [new]" (MVC) filter rule whose target **interface is chosen at apply time** (empty = floating) so the template stays fleet-portable, idempotently upserted by `(description, interface)`, and **`monit_test`** (M3) — a portable Monit health-check test (condition + action) upserted by `name`. Superadmin Library + Profiles UI + per-device Apply tabs; live-verified on real OPNsense 26.1.9³ | ✅ Done |
+| **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot. A **kind-pluggable engine** ships five kinds: `firewall_alias`, the generic **`opnsense_setting`** (introspection-driven, value-controlled), **`suricata_ruleset`**, **`firewall_rule`** (Rules [new]/MVC; interface bound at apply time), and **`monit_test`**. Live-verified on real OPNsense 26.1.9³ | ✅ Done |
 | **Login MFA (TOTP)** — TOTP second factor + one-time recovery codes; self-enroll + superadmin enforcement policy (off/all/privileged) with a fail-closed setup gate; two-step login (pending→full session); superadmin reset of a user's MFA + a host **break-glass CLI**; adversarially security-reviewed | ✅ Done |
-| **Report email delivery & scheduling** — per-tenant and per-device schedules (weekly/monthly/on-demand) each with a UTC hour and a list of recipient emails; superadmin global SMTP relay (host/port/security/credentials, encrypted at rest); per-tenant white-label sender override; manual "send now" trigger; an hourly cron fires due schedules; send failures retry every 10 min for up to 2 h without re-rendering the PDF | ✅ Done |
-| **Deployment** — production Dockerfiles + a base `docker-compose.prod.yml` (frontend HTTP, localhost-bound, safe-by-default) with override files for every TLS model: behind your reverse proxy / LB, built-in TLS (your cert, self-signed fallback), or automatic Let's Encrypt via **Caddy** or **Traefik** | ✅ Done |
+| **Deployment** — production Dockerfiles + a base `docker-compose.prod.yml` (frontend HTTP, localhost-bound, safe-by-default) with override files for every TLS model (behind your proxy / built-in cert / automatic **Caddy** or **Traefik**); configurable container **timezone** | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
-¹ Live configuration **push** to a device (firewall aliases, 4D-b) is verified against real OPNsense 26.1.9
+¹ Live configuration **push** to a device (firewall aliases) is verified against real OPNsense 26.1.9
 and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot as
 a rollback point; automatic rollback is a planned follow-up.
 
@@ -280,18 +421,12 @@ update/upgrade are covered by mocked worker tests only (they reboot the device).
 WebGUI is a separate milestone — the button is currently a deep-link to the WebGUI login.
 
 ³ Configuration templates are a multi-milestone program: **M1** = the engine + the `firewall_alias` kind;
-**M2** = profiles (ordered bundles, fan-out apply); **M3** = the kind-pluggable registries plus four new
-kinds — the **generic `opnsense_setting`** (introspection-driven, value-controlled, fleet-portable),
-**`suricata_ruleset`** (enable-only IDS rulesets, charset-guarded against path injection),
-**`firewall_rule`** (Rules [new] / MVC filter rules; interface is an apply-time binding so the template
-stays portable; idempotent upsert by `(description, interface)`; the engine grew a generic apply-time
-`bindings` channel for this, identity-preserving for the other kinds — **profile** apply threads the same
-channel, so a `firewall_rule` member can be bound to one interface for the whole profile application
-instead of always floating), and **`monit_test`** (portable
-Monit health-check tests — condition + action — upserted by `name`; services are intentionally excluded
-as they reference per-device UUIDs). All merged & live-verified on the real 26.1.9 box. The M1 live verify
-surfaced & fixed a real connector bug — OPNsense stored a JSON-list alias `content` as the literal
-`"Array"`; it is now joined to a newline string (also fixing the manual config-push path).
+**M2** = profiles (ordered bundles, fan-out apply); **M3** = the kind-pluggable registries plus the generic
+`opnsense_setting` (value-controlled, fleet-portable), `suricata_ruleset` (charset-guarded), `firewall_rule`
+(interface is an apply-time binding so the template stays portable; idempotent upsert by `(description,
+interface)`; **profile** apply threads the same `bindings` channel so a member rule can bind one interface
+for the whole profile), and `monit_test` (condition + action, upserted by `name`). All merged & live-verified
+on the real 26.1.9 box.
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 
