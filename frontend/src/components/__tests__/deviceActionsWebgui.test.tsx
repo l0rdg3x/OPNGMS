@@ -18,4 +18,11 @@ describe("DeviceActions WebGUI link", () => {
     renderWithProviders(<DeviceActions tenantId="t1" deviceId="d1" />);
     expect(screen.queryByTestId("btn-webgui")).toBeNull();
   });
+
+  it("omits the WebGUI link for a non-http(s) base_url (javascript: XSS guard)", () => {
+    renderWithProviders(
+      <DeviceActions tenantId="t1" deviceId="d1" baseUrl="javascript:alert(document.cookie)" />,
+    );
+    expect(screen.queryByTestId("btn-webgui")).toBeNull();
+  });
 });
