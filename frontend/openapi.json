@@ -5461,6 +5461,26 @@
         ],
         "title": "Interface"
       },
+      "LogCursor": {
+        "properties": {
+          "pit_id": {
+            "type": "string",
+            "maxLength": 8192,
+            "title": "Pit Id"
+          },
+          "after": {
+            "items": {},
+            "type": "array",
+            "title": "After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pit_id",
+          "after"
+        ],
+        "title": "LogCursor"
+      },
       "LogForwardingOut": {
         "properties": {
           "device_id": {
@@ -5613,17 +5633,21 @@
             "format": "date-time",
             "title": "To"
           },
-          "page": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Page",
-            "default": 0
-          },
           "size": {
             "type": "integer",
             "minimum": 1.0,
             "title": "Size",
             "default": 100
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LogCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5645,6 +5669,16 @@
             },
             "type": "array",
             "title": "Hits"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LogCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

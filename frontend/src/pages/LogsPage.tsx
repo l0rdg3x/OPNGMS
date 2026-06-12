@@ -7,7 +7,7 @@ import dayjs from "dayjs";
 
 import { useTenant } from "../tenant/useTenant";
 import { useTenantDevices } from "../templates/settingHooks";
-import { useLogSearch, type LogSearchOut } from "../logs/logHooks";
+import { useLogSearch, type LogSearchIn, type LogSearchOut } from "../logs/logHooks";
 
 const MANTINE_FMT = "YYYY-MM-DD HH:mm:ss";
 
@@ -30,7 +30,10 @@ export function LogsPage() {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [frm, setFrm] = useState<string | null>(mantineDaysAgo(1));
   const [to, setTo] = useState<string | null>(dayjs().format(MANTINE_FMT));
-  const [result, setResult] = useState<LogSearchOut | null>(null);
+  const [hits, setHits] = useState<LogSearchOut["hits"]>([]);
+  const [cursor, setCursor] = useState<LogSearchOut["next_cursor"]>(null);
+  const [total, setTotal] = useState<number | null>(null);
+  const [searched, setSearched] = useState(false);
   const [raw, setRaw] = useState<Record<string, unknown> | null>(null);
 
   if (role !== "tenant_admin" && role !== "operator") {
@@ -40,18 +43,28 @@ export function LogsPage() {
   const deviceName = (id: string) =>
     (devices.data ?? []).find((d) => d.id === id)?.name ?? id;
 
-  async function run() {
+  async function fetchPage(c: LogSearchOut["next_cursor"]) {
     if (!frm || !to) return;
-    setResult(null); // drop stale rows so a failed search never shows old results
     try {
       const res = await search.mutateAsync({
-        query, device_id: deviceId, frm: toIso(frm), to: toIso(to), page: 0, size: 100,
-      });
-      setResult(res);
+        query, device_id: deviceId, frm: toIso(frm), to: toIso(to), size: 100,
+        ...(c ? { cursor: c } : {}),
+      } as LogSearchIn);
+      setHits((prev) => (c ? [...prev, ...res.hits] : res.hits));
+      setCursor(res.next_cursor ?? null);
+      setTotal(res.total);
+      setSearched(true);
     } catch {
       // search.isError drives the error Alert below; swallow to avoid an unhandled rejection
     }
   }
+  const run = () => {
+    setHits([]);
+    setCursor(null);
+    setTotal(null);
+    fetchPage(null);
+  };
+  const loadMore = () => fetchPage(cursor);
 
   return (
     <Stack>
@@ -68,32 +81,43 @@ export function LogsPage() {
                      value={query} onChange={(e) => setQuery(e.currentTarget.value)} data-testid="logs-query" />
           <Group>
             <Button onClick={run} loading={search.isPending} data-testid="logs-search">Search</Button>
-            {result && <Text size="sm" c="dimmed">{result.total} matches</Text>}
+            {total !== null && (
+              <Text size="sm" c="dimmed" data-testid="logs-count">
+                showing {hits.length} of {total}
+              </Text>
+            )}
           </Group>
         </Stack>
       </Card>
 
       {search.isError && <Alert color="red">Log search failed.</Alert>}
 
-      {result && (
-        <Table highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Time</Table.Th><Table.Th>Device</Table.Th>
-              <Table.Th>Program</Table.Th><Table.Th>Message</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {result.hits.map((h) => (
-              <Table.Tr key={h.id} style={{ cursor: "pointer" }} onClick={() => setRaw(h.source)} data-testid={`logrow-${h.id}`}>
-                <Table.Td>{h.timestamp}</Table.Td>
-                <Table.Td>{deviceName(h.device_id)}</Table.Td>
-                <Table.Td>{h.program}</Table.Td>
-                <Table.Td>{h.message}</Table.Td>
+      {searched && (
+        <Stack>
+          <Table highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Time</Table.Th><Table.Th>Device</Table.Th>
+                <Table.Th>Program</Table.Th><Table.Th>Message</Table.Th>
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {hits.map((h) => (
+                <Table.Tr key={h.id} style={{ cursor: "pointer" }} onClick={() => setRaw(h.source)} data-testid={`logrow-${h.id}`}>
+                  <Table.Td>{h.timestamp}</Table.Td>
+                  <Table.Td>{deviceName(h.device_id)}</Table.Td>
+                  <Table.Td>{h.program}</Table.Td>
+                  <Table.Td>{h.message}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+          {cursor && (
+            <Button variant="default" onClick={loadMore} loading={search.isPending} data-testid="logs-loadmore">
+              Load more
+            </Button>
+          )}
+        </Stack>
       )}
 
       <Modal opened={raw !== null} onClose={() => setRaw(null)} title="Raw document" size="lg">
