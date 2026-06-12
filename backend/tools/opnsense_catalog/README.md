@@ -53,9 +53,13 @@ The running app fetches catalogs dynamically; they are NOT committed. To publish
 
 ```bash
 cd backend
-# 1. Generate every catalog + the sha256 manifest for the versions you support:
+# 0. (optional) Discover the Community version list from the opnsense/core git tags, instead of
+#    hardcoding it — this is the set of released versions (every major/minor/hotfix is a tag):
+VERSIONS=$(python -m tools.opnsense_catalog.cli list-versions --minimum 26.1)
+
+# 1. Generate every catalog + the sha256 manifest for those versions:
 python -m tools.opnsense_catalog.cli generate-all \
-    --edition community --versions 26.1.7,26.1.8 --fetch --out-dir /tmp/catalogs
+    --edition community --versions "$VERSIONS" --fetch --out-dir /tmp/catalogs
 
 # 2. Refresh the Business→Community base map (scrapes docs.opnsense.org):
 python -m tools.opnsense_catalog.cli business-base --fetch --out /tmp/catalogs/business-base.json

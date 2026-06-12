@@ -33,3 +33,24 @@ def parse_business_base(pages: dict[str, str]) -> dict:
         if m:
             mapping[be_version] = m.group(1)
     return {"map": mapping}
+
+
+# A git tag that is a release version: NN.NN or NN.NN.NN (drops non-version tags like "stable/26.1").
+_RELEASE_TAG_RE = re.compile(r"\A\d+\.\d+(?:\.\d+)?\Z")
+
+
+def _version_key(v: str) -> tuple[int, ...]:
+    return tuple(int(p) for p in v.split("."))
+
+
+def release_versions(tags: list[str], *, minimum: str | None = None) -> list[str]:
+    """Filter raw `opnsense/core` git tags to release versions, sorted ascending.
+
+    The Community version list = the core repo's release tags. Keeps only NN.NN / NN.NN.NN tags;
+    `minimum` (e.g. "26.1") drops anything older so we don't generate catalogs for ancient releases.
+    """
+    out = [t for t in tags if _RELEASE_TAG_RE.match(t)]
+    if minimum is not None:
+        floor = _version_key(minimum)
+        out = [t for t in out if _version_key(t) >= floor]
+    return sorted(set(out), key=_version_key)

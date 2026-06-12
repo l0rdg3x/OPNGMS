@@ -39,3 +39,20 @@ def test_parse_business_base_extracts_community_base():
 def test_parse_business_base_skips_pages_without_the_marker():
     out = parse_business_base({"26.4": _BE_26_4, "99.9": "<html>no marker here</html>"})
     assert out == {"map": {"26.4": "26.1.6"}}
+
+
+from tools.opnsense_catalog.publish import release_versions
+
+
+def test_release_versions_filters_and_sorts():
+    tags = ["26.1.8", "junk", "stable/26.1", "25.7.9", "26.1.7", "v1.0", "26.1"]
+    assert release_versions(tags) == ["25.7.9", "26.1", "26.1.7", "26.1.8"]
+
+
+def test_release_versions_minimum_drops_older():
+    tags = ["25.7.9", "26.1.7", "26.1.8"]
+    assert release_versions(tags, minimum="26.1") == ["26.1.7", "26.1.8"]
+
+
+def test_release_versions_dedupes():
+    assert release_versions(["26.1.8", "26.1.8"]) == ["26.1.8"]
