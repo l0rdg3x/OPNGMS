@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     silent_alert_cron_minute: int = 0  # minute of each hour the silent-tenant detector runs
     # Catalog distribution (sub-project 2): where the app fetches versioned OPNsense catalogs.
     catalog_release_base_url: str = (
-        "https://github.com/opngms/opngms/releases/download/catalogs"
+        "https://github.com/l0rdg3x/OPNGMS/releases/download/catalogs"
     )
     catalog_auto_fetch: bool = True  # fetch + cache catalogs on cache-miss (off => cache-only)
 
