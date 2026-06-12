@@ -60,3 +60,9 @@ def main(argv: list[str]) -> int:
         print(json.dumps(diff_catalogs(a, b), indent=2))
         return 0
     return 1
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(main(sys.argv[1:]))

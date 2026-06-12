@@ -25,8 +25,11 @@ def assemble_model(module: str, parsed: ParsedModel, forms: dict[str, dict],
         grids.append(g)
     pages: dict[str, list[str]] = {}
     for f in parsed.fields:
-        pages.setdefault(forms.get(f.path, {}).get("page", ""), []).append(f.path)
-    page_list = [{"id": p or "general", "fields": sorted(fs)} for p, fs in sorted(pages.items())]
+        # Resolve the page id BEFORE grouping so fields with no form entry ("") merge into the
+        # default "general" page instead of producing a duplicate "general" entry.
+        page = forms.get(f.path, {}).get("page", "") or "general"
+        pages.setdefault(page, []).append(f.path)
+    page_list = [{"id": p, "fields": sorted(fs)} for p, fs in sorted(pages.items())]
     return Model(id=model_root, title=module, source=source, model_root=model_root,
                  xml_path=xml_path, endpoints=endpoints,
                  fields=_label_fields(parsed.fields, forms), grids=grids, pages=page_list)
