@@ -13,7 +13,7 @@ async def _seed_login(api_client, db_engine, reachable=True):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug="acme")
-        admin = await make_user(s, email="ta@x.io", password="pw12345")
+        admin = await make_user(s, email="ta@x.io", password="pw12345-secure")
         await make_membership(s, user_id=admin.id, tenant_id=t.id, role="tenant_admin")
         await s.commit()
         tenant_id = t.id
@@ -26,7 +26,7 @@ async def _seed_login(api_client, db_engine, reachable=True):
         )
 
     app.dependency_overrides[get_prober] = lambda: _fake
-    await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345-secure"})
     return tenant_id
 
 
@@ -58,7 +58,7 @@ async def test_test_connection_threads_fingerprint(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug="acme2")
-        admin = await make_user(s, email="tb@x.io", password="pw12345")
+        admin = await make_user(s, email="tb@x.io", password="pw12345-secure")
         await make_membership(s, user_id=admin.id, tenant_id=t.id, role="tenant_admin")
         await s.commit()
         tenant_id = t.id
@@ -70,7 +70,7 @@ async def test_test_connection_threads_fingerprint(api_client, db_engine):
         return ProbeResult(reachable=True, firmware_version="24.7", error=None)
 
     app.dependency_overrides[get_prober] = lambda: _capturing_prober
-    await api_client.post("/api/login", json={"email": "tb@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "tb@x.io", "password": "pw12345-secure"})
 
     # Create device with a tls_fingerprint and verify_tls=False
     fp = "aa" * 32  # 64 hex chars = valid SHA-256 fingerprint

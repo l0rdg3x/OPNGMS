@@ -29,8 +29,8 @@ async def _login_superadmin(api_client, db_engine):
         t = await make_tenant(s, slug="acme-gr")
         await s.commit()
         tid = t.id
-    await api_client.post("/api/setup", json={"email": "sa-gr@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa-gr@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa-gr@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa-gr@x.io", "password": "pw12345-secure"})
     return tid
 
 
@@ -157,7 +157,7 @@ async def _seed_tenant_with_report(db_engine, app_role_client, slug: str, sa_ema
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug=slug)
-        await make_user(s, email=sa_email, password="pw12345", is_superadmin=True)
+        await make_user(s, email=sa_email, password="pw12345-secure", is_superadmin=True)
         await s.commit()
         tid = t.id
 
@@ -183,7 +183,7 @@ async def _seed_tenant_with_report(db_engine, app_role_client, slug: str, sa_ema
         await s.commit()
 
     # Login and generate (creates a row in generated_reports for this tenant)
-    await app_role_client.post("/api/login", json={"email": sa_email, "password": "pw12345"})
+    await app_role_client.post("/api/login", json={"email": sa_email, "password": "pw12345-secure"})
     r = await app_role_client.post(
         f"/api/tenants/{tid}/reports",
         json={
@@ -207,12 +207,12 @@ async def test_cross_tenant_list_isolation(app_role_api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         tb = await make_tenant(s, slug="iso-list-b")
-        await make_user(s, email="iso-list-sa-b@x.io", password="pw12345", is_superadmin=True)
+        await make_user(s, email="iso-list-sa-b@x.io", password="pw12345-secure", is_superadmin=True)
         await s.commit()
         tb_id = tb.id
 
     # Login as tenant B's superadmin
-    await app_role_api_client.post("/api/login", json={"email": "iso-list-sa-b@x.io", "password": "pw12345"})
+    await app_role_api_client.post("/api/login", json={"email": "iso-list-sa-b@x.io", "password": "pw12345-secure"})
     r = await app_role_api_client.get(f"/api/tenants/{tb_id}/reports")
     assert r.status_code == 200
     assert r.json() == []  # B sees no reports
@@ -227,12 +227,12 @@ async def test_cross_tenant_download_isolation(app_role_api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         tb = await make_tenant(s, slug="iso-dl-b")
-        await make_user(s, email="iso-dl-sa-b@x.io", password="pw12345", is_superadmin=True)
+        await make_user(s, email="iso-dl-sa-b@x.io", password="pw12345-secure", is_superadmin=True)
         await s.commit()
         tb_id = tb.id
 
     # Login as B and try to download A's report via B's tenant prefix
-    await app_role_api_client.post("/api/login", json={"email": "iso-dl-sa-b@x.io", "password": "pw12345"})
+    await app_role_api_client.post("/api/login", json={"email": "iso-dl-sa-b@x.io", "password": "pw12345-secure"})
     r = await app_role_api_client.get(f"/api/tenants/{tb_id}/reports/{report_a_id}/download")
     assert r.status_code == 404  # RLS hides A's row from B's session
 

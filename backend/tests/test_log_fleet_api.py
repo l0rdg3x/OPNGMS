@@ -31,8 +31,8 @@ async def test_superadmin_sees_fleet(api_client, db_engine, monkeypatch):
         return {}
     monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
     await _seed_one_tenant(db_engine)
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     r = await api_client.get("/api/admin/log-fleet")
     assert r.status_code == 200, r.text
     body = r.json()
@@ -73,8 +73,8 @@ async def test_superadmin_fleet_rls_isolated(app_role_api_client, db_engine, mon
         return {}
     monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
     await _seed_two_tenants(db_engine)
-    await app_role_api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await app_role_api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await app_role_api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await app_role_api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     r = await app_role_api_client.get("/api/admin/log-fleet")
     assert r.status_code == 200, r.text
     rows = {t["tenant_name"]: t for t in r.json()["tenants"]}
@@ -92,8 +92,8 @@ async def test_window_param_maps_through(api_client, db_engine, monkeypatch):
 
     monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
     await _seed_one_tenant(db_engine)
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
 
     r = await api_client.get("/api/admin/log-fleet", params={"window": "7d"})
     assert r.status_code == 200, r.text
@@ -115,9 +115,9 @@ async def test_window_param_maps_through(api_client, db_engine, monkeypatch):
 async def test_non_superadmin_denied(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await make_user(s, email="op@x.io", password="pw12345-secure", is_superadmin=False)
         await s.commit()
-    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345-secure"})
     r = await api_client.get("/api/admin/log-fleet")
     assert r.status_code == 403
 
@@ -131,8 +131,8 @@ async def test_silent_tenant_alerts_lists_active_rows(api_client, db_engine):
             "INSERT INTO silent_tenant_alerts (id,tenant_id,tenant_name) VALUES (:i,:t,'Acme')"),
             {"i": uuid.uuid4(), "t": tid})
         await s.commit()
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     r = await api_client.get("/api/admin/silent-tenant-alerts")
     assert r.status_code == 200, r.text
     body = r.json()
@@ -144,9 +144,9 @@ async def test_silent_tenant_alerts_lists_active_rows(api_client, db_engine):
 async def test_silent_tenant_alerts_non_superadmin_denied(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await make_user(s, email="op@x.io", password="pw12345-secure", is_superadmin=False)
         await s.commit()
-    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345-secure"})
     r = await api_client.get("/api/admin/silent-tenant-alerts")
     assert r.status_code == 403
 
@@ -156,8 +156,8 @@ async def test_export_csv(api_client, db_engine, monkeypatch):
         return {}
     monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
     await _seed_one_tenant(db_engine)
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     r = await api_client.get("/api/admin/log-fleet/export", params={"format": "csv", "window": "7d"})
     assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("text/csv")
@@ -173,8 +173,8 @@ async def test_export_pdf(api_client, db_engine, monkeypatch):
         return {}
     monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
     await _seed_one_tenant(db_engine)
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     r = await api_client.get("/api/admin/log-fleet/export", params={"format": "pdf"})
     assert r.status_code == 200, r.text
     assert r.headers["content-type"] == "application/pdf"
@@ -182,8 +182,8 @@ async def test_export_pdf(api_client, db_engine, monkeypatch):
 
 
 async def test_export_invalid_format_400(api_client, db_engine):
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     r = await api_client.get("/api/admin/log-fleet/export", params={"format": "xlsx"})
     assert r.status_code == 400
 
@@ -191,9 +191,9 @@ async def test_export_invalid_format_400(api_client, db_engine):
 async def test_export_non_superadmin_denied(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await make_user(s, email="op@x.io", password="pw12345-secure", is_superadmin=False)
         await s.commit()
-    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345-secure"})
     r = await api_client.get("/api/admin/log-fleet/export", params={"format": "csv"})
     assert r.status_code == 403
 
@@ -203,8 +203,8 @@ async def test_superadmin_drills_into_tenant_devices(api_client, db_engine, monk
         return {}  # no logs -> the enabled device is silent
     monkeypatch.setattr("app.services.log_fleet.fleet_device_log_stats", fake_stats)
     tid = await _seed_one_tenant(db_engine)
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     r = await api_client.get(f"/api/admin/log-fleet/tenants/{tid}/devices", params={"window": "7d"})
     assert r.status_code == 200, r.text
     body = r.json()
@@ -217,8 +217,8 @@ async def test_superadmin_drills_into_tenant_devices(api_client, db_engine, monk
 
 
 async def test_tenant_devices_unknown_tenant_404(api_client, db_engine):
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     r = await api_client.get(f"/api/admin/log-fleet/tenants/{uuid.uuid4()}/devices")
     assert r.status_code == 404
 
@@ -226,8 +226,8 @@ async def test_tenant_devices_unknown_tenant_404(api_client, db_engine):
 async def test_tenant_devices_non_superadmin_denied(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await make_user(s, email="op@x.io", password="pw12345-secure", is_superadmin=False)
         await s.commit()
-    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345-secure"})
     r = await api_client.get(f"/api/admin/log-fleet/tenants/{uuid.uuid4()}/devices")
     assert r.status_code == 403

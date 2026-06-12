@@ -32,7 +32,7 @@ async def _seed(db_engine, *, payload, kind="opnsense_setting", target="ids_gene
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     tid, did = uuid.uuid4(), uuid.uuid4()
     async with factory() as s:
-        admin = await make_user(s, email="admin@x.io", password="pw12345")
+        admin = await make_user(s, email="admin@x.io", password="pw12345-secure")
         await s.execute(text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,'A','a','active')"), {"i": tid})
         await make_membership(s, user_id=admin.id, tenant_id=tid, role="tenant_admin")
         tpl_id = None
@@ -57,7 +57,7 @@ async def _seed(db_engine, *, payload, kind="opnsense_setting", target="ids_gene
 
 
 async def _login(api_client, email="admin@x.io"):
-    r = await api_client.post("/api/login", json={"email": email, "password": "pw12345"})
+    r = await api_client.post("/api/login", json={"email": email, "password": "pw12345-secure"})
     assert r.status_code == 200, r.text
 
 

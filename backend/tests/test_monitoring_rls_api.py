@@ -22,7 +22,7 @@ async def _setup(app_role_api_client, db_engine):
         await s.commit()
         ta, tb = a.id, b.id
     await app_role_api_client.post(
-        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
+        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"}
     )
 
     async def _fake(*ar, **kw):
@@ -30,7 +30,7 @@ async def _setup(app_role_api_client, db_engine):
 
     app.dependency_overrides[get_prober] = lambda: _fake
     await app_role_api_client.post(
-        "/api/login", json={"email": "sa@x.io", "password": "pw12345"}
+        "/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"}
     )
     return ta, tb
 

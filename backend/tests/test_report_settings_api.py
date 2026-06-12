@@ -48,8 +48,8 @@ async def _login_superadmin(api_client, db_engine):
         t = await make_tenant(s, slug="acme")
         await s.commit()
         tid = t.id
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     return tid
 
 
@@ -58,16 +58,16 @@ async def _seed_members(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug="beta")
-        admin = await make_user(s, email="admin@x.io", password="pw12345")
+        admin = await make_user(s, email="admin@x.io", password="pw12345-secure")
         await make_membership(s, user_id=admin.id, tenant_id=t.id, role="tenant_admin")
-        operator = await make_user(s, email="op@x.io", password="pw12345")
+        operator = await make_user(s, email="op@x.io", password="pw12345-secure")
         await make_membership(s, user_id=operator.id, tenant_id=t.id, role="operator")
         await s.commit()
         return t.id, "admin@x.io", "op@x.io"
 
 
 async def _login(api_client, email):
-    await api_client.post("/api/login", json={"email": email, "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": email, "password": "pw12345-secure"})
 
 
 # ---------------------------------------------------------------------------
@@ -271,12 +271,12 @@ async def test_cross_tenant_isolation(app_role_api_client, db_engine):
     async with factory() as s:
         ta = await make_tenant(s, slug="isolation-a")
         tb = await make_tenant(s, slug="isolation-b")
-        sa = await make_user(s, email="iso-sa@x.io", password="pw12345", is_superadmin=True)
+        sa = await make_user(s, email="iso-sa@x.io", password="pw12345-secure", is_superadmin=True)
         await s.commit()
         ta_id, tb_id = ta.id, tb.id
 
     # Login as superadmin via app_role client (uses opngms_app role for RLS)
-    await app_role_api_client.post("/api/login", json={"email": "iso-sa@x.io", "password": "pw12345"})
+    await app_role_api_client.post("/api/login", json={"email": "iso-sa@x.io", "password": "pw12345-secure"})
 
     # Set custom title for tenant A
     r = await app_role_api_client.put(
@@ -300,11 +300,11 @@ async def test_cross_tenant_logo_isolation(app_role_api_client, db_engine):
     async with factory() as s:
         ta = await make_tenant(s, slug="logo-iso-a")
         tb = await make_tenant(s, slug="logo-iso-b")
-        await make_user(s, email="logo-sa@x.io", password="pw12345", is_superadmin=True)
+        await make_user(s, email="logo-sa@x.io", password="pw12345-secure", is_superadmin=True)
         await s.commit()
         ta_id, tb_id = ta.id, tb.id
 
-    await app_role_api_client.post("/api/login", json={"email": "logo-sa@x.io", "password": "pw12345"})
+    await app_role_api_client.post("/api/login", json={"email": "logo-sa@x.io", "password": "pw12345-secure"})
 
     # Upload logo for tenant A
     r = await app_role_api_client.put(

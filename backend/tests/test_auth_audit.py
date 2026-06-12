@@ -14,9 +14,9 @@ async def _audit_actions(db_engine):
 
 async def test_login_and_logout_are_audited(api_client, db_engine):
     await api_client.post(
-        "/api/setup", json={"email": "a@x.io", "name": "A", "password": "pw12345"}
+        "/api/setup", json={"email": "a@x.io", "name": "A", "password": "pw12345-secure"}
     )
-    await api_client.post("/api/login", json={"email": "a@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "a@x.io", "password": "pw12345-secure"})
     actions = await _audit_actions(db_engine)
     assert "auth.login" in actions
     await api_client.post("/api/logout", headers=csrf_headers(api_client))

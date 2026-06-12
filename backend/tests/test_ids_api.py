@@ -17,7 +17,7 @@ async def _seed_members(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug="acme")
-        admin = await make_user(s, email="ta@x.io", password="pw12345")
+        admin = await make_user(s, email="ta@x.io", password="pw12345-secure")
         await make_membership(s, user_id=admin.id, tenant_id=t.id, role="tenant_admin")
         await s.commit()
         return t.id
@@ -40,7 +40,7 @@ async def _insert_device(db_engine, tenant_id, name="fw1"):
 
 
 async def _login(api_client, email):
-    await api_client.post("/api/login", json={"email": email, "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": email, "password": "pw12345-secure"})
 
 
 async def test_list_rulesets_returns_trimmed_catalog(api_client, db_engine, monkeypatch):

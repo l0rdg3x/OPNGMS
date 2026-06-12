@@ -118,13 +118,13 @@ async def test_logout_all_and_purge(factory):
 
 
 async def _setup_login(api_client):
-    await api_client.post("/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456"})
-    await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456"})
+    await api_client.post("/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456-secure"})
+    await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456-secure"})
 
 
 async def test_login_sets_both_cookies(api_client):
-    await api_client.post("/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456"})
-    r = await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456"})
+    await api_client.post("/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456-secure"})
+    r = await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456-secure"})
     assert r.status_code == 200
     assert api_client.cookies.get("opngms_session")
     assert api_client.cookies.get("opngms_csrf")
@@ -162,10 +162,10 @@ async def test_login_rotation_deletes_old_session(api_client, db_engine):
     from sqlalchemy.ext.asyncio import async_sessionmaker as _asm
 
     # Setup: create user then log in twice; second login must delete the first session.
-    await api_client.post("/api/setup", json={"email": "rot@rot.io", "name": "R", "password": "pw-123456"})
-    await api_client.post("/api/login", json={"email": "rot@rot.io", "password": "pw-123456"})
+    await api_client.post("/api/setup", json={"email": "rot@rot.io", "name": "R", "password": "pw-123456-secure"})
+    await api_client.post("/api/login", json={"email": "rot@rot.io", "password": "pw-123456-secure"})
     # Second login carries the first session cookie, triggering anti-fixation rotation.
-    await api_client.post("/api/login", json={"email": "rot@rot.io", "password": "pw-123456"})
+    await api_client.post("/api/login", json={"email": "rot@rot.io", "password": "pw-123456-secure"})
 
     factory = _asm(db_engine, expire_on_commit=False)
     async with factory() as s:
@@ -201,10 +201,10 @@ async def test_app_ignores_raw_x_forwarded_for(api_client, db_engine):
     # lockout. Logging in with a forged header must NOT record the forged IP on the session.
     from sqlalchemy.ext.asyncio import async_sessionmaker as _asm
 
-    await api_client.post("/api/setup", json={"email": "xff@xff.io", "name": "X", "password": "pw-123456"})
+    await api_client.post("/api/setup", json={"email": "xff@xff.io", "name": "X", "password": "pw-123456-secure"})
     await api_client.post(
         "/api/login",
-        json={"email": "xff@xff.io", "password": "pw-123456"},
+        json={"email": "xff@xff.io", "password": "pw-123456-secure"},
         headers={"X-Forwarded-For": "9.9.9.9"},
     )
     factory = _asm(db_engine, expire_on_commit=False)
