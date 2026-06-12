@@ -453,12 +453,24 @@ class OpnsenseClient:
 
     async def add_syslog_destination(self, *, hostname: str, port: int, certificate_uuid: str,
                                      description: str = "OPNGMS log forwarding") -> str:
-        """Add a TLS (mTLS) remote-syslog destination presenting `certificate_uuid`; reconfigure. Returns uuid."""
+        """Add a TLS (mTLS) remote-syslog destination presenting the given client cert; reconfigure.
+
+        Verified live on OPNsense 26.1.9: the syslog destination's `certificate` field references the
+        cert by its legacy **refid**, NOT the MVC uuid that trust/cert/add returns — so we resolve the
+        refid first. We also RAISE on a rejected destination; otherwise a validation failure (e.g. a
+        wrong cert reference) silently leaves the box with an imported cert but no destination — which
+        is exactly the bug this fixes. Returns the new destination uuid."""
+        cert = await self._get(f"trust/cert/get/{_safe_uuid(certificate_uuid)}")
+        cert_ref = (cert.get("cert", {}) or {}).get("refid", "")
+        if not cert_ref:
+            raise ApiError(0, f"imported cert {certificate_uuid} has no refid on the device")
         res = await self._post("syslog/settings/addDestination", {"destination": {
             "enabled": "1", "transport": "tls4", "program": "", "level": "", "facility": "",
-            "hostname": hostname, "certificate": certificate_uuid, "port": str(port),
+            "hostname": hostname, "certificate": cert_ref, "port": str(port),
             "rfc5424": "1", "description": description}})
         uuid_ = res.get("uuid", "")
+        if res.get("result") != "saved" or not uuid_:
+            raise ApiError(0, f"syslog addDestination rejected: {res.get('validations') or res}")
         await self._post("syslog/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
         return uuid_
 

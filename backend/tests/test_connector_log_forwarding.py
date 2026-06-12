@@ -32,7 +32,10 @@ async def test_import_cert_posts_import_with_key():
 
 
 @respx.mock
-async def test_add_syslog_destination_then_reconfigure():
+async def test_add_syslog_destination_uses_cert_refid_then_reconfigure():
+    # OPNsense's syslog destination references the cert by its legacy refid, not the MVC uuid.
+    respx.get(url__regex=r".*/api/trust/cert/get/cert-uuid.*").mock(
+        return_value=httpx.Response(200, json={"cert": {"refid": "abc123refid"}}))
     add = respx.post(url__regex=r".*/api/syslog/settings/addDestination.*").mock(
         return_value=httpx.Response(200, json={"result": "saved", "uuid": "dest-uuid"}))
     rec = respx.post(url__regex=r".*/api/syslog/service/reconfigure.*").mock(
@@ -43,7 +46,22 @@ async def test_add_syslog_destination_then_reconfigure():
     assert add.called and rec.called
     body = add.calls[0].request.read().decode()
     assert "tls4" in body
-    assert "cert-uuid" in body
+    assert "abc123refid" in body          # the refid is sent as the certificate ref
+    assert "cert-uuid" not in body        # NOT the MVC uuid
+
+
+@respx.mock
+async def test_add_syslog_destination_raises_on_rejection():
+    # A validation failure must raise, not silently leave the box with a cert but no destination.
+    from app.connectors.opnsense.client import OpnsenseError
+    respx.get(url__regex=r".*/api/trust/cert/get/cert-uuid.*").mock(
+        return_value=httpx.Response(200, json={"cert": {"refid": "abc123refid"}}))
+    respx.post(url__regex=r".*/api/syslog/settings/addDestination.*").mock(
+        return_value=httpx.Response(200, json={"result": "failed",
+            "validations": {"destination.certificate": "bad"}}))
+    with pytest.raises(OpnsenseError):
+        await _client().add_syslog_destination(
+            hostname="logs.example", port=6514, certificate_uuid="cert-uuid")
 
 
 @respx.mock
