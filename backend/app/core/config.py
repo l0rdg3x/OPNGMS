@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     syslog_tls_port: int = 6514
     opensearch_url: str = "http://opensearch:9200"
     log_retention_days: int = 30
+    log_search_max_size: int = 200
+    log_search_max_range_days: int = 31
 
 
 @lru_cache

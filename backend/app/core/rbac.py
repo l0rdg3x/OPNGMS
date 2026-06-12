@@ -20,6 +20,7 @@ class Action(str, enum.Enum):
     AUDIT_VIEW = "audit.view"
     REPORT_GENERATE = "report.generate"
     REPORT_CONFIG = "report.config"
+    LOG_VIEW = "log.view"
 
 
 # Org-level actions: allowed ONLY to the superadmin (no per-tenant role grants them).
@@ -34,6 +35,7 @@ _TENANT_MATRIX: dict[Action, set[str]] = {
     Action.AUDIT_VIEW: {TENANT_ADMIN, OPERATOR, READ_ONLY},
     Action.REPORT_GENERATE: {TENANT_ADMIN, OPERATOR},
     Action.REPORT_CONFIG: {TENANT_ADMIN},
+    Action.LOG_VIEW: {TENANT_ADMIN, OPERATOR},
 }
 
 
