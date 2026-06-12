@@ -58,6 +58,18 @@ def test_generate_all_emits_catalogs_and_manifest(tmp_path):
     assert "generated_at" in manifest
 
 
+_BIZ = Path(__file__).parent / "fixtures/opnsense_catalog/business"
+
+
+def test_business_base_writes_map_from_html_dir(tmp_path):
+    out = tmp_path / "business-base.json"
+    rc = main(["business-base", "--html-dir", str(_BIZ), "--out", str(out)])
+    assert rc == 0
+    data = json.loads(out.read_text())
+    assert data["map"] == {"26.4": "26.1.6", "25.10": "25.7.9"}
+    assert "generated_at" in data
+
+
 def test_module_runs_as_main(tmp_path):
     # The regen job + README invoke `python -m tools.opnsense_catalog.cli …`; the __main__ guard
     # must actually call main(). Run from the backend root so `-m tools.…` resolves.

@@ -14,7 +14,7 @@ from tools.opnsense_catalog.endpoints import resolve_endpoints
 from tools.opnsense_catalog.fetch import fetch_source
 from tools.opnsense_catalog.form_parser import parse_forms
 from tools.opnsense_catalog.model_parser import parse_model
-from tools.opnsense_catalog.publish import build_manifest
+from tools.opnsense_catalog.publish import build_manifest, parse_business_base
 
 
 def _generate(edition: str, version: str, source: Path) -> dict:
@@ -42,6 +42,24 @@ def _write_catalog(edition: str, version: str, source: Path, out_dir: Path) -> t
     return f"{edition}/{version}", blob
 
 
+def _fetch_business_pages() -> dict[str, str]:  # pragma: no cover — network, ops use only
+    """Scrape the BE release index + each BE_<v>.html. Returns {business_version: html}."""
+    import re
+
+    import httpx
+
+    index = httpx.get("https://docs.opnsense.org/releases.html", timeout=30.0,
+                      follow_redirects=True).text
+    versions = sorted(set(re.findall(r"BE_(\d+\.\d+)\.html", index)))
+    pages: dict[str, str] = {}
+    for v in versions:
+        r = httpx.get(f"https://docs.opnsense.org/releases/BE_{v}.html",
+                      timeout=30.0, follow_redirects=True)
+        if r.status_code == 200:
+            pages[v] = r.text
+    return pages
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="opnsense-catalog")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -60,6 +78,10 @@ def main(argv: list[str]) -> int:
     ga.add_argument("--source-root", help="dir with one extracted source tree per version: <root>/<version>/")
     ga.add_argument("--fetch", action="store_true", help="download each tag instead of --source-root")
     ga.add_argument("--out-dir", required=True)
+    bb = sub.add_parser("business-base")
+    bb.add_argument("--html-dir", help="dir of vendored BE_<version>.html files")
+    bb.add_argument("--fetch", action="store_true", help="scrape docs.opnsense.org instead")
+    bb.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
     if args.cmd == "generate":
@@ -87,6 +109,18 @@ def main(argv: list[str]) -> int:
         manifest["generated_at"] = datetime.now(UTC).isoformat()
         (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         print(json.dumps({"wrote": str(out_dir), "versions": versions}))
+        return 0
+    if args.cmd == "business-base":
+        if args.fetch:
+            pages = _fetch_business_pages()
+        else:
+            pages = {}
+            for p in sorted(Path(args.html_dir).glob("BE_*.html")):
+                pages[p.stem.removeprefix("BE_")] = p.read_text()
+        data = parse_business_base(pages)
+        data["generated_at"] = datetime.now(UTC).isoformat()
+        Path(args.out).write_text(json.dumps(data, indent=2) + "\n")
+        print(json.dumps({"wrote": args.out, "count": len(data["map"])}))
         return 0
     if args.cmd == "diff":
         a = json.loads(Path(args.a).read_text())
