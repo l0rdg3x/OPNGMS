@@ -36,13 +36,19 @@ def _options(el) -> list[str]:
     return [(opt.text or opt.tag) for opt in list(ov)]
 
 
-def _walk(node, prefix: str, fields: list[Field]) -> None:
+def _walk(node, prefix: str, fields: list[Field], grids) -> None:
+    from tools.opnsense_catalog.types import Grid
     for child in list(node):
         tag = child.tag
         path = f"{prefix}.{tag}" if prefix else tag
         cls = child.get("type")
+        if cls == "ArrayField":
+            item_fields: list[Field] = []
+            _walk(child, "", item_fields, [])           # item fields are relative to the row
+            grids.append(Grid(path=path, fields=item_fields))
+            continue
         if cls is None:
-            _walk(child, path, fields)              # a container node -> recurse
+            _walk(child, path, fields, grids)
             continue
         base = _TYPE_MAP.get(cls)
         confidence = "rich" if base is not None else "raw"
@@ -60,6 +66,7 @@ def parse_model(xml_text: str) -> ParsedModel:
     mount = (root.findtext("mount") or "").strip()
     items = root.find("items")
     fields: list[Field] = []
+    grids: list = []
     if items is not None:
-        _walk(items, "", fields)
-    return ParsedModel(mount=mount, fields=fields, grids=[])
+        _walk(items, "", fields, grids)
+    return ParsedModel(mount=mount, fields=fields, grids=grids)
