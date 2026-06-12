@@ -1,0 +1,82 @@
+# Opt-in log lake — MULTI-NODE OpenSearch (3 nodes, HA). Use INSTEAD of docker-compose.logs.yml:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.logs.multinode.yml up -d
+# Verify HA at a staging bring-up (node loss -> index stays green). Internal-only, no published port.
+
+x-os-common: &os-common
+  image: opensearchproject/opensearch:2.17.1
+  environment: &os-env
+    cluster.name: opngms-logs
+    bootstrap.memory_lock: "true"
+    DISABLE_SECURITY_PLUGIN: "true"
+    OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    TZ: ${TZ:-UTC}
+    discovery.seed_hosts: opensearch-n1,opensearch-n2,opensearch-n3
+    cluster.initial_cluster_manager_nodes: opensearch-n1,opensearch-n2,opensearch-n3
+  ulimits:
+    memlock: { soft: -1, hard: -1 }
+  restart: unless-stopped
+
+services:
+  opensearch-n1:
+    <<: *os-common
+    environment:
+      <<: *os-env
+      node.name: opensearch-n1
+    volumes:
+      - opngms_os_n1:/usr/share/opensearch/data
+
+  opensearch-n2:
+    <<: *os-common
+    environment:
+      <<: *os-env
+      node.name: opensearch-n2
+    volumes:
+      - opngms_os_n2:/usr/share/opensearch/data
+
+  opensearch-n3:
+    <<: *os-common
+    environment:
+      <<: *os-env
+      node.name: opensearch-n3
+    volumes:
+      - opngms_os_n3:/usr/share/opensearch/data
+
+  syslog-bootstrap:
+    image: opngms-backend:latest
+    command: ["python", "-m", "app.cli", "syslog-bootstrap", "--cert-dir", "/certs"]
+    env_file: .env
+    environment:
+      TZ: ${TZ:-UTC}
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch-n1:9200}
+    volumes:
+      - opngms_syslog_certs:/certs
+    depends_on:
+      opensearch-n1:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  syslog-ng:
+    image: balabit/syslog-ng:4.5.0
+    command: ["--no-caps", "-F"]
+    environment:
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch-n1:9200}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${SYSLOG_TLS_PORT:-6514}:6514"
+    volumes:
+      - ./deploy/syslog-ng/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro
+      - opngms_syslog_certs:/certs:ro
+      - opngms_syslog_buffer:/var/lib/syslog-ng
+    depends_on:
+      syslog-bootstrap:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  opngms_os_n1:
+  opngms_os_n2:
+  opngms_os_n3:
+  opngms_syslog_certs:
+  opngms_syslog_buffer:

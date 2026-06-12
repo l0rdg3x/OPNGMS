@@ -405,6 +405,23 @@ The overlay adds three services:
 - OpenSearch port 9200 is **not published** — it is only reachable on the internal Compose network.
   The syslog-ng receiver and the OPNGMS backend reach it at `OPENSEARCH_URL=http://opensearch:9200`.
 
+### High availability (multi-node OpenSearch)
+
+For production resilience, run a 3-node OpenSearch cluster **instead of** the single-node overlay
+(the two are alternatives — do **not** combine them):
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.logs.multinode.yml up -d
+```
+
+`docker-compose.logs.multinode.yml` starts `opensearch-n1/-n2/-n3` (one cluster, each on its own data
+volume) plus the same `syslog-bootstrap` + `syslog-ng` services pointing at `opensearch-n1`. Apply the
+replicated template `deploy/opensearch/index-template.multinode.json` (**2 shards, 1 replica**) so each
+shard has a copy on another node — losing one node keeps every index green and queryable. The cluster
+stays internal-only (no published port; same trust boundary as the single-node overlay). HA behaviour
+(node loss → index stays available) is verified at the staging bring-up, alongside the syslog-ng
+field-shape check and CRL enforcement.
+
 ### Configuration variables (`.env`)
 
 | Variable | Default | Purpose |
@@ -494,6 +511,7 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **Log lake Phase 2** — tenant-scoped, backend-mediated log **search API** (`LOG_VIEW`: tenant admins + operators) with a mandatory path-injected `tenant_id` filter a Lucene query can't escape, guarded query_string, capped page size / time range / paging depth; an in-app **Logs** investigation page (time + device + Lucene filters, results table, raw-document modal) | ✅ Done |
 | **Log lake Phase 3.1** — **provisioning UX**: a device-page "Log forwarding" tab to enable/disable forwarding (confirm-gated, `CONFIG_PUSH`), showing the client-cert expiry and a tenant-scoped **liveness** indicator ("last log received", best-effort OpenSearch lookup) | ✅ Done |
 | **Log lake Phase 3.2** — **certificate lifecycle**: operator **Rotate** (re-issue + swap on the box, no log gap) and **soft Revoke** (deprovision + record the serial in an RLS revocation ledger, "Revoked" state) from the same card; box-gated transactions, audited. Hard CRL enforcement at the receiver is a tracked follow-up (3.2-bis) | ✅ Done |
+| **Log lake Phase 3.3** — **scale**: unbounded **deep paging** for log search via OpenSearch **PIT + `search_after`** (stable across second-granularity timestamp ties, past the 10k window) with a "Load more" UI; plus a shipped **multi-node** OpenSearch config (3-node cluster compose + replicated index template) — HA verified at the staging bring-up | ✅ Done |
 
 ¹ Live configuration **push** to a device (firewall aliases) is verified against real OPNsense 26.1.9
 and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot as
