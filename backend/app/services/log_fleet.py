@@ -1,6 +1,7 @@
 """Superadmin cross-tenant log-fleet aggregates (the only cross-tenant views in the console)."""
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -12,6 +13,8 @@ from app.core.db import set_tenant_context
 from app.models.device import Device
 from app.models.device_log_forwarding import DeviceLogForwarding
 from app.repositories.tenant import TenantRepository
+
+logger = logging.getLogger(__name__)
 
 
 async def fleet_forwarding_counts(session: AsyncSession) -> dict[uuid.UUID, dict]:
@@ -54,7 +57,7 @@ async def fleet_log_stats(settings) -> dict[str, dict]:
     body = {
         "size": 0,
         "aggs": {"by_tenant": {
-            "terms": {"field": "tenant_id", "size": 1000},
+            "terms": {"field": "tenant_id", "size": settings.log_fleet_terms_size},
             "aggs": {
                 "last_log": {"max": {"field": "@timestamp"}},
                 "last_24h": {"filter": {"range": {"@timestamp": {"gte": "now-24h"}}}},
@@ -69,8 +72,15 @@ async def fleet_log_stats(settings) -> dict[str, dict]:
         data = resp.json()
     except (httpx.HTTPError, ValueError):
         return {}
+    by_tenant = data.get("aggregations", {}).get("by_tenant", {})
+    # Don't silently truncate: a non-zero sum_other_doc_count means tenants beyond the terms cap were
+    # dropped (they'd show as spuriously "silent"). Surface it instead of hiding it.
+    if (by_tenant.get("sum_other_doc_count") or 0) > 0:
+        logger.warning(
+            "log-fleet terms agg truncated at size=%d; some tenants are missing volume/last-log — "
+            "raise LOG_FLEET_TERMS_SIZE", settings.log_fleet_terms_size)
     out: dict[str, dict] = {}
-    for b in data.get("aggregations", {}).get("by_tenant", {}).get("buckets", []):
+    for b in by_tenant.get("buckets", []):
         out[str(b.get("key", ""))] = {
             "last_log_at": (b.get("last_log", {}) or {}).get("value_as_string"),
             "volume_24h": (b.get("last_24h", {}) or {}).get("doc_count"),

@@ -84,6 +84,7 @@ async def test_fleet_forwarding_counts_per_tenant(db_engine):
 
 class _S:
     opensearch_url = "http://opensearch:9200"
+    log_fleet_terms_size = 10000
 
 
 _OS = "http://opensearch:9200/opngms-logs-*/_search"
@@ -91,13 +92,28 @@ _OS = "http://opensearch:9200/opngms-logs-*/_search"
 
 @respx.mock
 async def test_fleet_log_stats_maps_buckets():
-    respx.post(_OS).mock(return_value=httpx.Response(200, json={"aggregations": {"by_tenant": {"buckets": [
+    route = respx.post(_OS).mock(return_value=httpx.Response(200, json={"aggregations": {"by_tenant": {"buckets": [
         {"key": "tid-a", "doc_count": 9, "last_log": {"value_as_string": "2026-06-01T10:00:00.000Z"},
          "last_24h": {"doc_count": 4}},
     ]}}}))
     stats = await fleet_log_stats(_S())
     assert stats["tid-a"]["volume_24h"] == 4
     assert stats["tid-a"]["last_log_at"] == "2026-06-01T10:00:00.000Z"
+    # the terms size comes from the setting (no silent 1000 cap)
+    import json
+    assert json.loads(route.calls[0].request.content)["aggs"]["by_tenant"]["terms"]["size"] == 10000
+
+
+@respx.mock
+async def test_fleet_log_stats_warns_on_truncation(caplog):
+    respx.post(_OS).mock(return_value=httpx.Response(200, json={"aggregations": {"by_tenant": {
+        "sum_other_doc_count": 42, "buckets": [
+            {"key": "tid-a", "doc_count": 9, "last_log": {"value_as_string": "2026-06-01T10:00:00.000Z"},
+             "last_24h": {"doc_count": 4}}]}}}))
+    import logging
+    with caplog.at_level(logging.WARNING):
+        await fleet_log_stats(_S())
+    assert any("terms agg truncated" in r.message for r in caplog.records)
 
 
 @respx.mock
