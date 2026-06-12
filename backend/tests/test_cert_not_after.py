@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from cryptography import x509
 
@@ -12,6 +12,15 @@ def test_cert_not_after_is_aware_and_future():
     assert isinstance(exp, datetime)
     assert exp.tzinfo is not None
     assert exp > datetime.now(UTC)
+
+
+def test_device_cert_lifetime_is_short_and_overridable():
+    # Short default (90d) bounds a stolen-key window; the `days` param is honoured.
+    ca_cert, ca_key = build_ca()
+    default_exp = cert_not_after(issue_device_cert(ca_cert, ca_key, tenant_id="t", device_id="d")[0])
+    assert default_exp < datetime.now(UTC) + timedelta(days=120)  # not the old 730d
+    short_exp = cert_not_after(issue_device_cert(ca_cert, ca_key, tenant_id="t", device_id="d", days=7)[0])
+    assert short_exp < datetime.now(UTC) + timedelta(days=8)
 
 
 def test_chain_has_ski_aki_for_strict_openssl():

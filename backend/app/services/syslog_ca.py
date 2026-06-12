@@ -77,14 +77,18 @@ def _issue(ca_cert_pem, ca_key_pem, *, subject, sans, eku, days) -> tuple[bytes,
     return _cert_pem(cert), _key_pem(key)
 
 
-def issue_device_cert(ca_cert_pem, ca_key_pem, *, tenant_id: str, device_id: str) -> tuple[bytes, bytes]:
-    """Per-device CLIENT cert: subject CN=<device_id>, O=<tenant_id>."""
+def issue_device_cert(ca_cert_pem, ca_key_pem, *, tenant_id: str, device_id: str,
+                      days: int = 90) -> tuple[bytes, bytes]:
+    """Per-device CLIENT cert: subject CN=<device_id>, O=<tenant_id>.
+
+    Default validity is short (90d) and auto-renewed (see cert_renewal) so a stolen device key has a
+    bounded window — receiver-side CRL revocation isn't enforceable on the current syslog-ng build."""
     subject = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, device_id),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, tenant_id),
     ])
     return _issue(ca_cert_pem, ca_key_pem, subject=subject, sans=None,
-                  eku=[ExtendedKeyUsageOID.CLIENT_AUTH], days=730)
+                  eku=[ExtendedKeyUsageOID.CLIENT_AUTH], days=days)
 
 
 def issue_server_cert(ca_cert_pem, ca_key_pem, *, hostname: str) -> tuple[bytes, bytes]:

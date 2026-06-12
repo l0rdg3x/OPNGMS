@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import crypto
+from app.core.config import get_settings
 from app.models.device_log_forwarding import DeviceLogForwarding
 from app.models.revoked_syslog_cert import RevokedSyslogCert
 from app.models.syslog_ca import SINGLETON_ID, SyslogCa
@@ -36,7 +37,8 @@ class SyslogCaService:
 
     def device_cert(self, ca: SyslogCa, *, tenant_id: uuid.UUID, device_id: uuid.UUID) -> tuple[bytes, bytes]:
         return issue_device_cert(ca.cert_pem.encode(), crypto.decrypt_bytes(bytes(ca.key_enc)),
-                                 tenant_id=str(tenant_id), device_id=str(device_id))
+                                 tenant_id=str(tenant_id), device_id=str(device_id),
+                                 days=get_settings().device_cert_days)
 
 
 async def provision_device(session: AsyncSession, *, tenant_id: uuid.UUID, device_id: uuid.UUID,
