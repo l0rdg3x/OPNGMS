@@ -249,6 +249,9 @@ export const en = {
     totalDevices: "Total devices",
     activeAlerts: "Active alerts",
   },
+  logForwarding: {
+    tab: "Log forwarding",
+  },
   config: {
     tabInfo: "Info",
     tabHealth: "Health",

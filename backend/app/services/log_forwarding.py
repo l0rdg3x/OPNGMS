@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import crypto
 from app.models.device_log_forwarding import DeviceLogForwarding
 from app.models.syslog_ca import SINGLETON_ID, SyslogCa
-from app.services.syslog_ca import build_ca, cert_serial_and_fingerprint, issue_device_cert
+from app.services.syslog_ca import (
+    build_ca,
+    cert_not_after,
+    cert_serial_and_fingerprint,
+    issue_device_cert,
+)
 
 
 class SyslogCaService:
@@ -41,6 +46,7 @@ async def provision_device(session: AsyncSession, *, tenant_id: uuid.UUID, devic
     ca = await svc.ensure_ca()
     cert_pem, key_pem = svc.device_cert(ca, tenant_id=tenant_id, device_id=device_id)
     serial, fp = cert_serial_and_fingerprint(cert_pem)
+    not_after = cert_not_after(cert_pem)
     # Load the existing row first so we can reuse an already-imported CA (re-provisioning a device
     # must NOT import a duplicate CA into the box's trust store).
     row = await session.get(DeviceLogForwarding, device_id)
@@ -57,6 +63,7 @@ async def provision_device(session: AsyncSession, *, tenant_id: uuid.UUID, devic
     row.enabled = True
     row.tenant_id = tenant_id
     row.cert_serial, row.cert_fingerprint = serial, fp
+    row.cert_not_after = not_after
     row.opnsense_ca_uuid, row.opnsense_cert_uuid, row.opnsense_dest_uuid = ca_uuid, cert_uuid, dest_uuid
     row.provisioned_at = datetime.now(UTC)
     await session.flush()

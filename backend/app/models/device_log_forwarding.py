@@ -26,6 +26,7 @@ class DeviceLogForwarding(Base):
     opnsense_cert_uuid: Mapped[str | None] = mapped_column(String, nullable=True)
     opnsense_dest_uuid: Mapped[str | None] = mapped_column(String, nullable=True)
     provisioned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cert_not_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

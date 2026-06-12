@@ -92,3 +92,33 @@ async def search_logs(settings, *, tenant_id, frm, to, query, device_id, page, s
             source=src,
         ))
     return SearchResult(total=int(total), hits=hits)
+
+
+async def latest_log_at(settings, *, tenant_id: uuid.UUID, device_id: uuid.UUID) -> datetime | None:
+    """Best-effort @timestamp of the most recent log for this device, or None if there are no logs
+    or OpenSearch is unreachable. Keeps the mandatory tenant filter (same guarantee as search_logs)."""
+    body = {
+        "query": {"bool": {"filter": [
+            {"term": {"tenant_id": str(tenant_id)}},
+            {"term": {"device_id": str(device_id)}},
+        ]}},
+        "sort": [{"@timestamp": "desc"}],
+        "size": 1,
+        "_source": ["@timestamp"],
+    }
+    url = f"{settings.opensearch_url}/opngms-logs-*/_search"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, params={"ignore_unavailable": "true"}, json=body)
+        resp.raise_for_status()
+        hits = resp.json().get("hits", {}).get("hits", [])
+        if not hits:
+            return None
+        ts = (hits[0].get("_source", {}) or {}).get("@timestamp")
+        if not ts:
+            return None
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except (httpx.HTTPError, ValueError, KeyError, AttributeError, TypeError):
+        # Best-effort liveness: a malformed OpenSearch response (e.g. a non-dict hit element)
+        # must never raise into the status request — degrade to "unknown".
+        return None

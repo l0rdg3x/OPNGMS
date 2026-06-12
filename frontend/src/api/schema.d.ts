@@ -1659,6 +1659,10 @@ export interface components {
             cert_fingerprint: string;
             /** Provisioned At */
             provisioned_at: string | null;
+            /** Cert Not After */
+            cert_not_after?: string | null;
+            /** Last Log At */
+            last_log_at?: string | null;
         };
         /** LogHitOut */
         LogHitOut: {

@@ -10,3 +10,5 @@ class LogForwardingOut(BaseModel):
     cert_serial: str
     cert_fingerprint: str
     provisioned_at: datetime | None
+    cert_not_after: datetime | None = None
+    last_log_at: datetime | None = None
