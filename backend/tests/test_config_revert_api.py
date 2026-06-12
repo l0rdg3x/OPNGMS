@@ -71,3 +71,27 @@ async def test_list_exposes_reverts_and_revertible(api_client, db_engine):
     row = next(r for r in g.json() if r["id"] == str(cid))
     assert row["revertible"] is True
     assert row["reverts_change_id"] is None
+
+
+async def test_revert_other_tenant_change_is_404(api_client, db_engine):
+    # tenant A admin tries to revert a change that belongs to tenant B's device -> 404
+    tidA, didA, _ = await _seed(db_engine)  # tenant A + its admin (admin@x.io)
+    # seed an unrelated change under a different tenant/device:
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    tidB, didB = uuid.uuid4(), uuid.uuid4()
+    async with factory() as s:
+        await s.execute(text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,'B','b','active')"), {"i": tidB})
+        await set_tenant_context(s, tidB)
+        await s.execute(text(
+            "INSERT INTO devices (id,tenant_id,name,base_url,api_key_enc,api_secret_enc,verify_tls,status,tags) "
+            "VALUES (:i,:t,'fwB','https://y',''::bytea,''::bytea,true,'reachable','{}')"), {"i": didB, "t": tidB})
+        cB = ConfigChange(tenant_id=tidB, device_id=didB, created_by=uuid.uuid4(), kind="alias",
+                          operation="add", target="A", payload={"name": "A"}, baseline_hash="", status="applied")
+        s.add(cB)
+        await s.commit()
+        cidB = cB.id
+    await _login(api_client)  # logs in as tenant A's admin
+    r = await api_client.post(
+        f"/api/tenants/{tidA}/devices/{didA}/config/changes/{cidB}/revert",
+        headers=csrf_headers(api_client), json={})
+    assert r.status_code == 404
