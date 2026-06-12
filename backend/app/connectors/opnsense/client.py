@@ -427,3 +427,37 @@ class OpnsenseClient:
         Raises AuthError/ReachabilityError/ApiError/ParseError on problems.
         """
         return (await self._capability("firmware_status")) or None
+
+    async def import_ca(self, ca_cert_pem: str, *, descr: str) -> str:
+        """Import a CA public cert into the box's trust store (so it trusts the receiver). Returns uuid."""
+        res = await self._post("trust/ca/add",
+                               {"ca": {"action": "existing", "descr": descr, "crt_payload": ca_cert_pem}})
+        return res.get("uuid", "")
+
+    async def import_cert(self, cert_pem: str, key_pem: str, *, descr: str) -> str:
+        """Import a client cert + key into the box's trust store (the syslog client cert). Returns uuid."""
+        res = await self._post("trust/cert/add",
+                               {"cert": {"action": "import", "descr": descr,
+                                         "crt_payload": cert_pem, "prv_payload": key_pem}})
+        return res.get("uuid", "")
+
+    async def add_syslog_destination(self, *, hostname: str, port: int, certificate_uuid: str,
+                                     description: str = "OPNGMS log forwarding") -> str:
+        """Add a TLS (mTLS) remote-syslog destination presenting `certificate_uuid`; reconfigure. Returns uuid."""
+        res = await self._post("syslog/settings/addDestination", {"destination": {
+            "enabled": "1", "transport": "tls4", "program": "", "level": "", "facility": "",
+            "hostname": hostname, "certificate": certificate_uuid, "port": str(port),
+            "rfc5424": "1", "description": description}})
+        uuid_ = res.get("uuid", "")
+        await self._post("syslog/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+        return uuid_
+
+    async def delete_syslog_destination(self, dest_uuid: str) -> dict:
+        """Delete a remote-syslog destination by uuid and reconfigure."""
+        res = await self._post(f"syslog/settings/delDestination/{dest_uuid}", {})
+        await self._post("syslog/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+        return res
+
+    async def delete_cert(self, cert_uuid: str) -> dict:
+        """Delete a certificate from the trust store by uuid."""
+        return await self._post(f"trust/cert/del/{cert_uuid}", {})
