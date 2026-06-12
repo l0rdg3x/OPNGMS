@@ -777,6 +777,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/report-schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Schedules */
+        get: operations["list_schedules_api_tenants__tenant_id__report_schedules_get"];
+        /** Upsert Schedule */
+        put: operations["upsert_schedule_api_tenants__tenant_id__report_schedules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/report-schedules/{schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Schedule */
+        delete: operations["delete_schedule_api_tenants__tenant_id__report_schedules__schedule_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/report-schedules/{schedule_id}/send-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Now */
+        post: operations["send_now_api_tenants__tenant_id__report_schedules__schedule_id__send_now_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/templates": {
         parameters: {
             query?: never;
@@ -1028,6 +1080,41 @@ export interface paths {
         get: operations["monit_test_model_api_tenants__tenant_id__devices__device_id__opnsense_monit_test_model_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/smtp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Smtp */
+        get: operations["get_smtp_api_admin_smtp_get"];
+        /** Put Smtp */
+        put: operations["put_smtp_api_admin_smtp_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/smtp/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Smtp */
+        post: operations["test_smtp_api_admin_smtp_test_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1722,6 +1809,51 @@ export interface components {
              */
             timezone: string;
         };
+        /** ReportScheduleIn */
+        ReportScheduleIn: {
+            /** Device Id */
+            device_id?: string | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Frequency */
+            frequency: string;
+            /** Weekday */
+            weekday?: number | null;
+            /**
+             * Hour
+             * @default 4
+             */
+            hour: number;
+            /** Recipients */
+            recipients?: string[];
+        };
+        /** ReportScheduleOut */
+        ReportScheduleOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Device Id */
+            device_id: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Frequency */
+            frequency: string;
+            /** Weekday */
+            weekday: number | null;
+            /** Hour */
+            hour: number;
+            /** Recipients */
+            recipients: string[];
+            /** Next Run At */
+            next_run_at: string | null;
+            /** Last Run At */
+            last_run_at: string | null;
+        };
         /** ReportSettingsIn */
         ReportSettingsIn: {
             /** Title */
@@ -1741,6 +1873,11 @@ export interface components {
              * @default en
              */
             language: string;
+            /**
+             * From Email
+             * @default
+             */
+            from_email: string;
         };
         /** ReportSettingsOut */
         ReportSettingsOut: {
@@ -1756,6 +1893,8 @@ export interface components {
             logo_mime: string | null;
             /** Language */
             language: string;
+            /** From Email */
+            from_email: string;
         };
         /** RotateSecretIn */
         RotateSecretIn: {
@@ -1816,6 +1955,112 @@ export interface components {
             otpauth_uri: string;
             /** Secret */
             secret: string;
+        };
+        /** SmtpSettingsIn */
+        SmtpSettingsIn: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Host */
+            host: string;
+            /** Port */
+            port: number;
+            /**
+             * Security
+             * @default starttls
+             */
+            security: string;
+            /** Username */
+            username?: string | null;
+            /**
+             * From Email
+             * Format: email
+             */
+            from_email: string;
+            /**
+             * From Name
+             * @default
+             */
+            from_name: string;
+            /** Password */
+            password?: string | null;
+            /**
+             * Clear Password
+             * @default false
+             */
+            clear_password: boolean;
+        };
+        /** SmtpSettingsOut */
+        SmtpSettingsOut: {
+            /** Enabled */
+            enabled: boolean;
+            /** Host */
+            host: string;
+            /** Port */
+            port: number;
+            /** Security */
+            security: string;
+            /** Username */
+            username: string | null;
+            /** From Email */
+            from_email: string;
+            /** From Name */
+            from_name: string;
+            /** Has Password */
+            has_password: boolean;
+        };
+        /** SmtpTestIn */
+        SmtpTestIn: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Host */
+            host: string;
+            /** Port */
+            port: number;
+            /**
+             * Security
+             * @default starttls
+             */
+            security: string;
+            /** Username */
+            username?: string | null;
+            /**
+             * From Email
+             * Format: email
+             */
+            from_email: string;
+            /**
+             * From Name
+             * @default
+             */
+            from_name: string;
+            /** Password */
+            password?: string | null;
+            /**
+             * Clear Password
+             * @default false
+             */
+            clear_password: boolean;
+            /**
+             * To
+             * Format: email
+             */
+            to: string;
+        };
+        /** SmtpTestOut */
+        SmtpTestOut: {
+            /** Ok */
+            ok: boolean;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
         };
         /** TemplateIn */
         TemplateIn: {
@@ -3726,6 +3971,134 @@ export interface operations {
             };
         };
     };
+    list_schedules_api_tenants__tenant_id__report_schedules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_schedule_api_tenants__tenant_id__report_schedules_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_schedule_api_tenants__tenant_id__report_schedules__schedule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_now_api_tenants__tenant_id__report_schedules__schedule_id__send_now_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_templates_api_templates_get: {
         parameters: {
             query?: never;
@@ -4292,6 +4665,92 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_smtp_api_admin_smtp_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmtpSettingsOut"];
+                };
+            };
+        };
+    };
+    put_smtp_api_admin_smtp_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SmtpSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmtpSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_smtp_api_admin_smtp_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SmtpTestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmtpTestOut"];
                 };
             };
             /** @description Validation Error */
