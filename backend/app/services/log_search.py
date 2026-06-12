@@ -118,5 +118,7 @@ async def latest_log_at(settings, *, tenant_id: uuid.UUID, device_id: uuid.UUID)
         if not ts:
             return None
         return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-    except (httpx.HTTPError, ValueError, KeyError):
+    except (httpx.HTTPError, ValueError, KeyError, AttributeError, TypeError):
+        # Best-effort liveness: a malformed OpenSearch response (e.g. a non-dict hit element)
+        # must never raise into the status request — degrade to "unknown".
         return None

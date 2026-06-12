@@ -33,3 +33,10 @@ async def test_latest_log_at_none_on_empty():
 async def test_latest_log_at_none_on_error():
     respx.post(_URL).mock(return_value=httpx.Response(503, json={}))
     assert await latest_log_at(_S(), tenant_id=uuid.uuid4(), device_id=uuid.uuid4()) is None
+
+
+@respx.mock
+async def test_latest_log_at_none_on_malformed_hit():
+    # A non-dict hit element must degrade to None, never raise into the request.
+    respx.post(_URL).mock(return_value=httpx.Response(200, json={"hits": {"hits": [None, "x"]}}))
+    assert await latest_log_at(_S(), tenant_id=uuid.uuid4(), device_id=uuid.uuid4()) is None
