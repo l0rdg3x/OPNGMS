@@ -25,7 +25,7 @@ XML = "<opnsense><system><hostname>fw1</hostname></system></opnsense>"
 # canonical_hash(XML) computed by the service; the test reads it back via the same fn.
 
 
-async def _scheduled_change(db_engine, tenant_id, baseline_hash, status="scheduled") -> uuid.UUID:
+async def _scheduled_change(db_engine, tenant_id, baseline_hash, status="scheduled", kind="alias") -> uuid.UUID:
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     did = uuid.uuid4()
     cid = uuid.uuid4()
@@ -40,9 +40,9 @@ async def _scheduled_change(db_engine, tenant_id, baseline_hash, status="schedul
         await s.execute(
             text(
                 "INSERT INTO config_changes (id, tenant_id, device_id, created_by, kind, operation, target, payload, baseline_hash, status) "
-                "VALUES (:id, :t, :d, :u, 'alias', 'set', 'a', '{}'::jsonb, :h, :st)"
+                "VALUES (:id, :t, :d, :u, :k, 'set', 'a', '{}'::jsonb, :h, :st)"
             ),
-            {"id": cid, "t": tenant_id, "d": did, "u": uuid.uuid4(), "h": baseline_hash, "st": status},
+            {"id": cid, "t": tenant_id, "d": did, "u": uuid.uuid4(), "k": kind, "h": baseline_hash, "st": status},
         )
         await s.commit()
     return cid
@@ -81,6 +81,36 @@ async def test_apply_stale_hash_conflicts(db_engine, two_tenants):
     async with factory() as s:
         ch = await s.get(ConfigChange, cid)
     assert ch.status == "conflict"
+
+
+async def test_apply_empty_baseline_applies_without_conflict(db_engine, two_tenants):
+    # A brand-new device with no snapshot has baseline_hash="" -> the first change must still apply,
+    # not get stuck in conflict until the daily backup runs.
+    tenant_a, _ = two_tenants
+    cid = await _scheduled_change(db_engine, tenant_a, baseline_hash="")
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        ch = await s.get(ConfigChange, cid)
+        client = FakeClient(XML)
+        status = await apply_change(s, ch, client, now=datetime.now(timezone.utc))
+        await s.commit()
+    assert status == "applied" and client.apply_called is True
+
+
+async def test_apply_unknown_kind_fails_not_retries(db_engine, two_tenants):
+    from app.services.config_diff import canonical_hash
+
+    tenant_a, _ = two_tenants
+    cid = await _scheduled_change(db_engine, tenant_a, baseline_hash=canonical_hash(XML), kind="bogus_kind")
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        ch = await s.get(ConfigChange, cid)
+        status = await apply_change(s, ch, FakeClient(XML), now=datetime.now(timezone.utc))
+        await s.commit()
+    assert status == "failed"
+    async with factory() as s:
+        ch = await s.get(ConfigChange, cid)
+    assert ch.status == "failed" and ch.result.get("error") == "unknown change kind"
 
 
 async def test_apply_non_scheduled_is_noop(db_engine, two_tenants):
