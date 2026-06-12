@@ -20,8 +20,11 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   (CPU/mem/disk, uptime, firmware), network metrics (interfaces, gateways, VPN), up/down status.
 - **Alerting** — threshold-based alerts evaluated on every poll, with an active/historical view.
 - **Event ingest** — incremental, deduplicated pull of Suricata IDS/IPS alerts and DNS queries.
-- **Reporting** — per-customer white-label PDF reports (attacks, web activity, data usage), scheduled
-  weekly or generated on demand, localized per tenant (en/it/es/fr/de/pt/nl).
+- **Reporting** — per-customer white-label PDF reports (attacks, web activity, data usage), localized
+  per tenant (en/it/es/fr/de/pt/nl), with **email delivery**: per-tenant and per-device schedules
+  (weekly / monthly / on-demand), multiple recipients, white-label sender override, and a manual
+  "send now" trigger. SMTP is configured by the superadmin in-app; a failed send retries for up to
+  2 hours without regenerating the PDF.
 - **Config management** — versioned, encrypted configuration backup with drift detection and a
   firewall-aware editing UI.
 - **Device actions** — trigger firmware updates / major upgrades and plugin install/remove from the
@@ -217,6 +220,7 @@ Set via environment (see `.env.example`). Highlights:
 | `CORS_ALLOW_ORIGINS` | Comma-separated allowed origins; empty = CORS disabled (same-origin). |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCKOUT_WINDOW_SECONDS` | Login rate-limit / lockout. |
 | `INGEST_EVERY_MINUTES`, `CONFIG_BACKUP_HOUR`, `REPORT_WEEKDAY`, `REPORT_HOUR` | Worker cron cadences. |
+| *(in-app)* | **SMTP for report email delivery** is configured by the superadmin under *Admin → SMTP delivery* (not an env var). The password is encrypted at rest with `MASTER_KEY`. An hourly worker cron fires due report schedules; failed sends retry every 10 min for up to 2 h. |
 
 ## Security & multi-tenancy
 
@@ -263,6 +267,7 @@ Set via environment (see `.env.example`). Highlights:
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
 | **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot (fan-out to one change per member). A **kind-pluggable engine** ships five kinds: `firewall_alias` (M1), the **generic `opnsense_setting`** (M3) — any introspectable, fleet-portable OPNsense setting rendered as a **value-controlled** auto-form (hardware/device-specific fields excluded), **`suricata_ruleset`** (M3) — enable a set of Suricata/IDS rulesets picked from the device's live catalog, **`firewall_rule`** (M3) — a portable "Rules [new]" (MVC) filter rule whose target **interface is chosen at apply time** (empty = floating) so the template stays fleet-portable, idempotently upserted by `(description, interface)`, and **`monit_test`** (M3) — a portable Monit health-check test (condition + action) upserted by `name`. Superadmin Library + Profiles UI + per-device Apply tabs; live-verified on real OPNsense 26.1.9³ | ✅ Done |
 | **Login MFA (TOTP)** — TOTP second factor + one-time recovery codes; self-enroll + superadmin enforcement policy (off/all/privileged) with a fail-closed setup gate; two-step login (pending→full session); superadmin reset of a user's MFA + a host **break-glass CLI**; adversarially security-reviewed | ✅ Done |
+| **Report email delivery & scheduling** — per-tenant and per-device schedules (weekly/monthly/on-demand) each with a UTC hour and a list of recipient emails; superadmin global SMTP relay (host/port/security/credentials, encrypted at rest); per-tenant white-label sender override; manual "send now" trigger; an hourly cron fires due schedules; send failures retry every 10 min for up to 2 h without re-rendering the PDF | ✅ Done |
 | **Deployment** — production Dockerfiles + a base `docker-compose.prod.yml` (frontend HTTP, localhost-bound, safe-by-default) with override files for every TLS model: behind your reverse proxy / LB, built-in TLS (your cert, self-signed fallback), or automatic Let's Encrypt via **Caddy** or **Traefik** | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 
