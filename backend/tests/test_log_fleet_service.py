@@ -97,11 +97,27 @@ async def test_fleet_log_stats_maps_buckets():
          "last_24h": {"doc_count": 4}},
     ]}}}))
     stats = await fleet_log_stats(_S())
-    assert stats["tid-a"]["volume_24h"] == 4
+    assert stats["tid-a"]["volume"] == 4
     assert stats["tid-a"]["last_log_at"] == "2026-06-01T10:00:00.000Z"
     # the terms size comes from the setting (no silent 1000 cap)
     import json
-    assert json.loads(route.calls[0].request.content)["aggs"]["by_tenant"]["terms"]["size"] == 10000
+    body = json.loads(route.calls[0].request.content)
+    assert body["aggs"]["by_tenant"]["terms"]["size"] == 10000
+    # default window is 24h
+    assert body["aggs"]["by_tenant"]["aggs"]["last_24h"]["filter"]["range"]["@timestamp"]["gte"] == "now-24h"
+
+
+@respx.mock
+async def test_fleet_log_stats_window_hours_drives_filter():
+    route = respx.post(_OS).mock(return_value=httpx.Response(200, json={"aggregations": {"by_tenant": {"buckets": [
+        {"key": "tid-a", "doc_count": 9, "last_log": {"value_as_string": "2026-06-01T10:00:00.000Z"},
+         "last_24h": {"doc_count": 7}},
+    ]}}}))
+    stats = await fleet_log_stats(_S(), window_hours=168)
+    assert stats["tid-a"]["volume"] == 7
+    import json
+    body = json.loads(route.calls[0].request.content)
+    assert body["aggs"]["by_tenant"]["aggs"]["last_24h"]["filter"]["range"]["@timestamp"]["gte"] == "now-168h"
 
 
 @respx.mock
@@ -129,7 +145,10 @@ async def test_log_fleet_overview_combines_and_flags_silent(db_engine, monkeypat
         await _seed_tenant(s, slug="beta", enabled=0, revoked=0, disabled=1)       # no forwarding
         await s.commit()
 
-    async def fake_stats(settings):
+    seen: dict = {}
+
+    async def fake_stats(settings, *, window_hours=24):
+        seen["window_hours"] = window_hours
         return {}  # OpenSearch returns nothing -> acme has enabled>0 + no last_log -> silent
 
     monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
@@ -138,11 +157,14 @@ async def test_log_fleet_overview_combines_and_flags_silent(db_engine, monkeypat
     try:
         app_factory = async_sessionmaker(app_engine, expire_on_commit=False)
         async with app_factory() as s:
-            ov = await log_fleet_overview(s, _S())
+            ov = await log_fleet_overview(s, _S(), window_hours=168)
     finally:
         await app_engine.dispose()
     by_id = {r["tenant_id"]: r for r in ov["tenants"]}
     assert by_id[ta]["enabled"] == 2 and by_id[ta]["last_log_at"] is None
+    assert "volume" in by_id[ta] and by_id[ta]["volume"] is None
     assert ov["totals"]["tenants_with_forwarding"] == 1
     assert ov["totals"]["silent_tenants"] == 1
     assert ov["totals"]["enabled_devices"] == 2
+    assert ov["totals"]["volume"] == 0
+    assert seen["window_hours"] == 168  # the window is passed through to fleet_log_stats
