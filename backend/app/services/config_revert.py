@@ -10,6 +10,7 @@ import gzip
 import uuid
 from collections.abc import Callable, Iterable
 
+from cryptography.fernet import InvalidToken
 from defusedxml import ElementTree as DET
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -130,7 +131,12 @@ async def revert_change(session: AsyncSession, change: ConfigChange, *, actor_id
     if change.pre_apply_snapshot_id is not None:
         snap = await ConfigSnapshotRepository(session, change.tenant_id).get(change.pre_apply_snapshot_id)
         if snap is not None:
-            snapshot_xml = snapshot_to_xml(snap.content_enc)
+            try:
+                snapshot_xml = snapshot_to_xml(snap.content_enc)
+            except (InvalidToken, gzip.BadGzipFile, EOFError, UnicodeDecodeError) as exc:
+                # A snapshot that can't be decrypted (e.g. MASTER_KEY rotated past its retention)
+                # is a 409, not an unhandled 500 that leaks a stack trace.
+                raise RevertError("pre-apply snapshot could not be decrypted") from exc
     op, target, payload = build_inverse(change, snapshot_xml)  # may raise NoInverseError
     inverse = await create_change(
         session,

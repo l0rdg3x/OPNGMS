@@ -98,6 +98,17 @@ def test_alias_missing_when_absent_from_live():
     assert res.status == "missing"
 
 
+def test_alias_delete_is_in_sync_when_absent_and_drifted_when_present():
+    gone = _change("alias", "Gone", {"name": "Gone"})
+    gone.operation = "delete"
+    [res] = compute_drift([gone], _live(_ALIAS_XML))   # absent after a delete -> in sync, not missing
+    assert res.status == "in_sync"
+    back = _change("alias", "WebServers", {"name": "WebServers"})
+    back.operation = "delete"
+    [res2] = compute_drift([back], _live(_ALIAS_XML))   # reappeared after a delete -> drift
+    assert res2.status == "drifted"
+
+
 # --- ids_rulesets ---
 
 def test_ids_in_sync_when_all_enabled():
