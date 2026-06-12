@@ -18,6 +18,7 @@ from app.models.report_schedule import ReportSchedule  # noqa: F401
 from app.models.report_settings import ReportSettings
 from app.models.revoked_syslog_cert import RevokedSyslogCert  # noqa: F401
 from app.models.session import Session
+from app.models.silent_tenant_alert import SilentTenantAlert  # noqa: F401
 from app.models.smtp_settings import SmtpSettings  # noqa: F401
 from app.models.syslog_ca import SyslogCa  # noqa: F401
 from app.models.template_override import TemplateOverride  # noqa: F401
@@ -54,5 +55,6 @@ __all__ = [
     "UserRecoveryCode",
     "DeviceLogForwarding",
     "RevokedSyslogCert",
+    "SilentTenantAlert",
     "SyslogCa",
 ]
