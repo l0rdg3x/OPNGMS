@@ -13,7 +13,7 @@ from app.models.config_snapshot import ConfigSnapshot
 from app.models.device import Device
 from app.repositories.config_snapshot import ConfigSnapshotRepository
 from app.services.app_settings import get_live_push
-from app.services.config_apply import apply_for_kind
+from app.services.config_apply import UnknownChangeKindError, apply_for_kind
 from app.services.config_diff import canonical_hash
 
 
@@ -109,7 +109,10 @@ async def apply_change(
         change.result = {"error": "could not read current config"}
         await session.flush()
         return "failed"
-    if current != change.baseline_hash:
+    # An empty baseline means no snapshot existed at proposal time (e.g. a brand-new device whose
+    # daily backup hasn't run yet) — there's nothing to compare against, so allow the apply (the
+    # pre-apply snapshot below still captures a rollback point). Only guard when we have a baseline.
+    if change.baseline_hash and current != change.baseline_hash:
         change.status = "conflict"
         change.result = {
             "reason": "config changed since proposal",
@@ -131,5 +134,10 @@ async def apply_change(
     except OpnsenseError:
         change.status = "failed"
         change.result = {"error": "apply failed"}
+    except UnknownChangeKindError:
+        # No applier for this kind -> a permanent failure; mark failed instead of letting the worker
+        # retry forever (each retry would re-save a pre-apply snapshot, polluting the table).
+        change.status = "failed"
+        change.result = {"error": "unknown change kind"}
     await session.flush()
     return change.status

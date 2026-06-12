@@ -92,7 +92,8 @@ async def list_firmware_actions(
 ) -> list[FirmwareActionOut]:
     await _device_or_404(session, tenant_id, device_id)
     rows = (await session.execute(
-        select(FirmwareAction).where(FirmwareAction.device_id == device_id)
+        select(FirmwareAction)
+        .where(FirmwareAction.device_id == device_id, FirmwareAction.tenant_id == tenant_id)
         .order_by(FirmwareAction.created_at.desc()).limit(50)
     )).scalars().all()
     return [FirmwareActionOut.model_validate(r) for r in rows]
