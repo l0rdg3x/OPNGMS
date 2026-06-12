@@ -14,6 +14,7 @@ from app.repositories.device_log_forwarding import DeviceLogForwardingRepository
 from app.schemas.log_forwarding import LogForwardingOut
 from app.services.audit import AuditService
 from app.services.log_forwarding import deprovision_device, provision_device
+from app.services.log_search import latest_log_at
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding",
                    tags=["log-forwarding"])
@@ -30,7 +31,8 @@ def _out(row, *, device_id: uuid.UUID) -> LogForwardingOut:
         return LogForwardingOut(device_id=device_id, enabled=False, cert_serial="",
                                 cert_fingerprint="", provisioned_at=None)
     return LogForwardingOut(device_id=row.device_id, enabled=row.enabled, cert_serial=row.cert_serial,
-                            cert_fingerprint=row.cert_fingerprint, provisioned_at=row.provisioned_at)
+                            cert_fingerprint=row.cert_fingerprint, provisioned_at=row.provisioned_at,
+                            cert_not_after=row.cert_not_after)
 
 
 async def _device(session, tenant_id, device_id) -> Device:
@@ -47,7 +49,11 @@ async def status_log_forwarding(
     session: AsyncSession = Depends(get_session),
 ) -> LogForwardingOut:
     await _device(session, tenant_id, device_id)
-    return _out(await DeviceLogForwardingRepository(session, tenant_id).get(device_id), device_id=device_id)
+    row = await DeviceLogForwardingRepository(session, tenant_id).get(device_id)
+    out = _out(row, device_id=device_id)
+    if row is not None and row.enabled:
+        out.last_log_at = await latest_log_at(get_settings(), tenant_id=tenant_id, device_id=device_id)
+    return out
 
 
 @router.post("/enable", response_model=LogForwardingOut, dependencies=[Depends(enforce_csrf)])
