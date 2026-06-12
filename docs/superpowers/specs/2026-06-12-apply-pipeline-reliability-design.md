@@ -8,7 +8,7 @@
 
 Close two reliability gaps in the device-action apply pipeline:
 
-1. **No auto-retry for lock-miss orphans.** Both `apply_config_change` and `run_firmware_action` take a per-device `pg_try_advisory_xact_lock`; on a lock miss they return the unchanged status **without raising**, so ARQ never retries and the row stays `scheduled` forever. There is also no handling for rows stuck `applying`/`running` after a worker crash.
+1. **No auto-retry for lock-miss orphans.** Both `apply_config_change` and `run_firmware_action` take a per-device `pg_try_advisory_xact_lock`; on a lock miss they return the unchanged status **without raising**, so ARQ never retries and the row stays `scheduled` forever. A worker crash mid-op falls into the same bucket: the single end-of-job commit means a crash rolls the row back to `scheduled`. Both are handled by re-enqueuing genuine orphans.
 2. **No rollback of a config push.** A pre-apply snapshot is captured, but reverting a change is entirely manual (and OPNsense exposes **no config-restore API** — restore is a GUI operation that reboots).
 
 ## Background (verified integration points)
@@ -26,21 +26,22 @@ Close two reliability gaps in the device-action apply pipeline:
 
 1. **Revert is targeted-inverse, operator-triggered (a button), NOT automatic.** It undoes only *our* change (`add`↔`delete`, `set`→pre-apply value), generated as the **inverse `config_change` run through the existing apply pipeline**. No full-config restore (OPNsense has no restore API; full restore reboots + clobbers concurrent changes).
 2. **Revert appears on `applied` AND `failed` changes.** The inverse must be tolerant of a partially-applied source (the per-kind apply is idempotent).
-3. **Sweeper handles BOTH** lock-miss orphans (re-enqueue) **and** crash-stuck in-progress rows (mark `failed`, do NOT re-run), across **config_changes and firmware_actions**.
-4. **Per-pipeline, configurable stuck timeouts** (firmware's set above the worker's max convergence budget to avoid false positives on long-but-healthy upgrades).
+3. **Sweeper handles orphaned `scheduled` rows only**, across **config_changes and firmware_actions**. There is **no committed "stuck in-progress" state** to handle: each worker job runs the whole apply (incl. the `applying`/`running` flushes) in **one transaction committed once at the end**, so a crash rolls back to `scheduled` — a crash IS an orphan. The genuine-orphan-vs-legitimately-running distinction is made with the **per-device advisory lock** (held for the duration of any real op): if the sweeper can acquire it, the device is free and the row is a true orphan; if not, a real op is running → skip.
+4. **No wall-clock stuck timeouts and no heartbeat** (both were predicated on a committed in-progress state that does not exist). Give-up is **attempt-based**: a small `sweep_attempts` counter, incremented only when the sweeper re-enqueues a device-free orphan, so a long op ahead of an orphan never burns attempts (no false give-ups). The only time knobs are the sweep cadence and a short grace.
 5. **Revert v1 implements `firewall_alias`** (the live-verified kind) behind an extensible `INVERSE_BUILDERS` registry; kinds without an inverse → the button is disabled with a reason. **Firmware revert is out of scope** (you cannot un-upgrade).
 
 ## Architecture
 
 ```
-                ┌──────────────────────────────────────────────────────────┐
-  cron (5 min)  │ sweep_stuck_actions (owner, RLS-exempt)                   │
-  ─────────────▶│  for config_changes + firmware_actions:                  │
-                │   • status='scheduled' & overdue  → re-enqueue the job   │──▶ apply_config_change /
-                │   • status='scheduled' & too old  → mark 'failed' + alert │    run_firmware_action
-                │   • status in (applying|running) & past STUCK_TIMEOUT     │
-                │       → mark 'failed (stuck)' + alert (NO re-run)         │
-                └──────────────────────────────────────────────────────────┘
+                ┌──────────────────────────────────────────────────────────────┐
+  cron (5 min)  │ sweep_orphaned_actions (owner, RLS-exempt)                    │
+  ─────────────▶│  for each overdue status='scheduled' row (both tables):       │
+                │    try pg_try_advisory_xact_lock(device):                      │
+                │      • NOT acquired (real op running) → skip                   │
+                │      • acquired (device free) → genuine orphan:                │──▶ apply_config_change /
+                │          sweep_attempts < MAX → ++attempts, re-enqueue ────────│    run_firmware_action
+                │          else                  → mark 'failed' + alert         │
+                └──────────────────────────────────────────────────────────────┘
 
   operator ──"Revert"──▶ POST /…/config/changes/{id}/revert
                           invert_change(change, snapshot) → inverse draft
@@ -50,20 +51,24 @@ Close two reliability gaps in the device-action apply pipeline:
 
 ## Component 1 — Sweeper
 
-**New worker cron `sweep_stuck_actions(ctx)`** (`app/worker.py`), registered in `WorkerSettings.cron_jobs` at `minute=set(range(0, 60, sweep_every_minutes))` (default every 5 min). Runs as owner (RLS-exempt), like the other crons. A small pure helper module **`app/services/action_sweeper.py`** holds the row-classification logic so it is unit-testable without ARQ.
+**Why the design is orphan-only (transaction model).** Each worker job (`apply_config_change`, `run_firmware_action`) runs the whole operation in a single session and **commits once at the end**. The service's `applying`/`running` writes are *flushed but never committed* mid-op, and the per-device `pg_try_advisory_xact_lock` is held for the whole op. Therefore: (1) a crash mid-op rolls back to the last committed status — **`scheduled`** — so a crash is just an orphan; (2) during a legitimate long op the committed status is *also* `scheduled` (the `running` is uncommitted), so status alone can't tell them apart — but the **advisory lock is held** throughout, which can. There is no committed `applying`/`running` state to sweep.
 
-For each of the two tables, in **its own transaction per row** (one bad row never aborts the sweep):
+**New worker cron `sweep_orphaned_actions(ctx)`** (`app/worker.py`), registered in `WorkerSettings.cron_jobs` at `minute=set(range(0, 60, sweep_every_minutes))` (default every 5 min). Runs as owner (RLS-exempt). A pure helper module **`app/services/action_sweeper.py`** holds the SQL-free classification (`decide_orphan(row, attempts, max_attempts) -> 're-enqueue' | 'give-up'`) so the policy is unit-testable without ARQ/DB.
 
-| Condition | Action |
-|-----------|--------|
-| `status='scheduled'` AND `COALESCE(scheduled_at, created_at) < now − ORPHAN_GRACE` | **Re-enqueue** the original job (`apply_config_change` / `run_firmware_action`). Cheap + idempotent: the job re-checks `status=='scheduled'` and re-takes the lock, so re-enqueuing one that is legitimately waiting behind a long op is harmless. |
-| `status='scheduled'` AND overdue by `> ORPHAN_MAX_AGE` AND **no in-progress action on the same device** (`applying`/`running`) | **Give up**: `status='failed'`, `result={"error":"orphaned: device lock never acquired"}`, raise an alert. The device-in-progress gate prevents falsely giving up a change that is correctly queued behind a legitimately long-running op (a firmware upgrade can hold the device lock for a while). |
-| `status IN ('applying','running')` AND `updated_at < now − STUCK_TIMEOUT[pipeline]` | **Mark stuck**: `status='failed'`, `result={"error":"stuck: in-progress past timeout (worker likely crashed)"}`, raise an alert. **Never re-run** (a partial apply must not be blindly retried). |
+Per table, the cron selects candidate rows `status='scheduled' AND COALESCE(scheduled_at, created_at) < now − ORPHAN_GRACE`. Each candidate is handled in **its own transaction** (one bad row never aborts the sweep):
 
-- **Heartbeat (enables short, safe timeouts).** A long firmware op legitimately runs for many minutes while holding the device lock, so `updated_at` would otherwise look stale and be falsely flagged "stuck." The firmware worker therefore **heartbeats** `updated_at` on every status/reboot poll via a short-lived **side-channel session** (independent of the lock-holding transaction): a tiny `UPDATE firmware_actions SET updated_at = now() WHERE id = :id`. With a live worker touching the row every poll interval, "no heartbeat for `STUCK_TIMEOUT`" reliably means the worker died — so the timeout can be short. Config-push applies in seconds (no poll loop), so it needs no heartbeat.
-- `STUCK_TIMEOUT` is **per pipeline**: `config_stuck_minutes` (default 10) and `firmware_stuck_minutes` (default 15 — safe because of the heartbeat, not because it exceeds the worker budget).
-- Alerts reuse `Alert(tenant_id, device_id, type='action_stuck'|'action_orphaned', label=…)`; the sweeper returns a small summary `{re_enqueued, gave_up, marked_stuck}` for logging.
-- **New settings** (`app/core/config.py`): `sweep_every_minutes=5`, `orphan_grace_minutes=5`, `orphan_max_age_minutes=60`, `config_stuck_minutes=10`, `firmware_stuck_minutes=15`.
+1. `got = pg_try_advisory_xact_lock(_advisory_key(device_id))` (reuse `config_push._advisory_key`).
+2. **If not acquired** → a real op is running on the device → **skip** (commit/rollback releases nothing held; move on). The row stays `scheduled`; a later sweep will re-check once the device is free.
+3. **If acquired** (device free → genuine orphan):
+   - `sweep_attempts < MAX_REENQUEUE_ATTEMPTS` → `sweep_attempts += 1`, **re-enqueue** the job (`apply_config_change`/`run_firmware_action`). Idempotent: the job re-checks `status=='scheduled'` and re-takes the lock.
+   - else → **give up**: `status='failed'`, `result={"error":"orphaned: never applied after N re-enqueue attempts"}`, raise an alert.
+   - Commit (releases the advisory lock immediately; the re-enqueued job — which runs later via ARQ — re-acquires it then).
+
+- **Why attempt-based, not wall-clock, give-up:** an orphan correctly queued behind a long op is *skipped* (lock held) and never increments `sweep_attempts`, so its attempts only count device-free retries — a long op ahead of it can't cause a false give-up. With `MAX_REENQUEUE_ATTEMPTS=5` and a 5-min cadence, a genuinely unappliable orphan is failed after ~25 min of *free-device* retries.
+- **No heartbeat, no stuck-timeout, no in-progress detection** — unnecessary given the transaction model above.
+- Alerts reuse `Alert(tenant_id, device_id, type='action_orphaned', label=…)`; the cron returns `{re_enqueued, gave_up, skipped}` for logging.
+- **New settings** (`app/core/config.py`): `sweep_every_minutes=5`, `orphan_grace_minutes=5`, `max_reenqueue_attempts=5`.
+- **Schema:** add `sweep_attempts INTEGER NOT NULL DEFAULT 0` to **both** `config_changes` and `firmware_actions` (migration 0023, alongside `reverts_change_id`).
 
 ## Component 2 — Operator-triggered Revert (config-push only)
 
@@ -106,7 +111,9 @@ Inverse semantics (per builder):
 
 ### Data model
 
-Migration **0023**: `config_change.reverts_change_id UUID NULL` FK→`config_changes(id)` `ON DELETE SET NULL` (+ model field). No new status (reverts reuse the normal lifecycle; the link gives traceability). The inverse change's own `result`/`status` reflect its apply.
+Migration **0023** (covers both phases):
+- `config_change.reverts_change_id UUID NULL` FK→`config_changes(id)` `ON DELETE SET NULL` — links an inverse change to the one it reverts (traceability). No new status (reverts reuse the normal lifecycle).
+- `config_change.sweep_attempts INTEGER NOT NULL DEFAULT 0` and `firmware_action.sweep_attempts INTEGER NOT NULL DEFAULT 0` — device-free re-enqueue counter for the sweeper's give-up.
 
 ### Frontend
 
@@ -114,7 +121,7 @@ In the device's **config-changes history** (existing component), add a **"Revert
 
 ## Data flow summary
 
-- **Sweeper:** cron → classify rows → (re-enqueue | give-up+alert | stuck+alert), each in its own tx.
+- **Sweeper:** cron → for each overdue `scheduled` row, try the device advisory lock → busy=skip / free=(re-enqueue if attempts left | give-up+alert), each in its own tx.
 - **Revert:** button → revert endpoint → `build_inverse` → `create_change(reverts_change_id=…)` → schedule → `apply_config_change` (normal pipeline) → `applied`/`failed`/`conflict`.
 
 ## Error handling
@@ -122,9 +129,10 @@ In the device's **config-changes history** (existing component), add a **"Revert
 | Condition | Behaviour |
 |-----------|-----------|
 | Sweeper: a single row errors (DB/enqueue) | caught per-row, logged; the sweep continues with the next row |
-| Sweeper: re-enqueued job still lock-misses | stays `scheduled`; re-tried next sweep until `ORPHAN_MAX_AGE`, then given up + alert |
-| Stuck firmware that is actually still upgrading | avoided by the **heartbeat**: a live worker bumps `updated_at` every poll, so a healthy long upgrade is never past `firmware_stuck_minutes` |
-| Orphan queued behind a legitimately long-running op | not given up: the give-up rule requires **no in-progress action on the device**; it is simply re-enqueued each sweep until the op ahead of it finishes |
+| Sweeper: re-enqueued job lock-misses again | stays `scheduled`; re-tried next sweep (device-free) until `MAX_REENQUEUE_ATTEMPTS`, then given up + alert |
+| Crashed worker mid-op | the uncommitted tx rolls back → row reverts to `scheduled` → handled as an orphan (advisory lock is free) |
+| Orphan queued behind a legitimately long-running op | device advisory lock is held → the sweeper **skips** it (no attempt burned) until the op ahead finishes |
+| Worker job committed `applied`/`failed`/`conflict` (terminal) | not a candidate (sweeper only selects `scheduled`) |
 | Revert on a non-invertible kind / wrong state | 400/409 with a clear reason; button hidden/disabled |
 | Revert of `delete`/`set` with no pre-apply snapshot | 409 "no pre-apply snapshot to reconstruct from" |
 | Inverse apply itself fails / conflicts | a normal `failed`/`conflict` change — surfaced to the operator like any apply |
@@ -138,8 +146,8 @@ In the device's **config-changes history** (existing component), add a **"Revert
 
 ## Testing
 
-- **Sweeper (pure classifier + job):** orphan (`scheduled`, overdue) → re-enqueue; orphan overdue past `orphan_max_age` **with no in-progress action on the device** → `failed`+alert; orphan overdue past max-age **but another action is in-progress on the device** → only re-enqueued, NOT given up; in-progress past timeout → `failed`+alert (no re-enqueue); `scheduled` within grace → untouched; both tables covered; per-row isolation (one error doesn't abort).
-- **Heartbeat:** the firmware worker bumps `updated_at` via the side-channel session during its poll loop (a recently-heartbeated `running` row is not flagged stuck; a row whose heartbeat is older than `firmware_stuck_minutes` is).
+- **Sweeper decision (pure `decide_orphan`):** attempts < max → `re-enqueue`; attempts ≥ max → `give-up`. No DB/lock needed for this unit.
+- **Sweeper job (DB):** device lock free + attempts left → `sweep_attempts` incremented + job re-enqueued; device lock **held** (simulate by acquiring it in the test's own connection first) → row skipped, attempts unchanged; device free + attempts exhausted → `failed` + alert row; `scheduled` within grace → untouched; both `config_changes` and `firmware_actions` covered; a per-row error doesn't abort the sweep.
 - **Inverse builders:** alias `add`→`delete`; `delete`→`add` from snapshot; `set`→`set` previous from snapshot; missing-snapshot → error for `delete`/`set`; `has_inverse` for registered vs unregistered kinds.
 - **Revert flow:** applied change → revert creates a linked inverse (`reverts_change_id`) → applies (mocked connector) → device state reverted; failed/partial source → idempotent convergence; RBAC (read_only denied), CSRF, tenant/device scoping; non-invertible kind → 400.
 - **API + migration:** 0023 column exists + FK; revert endpoint happy path + guards.
@@ -147,7 +155,7 @@ In the device's **config-changes history** (existing component), add a **"Revert
 
 ## Build phases (informs the plan; one cohesive milestone)
 
-- **Phase A — Sweeper** (backend-only): settings + `action_sweeper.py` classifier (re-enqueue / give-up-with-device-gate / mark-stuck) + `sweep_stuck_actions` cron + alerts + the firmware-worker **heartbeat** + tests. Ships independently.
+- **Phase A — Sweeper** (backend-only): the `sweep_attempts` columns (migration 0023 can land here or in B — see plan) + settings + `action_sweeper.decide_orphan` + the `sweep_orphaned_actions` cron (advisory-lock gate) + alerts + tests. Ships independently.
 - **Phase B — Revert**: migration 0023 + `reverts_change_id`; `config_revert.py` (registry + alias inverse + snapshot helper) + `revert_change`; revert API; frontend button + list field; tests. Behind `LIVE_PUSH_ENABLED` like all pushes.
 
 ## Out of scope / future
