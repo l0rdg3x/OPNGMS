@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     log_retention_days: int = 30
     log_search_max_size: int = 200
     log_search_max_range_days: int = 31
+    log_fleet_terms_size: int = 10000  # max tenants in the MSP log-fleet terms agg (no silent truncation)
 
 
 @lru_cache
