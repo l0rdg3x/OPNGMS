@@ -22,6 +22,8 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.user_mfa import UserMfa  # noqa: F401
 from app.models.user_recovery_code import UserRecoveryCode  # noqa: F401
+from app.models.device_log_forwarding import DeviceLogForwarding  # noqa: F401
+from app.models.syslog_ca import SyslogCa  # noqa: F401
 
 __all__ = [
     "Base",
@@ -49,4 +51,6 @@ __all__ = [
     "User",
     "UserMfa",
     "UserRecoveryCode",
+    "DeviceLogForwarding",
+    "SyslogCa",
 ]
