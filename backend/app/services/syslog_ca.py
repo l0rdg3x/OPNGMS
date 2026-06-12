@@ -93,3 +93,9 @@ def issue_server_cert(ca_cert_pem, ca_key_pem, *, hostname: str) -> tuple[bytes,
 def cert_serial_and_fingerprint(cert_pem: bytes) -> tuple[str, str]:
     cert = x509.load_pem_x509_certificate(cert_pem)
     return format(cert.serial_number, "x"), cert.fingerprint(hashes.SHA256()).hex()
+
+
+def cert_not_after(cert_pem: bytes) -> datetime:
+    """The certificate's expiry as an aware UTC datetime."""
+    cert = x509.load_pem_x509_certificate(cert_pem)
+    return cert.not_valid_after_utc
