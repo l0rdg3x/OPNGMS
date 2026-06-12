@@ -55,8 +55,12 @@ def preview_change(change: ConfigChange) -> dict:
 
 
 def _advisory_key(device_id: uuid.UUID) -> int:
-    """Stable signed 64-bit key for pg_try_advisory_xact_lock, derived from device_id."""
-    digest = hashlib.sha1(str(device_id).encode()).digest()
+    """Stable signed 64-bit key for pg_try_advisory_xact_lock, derived from device_id.
+
+    SHA1 here is a non-cryptographic hash-to-int for lock partitioning, NOT a security digest
+    (usedforsecurity=False makes that explicit); the value is never authenticated or stored.
+    """
+    digest = hashlib.sha1(str(device_id).encode(), usedforsecurity=False).digest()
     return int.from_bytes(digest[:8], "big", signed=True)
 
 
