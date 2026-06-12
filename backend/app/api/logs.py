@@ -11,11 +11,13 @@ from app.core.rbac import Action
 from app.models.device import Device
 from app.schemas.logs import LogHitOut, LogSearchIn, LogSearchOut
 from app.services.log_search import (
-    MAX_RESULT_WINDOW,
     MAX_SIZE,
     LogSearchError,
     search_logs,
 )
+
+# Legacy from/size paging guard — kept here while the API endpoint is migrated to PIT cursors.
+MAX_RESULT_WINDOW = 10000
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}/logs", tags=["logs"])
 
