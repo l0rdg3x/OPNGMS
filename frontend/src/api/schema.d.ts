@@ -1678,6 +1678,13 @@ export interface components {
             /** Description */
             description: string;
         };
+        /** LogCursor */
+        LogCursor: {
+            /** Pit Id */
+            pit_id: string;
+            /** After */
+            after: unknown[];
+        };
         /** LogForwardingOut */
         LogForwardingOut: {
             /**
@@ -1739,15 +1746,11 @@ export interface components {
              */
             to: string;
             /**
-             * Page
-             * @default 0
-             */
-            page: number;
-            /**
              * Size
              * @default 100
              */
             size: number;
+            cursor?: components["schemas"]["LogCursor"] | null;
         };
         /** LogSearchOut */
         LogSearchOut: {
@@ -1755,6 +1758,7 @@ export interface components {
             total: number;
             /** Hits */
             hits: components["schemas"]["LogHitOut"][];
+            next_cursor?: components["schemas"]["LogCursor"] | null;
         };
         /** LoginIn */
         LoginIn: {

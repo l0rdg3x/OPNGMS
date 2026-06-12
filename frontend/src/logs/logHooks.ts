@@ -5,6 +5,7 @@ import type { components } from "../api/schema";
 
 export type LogSearchOut = components["schemas"]["LogSearchOut"];
 export type LogSearchIn = components["schemas"]["LogSearchIn"];
+export type LogCursor = components["schemas"]["LogCursor"];
 
 export function useLogSearch() {
   const { activeId } = useTenant();

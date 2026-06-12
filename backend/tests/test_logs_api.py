@@ -11,10 +11,11 @@ def _patch_search(monkeypatch, captured):
     import app.api.logs as mod
     from app.services.log_search import LogHit, SearchResult
 
-    async def fake(settings, *, tenant_id, frm, to, query, device_id, page, size):
+    async def fake(settings, *, tenant_id, frm, to, query, device_id, size, cursor=None):
         captured["tenant_id"] = tenant_id
         captured["query"] = query
         captured["size"] = size
+        captured["cursor"] = cursor
         return SearchResult(
             total=1,
             hits=[
@@ -28,6 +29,7 @@ def _patch_search(monkeypatch, captured):
                     source={"a": 1},
                 )
             ],
+            next_cursor={"pit_id": "P", "after": [1, 1]},
         )
 
     monkeypatch.setattr(mod, "search_logs", fake)
@@ -164,18 +166,15 @@ async def test_size_clamped_to_setting(api_client, db_engine, monkeypatch):
     assert captured["size"] == 25
 
 
-async def test_deep_paging_rejected_400(api_client, db_engine, monkeypatch):
-    # `from + size` beyond OpenSearch's result window is refused pre-flight.
-    _patch_search(monkeypatch, {})
+async def test_cursor_round_trips_and_returns_next(api_client, db_engine, monkeypatch):
+    captured = {}
+    _patch_search(monkeypatch, captured)
     tid, _ = await _seed(db_engine)
     await _login(api_client, "op@x.io")
-    r = await api_client.post(
-        f"/api/tenants/{tid}/logs/search",
-        json={
-            "frm": "2026-06-01T00:00:00Z",
-            "to": "2026-06-02T00:00:00Z",
-            "page": 10000,
-            "size": 200,
-        },
-    )
-    assert r.status_code == 400
+    r = await api_client.post(f"/api/tenants/{tid}/logs/search", json={
+        "frm": "2026-06-01T00:00:00Z", "to": "2026-06-02T00:00:00Z",
+        "cursor": {"pit_id": "PIT1", "after": ["2026-06-01T00:00:00Z", 7]}})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["next_cursor"] == {"pit_id": "P", "after": [1, 1]}
+    assert captured["cursor"] == {"pit_id": "PIT1", "after": ["2026-06-01T00:00:00Z", 7]}
