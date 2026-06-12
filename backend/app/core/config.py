@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     max_reenqueue_attempts: int = 5  # give up an orphan after this many device-free re-enqueues
     syslog_receiver_host: str = "logs.opngms.local"  # public name/IP devices ship logs to
     syslog_tls_port: int = 6514
+    cert_renewal_window_days: int = 30  # renew a forwarding cert when not_after < now + this window
+    cert_renewal_hour: int = 3  # daily UTC hour the cert-renewal cron runs
     opensearch_url: str = "http://opensearch:9200"
     log_retention_days: int = 30
     log_search_max_size: int = 200
