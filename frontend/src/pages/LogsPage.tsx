@@ -42,10 +42,15 @@ export function LogsPage() {
 
   async function run() {
     if (!frm || !to) return;
-    const res = await search.mutateAsync({
-      query, device_id: deviceId, frm: toIso(frm), to: toIso(to), page: 0, size: 100,
-    });
-    setResult(res);
+    setResult(null); // drop stale rows so a failed search never shows old results
+    try {
+      const res = await search.mutateAsync({
+        query, device_id: deviceId, frm: toIso(frm), to: toIso(to), page: 0, size: 100,
+      });
+      setResult(res);
+    } catch {
+      // search.isError drives the error Alert below; swallow to avoid an unhandled rejection
+    }
   }
 
   return (

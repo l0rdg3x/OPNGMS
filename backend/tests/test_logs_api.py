@@ -14,6 +14,7 @@ def _patch_search(monkeypatch, captured):
     async def fake(settings, *, tenant_id, frm, to, query, device_id, page, size):
         captured["tenant_id"] = tenant_id
         captured["query"] = query
+        captured["size"] = size
         return SearchResult(
             total=1,
             hits=[
@@ -140,6 +141,27 @@ async def test_naive_datetime_rejected_422(api_client, db_engine, monkeypatch):
         json={"frm": "2026-06-01T00:00:00", "to": "2026-06-02T00:00:00"},
     )
     assert r.status_code == 422
+
+
+async def test_size_clamped_to_setting(api_client, db_engine, monkeypatch):
+    # `log_search_max_size` is the effective soft cap on the size sent to OpenSearch.
+    captured = {}
+    _patch_search(monkeypatch, captured)
+    import app.api.logs as mod
+
+    class _Settings:
+        log_search_max_range_days = 31
+        log_search_max_size = 25
+
+    monkeypatch.setattr(mod, "get_settings", lambda: _Settings())
+    tid, _ = await _seed(db_engine)
+    await _login(api_client, "op@x.io")
+    r = await api_client.post(
+        f"/api/tenants/{tid}/logs/search",
+        json={"frm": "2026-06-01T00:00:00Z", "to": "2026-06-02T00:00:00Z", "size": 200},
+    )
+    assert r.status_code == 200, r.text
+    assert captured["size"] == 25
 
 
 async def test_deep_paging_rejected_400(api_client, db_engine, monkeypatch):

@@ -35,7 +35,10 @@ async def search_logs_endpoint(
             status_code=400,
             detail=f"range must not exceed {s.log_search_max_range_days} days",
         )
-    effective_size = min(body.size, MAX_SIZE)
+    # The operator-tunable `log_search_max_size` is the soft cap; MAX_SIZE is the
+    # hard ceiling. This is the size actually sent to OpenSearch, so the deep-paging
+    # window guard below uses it too.
+    effective_size = min(body.size, s.log_search_max_size, MAX_SIZE)
     if (body.page + 1) * effective_size > MAX_RESULT_WINDOW:
         raise HTTPException(
             status_code=400,
@@ -54,7 +57,7 @@ async def search_logs_endpoint(
             query=body.query,
             device_id=body.device_id,
             page=body.page,
-            size=body.size,
+            size=effective_size,
         )
     except LogSearchError as exc:
         raise HTTPException(
