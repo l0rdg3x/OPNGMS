@@ -44,6 +44,16 @@ _PLUGIN_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 # (verified: all real-box ruleset filenames match this) to prevent path injection.
 _RULESET_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
+# OPNsense uuids (RFC4122 + the box's own ids) embed directly in del* URL paths; restrict to
+# the safe charset to block path traversal before building the path.
+_OPN_UUID_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
+
+
+def _safe_uuid(value: str) -> str:
+    if not value or not _OPN_UUID_RE.match(value):
+        raise ValueError(f"unsafe OPNsense uuid: {value!r}")
+    return value
+
 
 def _unflatten(flat: dict) -> dict:
     """{'a.b': 1, 'a.c': 2, 'x': 3} -> {'a': {'b': 1, 'c': 2}, 'x': 3}."""
@@ -427,3 +437,39 @@ class OpnsenseClient:
         Raises AuthError/ReachabilityError/ApiError/ParseError on problems.
         """
         return (await self._capability("firmware_status")) or None
+
+    async def import_ca(self, ca_cert_pem: str, *, descr: str) -> str:
+        """Import a CA public cert into the box's trust store (so it trusts the receiver). Returns uuid."""
+        res = await self._post("trust/ca/add",
+                               {"ca": {"action": "existing", "descr": descr, "crt_payload": ca_cert_pem}})
+        return res.get("uuid", "")
+
+    async def import_cert(self, cert_pem: str, key_pem: str, *, descr: str) -> str:
+        """Import a client cert + key into the box's trust store (the syslog client cert). Returns uuid."""
+        res = await self._post("trust/cert/add",
+                               {"cert": {"action": "import", "descr": descr,
+                                         "crt_payload": cert_pem, "prv_payload": key_pem}})
+        return res.get("uuid", "")
+
+    async def add_syslog_destination(self, *, hostname: str, port: int, certificate_uuid: str,
+                                     description: str = "OPNGMS log forwarding") -> str:
+        """Add a TLS (mTLS) remote-syslog destination presenting `certificate_uuid`; reconfigure. Returns uuid."""
+        res = await self._post("syslog/settings/addDestination", {"destination": {
+            "enabled": "1", "transport": "tls4", "program": "", "level": "", "facility": "",
+            "hostname": hostname, "certificate": certificate_uuid, "port": str(port),
+            "rfc5424": "1", "description": description}})
+        uuid_ = res.get("uuid", "")
+        await self._post("syslog/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+        return uuid_
+
+    async def delete_syslog_destination(self, dest_uuid: str) -> dict:
+        """Delete a remote-syslog destination by uuid and reconfigure."""
+        dest_uuid = _safe_uuid(dest_uuid)
+        res = await self._post(f"syslog/settings/delDestination/{dest_uuid}", {})
+        await self._post("syslog/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+        return res
+
+    async def delete_cert(self, cert_uuid: str) -> dict:
+        """Delete a certificate from the trust store by uuid."""
+        cert_uuid = _safe_uuid(cert_uuid)
+        return await self._post(f"trust/cert/del/{cert_uuid}", {})

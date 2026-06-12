@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     sweep_every_minutes: int = 5  # orphaned-action sweeper cadence (1..30)
     orphan_grace_minutes: int = 5  # don't touch a scheduled row until this overdue
     max_reenqueue_attempts: int = 5  # give up an orphan after this many device-free re-enqueues
+    syslog_receiver_host: str = "logs.opngms.local"  # public name/IP devices ship logs to
+    syslog_tls_port: int = 6514
+    opensearch_url: str = "http://opensearch:9200"
+    log_retention_days: int = 30
 
 
 @lru_cache

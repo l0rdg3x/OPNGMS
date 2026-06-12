@@ -7,6 +7,7 @@ from app.models.config_profile import ConfigProfile, ConfigProfileMember  # noqa
 from app.models.config_snapshot import ConfigSnapshot
 from app.models.config_template import ConfigTemplate  # noqa: F401
 from app.models.device import Device
+from app.models.device_log_forwarding import DeviceLogForwarding  # noqa: F401
 from app.models.event import Event
 from app.models.firmware_action import FirmwareAction  # noqa: F401
 from app.models.generated_report import GeneratedReport
@@ -17,6 +18,7 @@ from app.models.report_schedule import ReportSchedule  # noqa: F401
 from app.models.report_settings import ReportSettings
 from app.models.session import Session
 from app.models.smtp_settings import SmtpSettings  # noqa: F401
+from app.models.syslog_ca import SyslogCa  # noqa: F401
 from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -49,4 +51,6 @@ __all__ = [
     "User",
     "UserMfa",
     "UserRecoveryCode",
+    "DeviceLogForwarding",
+    "SyslogCa",
 ]

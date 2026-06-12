@@ -23,6 +23,7 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - [Repository layout](#repository-layout)
 - [Quick start — development](#quick-start--development)
 - [Deployment (production)](#deployment-production) ← **the production guide**
+- [Log lake (optional, Phase 1)](#log-lake-optional-phase-1)
 - [Configuration reference](#configuration-reference)
 - [Security & multi-tenancy](#security--multi-tenancy)
 - [Project status](#project-status)
@@ -337,6 +338,67 @@ Replace `https://<your-domain>` with `http://127.0.0.1:8080` if you're on Model 
 | Scheduled reports never arrive | SMTP not enabled/incorrect (use **Send a test email**); or the schedule is disabled / has no recipients. Check the worker logs and the audit log. |
 | Let's Encrypt won't issue a cert (Model 3) | DNS for `DOMAIN` must resolve to the host and ports 80/443 must be reachable from the internet. |
 
+## Log lake (optional, Phase 1)
+
+> **What it is.** An opt-in push-based log pipeline that complements the existing API-pull event
+> ingest: managed OPNsense boxes ship their syslog stream (system, filterlog, Suricata EVE JSON) over
+> **mTLS** to an in-stack **syslog-ng** receiver, which indexes every message into **OpenSearch**
+> (plain HTTP, security plugin disabled, **not published to the host** — internal network only). The
+> result is a per-tenant, per-device full log lake for forensic incident analysis.
+>
+> The existing API-pull ingest (Suricata alerts, DNS) continues to work unchanged; the log lake is an
+> additional, orthogonal data path. **A search UI is Phase 2.**
+
+### How it works
+
+- Each device is enrolled via `POST /api/tenants/{tenant}/devices/{device}/log-forwarding/enable`,
+  which issues a **per-device mTLS client certificate** (CN = device ID, O = tenant ID), imports it
+  into the OPNsense box, and configures a TLS syslog target pointing at `SYSLOG_RECEIVER_HOST:SYSLOG_TLS_PORT`.
+- syslog-ng verifies every incoming connection against the OPNGMS CA — only CA-signed client certs are
+  accepted. The CN and O RDNs are extracted from the peer certificate to stamp `device_id` and
+  `tenant_id` on every indexed document, with no reliance on user-supplied headers.
+- Suricata EVE JSON messages are parsed inline; raw syslog lines (filterlog, dhcpd, etc.) pass through
+  with the full message text preserved.
+- A disk-buffer (256 MiB) on the syslog-ng side absorbs log bursts during OpenSearch restarts — no
+  logs are dropped for transient outages within the buffer window.
+- Daily indices (`opngms-logs-YYYY.MM.DD`) simplify retention management via ISM policies (Phase 2).
+
+### Bring it up
+
+The log lake is an opt-in **overlay** on top of the base production stack:
+
+```bash
+# First: edit .env and add the log-lake variables (see the Log lake block in .env.example).
+# Then bring up the full stack (or add to an already-running one):
+docker compose -f docker-compose.prod.yml -f docker-compose.logs.yml up -d
+```
+
+The overlay adds three services:
+
+| Service | Role |
+|---------|------|
+| `opensearch` | Single-node OpenSearch 2.x, security disabled, plain HTTP, **internal only** (no published port). |
+| `syslog-bootstrap` | One-shot: generates the CA + server keypair, provisions per-device client certs, writes them to the `opngms_syslog_certs` volume. |
+| `syslog-ng` | mTLS syslog receiver on `SYSLOG_TLS_PORT` (default 6514); forwards to OpenSearch with disk-buffering. |
+
+### Network requirements
+
+- `SYSLOG_TLS_PORT` (default **6514**) must be **reachable by the managed devices** (open in the
+  host firewall / cloud security group). It is the only published port added by this overlay.
+- OpenSearch port 9200 is **not published** — it is only reachable on the internal Compose network.
+  The syslog-ng receiver and the OPNGMS backend reach it at `OPENSEARCH_URL=http://opensearch:9200`.
+
+### Configuration variables (`.env`)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SYSLOG_RECEIVER_HOST` | `logs.opngms.example` | Public hostname/IP the devices connect to (informational; used when issuing client-cert configs to boxes). |
+| `SYSLOG_TLS_PORT` | `6514` | mTLS receiver port, published to the host. |
+| `OPENSEARCH_URL` | `http://opensearch:9200` | Internal OpenSearch endpoint; no auth. |
+| `LOG_RETENTION_DAYS` | `30` | Target retention in days (enforced via ISM policy in Phase 2; informational for Phase 1). |
+
+---
+
 ## Configuration reference
 
 Set via environment (see [`.env.example`](.env.example) for the full, documented list). Highlights:
@@ -411,6 +473,7 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **Login MFA (TOTP)** — TOTP second factor + one-time recovery codes; self-enroll + superadmin enforcement policy (off/all/privileged) with a fail-closed setup gate; two-step login (pending→full session); superadmin reset of a user's MFA + a host **break-glass CLI**; adversarially security-reviewed | ✅ Done |
 | **Deployment** — production Dockerfiles + a base `docker-compose.prod.yml` (frontend HTTP, localhost-bound, safe-by-default) with override files for every TLS model (behind your proxy / built-in cert / automatic **Caddy** or **Traefik**); configurable container **timezone** | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
+| **Log lake Phase 1** — opt-in `docker-compose.logs.yml` overlay; mTLS syslog-ng receiver (port 6514, CA-signed per-device client certs, CN/O → device_id/tenant_id); Suricata EVE JSON parsed inline; disk-buffered OpenSearch ingest (plain HTTP, internal-only, security disabled); daily indices; search UI is Phase 2 | 🔧 Infra ready |
 
 ¹ Live configuration **push** to a device (firewall aliases) is verified against real OPNsense 26.1.9
 and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot as
