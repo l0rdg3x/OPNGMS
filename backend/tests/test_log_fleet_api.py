@@ -27,7 +27,7 @@ async def _seed_one_tenant(db_engine):
 
 
 async def test_superadmin_sees_fleet(api_client, db_engine, monkeypatch):
-    async def fake_stats(settings):
+    async def fake_stats(settings, *, window_hours=24):
         return {}
     monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
     await _seed_one_tenant(db_engine)
@@ -38,6 +38,7 @@ async def test_superadmin_sees_fleet(api_client, db_engine, monkeypatch):
     body = r.json()
     assert any(t["tenant_name"] == "Acme" and t["enabled"] == 1 for t in body["tenants"])
     assert body["totals"]["enabled_devices"] >= 1
+    assert body["window"] == "24h"  # default window echoed for the UI to label
 
 
 async def _seed_two_tenants(db_engine):
@@ -68,7 +69,7 @@ async def test_superadmin_fleet_rls_isolated(app_role_api_client, db_engine, mon
     # The whole request path runs as opngms_app (RLS enforced) — this proves the per-tenant loop
     # isolates correctly in production, not just under the owner role. A bypass bug would make every
     # tenant show the global total (Acme=3, Beta=3, total=6) instead of the isolated 2/1/3.
-    async def fake_stats(settings):
+    async def fake_stats(settings, *, window_hours=24):
         return {}
     monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
     await _seed_two_tenants(db_engine)
@@ -80,6 +81,35 @@ async def test_superadmin_fleet_rls_isolated(app_role_api_client, db_engine, mon
     assert rows["Acme"]["enabled"] == 2
     assert rows["Beta"]["enabled"] == 1
     assert r.json()["totals"]["enabled_devices"] == 3
+
+
+async def test_window_param_maps_through(api_client, db_engine, monkeypatch):
+    seen: dict = {}
+
+    async def fake_stats(settings, *, window_hours=24):
+        seen["window_hours"] = window_hours
+        return {}
+
+    monkeypatch.setattr("app.services.log_fleet.fleet_log_stats", fake_stats)
+    await _seed_one_tenant(db_engine)
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+
+    r = await api_client.get("/api/admin/log-fleet", params={"window": "7d"})
+    assert r.status_code == 200, r.text
+    assert r.json()["window"] == "7d"
+    assert seen["window_hours"] == 168  # 7d -> 168h
+
+    r = await api_client.get("/api/admin/log-fleet", params={"window": "30d"})
+    assert r.status_code == 200, r.text
+    assert r.json()["window"] == "30d"
+    assert seen["window_hours"] == 720  # 30d -> 720h
+
+    # an unknown window falls back to the 24h default
+    r = await api_client.get("/api/admin/log-fleet", params={"window": "bogus"})
+    assert r.status_code == 200, r.text
+    assert r.json()["window"] == "24h"
+    assert seen["window_hours"] == 24
 
 
 async def test_non_superadmin_denied(api_client, db_engine):
