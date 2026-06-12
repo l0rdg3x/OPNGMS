@@ -46,8 +46,9 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   One **superadmin-configured SMTP relay** (credentials encrypted at rest) sends them; tenants can set
   a **white-label sender** address. A **"send now"** button triggers an immediate delivery, and a
   failed send **retries every 10 min for up to 2 h** without regenerating the PDF.
-- **Config management** — versioned, encrypted configuration backup with drift detection and a
-  firewall-aware editing UI.
+- **Config management** — versioned, encrypted configuration backup with drift detection (snapshot
+  history plus an on-demand **live-vs-applied-template** check), targeted **revert** of an applied
+  change, and a firewall-aware editing UI.
 - **Device actions** — trigger firmware updates / major upgrades and plugin install/remove from the
   console, now or scheduled, run by a reboot-tolerant worker; plus a one-click deep-link to the
   device's WebGUI.
@@ -62,7 +63,9 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   syslog-ng receiver that indexes into **OpenSearch**. Enable/rotate/revoke forwarding per device from
   the UI (with a cert-expiry + "last log received" liveness indicator); investigate logs from a
   tenant-scoped **Logs** page (Lucene query + filters, unbounded deep paging); and watch the whole
-  estate from a superadmin **Log fleet** dashboard (per-tenant forwarding status, ingest health, volume).
+  estate from a superadmin **Log fleet** dashboard (per-tenant forwarding status, ingest health,
+  selectable 24h/7d/30d volume, per-device drill-down, CSV/PDF export, and proactive silent-tenant
+  alerting by email + banner).
 - **Multi-tenant dashboard** — fleet overview, per-device time-series charts, alert list.
 
 ## Screenshots
@@ -505,7 +508,7 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **Event ingest** — Suricata IDS + DNS into the `events` hypertable, query API (keyset-paginated) | ✅ Done |
 | **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 7-language localization | ✅ Done |
 | **Report email delivery & scheduling** — per-tenant **and per-device** schedules (weekly/monthly/on-demand), each with a UTC hour and a recipient list; one superadmin **SMTP relay** (host/port/security/credentials, encrypted at rest) with a built-in test-send; per-tenant white-label **sender override**; manual **"send now"**; an hourly cron fires due schedules; send failures **retry every 10 min for up to 2 h** without re-rendering the PDF | ✅ Done |
-| **Config management** — encrypted backup + drift detection + firewall-aware editing UI + **live alias push** | ✅ Done¹ |
+| **Config management** — encrypted backup + **drift detection** (snapshot history + **on-demand live-vs-applied-template** drift with per-change badges) + firewall-aware editing UI + **live config push** (default-OFF master switch, now also a **runtime superadmin UI toggle**) | ✅ Done¹ |
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
 | **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot. A **kind-pluggable engine** ships five kinds: `firewall_alias`, the generic **`opnsense_setting`** (introspection-driven, value-controlled), **`suricata_ruleset`**, **`firewall_rule`** (Rules [new]/MVC; interface bound at apply time), and **`monit_test`**. Live-verified on real OPNsense 26.1.9³ | ✅ Done |
@@ -517,13 +520,14 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **Log lake Phase 3.1** — **provisioning UX**: a device-page "Log forwarding" tab to enable/disable forwarding (confirm-gated, `CONFIG_PUSH`), showing the client-cert expiry and a tenant-scoped **liveness** indicator ("last log received", best-effort OpenSearch lookup) | ✅ Done |
 | **Log lake Phase 3.2** — **certificate lifecycle**: operator **Rotate** (re-issue + swap on the box, no log gap) and **soft Revoke** (deprovision + record the serial in an RLS revocation ledger, "Revoked" state) from the same card; box-gated transactions, audited. Hard CRL enforcement at the receiver is a tracked follow-up (3.2-bis) | ✅ Done |
 | **Log lake Phase 3.3** — **scale**: unbounded **deep paging** for log search via OpenSearch **PIT + `search_after`** (stable across second-granularity timestamp ties, past the 10k window) with a "Load more" UI; plus a shipped **multi-node** OpenSearch config (3-node cluster compose + replicated index template) — HA verified at the staging bring-up | ✅ Done |
-| **Log lake Phase 3.4** — **MSP fleet dashboard**: a superadmin-only cross-tenant **Log fleet** page (per-tenant forwarding status, ingest health with a "silent tenant" flag, 24h volume). The console's first cross-tenant aggregate — forwarding counts via an RLS-scoped per-tenant loop, log volume via a superadmin-only OpenSearch aggregation that returns **aggregates only**, never raw cross-tenant log content | ✅ Done |
+| **Log lake Phase 3.4** — **MSP fleet dashboard**: a superadmin-only cross-tenant **Log fleet** page (per-tenant forwarding status, ingest health with a "silent tenant" flag, **selectable 24h/7d/30d** volume, a **per-device silent drill-down**, **CSV/PDF export**, and **proactive silent-tenant alerting** — an hourly detector emails active superadmins once per silent episode + a dashboard banner). The console's first cross-tenant aggregate — forwarding counts via an RLS-scoped per-tenant loop, log volume/per-device stats via superadmin-only OpenSearch aggregations that return **aggregates only**, never raw cross-tenant log content | ✅ Done |
 
-¹ Live configuration **push** to a device (firewall aliases) is verified against real OPNsense 26.1.9
-and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot.
-An operator-triggered **targeted Revert** reverses an applied change through the same pipeline, and a
-cron **sweeper** re-enqueues orphaned/stuck scheduled actions; full-config restore is intentionally not
-built (OPNsense exposes no restore API).
+¹ Live configuration **push** to a device (firewall aliases + the templated kinds) is verified against
+real OPNsense 26.1.9 and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch (toggleable at
+runtime by a superadmin), capturing a pre-apply config snapshot. An operator-triggered **targeted
+Revert** reverses an applied change through the same pipeline (today the `firewall_alias` and
+`opnsense_setting` kinds), and a cron **sweeper** re-enqueues orphaned/stuck scheduled actions;
+full-config restore is intentionally not built (OPNsense exposes no restore API).
 
 ² Plugin install/remove was exercised end-to-end on the real 26.1.9 box (with guaranteed cleanup); firmware
 update/upgrade are covered by mocked worker tests only (they reboot the device). True single-sign-on into the
