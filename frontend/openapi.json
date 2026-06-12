@@ -4430,6 +4430,18 @@
         ],
         "summary": "Get Log Fleet",
         "operationId": "get_log_fleet_api_admin_log_fleet_get",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "24h",
+              "title": "Window"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4437,6 +4449,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LogFleetOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -5615,6 +5637,11 @@
           },
           "totals": {
             "$ref": "#/components/schemas/LogFleetTotals"
+          },
+          "window": {
+            "type": "string",
+            "title": "Window",
+            "default": "24h"
           }
         },
         "type": "object",
@@ -5663,7 +5690,7 @@
             ],
             "title": "Last Log At"
           },
-          "volume_24h": {
+          "volume": {
             "anyOf": [
               {
                 "type": "integer"
@@ -5672,7 +5699,7 @@
                 "type": "null"
               }
             ],
-            "title": "Volume 24H"
+            "title": "Volume"
           }
         },
         "type": "object",
@@ -5684,7 +5711,7 @@
           "revoked",
           "total_devices",
           "last_log_at",
-          "volume_24h"
+          "volume"
         ],
         "title": "LogFleetRow"
       },
@@ -5698,9 +5725,9 @@
             "type": "integer",
             "title": "Enabled Devices"
           },
-          "volume_24h": {
+          "volume": {
             "type": "integer",
-            "title": "Volume 24H"
+            "title": "Volume"
           },
           "silent_tenants": {
             "type": "integer",
@@ -5711,7 +5738,7 @@
         "required": [
           "tenants_with_forwarding",
           "enabled_devices",
-          "volume_24h",
+          "volume",
           "silent_tenants"
         ],
         "title": "LogFleetTotals"

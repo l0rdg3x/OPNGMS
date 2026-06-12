@@ -51,16 +51,17 @@ def _parse_iso(value: str) -> datetime | None:
         return None
 
 
-async def fleet_log_stats(settings) -> dict[str, dict]:
-    """Per-tenant {last_log_at, volume_24h} via ONE OpenSearch terms agg on tenant_id (NO tenant
-    filter — superadmin-only, aggregates only). Best-effort: returns {} on any OpenSearch error."""
+async def fleet_log_stats(settings, *, window_hours: int = 24) -> dict[str, dict]:
+    """Per-tenant {last_log_at, volume} via ONE OpenSearch terms agg on tenant_id (NO tenant
+    filter — superadmin-only, aggregates only). The volume counts docs within the last
+    ``window_hours`` (24h/7d/30d). Best-effort: returns {} on any OpenSearch error."""
     body = {
         "size": 0,
         "aggs": {"by_tenant": {
             "terms": {"field": "tenant_id", "size": settings.log_fleet_terms_size},
             "aggs": {
                 "last_log": {"max": {"field": "@timestamp"}},
-                "last_24h": {"filter": {"range": {"@timestamp": {"gte": "now-24h"}}}},
+                "last_24h": {"filter": {"range": {"@timestamp": {"gte": f"now-{window_hours}h"}}}},
             },
         }},
     }
@@ -83,27 +84,28 @@ async def fleet_log_stats(settings) -> dict[str, dict]:
     for b in by_tenant.get("buckets", []):
         out[str(b.get("key", ""))] = {
             "last_log_at": (b.get("last_log", {}) or {}).get("value_as_string"),
-            "volume_24h": (b.get("last_24h", {}) or {}).get("doc_count"),
+            "volume": (b.get("last_24h", {}) or {}).get("doc_count"),
         }
     return out
 
 
-async def log_fleet_overview(session: AsyncSession, settings) -> dict:
+async def log_fleet_overview(session: AsyncSession, settings, *, window_hours: int = 24) -> dict:
     """Combine the relational forwarding counts with the OpenSearch log stats into per-tenant rows +
-    totals. A tenant is 'silent' when it has enabled devices but no recent log."""
+    totals. A tenant is 'silent' when it has enabled devices but no recent log. The per-tenant +
+    total ``volume`` count the logs within the last ``window_hours``."""
     counts = await fleet_forwarding_counts(session)
-    stats = await fleet_log_stats(settings)
+    stats = await fleet_log_stats(settings, window_hours=window_hours)
     now = datetime.now(UTC)
     rows: list[dict] = []
     silent = enabled_devices = volume_total = with_fwd = 0
     for tid, c in counts.items():
         st = stats.get(str(tid), {})
         last_dt = _parse_iso(st["last_log_at"]) if st.get("last_log_at") else None
-        vol = st.get("volume_24h")
+        vol = st.get("volume")
         rows.append({
             "tenant_id": tid, "tenant_name": c["tenant_name"],
             "enabled": c["enabled"], "disabled": c["disabled"], "revoked": c["revoked"],
-            "total_devices": c["total_devices"], "last_log_at": last_dt, "volume_24h": vol,
+            "total_devices": c["total_devices"], "last_log_at": last_dt, "volume": vol,
         })
         enabled_devices += c["enabled"]
         volume_total += vol or 0
@@ -114,4 +116,4 @@ async def log_fleet_overview(session: AsyncSession, settings) -> dict:
     rows.sort(key=lambda r: r["tenant_name"])
     return {"tenants": rows, "totals": {
         "tenants_with_forwarding": with_fwd, "enabled_devices": enabled_devices,
-        "volume_24h": volume_total, "silent_tenants": silent}}
+        "volume": volume_total, "silent_tenants": silent}}

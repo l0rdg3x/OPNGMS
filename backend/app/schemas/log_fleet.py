@@ -12,16 +12,17 @@ class LogFleetRow(BaseModel):
     revoked: int
     total_devices: int
     last_log_at: datetime | None
-    volume_24h: int | None
+    volume: int | None
 
 
 class LogFleetTotals(BaseModel):
     tenants_with_forwarding: int
     enabled_devices: int
-    volume_24h: int
+    volume: int
     silent_tenants: int
 
 
 class LogFleetOut(BaseModel):
     tenants: list[LogFleetRow]
     totals: LogFleetTotals
+    window: str = "24h"
