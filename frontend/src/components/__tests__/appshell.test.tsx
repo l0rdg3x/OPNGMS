@@ -60,4 +60,21 @@ describe("AppShell", () => {
     expect(await screen.findByText("op@x.io")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /template library/i })).toBeNull();
   });
+
+  it("redirects a non-superadmin who navigates directly to /admin/log-fleet (route guard)", async () => {
+    server.use(
+      http.get("/api/me/tenants", () =>
+        HttpResponse.json([{ id: "t1", name: "Alpha", slug: "alpha", role: "operator" }]),
+      ),
+      http.get("/api/tenants/t1/health", () =>
+        HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
+      ),
+      http.get("/api/tenants/t1/alerts", () => HttpResponse.json([])),
+    );
+    // If the guard failed, LogFleetPage would render + fire /api/admin/log-fleet (unhandled -> test
+    // error). Instead the user is redirected home and the page title never appears.
+    renderWithProviders(withAuth(<AppShell />, false), { route: "/admin/log-fleet" });
+    expect(await screen.findByText("op@x.io")).toBeInTheDocument();
+    expect(screen.queryByText("Log fleet")).toBeNull();
+  });
 });

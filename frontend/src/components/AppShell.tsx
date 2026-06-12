@@ -1,7 +1,7 @@
 import { AppShell as MantineAppShell, Box, Button, Group, Loader, NavLink, Stack, Text } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, type ReactNode } from "react";
-import { NavLink as RouterNavLink, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, NavLink as RouterNavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { useT } from "../i18n";
@@ -44,6 +44,15 @@ const IconLogs = () => (<svg {...ic}><rect x="4" y="3" width="16" height="18" rx
 
 function NavItem({ to, label, icon }: { to: string; label: string; icon: ReactNode }) {
   return <NavLink component={RouterNavLink} to={to} end={to === "/"} label={label} leftSection={icon} />;
+}
+
+// Route guard for superadmin-only pages: a non-superadmin who navigates directly to /admin/* is
+// redirected home (the nav links are already hidden, but the routes themselves were unguarded —
+// LogFleetPage/SystemSettingsPage had no in-page check and would otherwise render + fire queries).
+function RequireSuperadmin({ children }: { children: ReactNode }) {
+  const { me } = useAuth();
+  if (!me?.is_superadmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
 function AppShellNav() {
@@ -152,10 +161,10 @@ export function AppShell() {
               <Route path="/logs" element={<LogsPage />} />
               <Route path="/security/sessions" element={<SessionsPage />} />
               <Route path="/security/mfa" element={<MfaPage />} />
-              <Route path="/admin/templates" element={<TemplateLibraryPage />} />
-              <Route path="/admin/smtp" element={<SmtpSettingsPage />} />
-              <Route path="/admin/log-fleet" element={<LogFleetPage />} />
-              <Route path="/admin/system" element={<SystemSettingsPage />} />
+              <Route path="/admin/templates" element={<RequireSuperadmin><TemplateLibraryPage /></RequireSuperadmin>} />
+              <Route path="/admin/smtp" element={<RequireSuperadmin><SmtpSettingsPage /></RequireSuperadmin>} />
+              <Route path="/admin/log-fleet" element={<RequireSuperadmin><LogFleetPage /></RequireSuperadmin>} />
+              <Route path="/admin/system" element={<RequireSuperadmin><SystemSettingsPage /></RequireSuperadmin>} />
             </Routes>
           </Suspense>
         </MantineAppShell.Main>
