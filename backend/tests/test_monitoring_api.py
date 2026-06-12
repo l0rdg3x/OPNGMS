@@ -16,9 +16,9 @@ async def _login_superadmin(api_client, db_engine):
         await s.commit()
         tid = t.id
     await api_client.post(
-        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
+        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"}
     )
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     return tid
 
 
@@ -214,14 +214,14 @@ async def test_monitoring_forbidden_without_membership(api_client, db_engine):
         t = await make_tenant(s, slug="acme")
         # first user (superadmin) created directly so /api/setup is blocked;
         # the user under test is non-superadmin and without a membership on this tenant.
-        await make_user(s, email="other@x.io", password="pw12345", is_superadmin=False)
+        await make_user(s, email="other@x.io", password="pw12345-secure", is_superadmin=False)
         await s.commit()
         tid = t.id
     # new client to avoid reusing any cookies
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="https://test") as c:
         login = await c.post(
-            "/api/login", json={"email": "other@x.io", "password": "pw12345"}
+            "/api/login", json={"email": "other@x.io", "password": "pw12345-secure"}
         )
         assert login.status_code == 200
         r_health = await c.get(f"/api/tenants/{tid}/health")

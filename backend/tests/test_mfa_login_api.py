@@ -15,7 +15,7 @@ from tests.factories import make_user
 _SECRET = pyotp.random_base32()
 
 
-async def _seed_mfa_user(db_engine, email="m@x.io", password="pw12345", recovery=None):
+async def _seed_mfa_user(db_engine, email="m@x.io", password="pw12345-secure", recovery=None):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         user = await make_user(s, email=email, password=password)
@@ -35,7 +35,7 @@ async def _seed_mfa_user(db_engine, email="m@x.io", password="pw12345", recovery
 
 async def test_login_with_mfa_returns_mfa_required_and_blocks_app(api_client, db_engine):
     await _seed_mfa_user(db_engine)
-    r = await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    r = await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "mfa_required"
     assert r.json()["user"] is None
@@ -50,7 +50,7 @@ async def test_login_with_mfa_returns_mfa_required_and_blocks_app(api_client, db
 
 async def test_login_mfa_completes_with_totp(api_client, db_engine):
     await _seed_mfa_user(db_engine)
-    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     h = csrf_headers(api_client)
     code = pyotp.TOTP(_SECRET).now()
     r = await api_client.post("/api/login/mfa", json={"code": code}, headers=h)
@@ -64,7 +64,7 @@ async def test_login_mfa_completes_with_totp(api_client, db_engine):
 
 async def test_login_mfa_wrong_code_is_401(api_client, db_engine):
     await _seed_mfa_user(db_engine)
-    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     h = csrf_headers(api_client)
     r = await api_client.post("/api/login/mfa", json={"code": "000000"}, headers=h)
     assert r.status_code == 401
@@ -73,7 +73,7 @@ async def test_login_mfa_wrong_code_is_401(api_client, db_engine):
 async def test_login_mfa_recovery_code_single_use(api_client, db_engine):
     codes, hashes = mfa_svc.generate_recovery_codes(3)
     await _seed_mfa_user(db_engine, recovery=hashes)
-    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     h = csrf_headers(api_client)
     r = await api_client.post("/api/login/mfa", json={"code": codes[0]}, headers=h)
     assert r.status_code == 200, r.text
@@ -81,7 +81,7 @@ async def test_login_mfa_recovery_code_single_use(api_client, db_engine):
 
     # the same recovery code cannot be reused: log in again and replay it
     await api_client.post("/api/logout", headers=csrf_headers(api_client))
-    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     h2 = csrf_headers(api_client)
     r2 = await api_client.post("/api/login/mfa", json={"code": codes[0]}, headers=h2)
     assert r2.status_code == 401
@@ -89,7 +89,7 @@ async def test_login_mfa_recovery_code_single_use(api_client, db_engine):
 
 async def test_login_mfa_replayed_totp_step_is_rejected(api_client, db_engine):
     await _seed_mfa_user(db_engine)
-    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     h = csrf_headers(api_client)
     code = pyotp.TOTP(_SECRET).now()
     r = await api_client.post("/api/login/mfa", json={"code": code}, headers=h)
@@ -97,7 +97,7 @@ async def test_login_mfa_replayed_totp_step_is_rejected(api_client, db_engine):
 
     # log in again and replay the SAME TOTP code (same time-step) -> anti-replay rejects it
     await api_client.post("/api/logout", headers=csrf_headers(api_client))
-    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     h2 = csrf_headers(api_client)
     r2 = await api_client.post("/api/login/mfa", json={"code": code}, headers=h2)
     assert r2.status_code == 401
@@ -106,7 +106,7 @@ async def test_login_mfa_replayed_totp_step_is_rejected(api_client, db_engine):
 async def test_mfa_pending_session_can_logout(api_client, db_engine):
     # a user mid-MFA (mfa_pending) must be able to cancel: logout invalidates the session cookie
     await _seed_mfa_user(db_engine)
-    r = await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    r = await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     assert r.json()["status"] == "mfa_required"
     out = await api_client.post("/api/logout", headers=csrf_headers(api_client))
     assert out.status_code == 204
@@ -117,7 +117,7 @@ async def test_mfa_pending_session_can_logout(api_client, db_engine):
 
 async def test_mfa_pending_session_ttl_is_minutes_not_hours(api_client, db_engine):
     await _seed_mfa_user(db_engine)
-    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "m@x.io", "password": "pw12345-secure"})
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         sess = (
@@ -132,13 +132,13 @@ async def test_setup_policy_issues_setup_session(api_client, db_engine):
     # user with no MFA but a global "all" policy -> setup-only session
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="p@x.io", password="pw12345")
+        await make_user(s, email="p@x.io", password="pw12345-secure")
         await s.commit()
     from app.services.app_settings import set_mfa_policy
     async with factory() as s:
         await set_mfa_policy(s, "all")
         await s.commit()
-    r = await api_client.post("/api/login", json={"email": "p@x.io", "password": "pw12345"})
+    r = await api_client.post("/api/login", json={"email": "p@x.io", "password": "pw12345-secure"})
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "mfa_setup_required"
     assert r.json()["user"]["mfa_setup_required"] is True

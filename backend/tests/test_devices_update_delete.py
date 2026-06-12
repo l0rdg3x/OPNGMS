@@ -11,7 +11,7 @@ async def _seed_and_login(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug="acme")
-        admin = await make_user(s, email="ta@x.io", password="pw12345")
+        admin = await make_user(s, email="ta@x.io", password="pw12345-secure")
         await make_membership(s, user_id=admin.id, tenant_id=t.id, role="tenant_admin")
         await s.commit()
         tenant_id = t.id
@@ -20,7 +20,7 @@ async def _seed_and_login(api_client, db_engine):
         return ProbeResult(reachable=True, firmware_version="24.7", error=None)
 
     app.dependency_overrides[get_prober] = lambda: _fake
-    await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345-secure"})
     return tenant_id
 
 

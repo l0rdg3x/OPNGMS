@@ -1,8 +1,8 @@
 async def _login(api_client):
     await api_client.post(
-        "/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456"}
+        "/api/setup", json={"email": "a@a.io", "name": "A", "password": "pw-123456-secure"}
     )
-    await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456"})
+    await api_client.post("/api/login", json={"email": "a@a.io", "password": "pw-123456-secure"})
 
 
 def _csrf(api_client) -> str:

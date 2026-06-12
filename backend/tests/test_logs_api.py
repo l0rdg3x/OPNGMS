@@ -39,8 +39,8 @@ async def _seed(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     tid, did = uuid.uuid4(), uuid.uuid4()
     async with factory() as s:
-        op = await make_user(s, email="op@x.io", password="pw12345")
-        ro = await make_user(s, email="ro@x.io", password="pw12345")
+        op = await make_user(s, email="op@x.io", password="pw12345-secure")
+        ro = await make_user(s, email="ro@x.io", password="pw12345-secure")
         await s.execute(
             text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,'A','a','active')"),
             {"i": tid},
@@ -60,7 +60,7 @@ async def _seed(db_engine):
 
 
 async def _login(api_client, email):
-    r = await api_client.post("/api/login", json={"email": email, "password": "pw12345"})
+    r = await api_client.post("/api/login", json={"email": email, "password": "pw12345-secure"})
     assert r.status_code == 200
 
 

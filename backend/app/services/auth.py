@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -17,7 +18,10 @@ _LAST_SEEN_THROTTLE = timedelta(seconds=60)
 
 
 def _hash_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode()).hexdigest()
+    # HMAC keyed by SESSION_SECRET (previously a bare SHA-256): a DB dump still yields only keyed
+    # hashes (not usable tokens), AND rotating SESSION_SECRET now actually invalidates every existing
+    # session — the property operators expect from that secret (it was dead config before).
+    return hmac.new(get_settings().session_secret.encode(), raw.encode(), hashlib.sha256).hexdigest()
 
 
 class AuthService:
