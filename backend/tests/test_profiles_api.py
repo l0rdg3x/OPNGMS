@@ -155,8 +155,9 @@ async def test_non_superadmin_cannot_write_profiles(api_client, db_engine):
     assert rd.status_code == 403
 
 
-async def test_apply_profile_fans_out_two_jobs(api_client, db_engine):
-    # superadmin makes a 2-template profile; a tenant operator applies it -> TWO config_change jobs enqueued
+async def test_apply_profile_enqueues_one_sequential_job(api_client, db_engine):
+    # superadmin makes a 2-template profile; a tenant operator applies it -> ONE apply_profile_changes
+    # job carrying both member ids (sequential apply under one lock; no false sibling conflicts).
     tid = await _seed_members(db_engine)
     await _seed_superadmin(db_engine)
     did = await _insert_device(db_engine, tid)
@@ -181,11 +182,11 @@ async def test_apply_profile_fans_out_two_jobs(api_client, db_engine):
     body = r.json()
     assert body["status"] == "scheduled"
     assert len(body["change_ids"]) == 2
-    # exactly two apply_config_change jobs, one per member, after commit
-    assert len(calls) == 2
-    assert all(name == "apply_config_change" for name, _args, _defer in calls)
-    enqueued_ids = {args[0] for _name, args, _defer in calls}
-    assert enqueued_ids == set(body["change_ids"])
+    # exactly ONE apply_profile_changes job carrying both member ids (not two per-member jobs)
+    assert len(calls) == 1
+    name, args, _defer = calls[0]
+    assert name == "apply_profile_changes"
+    assert set(args[0]) == set(body["change_ids"])
     # audit row records the fan-out count
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:

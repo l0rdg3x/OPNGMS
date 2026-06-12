@@ -306,7 +306,8 @@ async def apply_profile(
         details={"profile_id": str(profile.id), "count": len(changes)},
     )
     await session.commit()
-    # Enqueue AFTER commit (like templates.apply): one job per fanned-out change.
-    for change in changes:
-        await enqueue("apply_config_change", str(change.id), defer_until=body.scheduled_at)
+    # ONE job for the whole profile: members are applied in order under a single device lock so a
+    # member that mutates config.xml can't make its siblings falsely conflict (the per-member fan-out
+    # used to do exactly that).
+    await enqueue("apply_profile_changes", [str(c.id) for c in changes], defer_until=body.scheduled_at)
     return ProfileApplyOut(change_ids=[c.id for c in changes], status="scheduled")

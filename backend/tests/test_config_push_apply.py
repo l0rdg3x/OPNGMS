@@ -113,6 +113,41 @@ async def test_apply_unknown_kind_fails_not_retries(db_engine, two_tenants):
     assert ch.status == "failed" and ch.result.get("error") == "unknown change kind"
 
 
+async def test_apply_profile_sequence_applies_all_ignoring_sibling_baseline(db_engine, two_tenants):
+    # Two members on ONE device; member 2 has a STALE baseline (as if captured before member 1). The
+    # old per-member fan-out would conflict member 2; the sequence checks staleness ONCE (member 1's
+    # baseline) and applies both under one lock.
+    from app.services.config_diff import canonical_hash
+    from app.services.config_push import apply_profile_sequence
+
+    tenant_a, _ = two_tenants
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    did = uuid.uuid4()
+    ids = []
+    async with factory() as s:
+        await s.execute(text(
+            "INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, verify_tls, status, tags) "
+            "VALUES (:id, :t, 'fw', 'https://x', ''::bytea, ''::bytea, true, 'reachable', '{}')"),
+            {"id": did, "t": tenant_a})
+        for base in (canonical_hash(XML), "STALE-sibling"):
+            cid = uuid.uuid4()
+            ids.append(cid)
+            await s.execute(text(
+                "INSERT INTO config_changes (id, tenant_id, device_id, created_by, kind, operation, target, payload, baseline_hash, status) "
+                "VALUES (:id, :t, :d, :u, 'alias', 'set', 'a', '{}'::jsonb, :h, 'scheduled')"),
+                {"id": cid, "t": tenant_a, "d": did, "u": uuid.uuid4(), "h": base})
+        await s.commit()
+
+    async with factory() as s:
+        changes = [await s.get(ConfigChange, c) for c in ids]
+        res = await apply_profile_sequence(s, changes, FakeClient(XML), now=datetime.now(timezone.utc))
+        await s.commit()
+    assert res["applied"] == 2 and res["failed"] == 0 and res["status"] == "done"
+    async with factory() as s:
+        for c in ids:
+            assert (await s.get(ConfigChange, c)).status == "applied"
+
+
 async def test_apply_non_scheduled_is_noop(db_engine, two_tenants):
     from app.services.config_diff import canonical_hash
 
