@@ -58,6 +58,11 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   bundles of templates).
 - **Two-factor auth** — optional/enforceable **TOTP** login with recovery codes, a superadmin
   enforcement policy, and superadmin / break-glass recovery.
+- **Log lake** (optional) — managed firewalls ship their syslog over **mTLS** to an in-stack
+  syslog-ng receiver that indexes into **OpenSearch**. Enable/rotate/revoke forwarding per device from
+  the UI (with a cert-expiry + "last log received" liveness indicator); investigate logs from a
+  tenant-scoped **Logs** page (Lucene query + filters, unbounded deep paging); and watch the whole
+  estate from a superadmin **Log fleet** dashboard (per-tenant forwarding status, ingest health, volume).
 - **Multi-tenant dashboard** — fleet overview, per-device time-series charts, alert list.
 
 ## Screenshots
@@ -117,7 +122,7 @@ A dark, instrument-grade "operations console" UI (Mantine v9 + IBM Plex), built 
 | Area | Technologies |
 |------|--------------|
 | Backend | Python 3.14, FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, Pydantic v2 |
-| Storage | TimescaleDB (PostgreSQL 16 + extension), hypertables for metrics & events, Row-Level Security |
+| Storage | TimescaleDB (PostgreSQL 16 + extension), hypertables for metrics & events, Row-Level Security; **OpenSearch** (Apache-2.0) for the optional log lake |
 | Worker | ARQ + Redis |
 | Email | aiosmtplib (STARTTLS / implicit TLS / plain), Fernet-encrypted SMTP credentials |
 | Security | argon2 (passwords), Fernet (device & SMTP secrets), TOTP MFA (pyotp), Postgres RLS, SSRF guard, TLS pinning, defusedxml |
@@ -515,8 +520,10 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **Log lake Phase 3.4** — **MSP fleet dashboard**: a superadmin-only cross-tenant **Log fleet** page (per-tenant forwarding status, ingest health with a "silent tenant" flag, 24h volume). The console's first cross-tenant aggregate — forwarding counts via an RLS-scoped per-tenant loop, log volume via a superadmin-only OpenSearch aggregation that returns **aggregates only**, never raw cross-tenant log content | ✅ Done |
 
 ¹ Live configuration **push** to a device (firewall aliases) is verified against real OPNsense 26.1.9
-and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot as
-a rollback point; automatic rollback is a planned follow-up.
+and enabled behind a default-OFF `LIVE_PUSH_ENABLED` master switch, capturing a pre-apply config snapshot.
+An operator-triggered **targeted Revert** reverses an applied change through the same pipeline, and a
+cron **sweeper** re-enqueues orphaned/stuck scheduled actions; full-config restore is intentionally not
+built (OPNsense exposes no restore API).
 
 ² Plugin install/remove was exercised end-to-end on the real 26.1.9 box (with guaranteed cleanup); firmware
 update/upgrade are covered by mocked worker tests only (they reboot the device). True single-sign-on into the
