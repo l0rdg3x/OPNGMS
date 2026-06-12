@@ -39,6 +39,9 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Put the backend root on sys.path during tests so the offline `tools.*` packages (e.g. the OPNsense
+# catalog generator) are importable without shipping them in the installed app wheel.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
