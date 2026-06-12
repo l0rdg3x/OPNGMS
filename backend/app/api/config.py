@@ -1,7 +1,10 @@
 import gzip
 import uuid
+from datetime import UTC, datetime
+from xml.etree.ElementTree import ParseError
 
 from cryptography.fernet import InvalidToken
+from defusedxml.common import DefusedXmlException
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,12 +25,15 @@ from app.schemas.config import (
     ConfigChangeOut,
     ConfigDiffEntry,
     ConfigSnapshotOut,
+    DriftReport,
+    DriftResultOut,
     DriftSummary,
     ScheduleIn,
 )
 from app.services.audit import AuditService
 from app.services.capability import build_inventory
 from app.services.config_diff import structural_diff
+from app.services.config_drift import compute_drift, gather_live_state, unsupported_kinds
 from app.services.config_model import build_tree
 from app.services.config_push import create_change, preview_change
 from app.services.config_revert import NoInverseError, RevertError, has_inverse, revert_change
@@ -67,6 +73,45 @@ async def config_drift(
         latest_taken_at=rows[0].taken_at if rows else None,
         changed_since_previous=len(rows) >= 2,
     )
+
+
+@router.get("/devices/{device_id}/config/drift-check", response_model=DriftReport)
+async def config_drift_check(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> DriftReport:
+    """Live, on-demand drift check: for each applied template change, compare what we applied to
+    the device's current config and report the drifted field names.
+
+    Builds an OpnsenseClient like config_capabilities; on ANY connector/credential error it returns
+    reachable=False (drift is meaningless without live data). The response carries field NAMES and a
+    status only — never raw config values.
+    """
+    # Ownership gate first (RLS hides another tenant's device -> None -> 404), then read.
+    device = await session.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    changes = await ConfigChangeRepository(session, tenant_id).list(device_id)
+    checked_at = datetime.now(UTC)
+    unsupported = unsupported_kinds(changes)
+    try:
+        client = OpnsenseClient(
+            device.base_url,
+            crypto.decrypt(device.api_key_enc),
+            crypto.decrypt(device.api_secret_enc),
+            verify_tls=device.verify_tls,
+            tls_fingerprint=device.tls_fingerprint,
+        )
+        live = await gather_live_state(client, changes)
+        # compute_drift parses the device-served config.xml; a corrupt/partial backup
+        # (ParseError) or an entity-attack payload (DefusedXmlException) degrades to
+        # reachable=false rather than a 500.
+        results = [DriftResultOut(**vars(r)) for r in compute_drift(changes, live)]
+    except (OpnsenseError, InvalidToken, ParseError, DefusedXmlException):
+        return DriftReport(reachable=False, checked_at=checked_at, results=[], unsupported_kinds=unsupported)
+    return DriftReport(reachable=True, checked_at=checked_at, results=results, unsupported_kinds=unsupported)
 
 
 @router.get(

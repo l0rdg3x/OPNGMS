@@ -56,6 +56,21 @@ class DriftSummary(BaseModel):
     changed_since_previous: bool
 
 
+class DriftResultOut(BaseModel):
+    change_id: uuid.UUID
+    kind: str
+    target: str
+    status: str                    # in_sync | drifted | missing | unsupported
+    drifted_fields: list[str]      # field NAMES only — never raw config values
+
+
+class DriftReport(BaseModel):
+    reachable: bool                # False when the live probe could not reach the device
+    checked_at: datetime
+    results: list[DriftResultOut]
+    unsupported_kinds: list[str]
+
+
 class Interface(BaseModel):
     name: str
     nic: str

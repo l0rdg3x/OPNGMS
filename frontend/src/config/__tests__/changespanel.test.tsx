@@ -47,6 +47,13 @@ const appliedRevertible = {
 
 const CHANGES_URL = "/api/tenants/t1/devices/d1/config/changes";
 const REVERT_URL = "/api/tenants/t1/devices/d1/config/changes/c1/revert";
+const DRIFT_URL = "/api/tenants/t1/devices/d1/config/drift-check";
+
+const applied = {
+  ...change,
+  status: "applied",
+  applied_at: "2026-06-11T09:00:00Z",
+};
 
 describe("ChangesPanel", () => {
   it("renders the change rows with a status badge and a propose button (tenant_admin)", async () => {
@@ -117,6 +124,54 @@ describe("ChangesPanel", () => {
     await waitFor(() => {
       expect(revertCalled).toBe(true);
     });
+  });
+
+  it("shows a drift badge after clicking Check drift", async () => {
+    server.use(
+      http.get(CHANGES_URL, () => HttpResponse.json([applied])),
+      http.get(DRIFT_URL, () =>
+        HttpResponse.json({
+          reachable: true,
+          checked_at: "2026-06-12T10:00:00Z",
+          results: [
+            {
+              change_id: "c1",
+              kind: "alias",
+              target: "web_servers",
+              status: "drifted",
+              drifted_fields: ["content"],
+            },
+          ],
+          unsupported_kinds: [],
+        }),
+      ),
+    );
+    renderWithProviders(withTenant(<ChangesPanel deviceId="d1" />, "tenant_admin"));
+
+    await screen.findByText("web_servers");
+    await userEvent.click(screen.getByRole("button", { name: /check drift/i }));
+
+    expect(await screen.findByText("drift")).toBeInTheDocument();
+  });
+
+  it("shows the unreachable banner when the drift probe cannot reach the device", async () => {
+    server.use(
+      http.get(CHANGES_URL, () => HttpResponse.json([applied])),
+      http.get(DRIFT_URL, () =>
+        HttpResponse.json({
+          reachable: false,
+          checked_at: "2026-06-12T10:00:00Z",
+          results: [],
+          unsupported_kinds: [],
+        }),
+      ),
+    );
+    renderWithProviders(withTenant(<ChangesPanel deviceId="d1" />, "tenant_admin"));
+
+    await screen.findByText("web_servers");
+    await userEvent.click(screen.getByRole("button", { name: /check drift/i }));
+
+    expect(await screen.findByText(/could not reach the device/i)).toBeInTheDocument();
   });
 
   it("renders a reverts-#chain badge when reverts_change_id is set", async () => {

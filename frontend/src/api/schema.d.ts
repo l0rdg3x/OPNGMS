@@ -504,6 +504,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/drift-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Config Drift Check
+         * @description Live, on-demand drift check: for each applied template change, compare what we applied to
+         *     the device's current config and report the drifted field names.
+         *
+         *     Builds an OpnsenseClient like config_capabilities; on ANY connector/credential error it returns
+         *     reachable=False (drift is meaningless without live data). The response carries field NAMES and a
+         *     status only — never raw config values.
+         */
+        get: operations["config_drift_check_api_tenants__tenant_id__devices__device_id__config_drift_check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/devices/{device_id}/config/diff": {
         parameters: {
             query?: never;
@@ -1552,6 +1577,36 @@ export interface components {
             site?: string | null;
             /** Tags */
             tags?: string[] | null;
+        };
+        /** DriftReport */
+        DriftReport: {
+            /** Reachable */
+            reachable: boolean;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Results */
+            results: components["schemas"]["DriftResultOut"][];
+            /** Unsupported Kinds */
+            unsupported_kinds: string[];
+        };
+        /** DriftResultOut */
+        DriftResultOut: {
+            /**
+             * Change Id
+             * Format: uuid
+             */
+            change_id: string;
+            /** Kind */
+            kind: string;
+            /** Target */
+            target: string;
+            /** Status */
+            status: string;
+            /** Drifted Fields */
+            drifted_fields: string[];
         };
         /** DriftSummary */
         DriftSummary: {
@@ -3594,6 +3649,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriftSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    config_drift_check_api_tenants__tenant_id__devices__device_id__config_drift_check_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriftReport"];
                 };
             };
             /** @description Validation Error */

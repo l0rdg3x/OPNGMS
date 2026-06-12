@@ -282,6 +282,14 @@ export const en = {
       reverts: "reverts #",
       applyNow: "Apply now",
       pickTime: "Pick date/time",
+      // drift detection
+      checkDrift: "Check drift",
+      driftUnreachable: "Could not reach the device — drift unknown.",
+      driftInSync: "in sync",
+      driftDrifted: "drift",
+      driftMissing: "missing",
+      driftUnsupported: "n/a",
+      driftFields: "Drifted fields: ",
       // form
       operation: "Operation",
       name: "Name",
