@@ -211,16 +211,22 @@ class OpnsenseClient:
         return await self._get(get_path)
 
     async def apply_setting(self, set_path: str, reconfigure_path: str, model_root: str,
-                            payload: dict, *, dry_run: bool = True) -> dict:
+                            payload: dict, *, dry_run: bool = True, reconfigure: bool = True) -> dict:
         """Apply a PARTIAL setting: POST only the templated fields under the model root, then
         reconfigure. Verified: OPNsense `set` merges a partial payload (no clobber). Payload keys are
-        dotted paths (e.g. 'general.homenet'); values are strings (option fields = comma-joined keys)."""
+        dotted paths (e.g. 'general.homenet'); values are strings (option fields = comma-joined keys).
+        `reconfigure=False` skips the reload (the catalog applier batches one reconfigure at the end)."""
         if dry_run:
             return {"dry_run": True, "endpoint": set_path, "fields": sorted(payload.keys())}
         nested = _unflatten(payload)
         res = await self._post(set_path, {model_root: nested})
-        await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
+        if reconfigure:
+            await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "result": res}
+
+    async def reconfigure(self, reconfigure_path: str) -> dict:
+        """Run a model's reconfigure/reload endpoint once (slow; long timeout)."""
+        return await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
 
     async def get_firewall_rule_model(self) -> dict:
         """Blank Rules[new] filter-rule model (option-objects/strings) for the introspection form."""
