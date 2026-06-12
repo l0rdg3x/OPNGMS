@@ -9,6 +9,14 @@ def _parsed():
                        grids=[Grid(path="rules.rule", fields=[Field(path="enabled", type="bool")])])
 
 
+def test_colliding_module_ids_are_disambiguated_not_overwritten():
+    # Two models in one module (e.g. OpenVPN Instances + StaticKey) must both survive (never-drop).
+    a = assemble_model("OpenVPN", ParsedModel(mount="//OPNsense/OpenVPN/Instances"), {}, {}, {}, source="core")
+    b = assemble_model("OpenVPN", ParsedModel(mount="//OPNsense/OpenVPN/StaticKey"), {}, {}, {}, source="core")
+    cat = build_catalog([a, b], edition="community", version="x", generated_from={})
+    assert set(cat["models"]) == {"openvpn.instances", "openvpn.statickey"}
+
+
 def test_assemble_merges_labels_endpoints_and_derives_ids():
     forms = {"general.enabled": {"label": "Enabled", "help": "h", "page": "general"}}
     eps = {"get": "ids/settings/get"}
@@ -26,4 +34,5 @@ def test_build_catalog_and_coverage():
     assert cat["edition"] == "community" and cat["version"] == "26.1.8"
     assert "ids" in cat["models"]
     rep = coverage_report(cat)
-    assert rep["models"] == 1 and rep["fields_total"] == 2 and rep["fields_raw"] == 1
+    # 2 scalar fields + 1 grid field = 3 total (coverage counts grid fields too); 1 raw.
+    assert rep["models"] == 1 and rep["fields_total"] == 3 and rep["fields_raw"] == 1

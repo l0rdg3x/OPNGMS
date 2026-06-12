@@ -12,12 +12,9 @@ _CODELOAD = "https://codeload.github.com/opnsense/{repo}/tar.gz/refs/tags/{ref}"
 def extract_tarball(data: bytes, dest: Path) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-        # Path-traversal guard: refuse any member that escapes dest.
-        for member in tf.getmembers():
-            target = (dest / member.name).resolve()
-            if not str(target).startswith(str(dest.resolve())):
-                raise ValueError(f"unsafe tar member: {member.name}")
-        tf.extractall(dest)
+        # filter="data" (Python 3.12+) refuses absolute paths, `..` traversal, unsafe symlinks and
+        # device nodes in one pass — no manual TOCTOU guard needed.
+        tf.extractall(dest, filter="data")
     return dest
 
 

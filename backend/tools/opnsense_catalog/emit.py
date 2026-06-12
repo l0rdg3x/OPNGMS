@@ -38,16 +38,24 @@ def assemble_model(module: str, parsed: ParsedModel, forms: dict[str, dict],
 
 
 def build_catalog(models: list[Model], *, edition: str, version: str, generated_from: dict) -> dict:
-    return {
-        "edition": edition, "version": version, "generated_from": generated_from,
-        "models": {m.id: model_to_dict(m) for m in sorted(models, key=lambda m: m.id)},
-    }
+    # A module with >1 model (e.g. OpenVPN: Instances/StaticKey/...) would collide on id=module;
+    # qualify the colliding ones with the mount leaf so NO model is silently overwritten (never-drop).
+    from collections import Counter
+    id_counts = Counter(m.id for m in models)
+    out_models: dict[str, dict] = {}
+    for m in sorted(models, key=lambda m: (m.id, m.xml_path)):
+        key = m.id
+        if id_counts[m.id] > 1:
+            key = f"{m.id}.{m.xml_path.rstrip('/').split('/')[-1].lower()}"
+        out_models[key] = model_to_dict(m)
+    return {"edition": edition, "version": version, "generated_from": generated_from, "models": out_models}
 
 
 def coverage_report(catalog: dict) -> dict:
     total = raw = 0
     for m in catalog["models"].values():
-        for f in m["fields"]:
-            total += 1
-            raw += 1 if f.get("confidence") == "raw" else 0
+        for fl in [m["fields"], *[g["fields"] for g in m.get("grids", [])]]:  # scalar + grid fields
+            for f in fl:
+                total += 1
+                raw += 1 if f.get("confidence") == "raw" else 0
     return {"models": len(catalog["models"]), "fields_total": total, "fields_raw": raw}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import tempfile
 from pathlib import Path
 
@@ -19,6 +20,7 @@ def _generate(edition: str, version: str, source: Path) -> dict:
     for src in discover_models(source):
         parsed = parse_model(Path(src.model_xml).read_text())
         if not parsed.mount:
+            print(f"SKIP {src.module}: model {src.model_xml} has no <mount>", file=sys.stderr)
             continue
         forms = parse_forms([(p.stem, p.read_text()) for p in src.form_paths])
         php = "\n".join(p.read_text() for p in src.controller_paths)
@@ -44,12 +46,9 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv)
 
     if args.cmd == "generate":
-        if args.fetch:
-            tmp = Path(tempfile.mkdtemp())
-            source = fetch_source("core", args.version, tmp)
-        else:
-            source = Path(args.source)
-        cat = _generate(args.edition, args.version, source)
+        with tempfile.TemporaryDirectory() as tmp:   # cleaned up even on the --source path (unused there)
+            source = fetch_source("core", args.version, Path(tmp)) if args.fetch else Path(args.source)
+            cat = _generate(args.edition, args.version, source)
         Path(args.out).write_text(json.dumps(cat, indent=2, sort_keys=False) + "\n")
         rep = coverage_report(cat)
         print(json.dumps({"wrote": args.out, "coverage": rep}))
@@ -63,6 +62,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    import sys
-
     raise SystemExit(main(sys.argv[1:]))
