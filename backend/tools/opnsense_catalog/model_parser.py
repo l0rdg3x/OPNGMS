@@ -18,8 +18,24 @@ _TYPE_MAP = {
     "NetworkField": "network",
     "NetworkAliasField": "network",
     "OptionField": "enum",
+    "ProtocolField": "enum",        # protocol picker (fixed-ish option set)
+    "CountryField": "enum",         # country picker (options resolved live)
     "ModelRelationField": "ref",
     "InterfaceField": "ref",        # reference to a configured interface (options resolved live)
+    "CertificateField": "ref",      # reference to a stored certificate
+    "AuthGroupField": "ref",
+    "AuthenticationServerField": "ref",
+    "VirtualIPField": "ref",
+    "ConfigdActionsField": "ref",
+    "MacAddressField": "string",
+    "UrlField": "string",
+    "IPPortField": "string",        # host:port
+    "JsonKeyValueStoreField": "string",
+    "JsonField": "string",
+    "Base64Field": "string",
+    "UpdateOnlyTextField": "string",
+    "LegacyLinkField": "string",
+    "AutoNumberField": "int",
 }
 
 
