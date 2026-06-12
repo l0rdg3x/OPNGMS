@@ -6,6 +6,7 @@ class ReportSettingsIn(BaseModel):
     owner: str = ""
     timezone: str = "UTC"
     language: str = "en"
+    from_email: str = ""
 
 
 class ReportSettingsOut(BaseModel):
@@ -15,6 +16,7 @@ class ReportSettingsOut(BaseModel):
     has_logo: bool
     logo_mime: str | None
     language: str
+    from_email: str
 
 
 class ReportLanguageOut(BaseModel):
