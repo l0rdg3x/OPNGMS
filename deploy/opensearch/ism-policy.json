@@ -1,0 +1,26 @@
+{
+  "policy": {
+    "description": "OPNGMS log retention",
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": { "min_index_age": "{{RETENTION_DAYS}}d" }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [ { "delete": {} } ],
+        "transitions": []
+      }
+    ],
+    "ism_template": [
+      { "index_patterns": ["opngms-logs-*"], "priority": 100 }
+    ]
+  }
+}
