@@ -21,7 +21,7 @@ def test_csv_has_header_and_rows_with_silent_column():
     csv_text = fleet_rows_to_csv(_rows(), now=_NOW, stale_after=_STALE)
     lines = csv_text.strip().splitlines()
     assert lines[0] == "tenant_name,enabled,disabled,revoked,total_devices,last_log_at,volume,silent"
-    assert "Acme,2,0,1,3,,,yes" == lines[1]                       # enabled + no logs -> silent yes
+    assert lines[1] == "Acme,2,0,1,3,,,yes"                       # enabled + no logs -> silent yes
     assert lines[2].startswith("Beta & Co,1,1,0,2,2026-06-12T11:55:00")
     assert lines[2].endswith(",42,no")                            # fresh log -> not silent
     assert lines[3] == "Gamma,0,1,0,1,,,no"                       # no enabled forwarding -> not silent
@@ -34,6 +34,14 @@ def test_html_escapes_and_lists_rows():
     assert "Beta & Co" not in html
     assert "7d" in html                      # window labelled
     assert "Acme" in html and "Gamma" in html
+
+
+def test_csv_neutralises_formula_injection_in_tenant_name():
+    rows = [{"tenant_name": "=cmd|'/c calc'!A1", "enabled": 1, "disabled": 0, "revoked": 0,
+             "total_devices": 1, "last_log_at": None, "volume": None}]
+    csv_text = fleet_rows_to_csv(rows, now=_NOW, stale_after=_STALE)
+    data = csv_text.strip().splitlines()[1]
+    assert data.startswith("'=cmd")  # leading apostrophe -> spreadsheet treats it as text, not a formula
 
 
 def test_csv_empty_rows_is_header_only():

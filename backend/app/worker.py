@@ -489,37 +489,41 @@ async def detect_silent_tenants(ctx: dict) -> dict:
     settings = get_settings()
     factory = ctx["session_factory"]
 
+    # Reconcile the alert state, gather the SMTP recipients/config, then COMMIT — and only email
+    # AFTER the commit. Committing first means a post-email commit failure can't cause a duplicate
+    # alert next run (the rows are already persisted -> dedup holds).
     async with factory() as session:
-        async def send_alert(new_silent: list[tuple[uuid.UUID, str]]) -> bool:
+        summary = await detect_and_alert(session, settings)
+        newly = summary["newly_silent"]
+        cfg = recipients = None
+        if newly:
             svc = SmtpSettingsService(session)
             smtp = await svc.get()
-            if smtp is None or not smtp.enabled:
-                return False
-            recipients = [row[0] for row in (await session.execute(
-                select(User.email).where(User.is_superadmin.is_(True), User.status == "active")
-            )).all()]
-            if not recipients:
-                return False
-            # Defuse header injection at the call site too (subject sanitisation lives in smtp._strip,
-            # but tenant_name is operator-controlled — strip CR/LF here so it can't escape a refactor).
-            names = [name.replace("\r", " ").replace("\n", " ") for _id, name in new_silent]
-            body = (
-                "These OPNGMS tenant(s) have enabled log forwarding but stopped shipping logs "
-                f"(silent > {settings.silent_alert_after_hours}h):\n\n  "
-                + "\n  ".join(names)
-                + "\n\nOpen the Log fleet dashboard to investigate."
-            )
-            try:
-                await send_email(svc.to_send_config(smtp),
-                                 subject=f"OPNGMS: {len(names)} tenant(s) silent — {', '.join(names)}",
-                                 recipients=recipients, body_text=body)
-            except EmailSendError:
-                return False
-            return True
-
-        summary = await detect_and_alert(session, settings, send_alert=send_alert)
+            if smtp is not None and smtp.enabled:
+                recipients = [row[0] for row in (await session.execute(
+                    select(User.email).where(User.is_superadmin.is_(True), User.status == "active")
+                )).all()]
+                cfg = svc.to_send_config(smtp) if recipients else None
         await session.commit()
-    return summary
+
+    emailed = False
+    if cfg and recipients:
+        # tenant_name is operator-controlled — strip CR/LF before it reaches the Subject (defence in
+        # depth; smtp._strip also sanitises).
+        names = [name.replace("\r", " ").replace("\n", " ") for _id, name in newly]
+        body = (
+            "These OPNGMS tenant(s) have enabled log forwarding but stopped shipping logs "
+            f"(silent > {settings.silent_alert_after_hours}h):\n\n  "
+            + "\n  ".join(names)
+            + "\n\nOpen the Log fleet dashboard to investigate."
+        )
+        try:
+            await send_email(cfg, subject=f"OPNGMS: {len(names)} tenant(s) silent — {', '.join(names)}",
+                             recipients=recipients, body_text=body)
+            emailed = True
+        except EmailSendError:
+            emailed = False
+    return {**summary, "emailed": emailed}
 
 
 async def cleanup_expired_sessions(ctx: dict) -> str:
