@@ -16,7 +16,9 @@ def _label_fields(fields: list[Field], forms: dict[str, dict]) -> list[Field]:
 
 def assemble_model(module: str, parsed: ParsedModel, forms: dict[str, dict],
                    endpoints: dict[str, str], grid_endpoints: dict[str, dict], *, source: str) -> Model:
-    model_root = parsed.mount.rstrip("/").split("/")[-1].lower()
+    # The API base / set-body root come from the MODULE (e.g. "unbound"); the mount only gives the
+    # config.xml location, which can differ (Unbound mounts at //OPNsense/unboundplus).
+    model_root = module.lower()
     xml_path = parsed.mount.strip("/")
     grids = []
     for g in parsed.grids:

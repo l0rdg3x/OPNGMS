@@ -9,14 +9,17 @@ _TYPE_MAP = {
     "BooleanField": "bool",
     "IntegerField": "int",
     "PortField": "int",
+    "NumericField": "string",       # may hold decimals; keep as text (box validates), not a forced int
     "TextField": "string",
     "DescriptionField": "string",
     "HostnameField": "string",
     "EmailField": "string",
+    "CSVListField": "string",       # comma-separated list stored as a string
     "NetworkField": "network",
     "NetworkAliasField": "network",
     "OptionField": "enum",
     "ModelRelationField": "ref",
+    "InterfaceField": "ref",        # reference to a configured interface (options resolved live)
 }
 
 
