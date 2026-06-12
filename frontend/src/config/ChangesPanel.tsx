@@ -245,7 +245,7 @@ export function ChangesPanel({ deviceId }: { deviceId: string }) {
                   </Badge>
                   {c.reverts_change_id && (
                     <Text size="xs" c="dimmed">
-                      reverts #{c.reverts_change_id.slice(0, 7)}
+                      {`${t.config.changes.reverts}${c.reverts_change_id.slice(0, 7)}`}
                     </Text>
                   )}
                 </Table.Td>
