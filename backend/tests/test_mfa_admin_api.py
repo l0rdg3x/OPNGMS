@@ -13,9 +13,9 @@ async def _seed(db_engine):
     """Create a superadmin, a normal user, and a target user that has MFA enabled."""
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="sa@x.io", password="pw12345", is_superadmin=True)
-        await make_user(s, email="reg@x.io", password="pw12345")
-        target = await make_user(s, email="tgt@x.io", password="pw12345")
+        await make_user(s, email="sa@x.io", password="pw12345-secure", is_superadmin=True)
+        await make_user(s, email="reg@x.io", password="pw12345-secure")
+        target = await make_user(s, email="tgt@x.io", password="pw12345-secure")
         s.add(
             UserMfa(
                 user_id=target.id,
@@ -30,7 +30,7 @@ async def _seed(db_engine):
         return target.id
 
 
-async def _login(api_client, email, password="pw12345"):
+async def _login(api_client, email, password="pw12345-secure"):
     r = await api_client.post("/api/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
 

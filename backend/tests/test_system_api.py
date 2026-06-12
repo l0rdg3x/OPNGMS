@@ -8,8 +8,8 @@ pytestmark = pytest.mark.asyncio
 
 
 async def _superadmin(api_client):
-    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"})
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
 
 
 async def test_superadmin_get_and_set_live_push(api_client, db_engine):
@@ -25,7 +25,7 @@ async def test_superadmin_get_and_set_live_push(api_client, db_engine):
 async def test_non_superadmin_denied(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="op@x.io", password="pw12345", is_superadmin=False)
+        await make_user(s, email="op@x.io", password="pw12345-secure", is_superadmin=False)
         await s.commit()
-    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345-secure"})
     assert (await api_client.get("/api/admin/live-push")).status_code == 403

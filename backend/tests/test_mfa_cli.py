@@ -14,7 +14,7 @@ from tests.factories import make_user
 async def _seed_mfa_user(db_engine, email="u@x.io"):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        user = await make_user(s, email=email, password="pw12345")
+        user = await make_user(s, email=email, password="pw12345-secure")
         s.add(
             UserMfa(
                 user_id=user.id,

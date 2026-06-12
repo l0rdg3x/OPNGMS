@@ -8,10 +8,10 @@ pytestmark = pytest.mark.asyncio
 async def test_full_admin_flow(api_client):
     # 1. setup first superadmin
     await api_client.post(
-        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
+        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"}
     )
     # 2. login superadmin
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     # 3. create tenant
     t = await api_client.post(
         "/api/tenants", json={"name": "Acme", "slug": "acme"}, headers=csrf_headers(api_client)
@@ -20,7 +20,7 @@ async def test_full_admin_flow(api_client):
     # 4. create operator user
     u = await api_client.post(
         "/api/users",
-        json={"email": "op@x.io", "name": "Op", "password": "pw12345", "is_superadmin": False},
+        json={"email": "op@x.io", "name": "Op", "password": "pw12345-secure", "is_superadmin": False},
         headers=csrf_headers(api_client),
     )
     user_id = u.json()["id"]
@@ -33,7 +33,7 @@ async def test_full_admin_flow(api_client):
     assert m.status_code == 201
     # 6. logout superadmin, login operator
     await api_client.post("/api/logout", headers=csrf_headers(api_client))
-    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "op@x.io", "password": "pw12345-secure"})
     # 7. the operator CANNOT create tenants (org-level)
     denied = await api_client.post(
         "/api/tenants", json={"name": "X", "slug": "x"}, headers=csrf_headers(api_client)

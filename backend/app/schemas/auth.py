@@ -1,18 +1,20 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class SetupIn(BaseModel):
     email: EmailStr
     name: str
-    password: str
+    # First superadmin: enforce a minimum length (and cap to bound Argon2 work). LoginIn below is a
+    # re-auth against an existing password and must NOT carry min_length (legacy passwords may be short).
+    password: str = Field(min_length=12, max_length=1024)
 
 
 class LoginIn(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=1024)
 
 
 class MeOut(BaseModel):

@@ -32,9 +32,9 @@ async def _login_superadmin(api_client, db_engine):
         await s.commit()
         tid = t.id
     await api_client.post(
-        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345"}
+        "/api/setup", json={"email": "sa@x.io", "name": "SA", "password": "pw12345-secure"}
     )
-    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": "sa@x.io", "password": "pw12345-secure"})
     return tid
 
 
@@ -182,15 +182,15 @@ async def test_config_model_forbidden_without_membership(api_client, db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug="acme")
-        await make_user(s, email="sa@x.io", password="pw12345", is_superadmin=True)
-        await make_user(s, email="other@x.io", password="pw12345", is_superadmin=False)
+        await make_user(s, email="sa@x.io", password="pw12345-secure", is_superadmin=True)
+        await make_user(s, email="other@x.io", password="pw12345-secure", is_superadmin=False)
         await s.commit()
         tid = t.id
     did = await _insert_device(db_engine, tid)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="https://test") as c:
         login = await c.post(
-            "/api/login", json={"email": "other@x.io", "password": "pw12345"}
+            "/api/login", json={"email": "other@x.io", "password": "pw12345-secure"}
         )
         assert login.status_code == 200
         r = await c.get(f"/api/tenants/{tid}/devices/{did}/config/model")

@@ -27,9 +27,9 @@ async def _seed_members(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         t = await make_tenant(s, slug="acme")
-        admin = await make_user(s, email="ta@x.io", password="pw12345")
+        admin = await make_user(s, email="ta@x.io", password="pw12345-secure")
         await make_membership(s, user_id=admin.id, tenant_id=t.id, role="tenant_admin")
-        viewer = await make_user(s, email="ro@x.io", password="pw12345")
+        viewer = await make_user(s, email="ro@x.io", password="pw12345-secure")
         await make_membership(s, user_id=viewer.id, tenant_id=t.id, role="read_only")
         await s.commit()
         return t.id
@@ -39,7 +39,7 @@ async def _seed_superadmin(db_engine):
     """Create a superadmin user (no tenant membership needed)."""
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="sa@x.io", password="pw12345", is_superadmin=True)
+        await make_user(s, email="sa@x.io", password="pw12345-secure", is_superadmin=True)
         await s.commit()
 
 
@@ -94,7 +94,7 @@ def _override_enqueuer():
 
 
 async def _login(api_client, email):
-    await api_client.post("/api/login", json={"email": email, "password": "pw12345"})
+    await api_client.post("/api/login", json={"email": email, "password": "pw12345-secure"})
 
 
 async def test_superadmin_can_create_and_list_profile(api_client, db_engine):

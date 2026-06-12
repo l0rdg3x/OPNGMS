@@ -27,7 +27,7 @@ async def _seed_silent_tenant(s, *, name="Acme", slug="acme"):
 async def test_detect_silent_tenants_emails_superadmins(db_engine, monkeypatch):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="sa@x.io", password="pw12345", is_superadmin=True)
+        await make_user(s, email="sa@x.io", password="pw12345-secure", is_superadmin=True)
         s.add(SmtpSettings(id=SINGLETON_ID, enabled=True, host="smtp.x.io", port=587,
                            security="starttls", username=None, password_enc=None,
                            from_email="noc@x.io", from_name="NOC"))
@@ -56,7 +56,7 @@ async def test_detect_silent_tenants_no_smtp_no_email(db_engine, monkeypatch):
     # SMTP disabled -> alert row still created (dashboard), but no email and emailed=False.
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="sa@x.io", password="pw12345", is_superadmin=True)
+        await make_user(s, email="sa@x.io", password="pw12345-secure", is_superadmin=True)
         await _seed_silent_tenant(s)
         await s.commit()
 

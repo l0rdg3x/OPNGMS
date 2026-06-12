@@ -7,13 +7,13 @@ from tests.factories import make_user
 async def _seed(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await make_user(s, email="sa@x.io", password="pw12345", is_superadmin=True)
-        await make_user(s, email="reg@x.io", password="pw12345")
+        await make_user(s, email="sa@x.io", password="pw12345-secure", is_superadmin=True)
+        await make_user(s, email="reg@x.io", password="pw12345-secure")
         await s.commit()
 
 
 async def _login(api_client, email):
-    r = await api_client.post("/api/login", json={"email": email, "password": "pw12345"})
+    r = await api_client.post("/api/login", json={"email": email, "password": "pw12345-secure"})
     assert r.status_code == 200, r.text
 
 
@@ -26,7 +26,7 @@ async def test_get_hides_password_and_put_roundtrips(api_client, db_engine):
     assert "password" not in g.json()
     p = await api_client.put("/api/admin/smtp", headers=csrf_headers(api_client), json={
         "enabled": True, "host": "smtp.x.io", "port": 587, "security": "starttls",
-        "username": "u", "from_email": "noc@x.io", "from_name": "NOC", "password": "secret",
+        "username": "u", "from_email": "noc@x.io", "from_name": "NOC", "password": "secret-12chr!",
     })
     assert p.status_code == 200, p.text
     g2 = await api_client.get("/api/admin/smtp")
@@ -55,7 +55,7 @@ async def test_smtp_test_uses_submitted_config(api_client, db_engine, monkeypatc
     await _login(api_client, "sa@x.io")
     r = await api_client.post("/api/admin/smtp/test", headers=csrf_headers(api_client), json={
         "to": "ops@x.io", "host": "smtp.x.io", "port": 587, "security": "starttls",
-        "username": "u", "from_email": "noc@x.io", "from_name": "NOC", "password": "secret",
+        "username": "u", "from_email": "noc@x.io", "from_name": "NOC", "password": "secret-12chr!",
     })
     assert r.status_code == 200, r.text
     assert r.json()["ok"] is True

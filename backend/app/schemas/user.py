@@ -1,12 +1,12 @@
 import uuid
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserCreateIn(BaseModel):
     email: EmailStr
     name: str
-    password: str
+    password: str = Field(min_length=12, max_length=1024)  # admin-created accounts: enforce a minimum
     is_superadmin: bool = False
 
 
