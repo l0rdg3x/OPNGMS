@@ -5,6 +5,7 @@ export const en = {
     appName: "OPNGMS",
     logout: "Log out",
     none: "—",
+    language: "Language",
   },
   nav: {
     overview: "Overview",
@@ -465,4 +466,9 @@ export const en = {
   },
 } as const;
 
-export type Dict = typeof en;
+// Widen the string leaves to `string` while preserving the exact key structure, so sibling
+// locale dictionaries can be typed `: Dict` — `tsc -b` then enforces key parity in both
+// directions (missing/extra/renamed keys fail the build) while allowing any translated value.
+type Localized<T> = { [K in keyof T]: T[K] extends string ? string : Localized<T[K]> };
+
+export type Dict = Localized<typeof en>;

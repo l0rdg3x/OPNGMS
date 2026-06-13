@@ -1,4 +1,4 @@
-import { Anchor, Box, Button, Center, Group, Paper, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Box, Button, Center, Paper, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@ import { api } from "../api/client";
 import type { components } from "../api/schema";
 import type { Me } from "../auth/AuthProvider";
 import { useAuth } from "../auth/useAuth";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { useT } from "../i18n";
 
 type LoginOut = components["schemas"]["LoginOut"];
@@ -158,9 +159,10 @@ export function LoginPage() {
           )}
         </Paper>
 
-        <Group justify="center" mt="lg" style={{ position: "relative", zIndex: 1 }}>
+        <Stack align="center" gap="sm" mt="lg" style={{ position: "relative", zIndex: 1 }}>
+          <LanguageSwitcher w={160} size="xs" />
           <Text size="xs" c="dimmed">Secured session · encrypted at rest</Text>
-        </Group>
+        </Stack>
       </Box>
     </Center>
   );

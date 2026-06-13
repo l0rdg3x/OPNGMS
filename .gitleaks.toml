@@ -9,10 +9,18 @@
 #   * the local *test* database DSN `postgresql+asyncpg://opngms:opngms@localhost/...` — a throwaway
 #     local credential embedded in plan/spec snippets and all over the test suite.
 #
-# This is scoped by `regexes` (matching the secret string), NOT by `paths`: no file or directory is
-# exempted from scanning, so a real `ghp_…`, AWS key, private key, etc. is still flagged even inside
-# the design docs. Real secrets never live in the repo (they come from the environment / files
-# outside the tree). GitHub secret scanning runs alongside this as defence in depth.
+# The `regexes` suppression is scoped by the secret string (NOT by path): no source file is exempted
+# for those, so a real `ghp_…`, AWS key, private key, etc. is still flagged even inside the design docs.
+#
+# The single `paths` exemption below covers ONLY the frontend i18n dictionaries
+# (`frontend/src/i18n/*.ts`). These are pure UI display-string tables shipped to every browser — they
+# are public by construction and structurally cannot hold a real secret. The entropy-based
+# `generic-api-key` heuristic otherwise misfires on natural-language translations of labels whose KEY
+# names contain trigger words (e.g. `passwordToggle`, `apiSecret`, `secretLabel`) — a recurring,
+# language-dependent false positive. Exempting these public string tables loses no real coverage.
+#
+# Real secrets never live in the repo (they come from the environment / files outside the tree).
+# GitHub secret scanning runs alongside this as defence in depth.
 
 title = "OPNGMS gitleaks config"
 
@@ -20,9 +28,12 @@ title = "OPNGMS gitleaks config"
 useDefault = true
 
 [allowlist]
-description = "Suppress only specific harmless illustrative strings the generic-api-key heuristic misfires on (no path is exempted)."
+description = "Suppress harmless generic-api-key misfires: two illustrative strings (by match) + the public frontend i18n string tables (by path)."
 regexTarget = "match"
 regexes = [
   '''SQLAlchemy/Alembic''',
   '''postgresql\+asyncpg://opngms:opngms@localhost''',
+]
+paths = [
+  '''frontend/src/i18n/.*\.ts$''',
 ]
