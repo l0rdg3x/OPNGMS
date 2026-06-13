@@ -48,9 +48,12 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   uptime, firmware), network (interfaces, gateways, VPN), and up/down status.
 - **Alerting** — threshold-based alerts evaluated on every poll, with an active/historical view.
 - **Event ingest** — incremental, deduplicated pull of Suricata IDS/IPS alerts and DNS queries.
-- **Reporting** — per-customer white-label PDF reports (attacks, web activity, data usage), localized
-  per tenant (en/it/es/fr/de/pt/nl), with **scheduled email delivery** (per-tenant **and** per-device,
-  weekly/monthly/on-demand) via a superadmin SMTP relay, white-label sender, "send now", and send-retry.
+- **Reporting** — per-customer white-label PDF reports with an **executive-summary KPI band** and
+  per-device sections (health, alerts & connectivity, firmware & config, attacks, web, data, status),
+  each **toggleable per tenant and per device**; localized across **all 12 languages** (incl. RTL Arabic),
+  with **scheduled email delivery** (per-tenant **and** per-device, weekly/monthly/on-demand) via a
+  superadmin SMTP relay, white-label sender, "send now", and send-retry.
+  **[See sample reports →](docs/demo-reports/)**
 - **Config management** — versioned, encrypted backup with drift detection, targeted **revert**, and a
   firewall-aware editing UI; optional **live config push** behind a default-OFF master switch.
 - **Device actions** — firmware update / major upgrade and plugin install/remove (now or scheduled), run
@@ -93,7 +96,7 @@ and localized into **12 languages** (with full right-to-left support).
 |---|---|
 | [![Report schedule](docs/ui/report-schedule.png)](docs/ui/report-schedule.png) | [![SMTP settings](docs/ui/smtp.png)](docs/ui/smtp.png) |
 
-| Per-tenant report settings (branding & sender) | Reports |
+| Per-tenant report settings (branding, sender & section toggles) | Reports |
 |---|---|
 | [![Report settings](docs/ui/report-settings.png)](docs/ui/report-settings.png) | [![Reports](docs/ui/reports.png)](docs/ui/reports.png) |
 
@@ -109,9 +112,9 @@ and localized into **12 languages** (with full right-to-left support).
 |---|---|
 | [![Log fleet](docs/ui/log-fleet.png)](docs/ui/log-fleet.png) | [![Localized UI](docs/ui/localization.png)](docs/ui/localization.png) |
 
-| Right-to-left layout (Arabic) | |
+| Right-to-left layout (Arabic) | Access groups (group-based RBAC) |
 |---|---|
-| [![RTL](docs/ui/rtl.png)](docs/ui/rtl.png) | |
+| [![RTL](docs/ui/rtl.png)](docs/ui/rtl.png) | [![Groups](docs/ui/groups.png)](docs/ui/groups.png) |
 
 ## Architecture
 
