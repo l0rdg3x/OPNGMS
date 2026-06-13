@@ -12,6 +12,22 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-14
+### Added
+- **Community plugin coverage & lifecycle.** The version-aware catalog now covers `opnsense/plugins` (a
+  separate per-version asset, versioned 1:1 with core, published alongside the core catalogs). A per-device
+  **Plugins** page lists the plugins the box reports — badged installed / available / locked + version —
+  with search and **Install / Remove** (through the existing gated firmware-action pipeline), plus a
+  **Configure** drawer to edit an installed plugin's configuration via the existing catalog apply pipeline.
+  (#132, #134, #135, #136)
+- **Changelog + automatic GitHub Releases.** `CHANGELOG.md` (Keep a Changelog) and a workflow that
+  publishes a GitHub Release from the annotated tag on every `vX.Y.Z` push. (#131)
+### Docs
+- A **Scope & limitations** section (README + Wiki): OPNGMS manages firewalls through the OPNsense API and
+  builds its catalog from public `opnsense/core` + `opnsense/plugins`, so it's bounded by that API
+  (no firmware rollback / config restore; non-MVC settings are read-only) and proprietary / Business-only
+  plugins are not covered. (#133)
+
 ## [0.6.0] - 2026-06-13
 ### Added
 - World choropleth **map** of attacker countries, shaded by attack share (%), in both the per-tenant
@@ -71,7 +87,8 @@ annotated tag when a version is cut.
   monitoring + alerting, PDF reporting, the version-aware config catalog editor (generator + dynamic
   distribution + apply engine + editor UI), the syslog log lake, and the Docker deployment stack.
 
-[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.3.0...v0.4.0
