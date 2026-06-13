@@ -8,6 +8,7 @@ import { FirmwareActions } from "../firmware/FirmwareActions";
 import { LogForwardingCard } from "../components/LogForwardingCard";
 import { useT } from "../i18n";
 import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
+import { PluginsTab } from "../plugins/PluginsTab";
 import { ApplyProfileSection } from "../profiles/ApplyProfileSection";
 import { ApplyTemplateTab } from "../templates/ApplyTemplateTab";
 import { CatalogEditorTab } from "../catalog/CatalogEditorTab";
@@ -40,6 +41,7 @@ export function DeviceDetailPage() {
           <Tabs.Tab value="config">{t.config.tabConfig}</Tabs.Tab>
           <Tabs.Tab value="firmware">{t.firmware.tab}</Tabs.Tab>
           <Tabs.Tab value="forwarding">{t.logForwarding.tab}</Tabs.Tab>
+          <Tabs.Tab value="plugins">{t.plugins.tab}</Tabs.Tab>
           <Tabs.Tab value="templates">{t.templates.tab}</Tabs.Tab>
           <Tabs.Tab value="editor">{t.catalog.tab}</Tabs.Tab>
         </Tabs.List>
@@ -64,6 +66,9 @@ export function DeviceDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="forwarding" pt="md">
           {deviceId && <LogForwardingCard deviceId={deviceId} />}
+        </Tabs.Panel>
+        <Tabs.Panel value="plugins" pt="md">
+          {deviceId && <PluginsTab deviceId={deviceId} />}
         </Tabs.Panel>
         <Tabs.Panel value="templates" pt="md">
           {deviceId && (
