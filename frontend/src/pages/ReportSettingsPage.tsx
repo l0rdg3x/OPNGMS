@@ -7,6 +7,7 @@ import {
   Loader,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
   Title,
@@ -22,6 +23,13 @@ import {
   useUpdateReportSettings,
   useUploadLogo,
 } from "../reports/settingsHooks";
+import {
+  buildSectionsMap,
+  REPORT_SECTION_KEYS,
+  type ReportSectionKey,
+  seedSectionState,
+  sectionLabel,
+} from "../reports/sections";
 
 export function ReportSettingsPage() {
   const t = useT();
@@ -51,6 +59,10 @@ function ReportSettingsForm() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   // Cache-buster for the logo preview image
   const [logoCacheBust, setLogoCacheBust] = useState(0);
+  // Tenant-level section defaults (seeded from the loaded settings).
+  const [sections, setSections] = useState<Record<ReportSectionKey, boolean>>(() =>
+    seedSectionState(undefined),
+  );
 
   const form = useForm({
     initialValues: {
@@ -74,6 +86,7 @@ function ReportSettingsForm() {
         language: settingsQuery.data.language ?? "en",
         from_email: settingsQuery.data.from_email ?? "",
       });
+      setSections(seedSectionState(settingsQuery.data.sections));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsQuery.data]);
@@ -91,6 +104,7 @@ function ReportSettingsForm() {
         timezone: form.values.timezone,
         language: form.values.language,
         from_email: form.values.from_email,
+        sections: buildSectionsMap(sections),
       });
       notifications.show({ message: t.reports.settings.saved });
     } catch {
@@ -159,6 +173,22 @@ function ReportSettingsForm() {
         {...form.getInputProps("language")}
         data-testid="field-language"
       />
+
+      <Title order={5} mt="md">{t.reports.sections.title}</Title>
+      <Text size="sm" c="dimmed">{t.reports.sections.description}</Text>
+      <Stack gap="xs">
+        {REPORT_SECTION_KEYS.map((key) => (
+          <Switch
+            key={key}
+            label={sectionLabel(t, key)}
+            checked={sections[key]}
+            onChange={(e) =>
+              setSections((prev) => ({ ...prev, [key]: e.currentTarget.checked }))
+            }
+            data-testid={`section-toggle-${key}`}
+          />
+        ))}
+      </Stack>
 
       <Button
         onClick={handleSave}

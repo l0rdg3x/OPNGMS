@@ -4,10 +4,14 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
+import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
 import {
   type ScheduleIn, type ScheduleOut, useReportSchedules, useSendScheduleNow, useUpsertReportSchedule,
 } from "../reports/scheduleHooks";
+import {
+  buildSectionsMap, REPORT_SECTION_KEYS, type ReportSectionKey, seedSectionState, sectionLabel,
+} from "../reports/sections";
 import { useTenantDevices } from "../templates/settingHooks";
 
 const WEEKDAYS = [
@@ -45,6 +49,7 @@ function ScheduleEditor({ prefix, deviceId, existing }: {
   deviceId: string | null;
   existing: ScheduleOut | undefined;
 }) {
+  const t = useT();
   const upsert = useUpsertReportSchedule();
   const sendNow = useSendScheduleNow();
   const [enabled, setEnabled] = useState(existing?.enabled ?? (deviceId === null));
@@ -53,12 +58,17 @@ function ScheduleEditor({ prefix, deviceId, existing }: {
     existing?.weekday != null ? String(existing.weekday) : "0");
   const [hour, setHour] = useState<number>(existing?.hour ?? 4);
   const [recipients, setRecipients] = useState((existing?.recipients ?? []).join("\n"));
+  // Per-device section override: on ⇒ send an explicit map; off ⇒ send null (inherit the tenant default).
+  const [customizeSections, setCustomizeSections] = useState(existing?.sections != null);
+  const [sections, setSections] = useState<Record<ReportSectionKey, boolean>>(() =>
+    seedSectionState(existing?.sections));
 
   async function save() {
     const body: ScheduleIn = {
       device_id: deviceId, enabled, frequency,
       weekday: frequency === "weekly" ? Number(weekday ?? 0) : null,
       hour, recipients: recipients.split(/[\n,]/).map((r) => r.trim()).filter(Boolean),
+      sections: deviceId !== null && customizeSections ? buildSectionsMap(sections) : null,
     };
     try {
       await upsert.mutateAsync(body);
@@ -92,6 +102,30 @@ function ScheduleEditor({ prefix, deviceId, existing }: {
         <NumberInput label="Hour (UTC)" min={0} max={23} value={hour} onChange={(v) => setHour(Number(v))} data-testid={`${prefix}-hour`} />
       )}
       <Textarea label="Recipients (one per line)" value={recipients} onChange={(e) => setRecipients(e.currentTarget.value)} data-testid={`${prefix}-recipients`} minRows={3} rows={3} />
+      {deviceId !== null && (
+        <>
+          <Switch
+            label={t.reports.sections.customizeForDevice}
+            checked={customizeSections}
+            onChange={(e) => setCustomizeSections(e.currentTarget.checked)}
+            data-testid={`${prefix}-customize-sections`}
+          />
+          {customizeSections && (
+            <Stack gap="xs">
+              <Text size="sm" c="dimmed">{t.reports.sections.description}</Text>
+              {REPORT_SECTION_KEYS.map((key) => (
+                <Switch
+                  key={key}
+                  label={sectionLabel(t, key)}
+                  checked={sections[key]}
+                  onChange={(e) => setSections((prev) => ({ ...prev, [key]: e.currentTarget.checked }))}
+                  data-testid={`${prefix}-section-toggle-${key}`}
+                />
+              ))}
+            </Stack>
+          )}
+        </>
+      )}
       <Group>
         <Button onClick={save} loading={upsert.isPending} data-testid={`${prefix}-save`}>Save</Button>
         {existing && <Button variant="light" onClick={triggerNow} loading={sendNow.isPending} data-testid={`${prefix}-send-now`}>Send now</Button>}
