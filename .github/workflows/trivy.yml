@@ -36,7 +36,7 @@ jobs:
       # Authenticate to ghcr.io so the Trivy scanner image pulls without hitting the anonymous
       # GitHub Container Registry rate limit.
       - name: Log in to ghcr.io
-        uses: docker/login-action@v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
