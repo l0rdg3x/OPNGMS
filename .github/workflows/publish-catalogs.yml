@@ -12,8 +12,8 @@ on:
   workflow_dispatch:
     inputs:
       minimum:
-        description: "Lowest OPNsense version to publish (e.g. 26.1)"
-        default: "26.1"
+        description: "Lowest OPNsense version to publish (e.g. 25 or 26.1)"
+        default: "25"
         required: false
       force_all:
         description: "Regenerate every version (ignore the published manifest)"
@@ -36,7 +36,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       # Inputs passed via env (never interpolated into run: scripts) — injection-safe.
-      MINIMUM: ${{ github.event.inputs.minimum || '26.1' }}
+      MINIMUM: ${{ github.event.inputs.minimum || '25' }}
       FORCE_ALL: ${{ github.event.inputs.force_all || 'false' }}
     steps:
       - uses: actions/checkout@v6
