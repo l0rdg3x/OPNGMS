@@ -1,0 +1,83 @@
+name: Publish container images
+
+# Builds and pushes the OPNGMS backend + frontend images to the GitHub Container Registry (GHCR).
+# Multi-arch: each tag is a manifest list covering linux/amd64 + linux/arm64 (arm64 cross-built via
+# QEMU), so `docker pull` auto-selects the host architecture.
+# Versioned: every push to main publishes `latest` + an immutable `sha-<short>` (pin this for repro);
+# a semver git tag `vX.Y.Z` (or a published Release) additionally publishes `X.Y.Z`, `X.Y`, and `X`.
+# Pull with: docker pull ghcr.io/l0rdg3x/opngms-backend:<tag>  (and -frontend).
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Least privilege: read the repo, write packages (push to GHCR).
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: ${{ matrix.name }} → ghcr.io
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: backend
+          - name: frontend
+            context: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # QEMU lets the amd64 runner cross-build the arm64 image (multi-arch manifest).
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata (versioned tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/opngms-${{ matrix.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+          labels: |
+            org.opencontainers.image.title=OPNGMS ${{ matrix.name }}
+            org.opencontainers.image.description=OPNGMS (OPNsense Global Management System) ${{ matrix.name }} image
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
