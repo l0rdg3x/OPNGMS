@@ -88,9 +88,13 @@ and localized into **12 languages** (with full right-to-left support).
 |---|---|
 | [![Config editor](docs/ui/config-editor.png)](docs/ui/config-editor.png) | [![Editor search](docs/ui/config-editor-search.png)](docs/ui/config-editor-search.png) |
 
-| Alerts | Configuration templates |
+| Alerts | Top attacker countries (GeoIP) |
 |---|---|
-| [![Alerts](docs/ui/alerts.png)](docs/ui/alerts.png) | [![Template library](docs/ui/template-library.png)](docs/ui/template-library.png) |
+| [![Alerts](docs/ui/alerts.png)](docs/ui/alerts.png) | [![Attacker countries](docs/ui/attacker-countries.png)](docs/ui/attacker-countries.png) |
+
+| Configuration templates | |
+|---|---|
+| [![Template library](docs/ui/template-library.png)](docs/ui/template-library.png) | |
 
 | Report delivery schedule (fleet + per-device) | SMTP delivery (superadmin) |
 |---|---|

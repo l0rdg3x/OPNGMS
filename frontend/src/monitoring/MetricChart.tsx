@@ -33,10 +33,14 @@ export function MetricChart({
   title,
   points,
   unit,
+  valueFormatter,
 }: {
   title: string;
   points: MetricPoint[];
   unit?: string;
+  /** Formats Y-axis ticks + tooltip values (e.g. dynamic byte units). When set, the static
+   *  `(unit)` title suffix is dropped since the values carry their own units. */
+  valueFormatter?: (value: number) => string;
 }) {
   const t = useT();
   const { data, series } = toChartData(points);
@@ -44,7 +48,7 @@ export function MetricChart({
     <Card withBorder padding="sm">
       <Text fw={600} size="sm" mb="xs">
         {title}
-        {unit ? ` (${unit})` : ""}
+        {unit && !valueFormatter ? ` (${unit})` : ""}
       </Text>
       {data.length === 0 ? (
         <Text c="dimmed" size="sm">
@@ -59,6 +63,8 @@ export function MetricChart({
           curveType="monotone"
           withDots={false}
           tickLine="x"
+          valueFormatter={valueFormatter}
+          yAxisProps={valueFormatter ? { tickFormatter: valueFormatter, width: 64 } : undefined}
         />
       )}
     </Card>
