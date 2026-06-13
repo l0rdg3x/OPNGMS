@@ -679,6 +679,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/metric-labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Metric Labels
+         * @description Map raw metric labels (interface/gateway/VPN identifiers) to their assigned names.
+         *
+         *     Parsed from the device's latest config snapshot (descr-bearing entries only); the Health charts
+         *     use it to label series (e.g. `opt1` -> "DMZ"), falling back to the raw identifier. Degrades to an
+         *     empty map (no snapshot yet) — never an error.
+         */
+        get: operations["metric_labels_api_tenants__tenant_id__devices__device_id__metric_labels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/devices/{device_id}/config/map": {
         parameters: {
             query?: never;
@@ -4456,6 +4480,40 @@ export interface operations {
         };
     };
     config_model_api_tenants__tenant_id__devices__device_id__config_model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    metric_labels_api_tenants__tenant_id__devices__device_id__metric_labels_get: {
         parameters: {
             query?: never;
             header?: never;

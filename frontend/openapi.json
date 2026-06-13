@@ -2275,6 +2275,62 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/metric-labels": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Metric Labels",
+        "description": "Map raw metric labels (interface/gateway/VPN identifiers) to their assigned names.\n\nParsed from the device's latest config snapshot (descr-bearing entries only); the Health charts\nuse it to label series (e.g. `opt1` -> \"DMZ\"), falling back to the raw identifier. Degrades to an\nempty map (no snapshot yet) \u2014 never an error.",
+        "operationId": "metric_labels_api_tenants__tenant_id__devices__device_id__metric_labels_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Metric Labels Api Tenants  Tenant Id  Devices  Device Id  Metric Labels Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/devices/{device_id}/config/map": {
       "get": {
         "tags": [

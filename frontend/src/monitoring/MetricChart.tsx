@@ -9,13 +9,15 @@ export interface ChartData {
 }
 
 /** Turns {time,label,value} points into rows keyed by timestamp, one column per label.
- *  An empty label ('') maps to the 'value' column. Pure function, tested separately. */
+ *  An empty label ('') maps to the 'value' column. A `labelMap` renames a raw label (e.g. the
+ *  OPNsense id `opt1`) to its assigned name (`DMZ`) for the series/legend, falling back to the raw
+ *  label. Pure function, tested separately. */
 // eslint-disable-next-line react-refresh/only-export-components
-export function toChartData(points: MetricPoint[]): ChartData {
+export function toChartData(points: MetricPoint[], labelMap: Record<string, string> = {}): ChartData {
   const seriesSet: string[] = [];
   const byTime = new Map<string, Record<string, number | string>>();
   for (const p of points) {
-    const key = p.label === "" ? "value" : p.label;
+    const key = p.label === "" ? "value" : (labelMap[p.label] ?? p.label);
     if (!seriesSet.includes(key)) seriesSet.push(key);
     let row = byTime.get(p.time);
     if (!row) {
@@ -34,6 +36,7 @@ export function MetricChart({
   points,
   unit,
   valueFormatter,
+  labelMap,
 }: {
   title: string;
   points: MetricPoint[];
@@ -41,9 +44,11 @@ export function MetricChart({
   /** Formats Y-axis ticks + tooltip values (e.g. dynamic byte units). When set, the static
    *  `(unit)` title suffix is dropped since the values carry their own units. */
   valueFormatter?: (value: number) => string;
+  /** Renames raw series labels (interface/gateway/VPN ids) to their assigned names. */
+  labelMap?: Record<string, string>;
 }) {
   const t = useT();
-  const { data, series } = toChartData(points);
+  const { data, series } = toChartData(points, labelMap);
   return (
     <Card withBorder padding="sm">
       <Text fw={600} size="sm" mb="xs">
