@@ -81,3 +81,25 @@ def extract_options(get_response: dict, model: dict) -> dict[str, list[dict]]:
 
     walk(root, "")
     return out
+
+
+def extract_grid_options(get_response: dict, model: dict, grid: dict) -> dict[str, list[dict]]:
+    """{field_path: [{value, label}]} for a grid's cells the device renders as option-dicts.
+
+    Reads the FIRST existing row's cells for the choices (the option set is identical across rows).
+    """
+    root = (get_response or {}).get(model.get("model_root", ""), {})
+    node = root
+    for part in grid["path"].split("."):
+        node = node.get(part, {}) if isinstance(node, dict) else {}
+    out: dict[str, list[dict]] = {}
+    if not isinstance(node, dict):
+        return out
+    field_paths = [f["path"] for f in grid.get("fields", [])]
+    for cells in node.values():
+        if not isinstance(cells, dict):
+            continue
+        for fp in field_paths:
+            if fp not in out and is_option_dict(cells.get(fp)):
+                out[fp] = options(cells[fp])
+    return out
