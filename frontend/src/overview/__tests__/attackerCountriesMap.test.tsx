@@ -36,9 +36,6 @@ describe("AttackerCountriesMap", () => {
     // The world topojson yields an <svg> with one <path> per country geometry.
     expect(container.querySelector("svg")).toBeInTheDocument();
     expect(container.querySelectorAll("path").length).toBeGreaterThan(0);
-    // The gradient legend shows the domain `[0, maxPct]`.
-    expect(screen.getByText("0%")).toBeInTheDocument();
-    expect(screen.getByText("60%")).toBeInTheDocument();
   });
 
   it("renders the muted empty state instead of a blank map on []", () => {

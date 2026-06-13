@@ -14,8 +14,6 @@ def test_choropleth_with_data_colors_countries():
     }
     colored = {f for f in fills if f"#{f}" != _BASE_HEX}
     assert colored, "expected at least one colored (non-base) country fill"
-    # The legend max label is rendered (max share = 48.0%).
-    assert "48.0%" in svg
     assert svg.endswith("</svg>")
 
 
@@ -23,8 +21,7 @@ def test_choropleth_empty_renders_base_map():
     svg = choropleth_svg({})
     assert svg.startswith("<svg")
     assert "<path" in svg  # base map still drawn
-    # No max share -> 0% legend label, every country at the base color.
-    assert "0%" in svg
+    # No data -> every country at the base color.
     assert f'fill="{_BASE_HEX}"' in svg
     assert svg.endswith("</svg>")
 

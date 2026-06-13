@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-from xml.sax.saxutils import escape
 
 _GEOJSON_PATH = pathlib.Path(__file__).parent / "assets" / "world-countries.geo.json"
 
@@ -57,13 +56,11 @@ def choropleth_svg(pct_by_code: dict[str, float], *, width: int = 520, height: i
     """A world choropleth shading each country by its attacker-share percentage.
 
     `pct_by_code` maps ISO alpha-2 code -> share %; absent / unknown codes render as the base color.
-    Equirectangular projection (lon -180..180 -> 0..width, lat 90..-90 -> 0..map_h) with a 22px bottom
-    margin reserved for a gradient legend. Deterministic and self-contained — the only input besides the
-    data is the vendored geometry loaded at import. All text is escaped.
+    Equirectangular projection (lon -180..180 -> 0..width, lat 90..-90 -> 0..height). The per-country
+    exact percentages are shown in the ranked table beside the map, so the map itself carries no legend.
+    Deterministic and self-contained — the only input besides the data is the vendored geometry. Escaped.
     """
-    legend_h = 22
-    map_h = height - legend_h
-
+    map_h = height
     max_pct = max(pct_by_code.values(), default=0)
 
     parts = [
@@ -107,33 +104,6 @@ def choropleth_svg(pct_by_code: dict[str, float], *, width: int = 520, height: i
         parts.append(
             f'<path d="{d}" fill="{fill}" stroke="#ffffff" stroke-width="0.3" />'
         )
-
-    # Gradient legend in the reserved bottom strip. Drawn as N solid-color segments (not an SVG
-    # <linearGradient>, which WeasyPrint does not render reliably) so the bar always shows the ramp.
-    bar_x = 4.0
-    bar_y = map_h + 6.0
-    bar_w = 120.0
-    bar_h = 8.0
-    segments = 30
-    seg_w = bar_w / segments
-    for i in range(segments):
-        color = _lerp_color(_BASE_HEX, _HOT_HEX, i / (segments - 1))
-        parts.append(
-            f'<rect x="{bar_x + i * seg_w:.2f}" y="{bar_y:.1f}" width="{seg_w + 0.5:.2f}" '
-            f'height="{bar_h:.1f}" fill="{color}" />'
-        )
-    parts.append(
-        f'<rect x="{bar_x:.1f}" y="{bar_y:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" '
-        f'fill="none" stroke="#cccccc" stroke-width="0.5" />'
-    )
-    parts.append(
-        f'<text x="{bar_x:.1f}" y="{bar_y + bar_h + 8:.1f}" font-size="7" fill="#666" '
-        f'text-anchor="start">{escape("0%")}</text>'
-    )
-    parts.append(
-        f'<text x="{bar_x + bar_w:.1f}" y="{bar_y + bar_h + 8:.1f}" font-size="7" fill="#666" '
-        f'text-anchor="end">{escape(f"{max_pct}%")}</text>'
-    )
 
     parts.append("</svg>")
     return "".join(parts)

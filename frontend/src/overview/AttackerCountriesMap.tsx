@@ -1,4 +1,4 @@
-import { Box, Group, Text } from "@mantine/core";
+import { Box, Text } from "@mantine/core";
 import { useMemo, useState } from "react";
 import {
   ComposableMap,
@@ -175,22 +175,6 @@ export function AttackerCountriesMap({ data }: { data: CountryRow[] }) {
         </Box>
       )}
 
-      <Group justify="flex-end" gap="xs" mt="xs" wrap="nowrap">
-        <Text size="xs" c="dimmed">
-          0%
-        </Text>
-        <Box
-          style={{
-            width: 96,
-            height: 8,
-            borderRadius: 4,
-            background: `linear-gradient(90deg, ${BASE_COLOR}, ${HOT_COLOR})`,
-          }}
-        />
-        <Text size="xs" c="dimmed">
-          {Math.round(maxPct)}%
-        </Text>
-      </Group>
     </Box>
   );
 }
