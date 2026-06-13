@@ -1,5 +1,5 @@
-import uuid
 import os
+import uuid
 
 import pytest
 from cryptography.fernet import Fernet
@@ -78,3 +78,70 @@ async def test_rekey_reencrypts_device_secrets(factory, restore_env_rekey):
     assert crypto.decrypt(row.api_key_enc) == "api-key"
     assert crypto.decrypt(row.api_secret_enc) == "api-secret"
     assert crypto.decrypt_bytes(snap.content_enc) == b"<config/>"
+
+
+def test_rekey_covers_all_encrypted_columns():
+    """Guard: rekey_all MUST re-encrypt every Fernet `*_enc` LargeBinary column. Adding a new one
+    without updating rekey_secrets.py (and this expected set) fails here — before it can silently
+    become undecryptable after a real rotation."""
+    from sqlalchemy import LargeBinary
+
+    from app.models import Base
+
+    found: dict[str, set[str]] = {}
+    for table in Base.metadata.tables.values():
+        for col in table.columns:
+            if col.name.endswith("_enc") and isinstance(col.type, LargeBinary):
+                found.setdefault(table.name, set()).add(col.name)
+    expected = {
+        "devices": {"api_key_enc", "api_secret_enc"},
+        "config_snapshots": {"content_enc"},
+        "user_mfa": {"totp_secret_enc"},
+        "smtp_settings": {"password_enc"},
+        "syslog_ca": {"key_enc"},
+    }
+    assert found == expected, (
+        "Encrypted-column set changed — update rekey_secrets.rekey_all AND this expected set. "
+        f"found={found} expected={expected}"
+    )
+
+
+async def test_rekey_reencrypts_mfa_smtp_syslog(factory, restore_env_rekey):
+    """MFA TOTP, SMTP password, and syslog CA key must also re-key (they were previously missed)."""
+    old = Fernet.generate_key().decode()
+    new = Fernet.generate_key().decode()
+    config_mod.get_settings.cache_clear()
+    os.environ["MASTER_KEY"] = old
+    os.environ.pop("MASTER_KEY_OLD_KEYS", None)
+    config_mod.get_settings.cache_clear()
+    uid = uuid.uuid4()
+    enc_totp = crypto.encrypt("TOTPSECRET")
+    enc_pw = crypto.encrypt("smtp-pw")
+    enc_cakey = crypto.encrypt_bytes(b"-----BEGIN KEY-----")
+    async with factory() as s:
+        await s.execute(
+            text("INSERT INTO users (id,email,name,password_hash,is_superadmin,status)"
+                 " VALUES (:i,'u@x.io','U','h',false,'active')"), {"i": uid})
+        await s.execute(
+            text("INSERT INTO user_mfa (user_id,enabled,totp_secret_enc) VALUES (:i,true,:v)"),
+            {"i": uid, "v": enc_totp})
+        await s.execute(
+            text("INSERT INTO smtp_settings (id,password_enc) VALUES (1,:v)"), {"v": enc_pw})
+        await s.execute(
+            text("INSERT INTO syslog_ca (id,cert_pem,key_enc) VALUES (1,'PEM',:v)"), {"v": enc_cakey})
+        await s.commit()
+    os.environ["MASTER_KEY"] = new
+    os.environ["MASTER_KEY_OLD_KEYS"] = old
+    config_mod.get_settings.cache_clear()
+    await rekey_all(factory)
+    # Decrypt with the NEW key alone.
+    os.environ["MASTER_KEY"] = new
+    os.environ.pop("MASTER_KEY_OLD_KEYS", None)
+    config_mod.get_settings.cache_clear()
+    async with factory() as s:
+        totp = (await s.execute(text("SELECT totp_secret_enc FROM user_mfa WHERE user_id=:i"), {"i": uid})).scalar_one()
+        pw = (await s.execute(text("SELECT password_enc FROM smtp_settings WHERE id=1"))).scalar_one()
+        cakey = (await s.execute(text("SELECT key_enc FROM syslog_ca WHERE id=1"))).scalar_one()
+    assert crypto.decrypt(totp) == "TOTPSECRET"
+    assert crypto.decrypt(pw) == "smtp-pw"
+    assert crypto.decrypt_bytes(cakey) == b"-----BEGIN KEY-----"
