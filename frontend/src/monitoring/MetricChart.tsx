@@ -63,6 +63,9 @@ export function MetricChart({
           curveType="monotone"
           withDots={false}
           tickLine="x"
+          // Multi-line charts (per interface / gateway / VPN tunnel) need a legend to tell the
+          // lines apart; a single 'value' series doesn't (the title already names it).
+          withLegend={series.length > 1}
           valueFormatter={valueFormatter}
           yAxisProps={valueFormatter ? { tickFormatter: valueFormatter, width: 64 } : undefined}
         />
