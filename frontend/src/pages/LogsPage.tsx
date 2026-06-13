@@ -5,7 +5,7 @@ import {
 import { DateTimePicker } from "@mantine/dates";
 import dayjs from "dayjs";
 
-import { useTenant } from "../tenant/useTenant";
+import { usePermissions } from "../auth/usePermissions";
 import { useTenantDevices } from "../templates/settingHooks";
 import { useLogSearch, type LogSearchIn, type LogSearchOut } from "../logs/logHooks";
 
@@ -22,8 +22,7 @@ function toIso(value: string): string {
 }
 
 export function LogsPage() {
-  const { activeId, tenants } = useTenant();
-  const role = tenants.find((tn) => tn.id === activeId)?.role ?? null;
+  const { isOperator } = usePermissions();
   const devices = useTenantDevices();
   const search = useLogSearch();
   const [query, setQuery] = useState("");
@@ -36,7 +35,7 @@ export function LogsPage() {
   const [searched, setSearched] = useState(false);
   const [raw, setRaw] = useState<Record<string, unknown> | null>(null);
 
-  if (role !== "tenant_admin" && role !== "operator") {
+  if (!isOperator) {
     return <Alert color="red" data-testid="logs-forbidden">Operators and tenant admins only.</Alert>;
   }
 

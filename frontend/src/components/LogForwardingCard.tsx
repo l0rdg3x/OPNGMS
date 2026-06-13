@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Alert, Badge, Button, Card, Group, Loader, Stack, Text, Title, Tooltip } from "@mantine/core";
 import dayjs from "dayjs";
 
+import { usePermissions } from "../auth/usePermissions";
 import { useT } from "../i18n";
-import { useTenant } from "../tenant/useTenant";
 import {
   useDisableLogForwarding, useEnableLogForwarding, useLogForwardingStatus,
   useRevokeLogForwarding, useRotateLogForwarding,
@@ -20,9 +20,7 @@ function liveness(lastLogAt: string | null | undefined): { color: string; label:
 
 export function LogForwardingCard({ deviceId }: { deviceId: string }) {
   const t = useT();
-  const { activeId, tenants } = useTenant();
-  const role = tenants.find((tn) => tn.id === activeId)?.role ?? null;
-  const canWrite = role === "tenant_admin" || role === "operator";
+  const { isOperator: canWrite } = usePermissions();
   const status = useLogForwardingStatus(deviceId);
   const enable = useEnableLogForwarding(deviceId);
   const disable = useDisableLogForwarding(deviceId);
