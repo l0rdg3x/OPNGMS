@@ -90,3 +90,17 @@ def assert_secure_secrets(settings: Settings) -> None:
             "APP_ROLE_PASSWORD, and ADMIN_DATABASE_URL's to POSTGRES_PASSWORD. "
             "See the README 'Deployment' / 'Configuration' sections."
         )
+    # The release-asset fetchers (catalog/geoip) verify SHA-256, but the fetch itself must be HTTPS so a
+    # plaintext MITM can't strip/replace the manifest before verification.
+    insecure = sorted(
+        name
+        for name, val in {
+            "CATALOG_RELEASE_BASE_URL": settings.catalog_release_base_url,
+            "GEOIP_RELEASE_BASE_URL": settings.geoip_release_base_url,
+        }.items()
+        if not val.startswith("https://")
+    )
+    if insecure:
+        raise RuntimeError(
+            "Refusing to start: " + ", ".join(insecure) + " must use https:// (release-asset fetch)."
+        )

@@ -26,6 +26,7 @@ from app.services.geoip import GeoIp
 logger = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT = 30.0  # the mmdb is a few MB — allow a bit more than the catalog JSON fetch
+_MAX_MMDB_BYTES = 64 * 1024 * 1024  # the DB-IP Lite Country mmdb is ~6 MB; reject anything absurdly large
 _SOURCE = "dbip-country"
 _MANIFEST = "manifest.json"
 _ASSET = "dbip-country.mmdb"
@@ -64,15 +65,22 @@ async def _fetch_and_store(session: AsyncSession, base: str) -> GeoipCache | Non
     try:
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as http:
             manifest = (await http.get(f"{base}/{_MANIFEST}")).raise_for_status().json()
+            if not isinstance(manifest, dict):
+                logger.warning("geoip manifest is not a JSON object — rejected")
+                return None
             expected = manifest.get("sha256")
             version = manifest.get("version")
             raw = (await http.get(f"{base}/{_ASSET}")).raise_for_status().content
-    except (httpx.HTTPError, ValueError, KeyError):
+    except Exception:  # httpx errors (incl. InvalidURL), bad JSON, etc. — degrade, NEVER raise into the request
+        logger.warning("geoip fetch failed", exc_info=True)
         return None
     # Fail closed: a missing sha in the manifest is NOT a pass (a tampered manifest that drops the key
     # while serving a malicious mmdb must be rejected, not cached).
     if not expected or not version:
         logger.warning("geoip manifest missing sha256/version — rejected")
+        return None
+    if len(raw) > _MAX_MMDB_BYTES:
+        logger.warning("geoip mmdb exceeds the %d-byte cap — rejected", _MAX_MMDB_BYTES)
         return None
     actual = hashlib.sha256(raw).hexdigest()
     if actual != expected:

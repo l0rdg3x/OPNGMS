@@ -127,6 +127,8 @@ async def attacker_countries(
     end = to or now
     if start >= end:
         raise HTTPException(status_code=400, detail="Invalid interval: 'frm' must precede 'to'")
+    if end - start > timedelta(days=92):
+        raise HTTPException(status_code=400, detail="Range must not exceed 92 days")
     geoip = await get_geoip(session)
     if geoip is None:
         return []

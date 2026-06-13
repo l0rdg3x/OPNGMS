@@ -444,7 +444,14 @@ class ReportAggregator:
             clauses.append("device_id = :did")
             params["did"] = device_id
         where = " AND ".join(clauses)
-        sql = text(f"SELECT src_ip, count(*) AS c FROM events WHERE {where} GROUP BY src_ip")
+        # Bound the per-IP resolution work: serve only the most-frequent distinct IPs (they dominate the
+        # country breakdown; the long tail is negligible for a top-N view) so a wide range can't pull an
+        # unbounded distinct-IP set into Python.
+        params["scan_cap"] = 10000
+        sql = text(
+            f"SELECT src_ip, count(*) AS c FROM events WHERE {where} "
+            "GROUP BY src_ip ORDER BY c DESC LIMIT :scan_cap"
+        )
         rows = (await self.session.execute(sql, params)).all()
 
         by_code: dict[str, int] = {}
