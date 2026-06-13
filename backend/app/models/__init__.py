@@ -12,6 +12,7 @@ from app.models.device_log_forwarding import DeviceLogForwarding  # noqa: F401
 from app.models.event import Event
 from app.models.firmware_action import FirmwareAction  # noqa: F401
 from app.models.generated_report import GeneratedReport
+from app.models.geoip_cache import GeoipCache  # noqa: F401
 from app.models.group import Group, GroupGrant, GroupMember  # noqa: F401
 from app.models.ingest_cursor import IngestCursor
 from app.models.membership import Membership
@@ -45,6 +46,7 @@ __all__ = [
     "Device",
     "Event",
     "GeneratedReport",
+    "GeoipCache",
     "Group",
     "GroupGrant",
     "GroupMember",

@@ -13,10 +13,15 @@ from app.models.device import Device
 from app.repositories.alert import AlertRepository
 from app.repositories.metric import MAX_POINTS, MetricRepository
 from app.schemas.alert import AlertOut
-from app.schemas.health import HealthOut
+from app.schemas.health import CountryCountOut, HealthOut
 from app.schemas.metric import MetricSeriesOut
+from app.services.geoip_provider import get_geoip
+from app.services.reporting.aggregation import ReportAggregator
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["monitoring"])
+
+# Cap the breakdown so a widget/report never has to render an unbounded list of countries.
+_ATTACKER_COUNTRIES_LIMIT = 20
 
 
 def _ensure_utc(dt: datetime | None) -> datetime | None:
@@ -100,3 +105,32 @@ async def fleet_health(
         )
     ).scalar_one()
     return HealthOut(total_devices=total, by_status=by_status, active_alerts=active_alerts)
+
+
+@router.get("/attacker-countries", response_model=list[CountryCountOut])
+async def attacker_countries(
+    tenant_id: uuid.UUID,
+    frm: datetime | None = Query(None, alias="frm"),
+    to: datetime | None = Query(None),
+    device_id: uuid.UUID | None = Query(None),
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> list[CountryCountOut]:
+    """Top attacker countries (resolved from IDS `events.src_ip`) over the range, ranked by attempts.
+
+    Defaults to the last 7 days. Resolution is offline via the cached DB-IP mmdb; if no mmdb is
+    available the endpoint degrades to an empty list (never an error)."""
+    now = datetime.now(UTC)
+    frm = _ensure_utc(frm)
+    to = _ensure_utc(to)
+    start = frm or (now - timedelta(days=7))
+    end = to or now
+    if start >= end:
+        raise HTTPException(status_code=400, detail="Invalid interval: 'frm' must precede 'to'")
+    geoip = await get_geoip(session)
+    if geoip is None:
+        return []
+    rows = await ReportAggregator(session, tenant_id).attacker_countries(
+        frm=start, to=end, device_id=device_id, limit=_ATTACKER_COUNTRIES_LIMIT, geoip=geoip,
+    )
+    return [CountryCountOut(code=r.code, count=r.count, pct=r.pct) for r in rows]
