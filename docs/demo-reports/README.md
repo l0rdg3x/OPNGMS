@@ -11,7 +11,10 @@ including the enriched sections and the multi-language / right-to-left support.
 | [`opngms-demo-report-initech-de.pdf`](opngms-demo-report-initech-de.pdf) | Initech | Deutsch |
 | [`opngms-demo-report-acme-ar.pdf`](opngms-demo-report-acme-ar.pdf) | Acme | العربية (RTL) |
 
-All sections are enabled in these samples (they are individually toggleable per tenant and per device).
+These samples enable every section backed by real data; sections are individually toggleable per tenant
+and per device, so a report only ever shows the sections that are switched on. The two sample-only
+sections (Applications, Web Filter) stay off here — they are off by default until application-visibility
+and content-categorisation data is ingested.
 
 ## Executive summary (client-facing KPIs)
 
