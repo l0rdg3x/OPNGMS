@@ -247,11 +247,15 @@ async def get_plugins_catalog(
         except (httpx.HTTPError, ValueError, KeyError, AttributeError, TypeError):
             pass  # fall through to the offline fallback — never crash on malformed remote JSON
 
+    # Offline / failed fallback: probe the cache for the resolved version if the manifest gave us one,
+    # else fall back to the device's raw version (mirrors get_catalog) so a cached row is still served
+    # when auto-fetch is off / the manifest is unreachable and the version needs no floor-resolution.
     if res_ver is not None:
         row = await _cache_get(session, _PLUGINS_EDITION, res_ver)
         if row is not None:
             return row.content
-    return None
+    row = await _cache_get(session, _PLUGINS_EDITION, version)
+    return row.content if row is not None else None
 
 
 async def get_model(

@@ -3075,6 +3075,64 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/plugin-models": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Read Plugin Models",
+        "description": "Plugins that have an editable config model: [{package, model_id, title}] (for the Configure link).",
+        "operationId": "read_plugin_models_api_tenants__tenant_id__devices__device_id__plugin_models_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginModelOut"
+                  },
+                  "title": "Response Read Plugin Models Api Tenants  Tenant Id  Devices  Device Id  Plugin Models Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/devices/{device_id}/catalog/diff": {
       "get": {
         "tags": [
@@ -7775,6 +7833,29 @@
           "installed"
         ],
         "title": "PluginInfoOut"
+      },
+      "PluginModelOut": {
+        "properties": {
+          "package": {
+            "type": "string",
+            "title": "Package"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "package",
+          "model_id"
+        ],
+        "title": "PluginModelOut"
       },
       "PreviewTemplateIn": {
         "properties": {

@@ -150,6 +150,8 @@ export const zhTW: Dict = {
     removeConfirm: "移除此外掛程式嗎？",
     empty: "尚未回報任何外掛程式——裝置會定期輪詢。",
     loadFailed: "無法載入外掛程式。",
+    configure: "設定",
+    configureTitle: "外掛程式設定",
   },
   templates: {
     tab: "範本",

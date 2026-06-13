@@ -149,6 +149,8 @@ export const en = {
     removeConfirm: "Remove this plugin?",
     empty: "No plugins reported yet — the device is polled periodically.",
     loadFailed: "Could not load plugins.",
+    configure: "Configure",
+    configureTitle: "Plugin configuration",
   },
   templates: {
     tab: "Templates",

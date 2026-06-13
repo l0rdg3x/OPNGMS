@@ -20,3 +20,9 @@ class CatalogChangeIn(BaseModel):
     model_id: str = Field(min_length=1)
     scalars: dict[str, str] = Field(default_factory=dict)
     grids: list[CatalogGridOpIn] = Field(default_factory=list)
+
+
+class PluginModelOut(BaseModel):
+    package: str
+    model_id: str
+    title: str = ""

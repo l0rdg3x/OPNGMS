@@ -11,7 +11,7 @@ from app.core.deps import TenantContext, enforce_csrf, require_tenant
 from app.core.rbac import Action
 from app.models.config_change import ConfigChange
 from app.models.device import Device
-from app.schemas.catalog import CatalogChangeIn
+from app.schemas.catalog import CatalogChangeIn, PluginModelOut
 from app.schemas.config import ConfigChangeOut
 from app.services import catalog_provider, catalog_versions
 from app.services.audit import AuditService
@@ -32,6 +32,17 @@ async def _load_device(session: AsyncSession, tenant_id: uuid.UUID, device_id: u
     if device is None or device.tenant_id != tenant_id:  # explicit ownership guard (defence-in-depth vs RLS)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     return device
+
+
+async def _catalog_model(session: AsyncSession, device: Device, model_id: str) -> dict | None:
+    """A model's schema from the device's core catalog, falling back to its plugins catalog."""
+    core = await catalog_provider.get_catalog(session, device.edition, device.firmware_version or "")
+    model = (core or {}).get("models", {}).get(model_id)
+    if model is not None:
+        return model
+    plugins = await catalog_provider.get_plugins_catalog(
+        session, device.edition, device.firmware_version or "")
+    return (plugins or {}).get("models", {}).get(model_id)
 
 
 def _build_payload(model: dict, body: CatalogChangeIn) -> dict:
@@ -83,12 +94,9 @@ async def create_catalog_change(
     session: AsyncSession = Depends(get_session),
 ) -> ConfigChange:
     device = await _load_device(session, tenant_id, device_id)
-    catalog = await catalog_provider.get_catalog(session, device.edition, device.firmware_version or "")
-    if catalog is None:
-        raise HTTPException(status_code=404, detail="No catalog available for this device version")
     if body.model_id in CATALOG_DENYLIST:
         raise HTTPException(status_code=422, detail=f"model {body.model_id!r} is not editable (safety denylist)")
-    model = catalog.get("models", {}).get(body.model_id)
+    model = await _catalog_model(session, device, body.model_id)
     if model is None:
         raise HTTPException(status_code=422, detail=f"unknown model: {body.model_id!r}")
     payload = _build_payload(model, body)
@@ -145,10 +153,7 @@ async def read_catalog_model(
     Reads `<model>/settings/get` live; degrades to reachable:false on any connector/credential error.
     Denylisted models are returned read_only with no live read."""
     device = await _load_device(session, tenant_id, device_id)
-    catalog = await catalog_provider.get_catalog(session, device.edition, device.firmware_version or "")
-    if catalog is None:
-        raise HTTPException(status_code=404, detail="No catalog available for this device version")
-    model = catalog.get("models", {}).get(model_id)
+    model = await _catalog_model(session, device, model_id)
     if model is None:
         raise HTTPException(status_code=404, detail=f"unknown model: {model_id!r}")
     base = {"model": model, "values": {}, "grids": {}, "field_options": {}, "grid_field_options": {},
@@ -170,6 +175,25 @@ async def read_catalog_model(
     base["grid_field_options"] = {
         g["path"]: extract_grid_options(raw, model, g) for g in model.get("grids", [])}
     return base
+
+
+@router.get("/devices/{device_id}/plugin-models", response_model=list[PluginModelOut])
+async def read_plugin_models(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Plugins that have an editable config model: [{package, model_id, title}] (for the Configure link)."""
+    device = await _load_device(session, tenant_id, device_id)
+    plugins = await catalog_provider.get_plugins_catalog(
+        session, device.edition, device.firmware_version or "")
+    out: list[dict] = []
+    for model_id, m in (plugins or {}).get("models", {}).items():
+        pl = m.get("plugin") or {}
+        if pl.get("package"):
+            out.append({"package": pl["package"], "model_id": model_id, "title": pl.get("title", "")})
+    return out
 
 
 @router.get("/devices/{device_id}/catalog/diff")

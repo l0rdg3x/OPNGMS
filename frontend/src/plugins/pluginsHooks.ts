@@ -23,3 +23,22 @@ export function useDevicePlugins(deviceId: string) {
     },
   });
 }
+
+export type PluginModel = components["schemas"]["PluginModelOut"];
+
+/** Map of plugin package -> its editable config model id (plugins that have a config model). */
+export function usePluginModels(deviceId: string) {
+  const { activeId } = useTenant();
+  return useQuery({
+    queryKey: ["plugin-models", activeId, deviceId],
+    enabled: !!activeId && !!deviceId,
+    queryFn: async (): Promise<PluginModel[]> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/devices/{device_id}/plugin-models",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId } } },
+      );
+      if (error || !data) return [];   // configurability is optional enrichment — degrade quietly
+      return data;
+    },
+  });
+}

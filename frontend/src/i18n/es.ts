@@ -150,6 +150,8 @@ export const es: Dict = {
     removeConfirm: "¿Quitar este complemento?",
     empty: "Aún no se han informado complementos — el dispositivo se consulta periódicamente.",
     loadFailed: "No se pudieron cargar los complementos.",
+    configure: "Configurar",
+    configureTitle: "Configuración del complemento",
   },
   templates: {
     tab: "Plantillas",

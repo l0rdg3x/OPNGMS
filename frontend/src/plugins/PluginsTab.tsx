@@ -1,10 +1,13 @@
-import { Badge, Button, Card, Group, Loader, Modal, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Badge, Button, Card, Drawer, Group, Loader, Modal, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMemo, useState } from "react";
 import { usePermissions } from "../auth/usePermissions";
+import { CatalogModelForm } from "../catalog/CatalogModelForm";
+import { useCatalogModel, useProposeCatalogChange } from "../catalog/catalogHooks";
+import type { CatalogChangeBody } from "../catalog/catalogTypes";
 import { useCreateFirmwareAction } from "../firmware/hooks";
 import { useT } from "../i18n";
-import { type PluginInfo, useDevicePlugins } from "./pluginsHooks";
+import { type PluginInfo, useDevicePlugins, usePluginModels } from "./pluginsHooks";
 
 /** Strip the `os-` package prefix for a friendlier display title (keep the full name as the id). */
 function title(name: string): string {
@@ -18,6 +21,24 @@ export function PluginsTab({ deviceId }: { deviceId: string }) {
   const create = useCreateFirmwareAction(deviceId);
   const [search, setSearch] = useState("");
   const [confirm, setConfirm] = useState<{ kind: "plugin_install" | "plugin_remove"; name: string } | null>(null);
+
+  const models = usePluginModels(deviceId);
+  const modelByPkg = useMemo(
+    () => new Map((models.data ?? []).map((m) => [m.package, m.model_id])),
+    [models.data]);
+  const [configureModel, setConfigureModel] = useState<string | null>(null);
+  const live = useCatalogModel(deviceId, configureModel);
+  const propose = useProposeCatalogChange(deviceId);
+
+  async function onPropose(body: CatalogChangeBody) {
+    try {
+      await propose.mutateAsync(body);
+      notifications.show({ message: t.catalog.proposed });
+      setConfigureModel(null);
+    } catch {
+      notifications.show({ color: "red", message: t.catalog.proposeFailed });
+    }
+  }
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -96,6 +117,13 @@ export function PluginsTab({ deviceId }: { deviceId: string }) {
                           {t.plugins.install}
                         </Button>
                   )}
+                  {canWrite && p.installed && modelByPkg.has(p.name) && (
+                    <Button size="xs" variant="light" ml="xs"
+                      data-testid={`plugin-configure-${p.name}`}
+                      onClick={() => setConfigureModel(modelByPkg.get(p.name)!)}>
+                      {t.plugins.configure}
+                    </Button>
+                  )}
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -115,6 +143,12 @@ export function PluginsTab({ deviceId }: { deviceId: string }) {
           </Button>
         </Group>
       </Modal>
+
+      <Drawer opened={configureModel !== null} onClose={() => setConfigureModel(null)}
+              position="right" size="xl" title={t.plugins.configureTitle}>
+        {live.isLoading && <Loader />}
+        {live.data && <CatalogModelForm live={live.data} onPropose={onPropose} />}
+      </Drawer>
     </Card>
   );
 }

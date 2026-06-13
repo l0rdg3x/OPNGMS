@@ -66,4 +66,21 @@ describe("PluginsTab", () => {
     // The `finally` closes the modal on error, so the confirm button must disappear.
     await waitFor(() => expect(screen.queryByTestId("plugin-confirm")).not.toBeInTheDocument());
   });
+
+  it("shows Configure for an installed plugin with a config model and opens the drawer", async () => {
+    server.use(
+      http.get(PLUGINS, () => HttpResponse.json(SAMPLE)),
+      http.get("/api/tenants/t1/devices/d1/plugin-models",
+        () => HttpResponse.json([{ package: "os-wireguard", model_id: "wireguard", title: "WireGuard" }])),
+      http.get("/api/tenants/t1/devices/d1/catalog/models/wireguard", () => HttpResponse.json({
+        model: { id: "wireguard", title: "WireGuard", fields: [], grids: [], pages: [], endpoints: {} },
+        values: {}, grids: {}, field_options: {}, grid_field_options: {}, reachable: true, read_only: false })),
+    );
+    renderWithProviders(withTenant(<PluginsTab deviceId="d1" />));
+    // os-wireguard is installed + has a model -> Configure shows; os-acme-client (not installed) does not.
+    const cfg = await screen.findByTestId("plugin-configure-os-wireguard");
+    expect(screen.queryByTestId("plugin-configure-os-acme-client")).not.toBeInTheDocument();
+    await userEvent.click(cfg);
+    expect(await screen.findByText("WireGuard")).toBeInTheDocument();   // the form title renders in the drawer
+  });
 });
