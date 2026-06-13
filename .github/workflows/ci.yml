@@ -1,8 +1,10 @@
 name: CI
 
+# PR-only: the tests/lint/audit suite runs on pull requests. Branch protection requires PRs to be
+# up-to-date with main before merge (+ squash merge), so the PR run already validates the exact tree
+# that lands on main — a second push-to-main run would be redundant. Security scans (Trivy, CodeQL,
+# gitleaks) deliberately KEEP their push:[main] trigger to maintain the default-branch baseline.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
