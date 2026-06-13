@@ -30,6 +30,7 @@ from app.schemas.config import (
     DriftSummary,
     ScheduleIn,
 )
+from app.services import catalog_provider, config_map
 from app.services.audit import AuditService
 from app.services.capability import build_inventory
 from app.services.config_diff import structural_diff
@@ -162,6 +163,53 @@ async def config_model(
     if snap is None:
         raise HTTPException(status_code=404, detail="No config snapshot for device")
     return build_tree(_xml(snap))
+
+
+@router.get("/devices/{device_id}/config/map", response_model=dict)
+async def config_map_endpoint(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Read-only LIVE config.xml tree, cross-referenced to the catalog (3c).
+
+    Annotates each node editable/read-only against the device's catalog model mounts. Falls back to the
+    latest stored snapshot (labelled stale) when the device is unreachable; 404 if neither is available.
+    Reuses the same connector, snapshot accessor (`.latest`) and decrypt path (`_xml`) as the audited
+    `config/model` + `drift-check` endpoints, so build_tree's secret redaction and the SSRF/TLS guards
+    are preserved unchanged.
+    """
+    # Ownership gate first (RLS hides another tenant's device -> None -> 404), as in drift-check.
+    device = await session.get(Device, device_id)
+    if device is None or device.tenant_id != tenant_id:  # explicit ownership guard (defence-in-depth vs RLS)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    catalog = await catalog_provider.get_catalog(session, device.edition, device.firmware_version or "")
+    catalog = catalog or {"models": {}}
+
+    # 1) Try live: same connector factory as drift-check / capabilities (SSRF guard + TLS pinning).
+    try:
+        client = OpnsenseClient(
+            device.base_url,
+            crypto.decrypt(device.api_key_enc),
+            crypto.decrypt(device.api_secret_enc),
+            verify_tls=device.verify_tls,
+            tls_fingerprint=device.tls_fingerprint,
+        )
+        xml = await client.get_config_backup()
+        tree = build_tree(xml)  # conservative secret redaction applied here
+        return {"source": "live", "reachable": True,
+                "tree": config_map.annotate_with_catalog(tree, catalog)}
+    except (OpnsenseError, InvalidToken, ParseError, DefusedXmlException, ValueError, KeyError):
+        pass  # connector/credential/parse error -> degrade to the last snapshot
+
+    # 2) Fall back to the latest stored snapshot (same accessor + decrypt path as config/model).
+    snap = await ConfigSnapshotRepository(session, tenant_id).latest(device_id)
+    if snap is None:
+        raise HTTPException(status_code=404, detail="No config available for this device")
+    tree = build_tree(_xml(snap))
+    return {"source": "snapshot", "reachable": False, "taken_at": snap.taken_at,
+            "tree": config_map.annotate_with_catalog(tree, catalog)}
 
 
 @router.get(
