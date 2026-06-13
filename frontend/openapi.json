@@ -2319,6 +2319,190 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/catalog/changes": {
+      "post": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Create Catalog Change",
+        "operationId": "create_catalog_change_api_tenants__tenant_id__devices__device_id__catalog_changes_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogChangeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigChangeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/devices/{device_id}/catalog": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Read Device Catalog",
+        "description": "The device's catalog (schema only), denylist-flagged. Live values come at edit time (sub-3).\n\nFor a Business device, `resolved_*` is the Community base actually served (the shared core).",
+        "operationId": "read_device_catalog_api_tenants__tenant_id__devices__device_id__catalog_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Read Device Catalog Api Tenants  Tenant Id  Devices  Device Id  Catalog Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/devices/{device_id}/catalog/models/{model_id}": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Read Catalog Model",
+        "description": "A catalog model's schema + the device's LIVE current values (for the editor form).\n\nReads `<model>/settings/get` live; degrades to reachable:false on any connector/credential error.\nDenylisted models are returned read_only with no live read.",
+        "operationId": "read_catalog_model_api_tenants__tenant_id__devices__device_id__catalog_models__model_id__get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Read Catalog Model Api Tenants  Tenant Id  Devices  Device Id  Catalog Models  Model Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/devices/{device_id}/firmware/check": {
       "post": {
         "tags": [
@@ -4924,6 +5108,82 @@
         ],
         "title": "CapabilityInventory"
       },
+      "CatalogChangeIn": {
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Model Id"
+          },
+          "scalars": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Scalars"
+          },
+          "grids": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogGridOpIn"
+            },
+            "type": "array",
+            "title": "Grids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_id"
+        ],
+        "title": "CatalogChangeIn",
+        "description": "A generic catalog edit: scalar field values + grid ops for one model. Endpoints are resolved\nserver-side from the device's catalog (never trusted from the client)."
+      },
+      "CatalogGridOpIn": {
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "set",
+              "del"
+            ],
+            "title": "Op"
+          },
+          "grid": {
+            "type": "string",
+            "title": "Grid"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          }
+        },
+        "type": "object",
+        "required": [
+          "op",
+          "grid"
+        ],
+        "title": "CatalogGridOpIn",
+        "description": "One ArrayField grid op the editor wants applied. `grid` is the catalog grid path."
+      },
       "CodeIn": {
         "properties": {
           "code": {
@@ -6330,6 +6590,7 @@
           },
           "password": {
             "type": "string",
+            "maxLength": 1024,
             "title": "Password"
           }
         },
@@ -7215,6 +7476,8 @@
           },
           "password": {
             "type": "string",
+            "maxLength": 1024,
+            "minLength": 12,
             "title": "Password"
           }
         },
@@ -7760,6 +8023,8 @@
           },
           "password": {
             "type": "string",
+            "maxLength": 1024,
+            "minLength": 12,
             "title": "Password"
           },
           "is_superadmin": {
