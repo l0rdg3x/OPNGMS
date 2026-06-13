@@ -58,4 +58,17 @@ def coverage_report(catalog: dict) -> dict:
             for f in fl:
                 total += 1
                 raw += 1 if f.get("confidence") == "raw" else 0
-    return {"models": len(catalog["models"]), "fields_total": total, "fields_raw": raw}
+    leaves = unmapped = 0
+
+    def _walk(nodes):
+        nonlocal leaves, unmapped
+        for n in nodes:
+            if n.get("children"):
+                _walk(n["children"])
+            elif n.get("url"):
+                leaves += 1
+                unmapped += 1 if n.get("model_id") is None else 0
+
+    _walk(catalog.get("menu", []))
+    return {"models": len(catalog["models"]), "fields_total": total, "fields_raw": raw,
+            "menu_leaves": leaves, "menu_unmapped": unmapped}

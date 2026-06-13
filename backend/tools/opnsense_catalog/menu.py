@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from defusedxml import ElementTree as DET
 
 _ORDER_LAST = 10_000  # nodes without an explicit order sort after those with one
@@ -87,3 +89,8 @@ def resolve_model_ids(menu: list[dict], model_ids: set[str]) -> list[dict]:
         elif node.get("url"):
             node["model_id"] = _resolve_leaf(node["url"], model_ids)
     return menu
+
+
+def discover_menus(root: Path) -> list[Path]:
+    """All module Menu.xml files under an extracted source tree."""
+    return sorted(root.rglob("mvc/app/models/OPNsense/*/Menu/Menu.xml"))
