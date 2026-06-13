@@ -17,14 +17,17 @@ report's attacks block already ranks `src_ip`. This milestone maps `src_ip → c
 the `maxminddb` Python reader. The project's outbound-safety invariant forbids per-request third-party calls,
 so resolution is a **local mmdb lookup** — never an online API.
 
-**Distribution (v1 = bundled at image build — simplest fully-offline path):** the **Dockerfile** downloads the
-latest DB-IP Lite Country mmdb during the image build and bakes it in at a fixed path. A setting
-`GEOIP_MMDB_PATH` (default = that bundled path) lets an operator point at their own/updated mmdb via a volume.
-No runtime fetch, no DB cache. Freshness tracks image releases (monthly accuracy is non-critical here).
-*Future enhancement (deferred):* a rolling `geoip` release + `geoip_cache` table so the mmdb can refresh
-without a new image (the catalog pattern). **Attribution:** DB-IP CC-BY credit in the report + README + the
-Overview widget (a small "GeoIP: DB-IP" note). For dev/tests a tiny **fixture mmdb** is vendored under
-`backend/tests/` so the suite never needs the real asset.
+**Distribution = pipeline + fetch (mirrors the catalog system the user already runs).** A scheduled GitHub
+Action **`publish-geoip.yml`** (monthly + manual dispatch) downloads the latest DB-IP Lite Country mmdb,
+records its SHA-256, and uploads it as an asset on a rolling **`geoip`** release. At runtime the app fetches
+the asset on demand, **caches** the bytes + sha + version in a **global non-RLS `geoip_cache`** table (exactly
+like `catalog_cache`; migration adds it), **verifies the SHA-256**, and loads an in-memory `maxminddb` reader
+from the cached bytes — so subsequent lookups are fully offline. A periodic worker job (or first-use) refreshes
+the cache when the release publishes a newer mmdb. Settings: `geoip_auto_fetch` (bool, default on) +
+`geoip_release_base_url`. The single outbound fetch is to a trusted GitHub release URL, SHA-256-verified —
+the same accepted pattern as catalogs (no per-request third-party calls). **Attribution:** DB-IP CC-BY credit
+in the report + README + the Overview widget (a small "GeoIP: DB-IP" note). For dev/tests a tiny **fixture
+mmdb** is vendored under `backend/tests/` so the suite never needs the live asset or network.
 
 **Graceful degradation:** if the mmdb is unavailable, resolution returns `None` → IPs roll up as "Unknown",
 the widget shows an empty/"no data" state, and the report section renders "No data" (never an error).
