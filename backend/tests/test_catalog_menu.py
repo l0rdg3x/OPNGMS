@@ -64,3 +64,22 @@ def test_resolve_model_ids_maps_leaves():
     assert by_id["Unbound"]["children"][0]["model_id"] == "unbound"     # /ui/unbound/general -> unbound
     assert by_id["Firewall"]["children"][0]["model_id"] == "firewall.alias"  # <a>.<b> match
     assert by_id["IDS"]["children"][0]["model_id"] is None              # diagnostics -> no model
+
+
+def test_resolve_model_ids_normalizes_url_and_qualifiers():
+    menu = parse_menu("""
+    <menu><Services>
+      <FW><Filter order="10" url="/ui/firewall/filter#rules"/></FW>
+      <Trust><CA order="10" url="/ui/trust/ca"/></Trust>
+      <Auth><Group order="10" url="/ui/auth/group"/></Auth>
+      <If><Vlan order="10" url="/ui/interfaces/vlan"/></If>
+      <Star><X order="10" url="/ui/core/firmware*"/></Star>
+    </Services></menu>""")
+    ids = {"firewall.filter", "trust.ca+", "auth.group+", "interfaces.vlans", "core.firmware"}
+    resolve_model_ids(menu, ids)
+    by = {g["id"]: g["children"][0]["model_id"] for g in menu[0]["children"]}
+    assert by["FW"] == "firewall.filter"      # #anchor stripped
+    assert by["Trust"] == "trust.ca+"         # '+' qualifier matched
+    assert by["Auth"] == "auth.group+"        # '+' qualifier matched
+    assert by["If"] == "interfaces.vlans"     # plural (vlan -> vlans)
+    assert by["Star"] == "core.firmware"      # trailing '*' stripped

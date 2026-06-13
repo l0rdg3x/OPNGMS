@@ -67,17 +67,32 @@ def merge_menus(fragments: list[list[dict]]) -> list[dict]:
 
 
 def _resolve_leaf(url: str, model_ids: set[str]) -> str | None:
-    parts = [p for p in url.split("/") if p]
-    if not parts or parts[0] != "ui" or len(parts) < 2:
+    """Map a menu leaf `/ui/<controller>/<action>...` to a catalog model id (or None).
+
+    OPNsense menu urls and the catalog's model ids diverge in a few systematic ways, so we normalize
+    and try several candidates: the `#anchor`/`?query`/trailing-`*` is stripped; the model id may carry
+    a `+` mount-leaf qualifier (`auth.group+` ↔ url `/ui/auth/group`); and the model id's leaf is often
+    the PLURAL of the url action (`interfaces.vlans` ↔ `/ui/interfaces/vlan`). Genuinely divergent names
+    (kea `v4`≠`dhcp4`, ipsec `connections`) and legacy `.php`/diagnostics pages stay unmapped.
+    """
+    url = url.split("#", 1)[0].split("?", 1)[0]  # drop anchor + query
+    parts = [p.rstrip("*") for p in url.split("/")]
+    parts = [p for p in parts if p]              # drop empties + bare '*' wildcard segments
+    if len(parts) < 2 or parts[0] != "ui":
         return None
     seg = parts[1:]  # after /ui/
-    candidates = []
-    if len(seg) >= 2:
-        candidates.append(f"{seg[0]}.{seg[1]}")
+    candidates: list[str] = []
+    for i in (1, 2):  # the action is usually seg[1]; some urls nest one deeper (e.g. /ui/kea/dhcp/...)
+        if len(seg) > i:
+            candidates += [f"{seg[0]}.{seg[i]}", f"{seg[0]}.{seg[i]}s"]  # exact + plural
     candidates.append(seg[0])
+    # Allow a trailing `+` qualifier on the model id (e.g. 'auth.group+' matches candidate 'auth.group').
+    stripped = {m.rstrip("+"): m for m in model_ids}
     for c in candidates:
         if c in model_ids:
             return c
+        if c in stripped:
+            return stripped[c]
     return None
 
 
