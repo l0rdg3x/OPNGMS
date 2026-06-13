@@ -42,7 +42,7 @@ services:
       - opngms_os_n3:/usr/share/opensearch/data
 
   syslog-bootstrap:
-    image: opngms-backend:latest
+    image: ghcr.io/l0rdg3x/opngms-backend:${OPNGMS_VERSION:-latest}
     command: ["python", "-m", "app.cli", "syslog-bootstrap", "--cert-dir", "/certs"]
     env_file: .env
     environment:

@@ -264,24 +264,38 @@ domain, which breaks login). Pick **exactly one** model — the override files a
   and auto-renews a real Let's Encrypt certificate. Set `DOMAIN` + `ACME_EMAIL` and point DNS at the
   host. Choose one controller (Traefik is the same one many already run on Docker/Kubernetes).
 
-### Step 3 — Build and start
+### Step 3 — Pull and start
 
-Run the command for the model you chose (the first run builds the images; `migrate` applies the schema
-before `api`/`worker` come up):
+The compose files pull the pre-built **multi-arch GHCR images** (`ghcr.io/l0rdg3x/opngms-{backend,frontend}`);
+`OPNGMS_VERSION` (in `.env`, default `latest`) pins the release tag. `migrate` applies the schema before
+`api`/`worker` come up. Run the command for the model you chose:
 
 ```bash
 # Model 1 — behind your proxy / LB
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
 
 # Model 2 — built-in TLS, your cert
-docker compose -f docker-compose.prod.yml -f docker-compose.tls.yml up -d --build
+docker compose -f docker-compose.prod.yml -f docker-compose.tls.yml up -d
 
 # Model 3a — automatic TLS via Caddy
-docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml up -d --build
+docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml up -d
 
 # Model 3b — automatic TLS via Traefik
-docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d --build
+docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d
 ```
+
+Or the **all-in-one** stack (core **+ log lake**, no proxy) in one file:
+
+```bash
+docker compose -f docker-compose.full.yml pull && docker compose -f docker-compose.full.yml up -d
+```
+
+> **Build from source instead of pulling:** `docker build -t ghcr.io/l0rdg3x/opngms-backend:latest ./backend`
+> and `docker build -t ghcr.io/l0rdg3x/opngms-frontend:latest ./frontend`, then `up -d` (no `pull`).
+>
+> **Upgrade:** `docker compose -f <file> pull && docker compose -f <file> up -d` — the one-shot `migrate`
+> re-runs `alembic upgrade head` and `api`/`worker` wait for it, so a new image needing a schema change
+> migrates the DB automatically before the app starts.
 
 Watch it come up and confirm health:
 

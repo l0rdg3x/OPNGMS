@@ -1,0 +1,166 @@
+# OPNGMS — FULL stack from pre-built GHCR images (core app + log lake), one file, no build.
+#
+#   cp .env.example .env          # then edit the secrets
+#   docker compose -f docker-compose.full.yml pull
+#   docker compose -f docker-compose.full.yml up -d
+#
+# Pulls ghcr.io/l0rdg3x/opngms-{backend,frontend} (multi-arch amd64/arm64). OPNGMS_VERSION pins the
+# release tag; the default `latest` is the newest tagged release (images are published ONLY from
+# semver tags, never from a dev commit — so `latest` is always a deliberate release).
+#
+# Brings up: db (TimescaleDB) + redis, one-shot `migrate` (alembic as owner), `api` (uvicorn as the
+# non-superuser opngms_app -> RLS), `worker` (arq as owner), `frontend` (nginx: SPA + /api proxy),
+# and the LOG LAKE: opensearch + a one-shot `syslog-bootstrap` (CA + receiver cert) + syslog-ng (mTLS
+# receiver on 6514 -> OpenSearch). No reverse proxy: the frontend serves plain HTTP bound to localhost,
+# meant behind your TLS-terminating proxy/LB (it must forward `X-Forwarded-Proto: https`). For
+# self-contained HTTPS, add one of the docker-compose.{tls,caddy,traefik}.yml overrides on top.
+
+x-backend-image: &backend-image ghcr.io/l0rdg3x/opngms-backend:${OPNGMS_VERSION:-latest}
+
+services:
+  db:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - opngms_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # One-shot: apply migrations as the owner (creates the schema + the opngms_app role + RLS + grants).
+  migrate:
+    image: *backend-image
+    command: ["alembic", "upgrade", "head"]
+    env_file: .env
+    environment:
+      ALEMBIC_DATABASE_URL: ${ADMIN_DATABASE_URL}
+      TZ: ${TZ:-UTC}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: *backend-image
+    # --proxy-headers + --forwarded-allow-ips: honour X-Forwarded-For/-Proto behind a proxy. Port 8000
+    # is NOT published (only the compose network / the trusted nginx reaches it), so "*" is safe here.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    env_file: .env
+    environment:
+      TZ: ${TZ:-UTC}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status==200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  worker:
+    image: *backend-image
+    command: ["arq", "app.worker.WorkerSettings"]
+    env_file: .env
+    environment:
+      TZ: ${TZ:-UTC}
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # SPA + /api reverse-proxy (nginx), plain HTTP bound to localhost by default (terminate TLS upstream).
+  frontend:
+    image: ghcr.io/l0rdg3x/opngms-frontend:${OPNGMS_VERSION:-latest}
+    environment:
+      TLS_MODE: ${TLS_MODE:-off}
+      SERVER_NAME: ${SERVER_NAME:-_}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ── Log lake ────────────────────────────────────────────────────────────────────────────────────
+  # OpenSearch runs plain-HTTP, security disabled, internal-network only (NOT published). The trust
+  # boundary is the mTLS device->syslog-ng hop on 6514.
+  opensearch:
+    image: opensearchproject/opensearch:2.17.1
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      TZ: ${TZ:-UTC}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opngms_os:/usr/share/opensearch/data
+    restart: unless-stopped
+
+  syslog-bootstrap:
+    image: *backend-image
+    command: ["python", "-m", "app.cli", "syslog-bootstrap", "--cert-dir", "/certs"]
+    env_file: .env
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - opngms_syslog_certs:/certs
+    depends_on:
+      opensearch:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  syslog-ng:
+    image: balabit/syslog-ng:4.5.0
+    command: ["--no-caps", "-F"]
+    environment:
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch:9200}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${SYSLOG_TLS_PORT:-6514}:6514"
+    volumes:
+      - ./deploy/syslog-ng/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro
+      - opngms_syslog_certs:/certs:ro
+      - opngms_syslog_buffer:/var/lib/syslog-ng
+    depends_on:
+      syslog-bootstrap:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  opngms_pg:
+  opngms_os:
+  opngms_syslog_certs:
+  opngms_syslog_buffer:
