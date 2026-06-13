@@ -85,9 +85,20 @@ def choropleth_svg(pct_by_code: dict[str, float], *, width: int = 520, height: i
         for ring in rings:
             if not ring:
                 continue
-            (lon0, lat0) = ring[0]
-            seg = [f"M{_x(lon0):.1f},{_y(lat0):.1f}"]
-            seg.extend(f"L{_x(lon):.1f},{_y(lat):.1f}" for lon, lat in ring[1:])
+            # Break the subpath wherever two consecutive points jump more than half the map width in x
+            # (an antimeridian crossing, e.g. Russia's far east) — otherwise the equirectangular
+            # projection draws a streak straight across the map connecting +180 back to -180.
+            seg: list[str] = []
+            prev_x: float | None = None
+            for lon, lat in ring:
+                x, y = _x(lon), _y(lat)
+                if not seg:
+                    seg.append(f"M{x:.1f},{y:.1f}")
+                elif prev_x is not None and abs(x - prev_x) > width / 2:
+                    seg.append(f"ZM{x:.1f},{y:.1f}")  # close the current subpath, start a fresh one
+                else:
+                    seg.append(f"L{x:.1f},{y:.1f}")
+                prev_x = x
             seg.append("Z")
             subpaths.append("".join(seg))
         if not subpaths:
