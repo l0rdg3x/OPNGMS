@@ -29,4 +29,22 @@ describe("CatalogFieldInput", () => {
     );
     expect(screen.getByTestId("catalog-field-x")).toBeInTheDocument();
   });
+
+  it("renders a select from liveOptions for a ref field", () => {
+    renderWithProviders(
+      <CatalogFieldInput
+        field={{ path: "general.outgoing", type: "ref" }}
+        value="lan" liveOptions={[{ value: "lan", label: "LAN" }, { value: "wan", label: "WAN" }]}
+        onChange={() => {}} disabled={false} />,
+    );
+    // a Select renders an input with the chosen option's label
+    expect(screen.getByTestId("catalog-field-general.outgoing")).toBeInTheDocument();
+  });
+
+  it("falls back to text for a ref with no liveOptions", () => {
+    renderWithProviders(
+      <CatalogFieldInput field={{ path: "general.outgoing", type: "ref" }}
+        value="x" onChange={() => {}} disabled={false} />);
+    expect(screen.getByTestId("catalog-field-general.outgoing")).toHaveValue("x");
+  });
 });
