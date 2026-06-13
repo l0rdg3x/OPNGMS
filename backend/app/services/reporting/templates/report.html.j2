@@ -36,6 +36,21 @@
   </section>
   {% endif %}
 
+  {% if ctx.attacker_countries %}
+  <section class="attacker-countries">
+    <h2>{{ ctx.t.attacker_countries_title }}</h2>
+    <p class="explain">{{ ctx.t.attacker_countries_explain }}</p>
+    <table class="ranked">
+      <thead><tr><th>{{ ctx.t.col_country }}</th><th>{{ ctx.t.col_count }}</th><th>{{ ctx.t.col_share }}</th></tr></thead>
+      <tbody>
+        {% for row in ctx.attacker_countries.rows %}<tr><td>{{ row.name }}</td><td>{{ row.count }}</td><td>{{ row.pct }}%</td></tr>{% endfor %}
+        {% if not ctx.attacker_countries.rows %}<tr><td colspan="3">{{ ctx.t.no_data }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+    <p class="attribution">{{ ctx.t.geoip_attribution }}</p>
+  </section>
+  {% endif %}
+
   {% for section in ctx.sections %}
   <section class="device-section">
     <h2>{{ section.device_name }}</h2>

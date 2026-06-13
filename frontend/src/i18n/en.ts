@@ -52,6 +52,13 @@ export const en = {
     noActiveAlerts: "No active alerts",
     healthLoadError: "Failed to load fleet health",
     alertsLoadError: "Failed to load alerts",
+    attackerCountries: {
+      title: "Top attacker countries",
+      empty: "No attacks recorded in this period.",
+      private: "Private / internal",
+      unknown: "Unknown",
+      attribution: "Country data: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "Alerts",
@@ -379,6 +386,7 @@ export const en = {
       health: "Device health",
       alerts_wan: "Alerts & connectivity",
       attacks: "Attacks",
+      attacker_countries: "Attacker countries",
       web: "Web activity",
       data: "Data usage",
       status: "Up/down status",
@@ -519,6 +527,7 @@ export const en = {
     reportSettingsAction: "Report settings action failed",
     reportsLoad: "Failed to load reports",
     reportGenerate: "Failed to generate report",
+    attackerCountriesLoad: "Failed to load attacker countries",
   },
 } as const;
 

@@ -38,6 +38,10 @@ table.ranked th { background: #f0f0f0; }
 .kpi-value { font-size: 20pt; font-weight: bold; color: #11423a; }
 .kpi-label { font-size: 8pt; color: #555; margin-top: 2px; }
 .health-table { max-width: 9cm; }
+/* Attacker-countries (report-level, tenant-wide) */
+.attacker-countries { page-break-before: always; }
+.attacker-countries h2 { border-bottom: 2px solid #333; padding-bottom: 4px; }
+.attribution { font-size: 7pt; color: #888; }
 /* Alert severity badges (controlled enum classes) */
 .sev { display: inline-block; padding: 1px 6px; border-radius: 3px; color: #fff; font-size: 8pt; }
 .sev-info { background: #1971c2; }

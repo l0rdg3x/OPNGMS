@@ -53,6 +53,13 @@ export const it: Dict = {
     noActiveAlerts: "Nessun avviso attivo",
     healthLoadError: "Impossibile caricare lo stato della flotta",
     alertsLoadError: "Impossibile caricare gli avvisi",
+    attackerCountries: {
+      title: "Principali paesi di attacco",
+      empty: "Nessun attacco registrato in questo periodo.",
+      private: "Privato / interno",
+      unknown: "Sconosciuto",
+      attribution: "Dati paese: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "Avvisi",
@@ -380,6 +387,7 @@ export const it: Dict = {
       health: "Stato del dispositivo",
       alerts_wan: "Avvisi e connettività",
       attacks: "Attacchi",
+      attacker_countries: "Paesi di attacco",
       web: "Attività web",
       data: "Utilizzo dati",
       status: "Stato online/offline",
@@ -520,5 +528,6 @@ export const it: Dict = {
     reportSettingsAction: "Azione delle impostazioni report non riuscita",
     reportsLoad: "Impossibile caricare i report",
     reportGenerate: "Impossibile generare il report",
+    attackerCountriesLoad: "Impossibile caricare i paesi di attacco",
   },
 };

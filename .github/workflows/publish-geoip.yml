@@ -1,0 +1,85 @@
+name: Publish GeoIP database
+
+# Keeps the rolling `geoip` GitHub release fresh: once a month it downloads the latest
+# DB-IP Lite Country database (CC BY 4.0), computes its SHA-256, and uploads the mmdb +
+# a manifest as release assets. The running app fetches these dynamically and SHA-256-
+# verifies them (see app/services/geoip_provider.py), so refreshing the GeoIP data needs
+# no app release — the database stays current independently of the software version.
+#
+# Data: DB-IP Lite (https://db-ip.com/db/lite.php), licensed CC BY 4.0.
+
+on:
+  schedule:
+    - cron: "37 4 3 * *"   # 04:37 on the 3rd of each month (DB-IP publishes monthly)
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "DB-IP month to publish (YYYY-MM); blank = current month"
+        default: ""
+        required: false
+
+# Needs write to create/manage the rolling `geoip` release and replace its assets.
+permissions:
+  contents: write
+
+# Never let two publish runs race on the same release.
+concurrency:
+  group: publish-geoip
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Download + publish the DB-IP Lite Country database
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # Input passed via env (never interpolated into run: scripts) — injection-safe.
+      MONTH_INPUT: ${{ github.event.inputs.month || '' }}
+    steps:
+      - name: Resolve the target month
+        id: month
+        run: |
+          set -euo pipefail
+          MONTH="$MONTH_INPUT"
+          [ -z "$MONTH" ] && MONTH="$(date -u +%Y-%m)"
+          case "$MONTH" in
+            [0-9][0-9][0-9][0-9]-[0-9][0-9]) ;;   # YYYY-MM allowlist (injection-safe)
+            *) echo "Invalid month: $MONTH" >&2; exit 1 ;;
+          esac
+          echo "month=$MONTH" >> "$GITHUB_OUTPUT"
+
+      - name: Download + verify the DB-IP Lite Country mmdb
+        env:
+          # Validated (YYYY-MM allowlist) step output, passed via env — never interpolated into the script body.
+          MONTH: ${{ steps.month.outputs.month }}
+        run: |
+          set -euo pipefail
+          URL="https://download.db-ip.com/free/dbip-country-lite-${MONTH}.mmdb.gz"
+          echo "Downloading $URL"
+          # Fall back to the previous month if the current month isn't published yet.
+          if ! curl -fsSL "$URL" -o dbip.mmdb.gz; then
+            PREV="$(date -u -d "${MONTH}-01 -1 month" +%Y-%m)"
+            echo "Current month missing; falling back to $PREV"
+            MONTH="$PREV"
+            curl -fsSL "https://download.db-ip.com/free/dbip-country-lite-${MONTH}.mmdb.gz" -o dbip.mmdb.gz
+          fi
+          gunzip -f dbip.mmdb.gz
+          mkdir -p out
+          mv dbip.mmdb out/dbip-country.mmdb
+          SHA="$(sha256sum out/dbip-country.mmdb | cut -d' ' -f1)"
+          BYTES="$(stat -c%s out/dbip-country.mmdb)"
+          jq -n --arg src "dbip-country" --arg ver "$MONTH" --arg sha "$SHA" \
+                --arg file "dbip-country.mmdb" --argjson bytes "$BYTES" \
+                '{source:$src, version:$ver, filename:$file, sha256:$sha, bytes:$bytes, license:"DB-IP Lite, CC BY 4.0"}' \
+                > out/manifest.json
+          echo "Manifest:"; cat out/manifest.json
+
+      - name: Ensure the rolling `geoip` release exists
+        run: |
+          gh release view geoip >/dev/null 2>&1 || gh release create geoip \
+            --title "GeoIP database (rolling)" \
+            --notes "Auto-published DB-IP Lite Country database (CC BY 4.0) + SHA-256 manifest. Assets are replaced in place — this is not a software release. Data by DB-IP (https://db-ip.com)." \
+            --latest=false
+
+      - name: Upload assets to the `geoip` release
+        run: gh release upload geoip out/dbip-country.mmdb out/manifest.json --clobber

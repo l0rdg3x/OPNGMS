@@ -268,6 +268,12 @@ Full threat model and operator hardening checklist:
 
 See [LICENSE](LICENSE).
 
+## Attribution
+
+IP geolocation (attacker-countries breakdown) uses the **DB-IP Lite** database by
+[DB-IP](https://db-ip.com), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The
+database is fetched and refreshed independently of the application (see the `publish-geoip` workflow).
+
 ## Trademarks & disclaimer
 
 OPNsense® is a registered trademark of Deciso B.V. All other product names, logos, and brands are the

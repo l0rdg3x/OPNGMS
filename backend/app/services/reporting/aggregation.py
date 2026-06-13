@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.event import TOP_FIELDS
 from app.schemas.event import EventTopRow
+from app.services.geoip import UNKNOWN, GeoIp
 
 # Allowlist of TimescaleDB time_bucket widths. `bucket` is interpolated into the SQL only after
 # being checked against this set (asyncpg cannot bind a Python str as a PG interval), so the
@@ -87,6 +88,14 @@ class ConfigChangeRow:
     operation: str
     target: str
     applied_at: datetime | None
+
+
+@dataclass
+class CountryCount:
+    """One row of the attacker-countries breakdown: ISO alpha-2 code (or a sentinel), count, share %."""
+    code: str
+    count: int
+    pct: float
 
 
 @dataclass
@@ -417,3 +426,46 @@ class ReportAggregator:
             uptime_pct=uptime,
             alerts_count=int(alerts),
         )
+
+    async def attacker_countries(
+        self, *, frm: datetime, to: datetime, device_id: uuid.UUID | None = None,
+        limit: int | None = None, geoip: GeoIp,
+    ) -> list[CountryCount]:
+        """IDS attacker IPs (`events.src_ip`) rolled up by resolved country, with counts + share %.
+
+        GROUP BY src_ip first (collapses volume), then map each distinct IP -> country code via the
+        injected `GeoIp` (PRIVATE for internal space, UNKNOWN for unparseable/not-found). Returns rows
+        sorted by count desc then code, optionally truncated to the top `limit`. Empty input -> []."""
+        clauses = [
+            "tenant_id = :tid", "source = 'ids'", "src_ip <> ''", "time >= :frm", "time < :to",
+        ]
+        params: dict = {"tid": self.tenant_id, "frm": frm, "to": to}
+        if device_id is not None:
+            clauses.append("device_id = :did")
+            params["did"] = device_id
+        where = " AND ".join(clauses)
+        # Bound the per-IP resolution work: serve only the most-frequent distinct IPs (they dominate the
+        # country breakdown; the long tail is negligible for a top-N view) so a wide range can't pull an
+        # unbounded distinct-IP set into Python.
+        params["scan_cap"] = 10000
+        sql = text(
+            f"SELECT src_ip, count(*) AS c FROM events WHERE {where} "
+            "GROUP BY src_ip ORDER BY c DESC LIMIT :scan_cap"
+        )
+        rows = (await self.session.execute(sql, params)).all()
+
+        by_code: dict[str, int] = {}
+        for r in rows:
+            code = geoip.country(str(r.src_ip)) or UNKNOWN
+            by_code[code] = by_code.get(code, 0) + int(r.c)
+        total = sum(by_code.values())
+        if total == 0:
+            return []
+        counts = [
+            CountryCount(code=code, count=count, pct=round(count / total * 100, 1))
+            for code, count in by_code.items()
+        ]
+        counts.sort(key=lambda x: (-x.count, x.code))
+        if limit is not None:
+            counts = counts[:limit]
+        return counts

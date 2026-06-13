@@ -26,6 +26,8 @@ dependencies = [
     "jinja2>=3.1",
     "weasyprint>=62",
     "python-multipart>=0.0.9",
+    "maxminddb>=2.6",
+    "babel>=2.14",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +36,7 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "respx>=0.21",
     "ruff>=0.15",
+    "mmdb-writer>=0.2.7",  # test-only: generate the tiny GeoIP fixture mmdb (tests/fixtures)
 ]
 
 [tool.pytest.ini_options]

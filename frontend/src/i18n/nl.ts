@@ -53,6 +53,13 @@ export const nl: Dict = {
     noActiveAlerts: "Geen actieve waarschuwingen",
     healthLoadError: "Laden van vlootstatus mislukt",
     alertsLoadError: "Laden van waarschuwingen mislukt",
+    attackerCountries: {
+      title: "Belangrijkste aanvallerslanden",
+      empty: "Geen aanvallen geregistreerd in deze periode.",
+      private: "Privé / intern",
+      unknown: "Onbekend",
+      attribution: "Landgegevens: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "Waarschuwingen",
@@ -380,6 +387,7 @@ export const nl: Dict = {
       health: "Apparaatstatus",
       alerts_wan: "Waarschuwingen en connectiviteit",
       attacks: "Aanvallen",
+      attacker_countries: "Aanvallerslanden",
       web: "Webactiviteit",
       data: "Datagebruik",
       status: "Online-/offlinestatus",
@@ -520,5 +528,6 @@ export const nl: Dict = {
     reportSettingsAction: "Actie voor rapportinstellingen mislukt",
     reportsLoad: "Laden van rapporten mislukt",
     reportGenerate: "Genereren van rapport mislukt",
+    attackerCountriesLoad: "Laden van aanvallerslanden mislukt",
   },
 };

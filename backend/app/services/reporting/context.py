@@ -94,6 +94,20 @@ class ExecutiveSummaryBlock:
 
 
 @dataclass
+class CountryRow:
+    """One ranked attacker-country row; `name` is already localized for the report locale."""
+    name: str
+    count: int
+    pct: float
+
+
+@dataclass
+class AttackerCountriesBlock:
+    """Report-level (tenant-wide) breakdown of blocked attacker IPs by resolved country."""
+    rows: list[CountryRow]
+
+
+@dataclass
 class HealthBlock:
     cpu_avg: float | None
     cpu_peak: float | None
@@ -175,6 +189,7 @@ class ReportContext:
     range_to: datetime
     sections: list[DeviceSection] = field(default_factory=list)
     summary: ExecutiveSummaryBlock | None = None
+    attacker_countries: AttackerCountriesBlock | None = None
     logo_data_uri: str | None = None
     t: ReportText | None = None
     locale: str = "en"
@@ -204,6 +219,7 @@ class ReportContext:
 
 from datetime import UTC  # noqa: E402
 
+from app.services.geoip import PRIVATE, UNKNOWN, GeoIp, localized_country_name  # noqa: E402
 from app.services.reporting.aggregation import ReportAggregator, pick_bucket  # noqa: E402
 from app.services.reporting.charts import line_chart  # noqa: E402
 from app.services.reporting.i18n import ReportText, report_text  # noqa: E402
@@ -255,6 +271,7 @@ async def build_context(
     locale: str = "en",
     device_id: uuid.UUID | None = None,
     sections_enabled: dict[str, bool] | None = None,
+    geoip: GeoIp | None = None,
 ) -> ReportContext:
     # Local import: mock_sections imports the dataclasses from this module, so importing it here
     # (rather than at module top) avoids a circular-import cycle and lets mock_sections be imported
@@ -289,6 +306,29 @@ async def build_context(
             attacks_blocked=k.attacks_blocked, data_total=human_bytes(k.data_total),
             uptime_pct=k.uptime_pct, alerts_count=k.alerts_count,
         )
+
+    # Report-level attacker-countries breakdown (tenant-wide, like the executive summary — built once,
+    # ignores device_id). Degrades to None when no mmdb is loadable so the section simply doesn't render.
+    attacker_countries: AttackerCountriesBlock | None = None
+    if enabled["attacker_countries"]:
+        from app.services.geoip_provider import get_geoip  # local import: avoids an import cycle
+
+        gi = geoip if geoip is not None else await get_geoip(aggregator.session)
+        if gi is not None:
+            country_counts = await aggregator.attacker_countries(frm=frm, to=to, geoip=gi, limit=15)
+            rows = [
+                CountryRow(
+                    name=(
+                        t.country_private if c.code == PRIVATE
+                        else t.country_unknown if c.code == UNKNOWN
+                        else localized_country_name(c.code, locale)
+                    ),
+                    count=c.count,
+                    pct=c.pct,
+                )
+                for c in country_counts
+            ]
+            attacker_countries = AttackerCountriesBlock(rows=rows)
 
     for dev in devices:
         # --- Device health (CPU/mem/disk avg+peak + cpu sparkline) ---
@@ -413,6 +453,7 @@ async def build_context(
         range_to=to,
         sections=sections,
         summary=summary,
+        attacker_countries=attacker_countries,
         logo_data_uri=logo_data_uri,
         t=t,
         locale=locale,

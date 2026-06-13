@@ -55,6 +55,11 @@ class Settings(BaseSettings):
         "https://github.com/l0rdg3x/OPNGMS/releases/download/catalogs"
     )
     catalog_auto_fetch: bool = True  # fetch + cache catalogs on cache-miss (off => cache-only)
+    # GeoIP distribution: where the app fetches the DB-IP Lite Country mmdb (attacker-country resolution).
+    geoip_release_base_url: str = (
+        "https://github.com/l0rdg3x/OPNGMS/releases/download/geoip"
+    )
+    geoip_auto_fetch: bool = True  # fetch + cache the geoip mmdb on cache-miss (off => cache-only)
 
 
 @lru_cache
@@ -84,4 +89,18 @@ def assert_secure_secrets(settings: Settings) -> None:
             "Set strong, unique values in your .env — keep DATABASE_URL's password matched to "
             "APP_ROLE_PASSWORD, and ADMIN_DATABASE_URL's to POSTGRES_PASSWORD. "
             "See the README 'Deployment' / 'Configuration' sections."
+        )
+    # The release-asset fetchers (catalog/geoip) verify SHA-256, but the fetch itself must be HTTPS so a
+    # plaintext MITM can't strip/replace the manifest before verification.
+    insecure = sorted(
+        name
+        for name, val in {
+            "CATALOG_RELEASE_BASE_URL": settings.catalog_release_base_url,
+            "GEOIP_RELEASE_BASE_URL": settings.geoip_release_base_url,
+        }.items()
+        if not val.startswith("https://")
+    )
+    if insecure:
+        raise RuntimeError(
+            "Refusing to start: " + ", ".join(insecure) + " must use https:// (release-asset fetch)."
         )

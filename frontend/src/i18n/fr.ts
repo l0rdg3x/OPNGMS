@@ -53,6 +53,13 @@ export const fr: Dict = {
     noActiveAlerts: "Aucune alerte active",
     healthLoadError: "Échec du chargement de l'état du parc",
     alertsLoadError: "Échec du chargement des alertes",
+    attackerCountries: {
+      title: "Principaux pays attaquants",
+      empty: "Aucune attaque enregistrée sur cette période.",
+      private: "Privé / interne",
+      unknown: "Inconnu",
+      attribution: "Données pays : DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "Alertes",
@@ -380,6 +387,7 @@ export const fr: Dict = {
       health: "État de l'appareil",
       alerts_wan: "Alertes et connectivité",
       attacks: "Attaques",
+      attacker_countries: "Pays attaquants",
       web: "Activité web",
       data: "Utilisation des données",
       status: "État en ligne/hors ligne",
@@ -520,5 +528,6 @@ export const fr: Dict = {
     reportSettingsAction: "Échec de l'action sur les paramètres des rapports",
     reportsLoad: "Échec du chargement des rapports",
     reportGenerate: "Échec de la génération du rapport",
+    attackerCountriesLoad: "Échec du chargement des pays attaquants",
   },
 };

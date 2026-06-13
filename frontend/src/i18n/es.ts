@@ -53,6 +53,13 @@ export const es: Dict = {
     noActiveAlerts: "No hay alertas activas",
     healthLoadError: "No se pudo cargar el estado de la flota",
     alertsLoadError: "No se pudieron cargar las alertas",
+    attackerCountries: {
+      title: "Principales países atacantes",
+      empty: "No se registraron ataques en este período.",
+      private: "Privado / interno",
+      unknown: "Desconocido",
+      attribution: "Datos de país: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "Alertas",
@@ -380,6 +387,7 @@ export const es: Dict = {
       health: "Estado del dispositivo",
       alerts_wan: "Alertas y conectividad",
       attacks: "Ataques",
+      attacker_countries: "Países atacantes",
       web: "Actividad web",
       data: "Uso de datos",
       status: "Estado activo/inactivo",
@@ -520,5 +528,6 @@ export const es: Dict = {
     reportSettingsAction: "La acción de ajustes de informes falló",
     reportsLoad: "No se pudieron cargar los informes",
     reportGenerate: "No se pudo generar el informe",
+    attackerCountriesLoad: "No se pudieron cargar los países atacantes",
   },
 };

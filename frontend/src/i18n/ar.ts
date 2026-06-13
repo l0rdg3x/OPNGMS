@@ -53,6 +53,13 @@ export const ar: Dict = {
     noActiveAlerts: "لا توجد تنبيهات نشطة",
     healthLoadError: "فشل تحميل صحة الأسطول",
     alertsLoadError: "فشل تحميل التنبيهات",
+    attackerCountries: {
+      title: "أبرز الدول المهاجمة",
+      empty: "لم تُسجَّل أي هجمات في هذه الفترة.",
+      private: "خاص / داخلي",
+      unknown: "غير معروف",
+      attribution: "بيانات الدول: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "التنبيهات",
@@ -380,6 +387,7 @@ export const ar: Dict = {
       health: "حالة الجهاز",
       alerts_wan: "التنبيهات والاتصال",
       attacks: "الهجمات",
+      attacker_countries: "الدول المهاجمة",
       web: "نشاط الويب",
       data: "استخدام البيانات",
       status: "حالة التشغيل/الإيقاف",
@@ -520,5 +528,6 @@ export const ar: Dict = {
     reportSettingsAction: "فشل إجراء إعدادات التقارير",
     reportsLoad: "فشل تحميل التقارير",
     reportGenerate: "فشل إنشاء التقرير",
+    attackerCountriesLoad: "فشل تحميل الدول المهاجمة",
   },
 };

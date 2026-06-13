@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useT } from "../i18n";
 import { useAlerts, useTenantHealth } from "../monitoring/hooks";
 import { HealthSummaryCards, type FleetHealth } from "../monitoring/HealthSummaryCards";
+import { AttackerCountriesCard } from "../overview/AttackerCountriesCard";
 
 export function OverviewPage() {
   const t = useT();
@@ -15,6 +16,9 @@ export function OverviewPage() {
       {health.isLoading && <Loader />}
       {health.error && <Alert color="red">{t.overview.healthLoadError}</Alert>}
       {health.data && <HealthSummaryCards health={health.data as FleetHealth} />}
+
+      <Title order={4} mt="md">{t.overview.attackerCountries.title}</Title>
+      <AttackerCountriesCard />
 
       <Title order={4} mt="md">{t.overview.activeAlerts}</Title>
       {alerts.isLoading && <Loader />}
