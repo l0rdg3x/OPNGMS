@@ -46,3 +46,28 @@ field classes fell through and add them to `_TYPE_MAP` — coverage rises withou
   `OPNsense/unboundplus`).
 - Dynamic option lists (e.g. "pick an interface/alias/CA") are NOT in the static catalog — they're
   fetched live from the device at edit time (sub-projects 2–3).
+
+## Publishing catalogs to the `catalogs` release
+
+The running app fetches catalogs dynamically; they are NOT committed. To publish/refresh:
+
+```bash
+cd backend
+# 0. (optional) Discover the Community version list from the opnsense/core git tags, instead of
+#    hardcoding it — this is the set of released versions (every major/minor/hotfix is a tag):
+VERSIONS=$(python -m tools.opnsense_catalog.cli list-versions --minimum 26.1)
+
+# 1. Generate every catalog + the sha256 manifest for those versions:
+python -m tools.opnsense_catalog.cli generate-all \
+    --edition community --versions "$VERSIONS" --fetch --out-dir /tmp/catalogs
+
+# 2. Refresh the Business→Community base map (scrapes docs.opnsense.org):
+python -m tools.opnsense_catalog.cli business-base --fetch --out /tmp/catalogs/business-base.json
+
+# 3. Upload all assets to the rolling `catalogs` release (replaces existing assets):
+gh release upload catalogs /tmp/catalogs/* --clobber
+```
+
+The app reads `<CATALOG_RELEASE_BASE_URL>/manifest.json`, `<...>/business-base.json` (for Business
+devices) and `<...>/community-<version>.json`, verifying each catalog's SHA-256 against the manifest.
+Publishing a new OPNsense version requires NO app release.

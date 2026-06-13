@@ -5,11 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+import app.services.catalog_kind  # noqa: F401  — registers catalog_setting kind at API-process startup
 import app.services.firewall_rule_kind  # noqa: F401  — registers firewall_rule kind at API-process startup
 import app.services.ids_kind  # noqa: F401  — registers suricata_ruleset kind at API-process startup
 import app.services.monit_kind  # noqa: F401  — registers monit_test kind at startup
 import app.services.setting_kind  # noqa: F401  — registers opnsense_setting kind at API-process startup
 from app.api.auth import router as auth_router
+from app.api.catalog import router as catalog_router
 from app.api.config import router as config_router
 from app.api.devices import router as devices_router
 from app.api.events import router as events_router
@@ -69,6 +71,7 @@ app.include_router(me_tenants_router)
 app.include_router(monitoring_router)
 app.include_router(events_router)
 app.include_router(config_router)
+app.include_router(catalog_router)
 app.include_router(firmware_router)
 app.include_router(reports_router)
 app.include_router(report_schedules_router)

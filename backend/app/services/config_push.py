@@ -44,14 +44,20 @@ async def create_change(
 def preview_change(change: ConfigChange) -> dict:
     """Secret-safe summary of what the change would do (no firewall contact, no secret values).
 
-    Aliases carry no secrets; for secret-bearing kinds later, redact sensitive payload keys here.
+    Aliases carry no secrets; for secret-bearing kinds we redact. A catalog_setting can target an
+    arbitrary field — including raw/password-like fields — so we surface only WHICH fields change
+    (paths) and a grid-op summary, never the entered values.
     """
-    return {
-        "operation": change.operation,
-        "kind": change.kind,
-        "target": change.target,
-        "new": change.payload,
-    }
+    base = {"operation": change.operation, "kind": change.kind, "target": change.target}
+    if change.kind == "catalog_setting":
+        payload = change.payload or {}
+        return {
+            **base,
+            "scalar_fields": sorted((payload.get("scalars") or {}).keys()),
+            "grid_ops": [{"op": g.get("op"), "grid": g.get("row")}
+                         for g in (payload.get("grids") or [])],
+        }
+    return {**base, "new": change.payload}
 
 
 def _advisory_key(device_id: uuid.UUID) -> int:
