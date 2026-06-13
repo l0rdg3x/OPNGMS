@@ -33,6 +33,7 @@ class Model:
     fields: list[Field] = field(default_factory=list)
     grids: list[Grid] = field(default_factory=list)
     pages: list[dict] = field(default_factory=list)
+    plugin: dict | None = None          # {package, title, category, version} for source=="plugins"
 
 
 @dataclass
@@ -64,7 +65,7 @@ def _grid_to_dict(g: Grid) -> dict:
 
 
 def model_to_dict(m: Model) -> dict:
-    return {
+    out = {
         "id": m.id, "title": m.title, "source": m.source, "model_root": m.model_root,
         "xml_path": m.xml_path,
         "endpoints": dict(sorted(m.endpoints.items())),
@@ -72,3 +73,6 @@ def model_to_dict(m: Model) -> dict:
         "fields": [_field_to_dict(f) for f in sorted(m.fields, key=lambda f: f.path)],
         "grids": [_grid_to_dict(g) for g in sorted(m.grids, key=lambda g: g.path)],
     }
+    if m.plugin is not None:
+        out["plugin"] = m.plugin
+    return out
