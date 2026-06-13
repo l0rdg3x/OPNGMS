@@ -17,7 +17,8 @@ _CATALOG = {
             "id": "unbound", "model_root": "unbound",
             "endpoints": {"get": "unbound/settings/get", "set": "unbound/settings/set",
                           "reconfigure": "unbound/service/reconfigure"},
-            "fields": [{"path": "general.enabled", "type": "bool"}],
+            "fields": [{"path": "general.enabled", "type": "bool"},
+                       {"path": "general.outgoing", "type": "ref"}],
             "grids": [{"path": "hosts",
                        "endpoints": {"add": "unbound/settings/addHosts",
                                      "set": "unbound/settings/setHosts",
@@ -260,3 +261,24 @@ async def test_create_catalog_change_no_reconfigure_endpoint_422(api_client, db_
         json={"model_id": "weird", "scalars": {"general.x": "1"}},
         headers=csrf_headers(api_client))
     assert r.status_code == 422
+
+
+@respx.mock
+async def test_read_model_returns_live_options(api_client, db_engine, monkeypatch):
+    monkeypatch.setattr(catalog_provider, "get_catalog", _fake_get_catalog)
+    payload = {"unbound": {
+        "general": {"enabled": "1",
+                    "outgoing": {"lan": {"value": "LAN", "selected": "1"}}},
+        "hosts": {"ab": {"hostname": "web", "server": "10.0.0.10"}},
+    }}
+    respx.get("https://203.0.113.10/api/unbound/settings/get").mock(
+        return_value=Response(200, json=payload))
+    tid = await _seed(db_engine)
+    did = await _device(db_engine, tid, base_url="https://203.0.113.10")
+    await _login(api_client)
+    r = await api_client.get(
+        f"/api/tenants/{tid}/devices/{did}/catalog/models/unbound", headers=csrf_headers(api_client))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["field_options"]["general.outgoing"] == [{"value": "lan", "label": "LAN"}]
+    assert "grid_field_options" in body  # present (may be empty for this model's plain-string grid)

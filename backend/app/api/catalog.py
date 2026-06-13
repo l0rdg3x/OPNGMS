@@ -16,7 +16,12 @@ from app.schemas.config import ConfigChangeOut
 from app.services import catalog_provider
 from app.services.audit import AuditService
 from app.services.catalog_kind import CATALOG_DENYLIST
-from app.services.catalog_live import extract_grid_rows, flatten_values
+from app.services.catalog_live import (
+    extract_grid_options,
+    extract_grid_rows,
+    extract_options,
+    flatten_values,
+)
 from app.services.config_push import create_change
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["catalog"])
@@ -145,8 +150,8 @@ async def read_catalog_model(
     model = catalog.get("models", {}).get(model_id)
     if model is None:
         raise HTTPException(status_code=404, detail=f"unknown model: {model_id!r}")
-    base = {"model": model, "values": {}, "grids": {}, "reachable": False,
-            "read_only": model_id in CATALOG_DENYLIST}
+    base = {"model": model, "values": {}, "grids": {}, "field_options": {}, "grid_field_options": {},
+            "reachable": False, "read_only": model_id in CATALOG_DENYLIST}
     if base["read_only"]:
         return base
     try:
@@ -160,4 +165,7 @@ async def read_catalog_model(
     base["reachable"] = True
     base["values"] = flatten_values(raw, model)
     base["grids"] = {g["path"]: extract_grid_rows(raw, model, g) for g in model.get("grids", [])}
+    base["field_options"] = extract_options(raw, model)
+    base["grid_field_options"] = {
+        g["path"]: extract_grid_options(raw, model, g) for g in model.get("grids", [])}
     return base
