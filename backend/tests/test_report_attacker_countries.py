@@ -96,6 +96,9 @@ async def test_attacker_countries_block_built_with_geoip(db_engine, geoip):
     assert by_name["Private / internal"].count == 1
     # Sorted by count desc: Russia first.
     assert block.rows[0].name == "Russia"
+    # World choropleth is built alongside the table (sentinels carry no geometry -> excluded).
+    assert "<svg" in block.map_svg
+    assert "choropleth-svg" in block.map_svg
 
 
 async def test_attacker_countries_rendered_html_contains_title_and_country(db_engine, geoip):
@@ -113,6 +116,7 @@ async def test_attacker_countries_rendered_html_contains_title_and_country(db_en
     assert "Attacker Countries" in html
     assert "Russia" in html
     assert "DB-IP" in html  # attribution line
+    assert "choropleth-svg" in html  # world map embedded above the ranked table
 
 
 async def test_attacker_countries_absent_when_section_off(db_engine, geoip):
