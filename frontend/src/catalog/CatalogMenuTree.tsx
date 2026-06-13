@@ -1,4 +1,5 @@
 // frontend/src/catalog/CatalogMenuTree.tsx
+import { useState } from "react";
 import { NavLink } from "@mantine/core";
 import { useT } from "../i18n";
 import type { MenuNode } from "./catalogTypes";
@@ -27,12 +28,22 @@ export function CatalogMenuTree({
 }) {
   const t = useT();
   const q = search.trim().toLowerCase();
+  // A branch is open when there's an active search (reveal matches) OR the user expanded it.
+  // `opened` is controlled — Mantine's `defaultOpened` is uncontrolled and would NOT react to search.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string) =>
+    setExpanded((s) => {
+      const n = new Set(s);
+      if (n.has(id)) { n.delete(id); } else { n.add(id); }
+      return n;
+    });
   return (
     <>
       {nodes.filter((n) => matches(n, q)).map((node) => {
         if (node.children && node.children.length > 0) {
           return (
-            <NavLink key={node.id} label={node.label} defaultOpened={!!q}
+            <NavLink key={node.id} label={node.label}
+              opened={!!q || expanded.has(node.id)} onClick={() => toggle(node.id)}
               leftSection={node.icon ? <i className={node.icon} /> : null}>
               <CatalogMenuTree nodes={node.children} baseUrl={baseUrl} search={search}
                 selected={selected} onSelect={onSelect} />
