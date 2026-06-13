@@ -28,6 +28,52 @@ def _override_prober(reachable=True, version="24.7", error=None):
     app.dependency_overrides[get_prober] = lambda: _fake
 
 
+def _override_enqueuer():
+    """Capture enqueued jobs; returns the list of (name, args) tuples."""
+    from app.core.queue import get_enqueuer
+    from app.main import app
+
+    calls: list[tuple[str, tuple]] = []
+
+    async def _fake_enqueue(name, *args, defer_until=None):
+        calls.append((name, args))
+
+    app.dependency_overrides[get_enqueuer] = lambda: _fake_enqueue
+    return calls
+
+
+async def test_create_reachable_device_enqueues_initial_populate(api_client, db_engine):
+    tenant_id = await _seed_admin_member(db_engine)
+    _override_prober(reachable=True, version="26.1.9")
+    calls = _override_enqueuer()
+    await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345-secure"})
+    resp = await api_client.post(
+        f"/api/tenants/{tenant_id}/devices",
+        json={"name": "fw1", "base_url": "https://fw1", "api_key": "k", "api_secret": "s"},
+        headers=csrf_headers(api_client),
+    )
+    assert resp.status_code == 201
+    did = resp.json()["id"]
+    enqueued = dict(calls)
+    assert enqueued.get("poll_device") == (did,)
+    assert enqueued.get("backup_device_config") == (did,)
+
+
+async def test_create_unverified_device_skips_initial_populate(api_client, db_engine):
+    tenant_id = await _seed_admin_member(db_engine)
+    _override_prober(reachable=False)
+    calls = _override_enqueuer()
+    await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345-secure"})
+    resp = await api_client.post(
+        f"/api/tenants/{tenant_id}/devices",
+        json={"name": "fw2", "base_url": "https://fw2", "api_key": "k", "api_secret": "s"},
+        headers=csrf_headers(api_client),
+    )
+    assert resp.status_code == 201
+    assert resp.json()["status"] == "unverified"
+    assert calls == []
+
+
 async def test_create_device_reachable_and_secrets_hidden(api_client, db_engine):
     tenant_id = await _seed_admin_member(db_engine)
     _override_prober(reachable=True, version="24.7")

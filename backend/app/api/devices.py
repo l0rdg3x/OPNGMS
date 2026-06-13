@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import crypto
 from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
+from app.core.queue import get_enqueuer
 from app.core.rbac import Action
 from app.models.device import Device
 from app.repositories.device import DeviceRepository
@@ -52,6 +53,7 @@ async def create_device(
     ctx: TenantContext = Depends(require_tenant(Action.DEVICE_WRITE)),
     session: AsyncSession = Depends(get_session),
     prober: Prober = Depends(get_prober),
+    enqueue=Depends(get_enqueuer),
 ) -> Device:
     result = await prober(
         payload.base_url,
@@ -86,6 +88,12 @@ async def create_device(
         details={"name": device.name, "status": device.status},
     )
     await session.commit()
+    # On a reachable onboard, immediately populate the device instead of waiting for the periodic
+    # crons: a first telemetry poll (health/network metrics) + a config snapshot (so the config map /
+    # drift have a baseline right away). Skipped when unverified — there is nothing to fetch.
+    if device.status == "reachable":
+        await enqueue("poll_device", str(device.id))
+        await enqueue("backup_device_config", str(device.id))
     return device
 
 
