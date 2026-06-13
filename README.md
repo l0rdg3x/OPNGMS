@@ -77,23 +77,48 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 
 ## Screenshots
 
-A dark, instrument-grade "operations console" UI (Mantine v9 + IBM Plex), built for SOC/NOC workflows.
+A dark, instrument-grade "operations console" UI (Mantine v9 + IBM Plex), built for SOC/NOC workflows
+and localized into **12 languages** (with full right-to-left support).
 
 | Sign in | Fleet overview |
 |---|---|
 | [![Login](docs/ui/login.png)](docs/ui/login.png) | [![Overview](docs/ui/overview.png)](docs/ui/overview.png) |
 
+| Device inventory | Device health (live metrics) |
+|---|---|
+| [![Devices](docs/ui/devices.png)](docs/ui/devices.png) | [![Device health](docs/ui/device-health.png)](docs/ui/device-health.png) |
+
+| Version-aware config editor (OPNsense-like) | Editor — global search |
+|---|---|
+| [![Config editor](docs/ui/config-editor.png)](docs/ui/config-editor.png) | [![Editor search](docs/ui/config-editor-search.png)](docs/ui/config-editor-search.png) |
+
+| Alerts | Configuration templates |
+|---|---|
+| [![Alerts](docs/ui/alerts.png)](docs/ui/alerts.png) | [![Template library](docs/ui/template-library.png)](docs/ui/template-library.png) |
+
 | Report delivery schedule (fleet + per-device) | SMTP delivery (superadmin) |
 |---|---|
 | [![Report schedule](docs/ui/report-schedule.png)](docs/ui/report-schedule.png) | [![SMTP settings](docs/ui/smtp.png)](docs/ui/smtp.png) |
 
-| Per-tenant report settings (branding & sender) | Configuration templates |
+| Per-tenant report settings (branding & sender) | Reports |
 |---|---|
-| [![Report settings](docs/ui/report-settings.png)](docs/ui/report-settings.png) | [![Template library](docs/ui/template-library.png)](docs/ui/template-library.png) |
+| [![Report settings](docs/ui/report-settings.png)](docs/ui/report-settings.png) | [![Reports](docs/ui/reports.png)](docs/ui/reports.png) |
 
 | Two-factor login (TOTP) | Two-factor settings & policy |
 |---|---|
 | [![MFA login step](docs/ui/mfa-login.png)](docs/ui/mfa-login.png) | [![MFA settings](docs/ui/mfa-security.png)](docs/ui/mfa-security.png) |
+
+| Active sessions | System settings |
+|---|---|
+| [![Sessions](docs/ui/sessions.png)](docs/ui/sessions.png) | [![System](docs/ui/system.png)](docs/ui/system.png) |
+
+| Log fleet (cross-tenant) | Localized UI (Italian) |
+|---|---|
+| [![Log fleet](docs/ui/log-fleet.png)](docs/ui/log-fleet.png) | [![Localized UI](docs/ui/localization.png)](docs/ui/localization.png) |
+
+| Right-to-left layout (Arabic) | |
+|---|---|
+| [![RTL](docs/ui/rtl.png)](docs/ui/rtl.png) | |
 
 ## Architecture
 
