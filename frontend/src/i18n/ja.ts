@@ -53,6 +53,13 @@ export const ja: Dict = {
     noActiveAlerts: "アクティブなアラートはありません",
     healthLoadError: "フリートの稼働状況の読み込みに失敗しました",
     alertsLoadError: "アラートの読み込みに失敗しました",
+    attackerCountries: {
+      title: "攻撃元の上位国",
+      empty: "この期間に記録された攻撃はありません。",
+      private: "プライベート / 内部",
+      unknown: "不明",
+      attribution: "国データ: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "アラート",
@@ -380,6 +387,7 @@ export const ja: Dict = {
       health: "デバイスの状態",
       alerts_wan: "アラートと接続性",
       attacks: "攻撃",
+      attacker_countries: "攻撃元の国",
       web: "Web アクティビティ",
       data: "データ使用量",
       status: "オンライン/オフライン状態",
@@ -520,5 +528,6 @@ export const ja: Dict = {
     reportSettingsAction: "レポート設定のアクションに失敗しました",
     reportsLoad: "レポートの読み込みに失敗しました",
     reportGenerate: "レポートの生成に失敗しました",
+    attackerCountriesLoad: "攻撃元の国の読み込みに失敗しました",
   },
 };

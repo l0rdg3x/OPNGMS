@@ -53,6 +53,13 @@ export const zh: Dict = {
     noActiveAlerts: "无活动告警",
     healthLoadError: "加载机群健康状态失败",
     alertsLoadError: "加载告警失败",
+    attackerCountries: {
+      title: "主要攻击来源国家/地区",
+      empty: "此期间未记录任何攻击。",
+      private: "私有 / 内部",
+      unknown: "未知",
+      attribution: "国家/地区数据：DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "告警",
@@ -380,6 +387,7 @@ export const zh: Dict = {
       health: "设备健康状况",
       alerts_wan: "告警与连接",
       attacks: "攻击",
+      attacker_countries: "攻击来源国家/地区",
       web: "网络活动",
       data: "数据用量",
       status: "在线/离线状态",
@@ -520,5 +528,6 @@ export const zh: Dict = {
     reportSettingsAction: "报告设置操作失败",
     reportsLoad: "加载报告失败",
     reportGenerate: "生成报告失败",
+    attackerCountriesLoad: "加载攻击来源国家/地区失败",
   },
 };

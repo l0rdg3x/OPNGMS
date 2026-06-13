@@ -53,6 +53,13 @@ export const de: Dict = {
     noActiveAlerts: "Keine aktiven Warnungen",
     healthLoadError: "Flottenzustand konnte nicht geladen werden",
     alertsLoadError: "Warnungen konnten nicht geladen werden",
+    attackerCountries: {
+      title: "Top-Angreiferländer",
+      empty: "In diesem Zeitraum wurden keine Angriffe erfasst.",
+      private: "Privat / intern",
+      unknown: "Unbekannt",
+      attribution: "Länderdaten: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "Warnungen",
@@ -380,6 +387,7 @@ export const de: Dict = {
       health: "Gerätezustand",
       alerts_wan: "Warnungen und Konnektivität",
       attacks: "Angriffe",
+      attacker_countries: "Angreiferländer",
       web: "Web-Aktivität",
       data: "Datennutzung",
       status: "Online-/Offline-Status",
@@ -520,5 +528,6 @@ export const de: Dict = {
     reportSettingsAction: "Aktion für Berichtseinstellungen fehlgeschlagen",
     reportsLoad: "Berichte konnten nicht geladen werden",
     reportGenerate: "Bericht konnte nicht erstellt werden",
+    attackerCountriesLoad: "Angreiferländer konnten nicht geladen werden",
   },
 };

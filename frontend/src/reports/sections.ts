@@ -1,12 +1,13 @@
 import type { Dict } from "../i18n";
 
-// The 10 report section keys, in display order. The backend re-resolves any missing
+// The 11 report section keys, in display order. The backend re-resolves any missing
 // keys against its built-in defaults; the UI only sends the explicit map the user sets.
 export const REPORT_SECTION_KEYS = [
   "summary",
   "health",
   "alerts_wan",
   "attacks",
+  "attacker_countries",
   "web",
   "data",
   "status",

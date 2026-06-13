@@ -53,6 +53,13 @@ export const ru: Dict = {
     noActiveAlerts: "Нет активных оповещений",
     healthLoadError: "Не удалось загрузить состояние парка",
     alertsLoadError: "Не удалось загрузить оповещения",
+    attackerCountries: {
+      title: "Топ стран-источников атак",
+      empty: "За этот период атак не зафиксировано.",
+      private: "Частный / внутренний",
+      unknown: "Неизвестно",
+      attribution: "Данные о странах: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "Оповещения",
@@ -380,6 +387,7 @@ export const ru: Dict = {
       health: "Состояние устройства",
       alerts_wan: "Оповещения и подключение",
       attacks: "Атаки",
+      attacker_countries: "Страны-источники атак",
       web: "Веб-активность",
       data: "Использование данных",
       status: "Статус доступности",
@@ -520,5 +528,6 @@ export const ru: Dict = {
     reportSettingsAction: "Действие с настройками отчётов не удалось",
     reportsLoad: "Не удалось загрузить отчёты",
     reportGenerate: "Не удалось сформировать отчёт",
+    attackerCountriesLoad: "Не удалось загрузить страны-источники атак",
   },
 };

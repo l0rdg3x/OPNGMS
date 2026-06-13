@@ -523,6 +523,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/attacker-countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Attacker Countries
+         * @description Top attacker countries (resolved from IDS `events.src_ip`) over the range, ranked by attempts.
+         *
+         *     Defaults to the last 7 days. Resolution is offline via the cached DB-IP mmdb; if no mmdb is
+         *     available the endpoint degrades to an empty list (never an error).
+         */
+        get: operations["attacker_countries_api_tenants__tenant_id__attacker_countries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/events": {
         parameters: {
             query?: never;
@@ -1789,6 +1812,21 @@ export interface components {
             opnsense_version: string;
             /** Size Bytes */
             size_bytes: number;
+        };
+        /**
+         * CountryCountOut
+         * @description One attacker-country row: ISO alpha-2 code (or PRIVATE/UNKNOWN sentinel), count, share %.
+         *
+         *     The country *name* is localized client-side (Intl.DisplayNames) / at report render (Babel); the
+         *     API returns only the code so the frontend can resolve the viewer's locale.
+         */
+        CountryCountOut: {
+            /** Code */
+            code: string;
+            /** Count */
+            count: number;
+            /** Pct */
+            pct: number;
         };
         /** DeviceIn */
         DeviceIn: {
@@ -4161,6 +4199,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attacker_countries_api_tenants__tenant_id__attacker_countries_get: {
+        parameters: {
+            query?: {
+                frm?: string | null;
+                to?: string | null;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountryCountOut"][];
                 };
             };
             /** @description Validation Error */

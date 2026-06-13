@@ -53,6 +53,13 @@ export const pt: Dict = {
     noActiveAlerts: "Sem alertas ativos",
     healthLoadError: "Falha ao carregar o estado da frota",
     alertsLoadError: "Falha ao carregar os alertas",
+    attackerCountries: {
+      title: "Principais países atacantes",
+      empty: "Nenhum ataque registado neste período.",
+      private: "Privado / interno",
+      unknown: "Desconhecido",
+      attribution: "Dados de país: DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "Alertas",
@@ -380,6 +387,7 @@ export const pt: Dict = {
       health: "Estado do dispositivo",
       alerts_wan: "Alertas e conectividade",
       attacks: "Ataques",
+      attacker_countries: "Países atacantes",
       web: "Atividade web",
       data: "Utilização de dados",
       status: "Estado online/offline",
@@ -520,5 +528,6 @@ export const pt: Dict = {
     reportSettingsAction: "Falha na ação das definições de relatório",
     reportsLoad: "Falha ao carregar os relatórios",
     reportGenerate: "Falha ao gerar o relatório",
+    attackerCountriesLoad: "Falha ao carregar os países atacantes",
   },
 };

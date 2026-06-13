@@ -53,6 +53,13 @@ export const zhTW: Dict = {
     noActiveAlerts: "沒有進行中的警示",
     healthLoadError: "無法載入機群健康狀態",
     alertsLoadError: "無法載入警示",
+    attackerCountries: {
+      title: "主要攻擊來源國家/地區",
+      empty: "此期間未記錄任何攻擊。",
+      private: "私有 / 內部",
+      unknown: "未知",
+      attribution: "國家/地區資料：DB-IP (CC BY 4.0)",
+    },
   },
   alerts: {
     title: "警示",
@@ -380,6 +387,7 @@ export const zhTW: Dict = {
       health: "裝置健康狀況",
       alerts_wan: "警示與連線",
       attacks: "攻擊",
+      attacker_countries: "攻擊來源國家/地區",
       web: "網路活動",
       data: "資料用量",
       status: "上線/離線狀態",
@@ -520,5 +528,6 @@ export const zhTW: Dict = {
     reportSettingsAction: "報表設定動作失敗",
     reportsLoad: "無法載入報表",
     reportGenerate: "無法產生報表",
+    attackerCountriesLoad: "無法載入攻擊來源國家/地區",
   },
 };

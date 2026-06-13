@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../AppShell";
 import { AuthContext } from "../../auth/AuthProvider";
 import { server } from "../../test/server";
@@ -20,6 +20,14 @@ function withAuth(node: ReactNode, is_superadmin = false) {
 }
 
 describe("AppShell", () => {
+  // The "/" route mounts OverviewPage, whose attacker-countries widget fires its own
+  // request; default it to an empty list so these shell tests don't hit onUnhandledRequest.
+  beforeEach(() => {
+    server.use(
+      http.get("/api/tenants/t1/attacker-countries", () => HttpResponse.json([])),
+    );
+  });
+
   it("shows the tenant switcher populated from /api/me/tenants and the user email", async () => {
     server.use(
       http.get("/api/me/tenants", () =>

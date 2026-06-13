@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { OverviewPage } from "../OverviewPage";
 import { TenantContext } from "../../tenant/TenantProvider";
 import { server } from "../../test/server";
@@ -23,6 +23,14 @@ function withTenant(node: ReactNode) {
 }
 
 describe("OverviewPage", () => {
+  // The page renders the attacker-countries widget, which fires its own request;
+  // default it to an empty list so these tests focus on health/alerts only.
+  beforeEach(() => {
+    server.use(
+      http.get("/api/tenants/t1/attacker-countries", () => HttpResponse.json([])),
+    );
+  });
+
   it("shows health and active alerts", async () => {
     server.use(
       http.get("/api/tenants/t1/health", () =>

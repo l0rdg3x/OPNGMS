@@ -1619,6 +1619,105 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/attacker-countries": {
+      "get": {
+        "tags": [
+          "monitoring"
+        ],
+        "summary": "Attacker Countries",
+        "description": "Top attacker countries (resolved from IDS `events.src_ip`) over the range, ranked by attempts.\n\nDefaults to the last 7 days. Resolution is offline via the cached DB-IP mmdb; if no mmdb is\navailable the endpoint degrades to an empty list (never an error).",
+        "operationId": "attacker_countries_api_tenants__tenant_id__attacker_countries_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "frm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frm"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CountryCountOut"
+                  },
+                  "title": "Response Attacker Countries Api Tenants  Tenant Id  Attacker Countries Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/events": {
       "get": {
         "tags": [
@@ -5810,6 +5909,30 @@
           "size_bytes"
         ],
         "title": "ConfigSnapshotOut"
+      },
+      "CountryCountOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "pct": {
+            "type": "number",
+            "title": "Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "count",
+          "pct"
+        ],
+        "title": "CountryCountOut",
+        "description": "One attacker-country row: ISO alpha-2 code (or PRIVATE/UNKNOWN sentinel), count, share %.\n\nThe country *name* is localized client-side (Intl.DisplayNames) / at report render (Babel); the\nAPI returns only the code so the frontend can resolve the viewer's locale."
       },
       "DeviceIn": {
         "properties": {
