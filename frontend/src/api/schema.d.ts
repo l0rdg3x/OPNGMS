@@ -921,6 +921,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/plugin-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Plugin Models
+         * @description Plugins that have an editable config model: [{package, model_id, title}] (for the Configure link).
+         */
+        get: operations["read_plugin_models_api_tenants__tenant_id__devices__device_id__plugin_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/devices/{device_id}/catalog/diff": {
         parameters: {
             query?: never;
@@ -2561,6 +2581,18 @@ export interface components {
              * @default false
              */
             locked: boolean;
+        };
+        /** PluginModelOut */
+        PluginModelOut: {
+            /** Package */
+            package: string;
+            /** Model Id */
+            model_id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
         };
         /** PreviewTemplateIn */
         PreviewTemplateIn: {
@@ -4984,6 +5016,38 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_plugin_models_api_tenants__tenant_id__devices__device_id__plugin_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginModelOut"][];
                 };
             };
             /** @description Validation Error */
