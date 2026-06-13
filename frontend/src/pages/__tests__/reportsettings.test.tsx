@@ -259,6 +259,59 @@ describe("ReportSettingsPage — tenant_admin", () => {
     expect(languageSelect).toHaveValue("English");
   });
 
+  it("renders the section toggles and includes the sections map in the PUT body", async () => {
+    let putBody: { sections?: Record<string, boolean> } = {};
+
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
+      http.put(SETTINGS_URL, async ({ request }) => {
+        putBody = (await request.json()) as { sections?: Record<string, boolean> };
+        return HttpResponse.json({ ...defaultSettings, ...putBody });
+      }),
+    );
+
+    renderWithProviders(withTenant(<ReportSettingsPage />, "tenant_admin"));
+
+    // All ten section toggles render, defaulting to "on" (absent from the loaded map).
+    const summaryToggle = await screen.findByTestId("section-toggle-summary");
+    expect(summaryToggle).toBeChecked();
+    expect(screen.getByTestId("section-toggle-web_filter")).toBeInTheDocument();
+
+    // Turn one section off, then save.
+    await userEvent.click(summaryToggle);
+    await userEvent.click(screen.getByTestId("btn-save"));
+
+    await waitFor(() => expect(putBody.sections).toBeDefined());
+    expect(putBody.sections).toMatchObject({
+      summary: false,
+      health: true,
+      web_filter: true,
+    });
+    // All ten keys are present in the explicit map.
+    expect(Object.keys(putBody.sections ?? {})).toHaveLength(10);
+  });
+
+  it("seeds section toggle state from the loaded sections map", async () => {
+    const settingsWithSections = {
+      ...defaultSettings,
+      sections: { summary: false, attacks: false },
+    };
+
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(settingsWithSections)),
+      defaultLanguagesHandler,
+    );
+
+    renderWithProviders(withTenant(<ReportSettingsPage />, "tenant_admin"));
+
+    // Keys present in the loaded map reflect their stored value...
+    expect(await screen.findByTestId("section-toggle-summary")).not.toBeChecked();
+    expect(screen.getByTestId("section-toggle-attacks")).not.toBeChecked();
+    // ...keys absent from the map default to "on".
+    expect(screen.getByTestId("section-toggle-health")).toBeChecked();
+  });
+
   it("from_email round-trip: typed value is sent in the PUT body", async () => {
     let putBody: unknown;
 

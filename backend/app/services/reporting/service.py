@@ -12,6 +12,7 @@ from weasyprint.urls import URLFetcher
 from app.repositories.report_settings import ReportSettingsRepository
 from app.services.reporting.aggregation import ReportAggregator
 from app.services.reporting.context import build_context
+from app.services.reporting.sections import resolve_sections
 from app.services.reporting.template import render_html
 
 # Bound the queried range to keep aggregation cheap and avoid abusive scans.
@@ -70,13 +71,15 @@ class ReportService:
 
     async def build_html(
         self, *, tenant_name: str, frm: datetime, to: datetime, locale: str | None = None,
-        device_id: uuid.UUID | None = None,
+        device_id: uuid.UUID | None = None, section_overrides: dict[str, bool] | None = None,
     ) -> str:
         frm, to = _ensure_utc(frm), _ensure_utc(to)
         _validate_range(frm, to)
         settings = await ReportSettingsRepository(self.session, self.tenant_id).get_or_default()
         effective = locale or settings.language or "en"
         ctx_logo = logo_data_uri(settings.logo, settings.logo_mime)
+        # Section toggles: BUILTIN_DEFAULTS < tenant settings < per-device/schedule override.
+        sections_enabled = resolve_sections(settings.sections, section_overrides)
         agg = ReportAggregator(self.session, self.tenant_id)
         ctx = await build_context(
             agg,
@@ -89,14 +92,16 @@ class ReportService:
             logo_data_uri=ctx_logo,
             locale=effective,
             device_id=device_id,
+            sections_enabled=sections_enabled,
         )
         return render_html(ctx)
 
     async def build_report(
         self, *, tenant_name: str, frm: datetime, to: datetime, locale: str | None = None,
-        device_id: uuid.UUID | None = None,
+        device_id: uuid.UUID | None = None, section_overrides: dict[str, bool] | None = None,
     ) -> bytes:
         html = await self.build_html(
-            tenant_name=tenant_name, frm=frm, to=to, locale=locale, device_id=device_id
+            tenant_name=tenant_name, frm=frm, to=to, locale=locale, device_id=device_id,
+            section_overrides=section_overrides,
         )
         return html_to_pdf(html)

@@ -416,3 +416,36 @@ async def test_invalid_from_email_rejected(api_client, db_engine):
                              json={"title": "T", "owner": "o", "timezone": "UTC", "language": "en",
                                    "from_email": "not-an-email"})
     assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# sections toggle map — report-enrichment foundation
+# ---------------------------------------------------------------------------
+
+async def test_get_settings_includes_empty_sections_by_default(api_client, db_engine):
+    tid = await _login_superadmin(api_client, db_engine)
+    r = await api_client.get(f"/api/tenants/{tid}/reports/settings")
+    assert r.status_code == 200
+    assert r.json()["sections"] == {}
+
+
+async def test_put_settings_sections_persists_and_returns(api_client, db_engine):
+    tid = await _login_superadmin(api_client, db_engine)
+    payload = {"title": "T", "owner": "", "timezone": "UTC", "language": "en",
+               "sections": {"health": True, "summary": False}}
+    p = await api_client.put(f"/api/tenants/{tid}/reports/settings", headers=csrf_headers(api_client),
+                             json=payload)
+    assert p.status_code == 200, p.text
+    assert p.json()["sections"] == {"health": True, "summary": False}
+    g = await api_client.get(f"/api/tenants/{tid}/reports/settings")
+    assert g.json()["sections"] == {"health": True, "summary": False}
+
+
+async def test_put_settings_unknown_section_keys_are_dropped(api_client, db_engine):
+    tid = await _login_superadmin(api_client, db_engine)
+    payload = {"title": "T", "owner": "", "timezone": "UTC", "language": "en",
+               "sections": {"bogus": True, "health": True}}
+    p = await api_client.put(f"/api/tenants/{tid}/reports/settings", headers=csrf_headers(api_client),
+                             json=payload)
+    assert p.status_code == 200, p.text
+    assert p.json()["sections"] == {"health": True}

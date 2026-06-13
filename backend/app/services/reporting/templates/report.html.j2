@@ -21,9 +21,77 @@
     </ol>
   </section>
 
+  {% if ctx.summary %}
+  <section class="summary-band">
+    <h2>{{ ctx.t.summary_title }}</h2>
+    <p class="explain">{{ ctx.t.summary_explain }}</p>
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-value">{{ ctx.summary.devices_total }}</div><div class="kpi-label">{{ ctx.t.kpi_devices }}</div></div>
+      <div class="kpi"><div class="kpi-value">{{ ctx.summary.devices_online }}</div><div class="kpi-label">{{ ctx.t.kpi_online }}</div></div>
+      <div class="kpi"><div class="kpi-value">{{ ctx.summary.attacks_blocked }}</div><div class="kpi-label">{{ ctx.t.kpi_attacks }}</div></div>
+      <div class="kpi"><div class="kpi-value">{{ ctx.summary.data_total }}</div><div class="kpi-label">{{ ctx.t.kpi_data }}</div></div>
+      <div class="kpi"><div class="kpi-value">{{ ctx.summary.uptime_pct }}%</div><div class="kpi-label">{{ ctx.t.kpi_uptime }}</div></div>
+      <div class="kpi"><div class="kpi-value">{{ ctx.summary.alerts_count }}</div><div class="kpi-label">{{ ctx.t.kpi_alerts }}</div></div>
+    </div>
+  </section>
+  {% endif %}
+
   {% for section in ctx.sections %}
   <section class="device-section">
     <h2>{{ section.device_name }}</h2>
+
+    {% if section.health %}
+    <h3>{{ ctx.t.health_title }}</h3>
+    <p class="explain">{{ ctx.t.health_explain }}</p>
+    {% if section.health.has_data %}
+    <table class="ranked health-table">
+      <thead><tr><th></th><th>{{ ctx.t.health_avg }}</th><th>{{ ctx.t.health_peak }}</th></tr></thead>
+      <tbody>
+        <tr><td>{{ ctx.t.health_cpu }}</td><td>{{ '%.1f'|format(section.health.cpu_avg) if section.health.cpu_avg is not none else ctx.t.no_data }}%</td><td>{{ '%.1f'|format(section.health.cpu_peak) if section.health.cpu_peak is not none else ctx.t.no_data }}%</td></tr>
+        <tr><td>{{ ctx.t.health_mem }}</td><td>{{ '%.1f'|format(section.health.mem_avg) if section.health.mem_avg is not none else ctx.t.no_data }}%</td><td>{{ '%.1f'|format(section.health.mem_peak) if section.health.mem_peak is not none else ctx.t.no_data }}%</td></tr>
+        <tr><td>{{ ctx.t.health_disk }}</td><td>{{ '%.1f'|format(section.health.disk_avg) if section.health.disk_avg is not none else ctx.t.no_data }}%</td><td>{{ '%.1f'|format(section.health.disk_peak) if section.health.disk_peak is not none else ctx.t.no_data }}%</td></tr>
+      </tbody>
+    </table>
+    <div class="chart">{{ Markup(section.health.sparkline_svg) }}</div>
+    {% else %}
+    <p class="summary">{{ ctx.t.health_no_data }}</p>
+    {% endif %}
+    {% endif %}
+
+    {% if section.alerts_wan %}
+    <h3>{{ ctx.t.alerts_wan_title }}</h3>
+    <p class="explain">{{ ctx.t.alerts_wan_explain }}</p>
+    <table class="ranked">
+      <caption>{{ ctx.t.alerts_subtitle }}</caption>
+      <thead><tr><th>{{ ctx.t.col_alert }}</th><th>{{ ctx.t.col_severity }}</th><th>{{ ctx.t.col_opened }}</th><th>{{ ctx.t.col_duration }}</th></tr></thead>
+      <tbody>
+        {% for a in section.alerts_wan.alerts %}
+        <tr><td>{{ a.title }}</td><td><span class="sev sev-{{ a.severity }}">{{ a.severity_label }}</span></td><td>{{ a.opened }}</td><td>{{ a.duration }}</td></tr>
+        {% endfor %}
+        {% if not section.alerts_wan.alerts %}<tr><td colspan="4">{{ ctx.t.no_alerts }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+    {% if section.alerts_wan.gateways %}
+    <table class="ranked">
+      <caption>{{ ctx.t.wan_subtitle }}</caption>
+      <thead><tr><th>{{ ctx.t.col_gateway }}</th><th>{{ ctx.t.col_rtt }}</th><th>{{ ctx.t.col_loss }}</th><th>{{ ctx.t.col_availability }}</th></tr></thead>
+      <tbody>
+        {% for g in section.alerts_wan.gateways %}
+        <tr><td>{{ g.name }}</td><td>{{ '%.1f'|format(g.rtt_ms) if g.rtt_ms is not none else ctx.t.no_data }}</td><td>{{ '%.1f'|format(g.loss_pct) if g.loss_pct is not none else ctx.t.no_data }}</td><td>{{ g.up_pct }}%</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if section.alerts_wan.vpns %}
+    <table class="ranked">
+      <caption>{{ ctx.t.vpn_subtitle }}</caption>
+      <thead><tr><th>{{ ctx.t.col_tunnel }}</th><th>{{ ctx.t.uptime }}</th></tr></thead>
+      <tbody>
+        {% for v in section.alerts_wan.vpns %}<tr><td>{{ v.name }}</td><td>{{ v.up_pct }}%</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% endif %}
 
     {% if section.attacks %}
     <h3>{{ ctx.t.attacks_title }}</h3>
@@ -69,6 +137,20 @@
     <p class="explain">{{ ctx.t.status_explain }}</p>
     <div class="chart">{{ Markup(section.status.timeline_svg) }}</div>
     <p class="summary">{{ ctx.t.uptime }}: {{ section.status.uptime_pct }}%</p>
+    {% endif %}
+
+    {% if section.firmware_config %}
+    <h3>{{ ctx.t.firmware_config_title }}</h3>
+    <p class="explain">{{ ctx.t.firmware_config_explain }}</p>
+    <p class="summary">{{ ctx.t.fw_version }}: {{ section.firmware_config.firmware_version }} · {{ ctx.t.fw_edition }}: {{ section.firmware_config.edition }} · {{ ctx.t.fw_series }}: {{ section.firmware_config.series }}</p>
+    <table class="ranked">
+      <caption>{{ ctx.t.fw_changes }} ({{ section.firmware_config.change_count }})</caption>
+      <thead><tr><th>{{ ctx.t.col_change }}</th><th>{{ ctx.t.col_applied }}</th></tr></thead>
+      <tbody>
+        {% for c in section.firmware_config.changes %}<tr><td>{{ c.summary }}</td><td>{{ c.applied }}</td></tr>{% endfor %}
+        {% if not section.firmware_config.changes %}<tr><td colspan="2">{{ ctx.t.no_changes }}</td></tr>{% endif %}
+      </tbody>
+    </table>
     {% endif %}
 
     {% if section.applications %}

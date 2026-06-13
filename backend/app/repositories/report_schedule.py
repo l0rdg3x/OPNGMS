@@ -34,13 +34,15 @@ class ReportScheduleRepository:
 
     async def upsert(self, *, device_id: uuid.UUID | None, enabled: bool, frequency: str,
                      weekday: int | None, hour: int, recipients: list[str],
-                     created_by: uuid.UUID | None, now: datetime) -> ReportSchedule:
+                     created_by: uuid.UUID | None, now: datetime,
+                     sections: dict[str, bool] | None = None) -> ReportSchedule:
         row = await self._get_by_scope(device_id)
         if row is None:
             row = ReportSchedule(tenant_id=self.tenant_id, device_id=device_id, created_by=created_by)
             self.session.add(row)
         row.enabled, row.frequency, row.weekday, row.hour = enabled, frequency, weekday, hour
         row.recipients = recipients
+        row.sections = sections
         row.next_run_at = next_run_at(frequency, weekday, hour, after=now) if enabled else None
         await self.session.flush()
         return row

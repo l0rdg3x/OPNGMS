@@ -21,7 +21,7 @@ def _out(row) -> ReportScheduleOut:
     return ReportScheduleOut(
         id=row.id, device_id=row.device_id, enabled=row.enabled, frequency=row.frequency,
         weekday=row.weekday, hour=row.hour, recipients=list(row.recipients or []),
-        next_run_at=row.next_run_at, last_run_at=row.last_run_at,
+        sections=row.sections, next_run_at=row.next_run_at, last_run_at=row.last_run_at,
     )
 
 
@@ -59,7 +59,7 @@ async def upsert_schedule(
     row = await ReportScheduleRepository(session, tenant_id).upsert(
         device_id=body.device_id, enabled=body.enabled, frequency=body.frequency,
         weekday=body.weekday, hour=body.hour, recipients=recipients, created_by=ctx.user.id,
-        now=datetime.now(UTC),
+        now=datetime.now(UTC), sections=body.sections,
     )
     await AuditService(session).record(
         actor_user_id=ctx.user.id, tenant_id=tenant_id, action="report.schedule.upsert",

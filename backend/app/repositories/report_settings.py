@@ -30,10 +30,11 @@ class ReportSettingsRepository:
             timezone="UTC",
             language="en",
             from_email="",
+            sections={},
         )
 
     async def upsert(self, *, title: str, owner: str, timezone: str, language: str = "en",
-                     from_email: str = "") -> ReportSettings:
+                     from_email: str = "", sections: dict[str, bool] | None = None) -> ReportSettings:
         row = await self.get()
         if row is None:
             row = ReportSettings(tenant_id=self.tenant_id)
@@ -41,6 +42,7 @@ class ReportSettingsRepository:
         row.title, row.owner, row.timezone = title, owner, timezone
         row.language = language
         row.from_email = from_email
+        row.sections = sections if sections is not None else {}
         await self.session.flush()
         return row
 

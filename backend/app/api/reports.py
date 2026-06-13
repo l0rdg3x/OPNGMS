@@ -32,6 +32,7 @@ def _settings_to_out(settings) -> ReportSettingsOut:
         logo_mime=settings.logo_mime,
         language=settings.language,
         from_email=settings.from_email,
+        sections=dict(settings.sections or {}),
     )
 
 
@@ -151,7 +152,7 @@ async def update_report_settings(
     repo = ReportSettingsRepository(session, tenant_id)
     settings = await repo.upsert(
         title=body.title, owner=body.owner, timezone=body.timezone, language=body.language,
-        from_email=body.from_email,
+        from_email=body.from_email, sections=body.sections,
     )
     await AuditService(session).record(
         actor_user_id=ctx.user.id,
