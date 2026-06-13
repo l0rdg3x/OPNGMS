@@ -512,6 +512,7 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
 | **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot. A **kind-pluggable engine** ships five kinds: `firewall_alias`, the generic **`opnsense_setting`** (introspection-driven, value-controlled), **`suricata_ruleset`**, **`firewall_rule`** (Rules [new]/MVC; interface bound at apply time), and **`monit_test`**. Live-verified on real OPNsense 26.1.9³ | ✅ Done |
+| **Version-aware config editor (killer feature, sub-projects 1–2)** — an offline **catalog generator** (`backend/tools/opnsense_catalog/`) parses the `opnsense/core` source **per release tag** into a versioned JSON catalog of **every API-modifiable model** (scalars + grids; never-drop `raw` for unknown classes) with cross-version diff; a **dynamic distribution** (catalogs published as GitHub **Release assets**, fetched + DB-cached + **SHA-256-verified** by the app; a Business device resolves to its Community base via a scraped `business-base.json`); and a generic **`catalog_setting`** change kind that pushes any catalog setting through the existing config-push pipeline (denylist-guarded, path-injection-safe). The editor UI + a live `config.xml` map are sub-project 3 | 🔧 Engine ready⁴ |
 | **Login MFA (TOTP)** — TOTP second factor + one-time recovery codes; self-enroll + superadmin enforcement policy (off/all/privileged) with a fail-closed setup gate; two-step login (pending→full session); superadmin reset of a user's MFA + a host **break-glass CLI**; adversarially security-reviewed | ✅ Done |
 | **Deployment** — production Dockerfiles + a base `docker-compose.prod.yml` (frontend HTTP, localhost-bound, safe-by-default) with override files for every TLS model (behind your proxy / built-in cert / automatic **Caddy** or **Traefik**); configurable container **timezone** | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
@@ -540,6 +541,15 @@ WebGUI is a separate milestone — the button is currently a deep-link to the We
 interface)`; **profile** apply threads the same `bindings` channel so a member rule can bind one interface
 for the whole profile), and `monit_test` (condition + action, upserted by `name`). All merged & live-verified
 on the real 26.1.9 box.
+
+⁴ The version-aware config editor is the project's **killer feature**, built as a sequence of sub-projects:
+**1** = the offline catalog **generator** (full-core 26.1.8: 52 models / 941 fields, ~90% rich), **2** =
+dynamic **distribution + the generic apply engine** (this is what's merged). Publishing populates a rolling
+`catalogs` GitHub release (`generate-all` + `business-base` + `gh release upload`; see
+`backend/tools/opnsense_catalog/README.md`) — until then the app has nothing to fetch. **3** = the
+OPNsense-like **editor UI** (forms from the catalog + live values + version-diff) plus a per-device live
+`config.xml` map (read/diff coverage of settings the catalog can't write). **4** = Business proprietary
+deltas via a one-time box harvest.
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 
