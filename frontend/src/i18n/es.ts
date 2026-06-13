@@ -273,6 +273,8 @@ export const es: Dict = {
     openWebgui: "Abrir en WebGUI",
     searchAll: "Buscar ajustes…",
     grid: { add: "Añadir fila", save: "Guardar", edit: "Editar", delete: "Eliminar", empty: "No hay filas." },
+    diff: { baseline: "Comparar con", noBaseline: "Sin versión anterior", newSince: "Nuevo desde {v}", changedSince: "Cambiado desde {v}", changes: "cambios" },
+    map: { tabMenu: "Menú", tabMap: "Mapa de config", editInCatalog: "Editar en el catálogo", readOnly: "solo lectura (sin API)", staleBanner: "Obsoleto — dispositivo inalcanzable; mostrando la última copia de seguridad del {when}" },
   },
   config: {
     tabInfo: "Información",

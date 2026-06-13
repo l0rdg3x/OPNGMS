@@ -273,6 +273,8 @@ export const ru: Dict = {
     openWebgui: "Открыть в WebGUI",
     searchAll: "Поиск параметров…",
     grid: { add: "Добавить строку", save: "Сохранить", edit: "Изменить", delete: "Удалить", empty: "Нет строк." },
+    diff: { baseline: "Сравнить с", noBaseline: "Нет предыдущей версии", newSince: "Новое с {v}", changedSince: "Изменено с {v}", changes: "изменения" },
+    map: { tabMenu: "Меню", tabMap: "Карта конфигурации", editInCatalog: "Изменить в каталоге", readOnly: "только чтение (нет API)", staleBanner: "Устарело — устройство недоступно; показана последняя резервная копия от {when}" },
   },
   config: {
     tabInfo: "Сведения",

@@ -273,6 +273,8 @@ export const zhTW: Dict = {
     openWebgui: "在 WebGUI 中開啟",
     searchAll: "搜尋設定…",
     grid: { add: "新增列", save: "儲存", edit: "編輯", delete: "刪除", empty: "沒有資料列。" },
+    diff: { baseline: "比較版本", noBaseline: "沒有更早的版本", newSince: "自 {v} 起新增", changedSince: "自 {v} 起變更", changes: "變更" },
+    map: { tabMenu: "選單", tabMap: "設定對應", editInCatalog: "在目錄中編輯", readOnly: "唯讀（無 API）", staleBanner: "已過期 — 裝置無法連線；顯示 {when} 的最近備份" },
   },
   config: {
     tabInfo: "資訊",

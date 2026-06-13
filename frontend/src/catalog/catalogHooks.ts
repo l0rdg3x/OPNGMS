@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
-import type { CatalogChangeBody, CatalogModel, CatalogModelLive, MenuNode } from "./catalogTypes";
+import type { CatalogChangeBody, CatalogDiff, CatalogModel, CatalogModelLive, ConfigMapResponse, MenuNode } from "./catalogTypes";
 
 export function useDeviceCatalog(deviceId: string) {
   const { activeId } = useTenant();
@@ -35,6 +35,45 @@ export function useCatalogModel(deviceId: string, modelId: string | null) {
       );
       if (error || !data) throw new Error(t.catalog.loadFailed);
       return data as CatalogModelLive;
+    },
+  });
+}
+
+export function useCatalogDiff(deviceId: string, from: string | null) {
+  const { activeId } = useTenant();
+  const t = useT();
+  return useQuery({
+    queryKey: ["catalog-diff", activeId, deviceId, from],
+    enabled: !!activeId && !!deviceId,
+    queryFn: async (): Promise<CatalogDiff> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/devices/{device_id}/catalog/diff",
+        {
+          params: {
+            path: { tenant_id: activeId!, device_id: deviceId },
+            query: from ? { from } : {},
+          },
+        },
+      );
+      if (error || !data) throw new Error(t.catalog.loadFailed);
+      return data as CatalogDiff;
+    },
+  });
+}
+
+export function useConfigMap(deviceId: string) {
+  const { activeId } = useTenant();
+  const t = useT();
+  return useQuery({
+    queryKey: ["config-map", activeId, deviceId],
+    enabled: !!activeId && !!deviceId,
+    queryFn: async (): Promise<ConfigMapResponse> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/devices/{device_id}/config/map",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId } } },
+      );
+      if (error || !data) throw new Error(t.catalog.loadFailed);
+      return data as ConfigMapResponse;
     },
   });
 }

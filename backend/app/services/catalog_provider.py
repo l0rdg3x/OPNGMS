@@ -43,6 +43,40 @@ def _community_versions(manifest: dict) -> list[str]:
     return [k.split("/", 1)[1] for k in manifest.get("catalogs", {}) if k.startswith("community/")]
 
 
+# A resolved (edition, version) is fetched into an asset URL and logged. Both come from the trusted
+# manifest, but a user-controlled baseline version reaches `get_catalog` via the diff API — gate them
+# to a strict shape (lowercase edition, dotted-numeric version) before any URL/log use: no path
+# traversal, SSRF, or log forging is possible from a value that matches these.
+_SAFE_EDITION = re.compile(r"\A[a-z]+\Z")
+_SAFE_VERSION = re.compile(r"\A\d+(?:\.\d+){0,3}\Z")
+
+
+def previous_version(versions: list[str], version: str) -> str | None:
+    """Highest published version strictly less than `version` (semver-ish), or None."""
+    target = _parse_version(version)
+    below = [v for v in versions if _parse_version(v) < target]
+    if not below:
+        return None
+    return max(below, key=_parse_version)
+
+
+async def published_versions(edition: str = "community") -> list[str]:
+    """All published versions (from the release manifest), sorted ascending.
+
+    Network-only (no cache): used by the diff endpoint to list selectable baselines. Returns [] on any
+    fetch error so the caller degrades to 'no baselines'. `edition` is accepted for call-site symmetry
+    but intentionally ignored: Business devices are served the shared Community catalog, so the baseline
+    version list is always the Community one (see `get_catalog`'s edition resolution)."""
+    settings = get_settings()
+    base = settings.catalog_release_base_url.rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as http:
+            manifest = (await http.get(f"{base}/manifest.json")).raise_for_status().json()
+    except (httpx.HTTPError, ValueError, KeyError):
+        return []
+    return sorted(_community_versions(manifest), key=_parse_version)
+
+
 def resolve_target(
     manifest: dict, business_base: dict | None, edition: str, version: str
 ) -> tuple[str, str] | None:
@@ -109,29 +143,32 @@ async def get_catalog(
                 target = resolve_target(manifest, business_base, edition, version)
                 if target is not None:
                     res_ed, res_ver = target
-                    row = await _cache_get(session, res_ed, res_ver)
-                    if row is not None:
-                        return row.content
-                    expected = manifest.get("catalogs", {}).get(f"{res_ed}/{res_ver}")
-                    raw = (
-                        await http.get(f"{base}/{res_ed}-{res_ver}.json")
-                    ).raise_for_status().content
-                    actual = hashlib.sha256(raw).hexdigest()
-                    # Fail closed: a missing manifest entry is NOT a pass — a tampered manifest that
-                    # drops the key while serving a malicious catalog must be rejected, not cached.
-                    if not expected:
-                        logger.warning(
-                            "catalog sha256 missing in manifest for %s/%s — rejected",
-                            res_ed, res_ver)
-                    elif actual != expected:
-                        logger.warning(
-                            "catalog sha256 mismatch for %s/%s — rejected", res_ed, res_ver)
+                    if not (_SAFE_EDITION.match(res_ed) and _SAFE_VERSION.match(res_ver)):
+                        target = None  # malformed identity — never let it reach the asset URL / logs
                     else:
-                        content = json.loads(raw)
-                        session.add(CatalogCache(
-                            edition=res_ed, version=res_ver, sha256=actual, content=content))
-                        await session.flush()
-                        return content
+                        row = await _cache_get(session, res_ed, res_ver)
+                        if row is not None:
+                            return row.content
+                        expected = manifest.get("catalogs", {}).get(f"{res_ed}/{res_ver}")
+                        raw = (
+                            await http.get(f"{base}/{res_ed}-{res_ver}.json")
+                        ).raise_for_status().content
+                        actual = hashlib.sha256(raw).hexdigest()
+                        # Fail closed: a missing manifest entry is NOT a pass — a tampered manifest that
+                        # drops the key while serving a malicious catalog must be rejected, not cached.
+                        if not expected:
+                            logger.warning(
+                                "catalog sha256 missing in manifest for %s/%s — rejected",
+                                res_ed, res_ver)
+                        elif actual != expected:
+                            logger.warning(
+                                "catalog sha256 mismatch for %s/%s — rejected", res_ed, res_ver)
+                        else:
+                            content = json.loads(raw)
+                            session.add(CatalogCache(
+                                edition=res_ed, version=res_ver, sha256=actual, content=content))
+                            await session.flush()
+                            return content
         except (httpx.HTTPError, ValueError, KeyError):
             pass  # fall through to the offline fallback
 

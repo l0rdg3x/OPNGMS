@@ -1,22 +1,45 @@
 // frontend/src/catalog/CatalogModelForm.tsx
 import { useMemo, useState } from "react";
-import { Alert, Button, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Group, Stack, Text, Title } from "@mantine/core";
 import { useT } from "../i18n";
 import { CatalogFieldInput } from "./CatalogFieldInput";
 import { CatalogGridTable } from "./CatalogGridTable";
-import type { CatalogChangeBody, CatalogField, CatalogGridOp, CatalogModelLive } from "./catalogTypes";
+import type { CatalogChangeBody, CatalogDiff, CatalogField, CatalogGridOp, CatalogModelLive } from "./catalogTypes";
 
 const toStr = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join(",") : (v ?? ""));
 
 export function CatalogModelForm({
-  live, onPropose,
+  live, onPropose, diff, diffFrom,
 }: {
   live: CatalogModelLive;
   onPropose: (body: CatalogChangeBody) => Promise<unknown>;
+  diff?: CatalogDiff;
+  diffFrom?: string | null;
 }) {
   const t = useT();
   const { model, values, grids, field_options, grid_field_options, reachable, read_only } = live;
   const editable = reachable && !read_only;
+
+  // Cross-version diff for this model (only when a baseline is selected).
+  const modelDiff = diff && diffFrom ? diff.diff.models[model.id] : undefined;
+  function fieldBadge(path: string) {
+    if (!modelDiff || !diffFrom) return null;
+    if (modelDiff.added_fields.includes(path)) {
+      return (
+        <Badge color="teal" size="sm" variant="light" data-testid={`catalog-diff-new-${path}`}>
+          {t.catalog.diff.newSince.replace("{v}", diffFrom)}
+        </Badge>
+      );
+    }
+    if (modelDiff.changed_fields.includes(path)) {
+      return (
+        <Badge color="yellow" size="sm" variant="light" data-testid={`catalog-diff-changed-${path}`}>
+          {t.catalog.diff.changedSince.replace("{v}", diffFrom)}
+        </Badge>
+      );
+    }
+    return null;
+  }
 
   // Seed working scalar state from the live values (all as strings).
   const seeded = useMemo(() => {
@@ -55,10 +78,14 @@ export function CatalogModelForm({
           {page.fields.map((path) => {
             const f = fieldByPath.get(path);
             if (!f) return null;
+            const badge = fieldBadge(path);
             return (
-              <CatalogFieldInput key={path} field={f} value={work[path] ?? ""} disabled={!editable}
-                liveOptions={field_options[path]}
-                onChange={(p, v) => setWork((w) => ({ ...w, [p]: v }))} />
+              <Group key={path} gap="xs" align="flex-end" wrap="nowrap">
+                <CatalogFieldInput field={f} value={work[path] ?? ""} disabled={!editable}
+                  liveOptions={field_options[path]}
+                  onChange={(p, v) => setWork((w) => ({ ...w, [p]: v }))} />
+                {badge}
+              </Group>
             );
           })}
         </Stack>
