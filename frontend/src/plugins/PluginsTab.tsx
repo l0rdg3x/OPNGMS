@@ -1,4 +1,5 @@
-import { Badge, Button, Card, Group, Modal, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Badge, Button, Card, Group, Loader, Modal, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { useMemo, useState } from "react";
 import { usePermissions } from "../auth/usePermissions";
 import { useCreateFirmwareAction } from "../firmware/hooks";
@@ -28,11 +29,19 @@ export function PluginsTab({ deviceId }: { deviceId: string }) {
 
   async function run() {
     if (!confirm) return;
-    await create.mutateAsync({ kind: confirm.kind, target: confirm.name });
-    setConfirm(null);
-    await plugins.refetch();
+    try {
+      await create.mutateAsync({ kind: confirm.kind, target: confirm.name });
+      await plugins.refetch();
+    } catch {
+      notifications.show({ color: "red", message: t.firmware.actionFailed });
+    } finally {
+      setConfirm(null);
+    }
   }
 
+  if (plugins.isLoading) {
+    return <Loader size="sm" />;
+  }
   if (plugins.isError) {
     return <Text c="red" size="sm">{t.plugins.loadFailed}</Text>;
   }

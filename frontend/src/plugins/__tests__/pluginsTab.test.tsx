@@ -56,4 +56,14 @@ describe("PluginsTab", () => {
     expect(await screen.findByText("wireguard")).toBeInTheDocument();
     expect(screen.queryByTestId("plugin-remove-os-wireguard")).not.toBeInTheDocument();
   });
+
+  it("closes the modal even when the action fails (no stuck UI)", async () => {
+    server.use(http.get(PLUGINS, () => HttpResponse.json(SAMPLE)));
+    server.use(http.post(ACTION, () => HttpResponse.json({ detail: "boom" }, { status: 500 })));
+    renderWithProviders(withTenant(<PluginsTab deviceId="d1" />));
+    await userEvent.click(await screen.findByTestId("plugin-install-os-acme-client"));
+    await userEvent.click(await screen.findByTestId("plugin-confirm"));
+    // The `finally` closes the modal on error, so the confirm button must disappear.
+    await waitFor(() => expect(screen.queryByTestId("plugin-confirm")).not.toBeInTheDocument());
+  });
 });
