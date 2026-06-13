@@ -71,3 +71,11 @@ async def test_collect_and_store_writes_metrics_and_updates_status(db_engine):
         assert device.status == "reachable"
         assert device.firmware_version == "26.1.9"
         assert device.last_seen is not None
+
+
+async def test_device_installed_plugins_defaults_to_empty_list(db_engine):
+    tenant_id, device_id = await _make_device(db_engine)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        device = await s.get(Device, device_id)
+        assert device.installed_plugins == []

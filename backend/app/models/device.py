@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ARRAY, DateTime, ForeignKey, LargeBinary, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import ARRAY, DateTime, ForeignKey, LargeBinary, String, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPKMixin
@@ -29,3 +29,7 @@ class Device(UUIDPKMixin, TimestampMixin, Base):
     firmware_version: Mapped[str | None] = mapped_column(default=None)
     edition: Mapped[str] = mapped_column(default="", server_default="")
     firmware_series: Mapped[str] = mapped_column(default="", server_default="")
+    # Plugins the box reports (installed AND available-to-install), each {name, installed, version,
+    # locked}; refreshed every poll, read by the Plugins UI to badge install state. [] until first poll.
+    installed_plugins: Mapped[list] = mapped_column(
+        JSONB, default=list, server_default=text("'[]'::jsonb"))
