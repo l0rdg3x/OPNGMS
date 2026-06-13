@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Group, SegmentedControl, SimpleGrid, Stack, Title } from "@mantine/core";
 import { useT } from "../i18n";
+import { humanBytes } from "../utils/bytes";
 import { MetricChart } from "./MetricChart";
 import { useDeviceMetrics } from "./hooks";
 import type { MetricPoint, Range } from "./types";
@@ -10,17 +11,19 @@ function ChartFor({
   metric,
   title,
   unit,
+  valueFormatter,
   range,
 }: {
   deviceId: string;
   metric: string;
   title: string;
   unit?: string;
+  valueFormatter?: (value: number) => string;
   range: Range;
 }) {
   const q = useDeviceMetrics(deviceId, metric, range);
   const points = (q.data?.points ?? []) as MetricPoint[];
-  return <MetricChart title={title} points={points} unit={unit} />;
+  return <MetricChart title={title} points={points} unit={unit} valueFormatter={valueFormatter} />;
 }
 
 export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
@@ -48,14 +51,14 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
           deviceId={deviceId}
           metric="iface.bytes_in"
           title={t.deviceHealth.trafficIn}
-          unit="bytes"
+          valueFormatter={humanBytes}
           range={range}
         />
         <ChartFor
           deviceId={deviceId}
           metric="iface.bytes_out"
           title={t.deviceHealth.trafficOut}
-          unit="bytes"
+          valueFormatter={humanBytes}
           range={range}
         />
         <ChartFor
