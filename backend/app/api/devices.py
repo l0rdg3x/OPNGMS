@@ -11,7 +11,14 @@ from app.core.queue import get_enqueuer
 from app.core.rbac import Action
 from app.models.device import Device
 from app.repositories.device import DeviceRepository
-from app.schemas.device import DeviceIn, DeviceOut, DeviceUpdateIn, RotateSecretIn, TestResultOut
+from app.schemas.device import (
+    DeviceIn,
+    DeviceOut,
+    DeviceUpdateIn,
+    PluginInfoOut,
+    RotateSecretIn,
+    TestResultOut,
+)
 from app.services.audit import AuditService
 from app.services.onboarding import Prober, get_prober
 
@@ -38,6 +45,20 @@ async def get_device(
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     return device
+
+
+@router.get("/{device_id}/plugins", response_model=list[PluginInfoOut])
+async def get_device_plugins(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """The plugins the box last reported (installed + available), for the Plugins UI badges."""
+    device = await DeviceRepository(session, tenant_id).get(device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    return device.installed_plugins or []
 
 
 @router.post(
