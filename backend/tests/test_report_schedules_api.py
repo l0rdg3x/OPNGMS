@@ -44,6 +44,32 @@ async def test_tenant_admin_upserts_and_lists(api_client, db_engine):
     assert len(g.json()) == 1
 
 
+async def test_sections_override_roundtrips(api_client, db_engine):
+    tid, did = await _seed(db_engine)
+    await _login(api_client, "admin@x.io")
+    p = await api_client.put(f"/api/tenants/{tid}/report-schedules", headers=csrf_headers(api_client), json={
+        "device_id": str(did), "enabled": True, "frequency": "weekly", "weekday": 0, "hour": 4,
+        "recipients": ["a@x.io"], "sections": {"health": True, "bogus": False},
+    })
+    assert p.status_code == 200, p.text
+    # unknown keys dropped; known key kept
+    assert p.json()["sections"] == {"health": True}
+    g = await api_client.get(f"/api/tenants/{tid}/report-schedules")
+    row = next(r for r in g.json() if r["device_id"] == str(did))
+    assert row["sections"] == {"health": True}
+
+
+async def test_sections_defaults_to_null(api_client, db_engine):
+    tid, _ = await _seed(db_engine)
+    await _login(api_client, "admin@x.io")
+    p = await api_client.put(f"/api/tenants/{tid}/report-schedules", headers=csrf_headers(api_client), json={
+        "device_id": None, "enabled": True, "frequency": "weekly", "weekday": 0, "hour": 4,
+        "recipients": ["a@x.io"],
+    })
+    assert p.status_code == 200, p.text
+    assert p.json()["sections"] is None
+
+
 async def test_weekly_requires_weekday(api_client, db_engine):
     tid, _ = await _seed(db_engine)
     await _login(api_client, "admin@x.io")
