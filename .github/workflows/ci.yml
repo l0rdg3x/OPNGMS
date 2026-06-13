@@ -90,9 +90,9 @@ jobs:
         run: cd backend && ruff check app/
 
   # ── Frontend ─────────────────────────────────────────────────────────────────
-  # Installs Node 20, runs tests, build, and lint for the React/Vite frontend.
+  # Installs Node (matches the frontend Dockerfile), runs tests, build, and lint for the React/Vite app.
   frontend:
-    name: Frontend (Node 20 — test, build, lint)
+    name: Frontend (test, build, lint)
     runs-on: ubuntu-latest
 
     steps:
@@ -100,7 +100,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install dependencies
         run: cd frontend && npm ci --legacy-peer-deps
@@ -130,7 +130,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
 
       # Install backend deps so pip-audit can inspect the resolved dependency tree.
       - name: Install backend dependencies
