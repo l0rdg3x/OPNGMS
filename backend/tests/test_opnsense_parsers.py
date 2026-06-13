@@ -109,6 +109,27 @@ def test_parse_plugins_tolerates_malformed_plugin_field():
     assert parsers.parse_plugins(None)["plugins"] == []
 
 
+def test_parse_plugins_available_lists_all_with_install_state():
+    info = {"product_version": "26.1.9", "plugin": [
+        {"name": "os-wireguard", "installed": "1", "version": "2.6", "locked": "0"},
+        {"name": "os-theme-cicada", "installed": "0", "version": "1.40"},
+    ]}
+    out = parsers.parse_plugins(info)
+    assert out["plugins"] == ["os-wireguard"]                 # unchanged: installed names only
+    avail = {p["name"]: p for p in out["available"]}
+    assert set(avail) == {"os-wireguard", "os-theme-cicada"}
+    assert avail["os-wireguard"] == {
+        "name": "os-wireguard", "installed": True, "version": "2.6", "locked": False}
+    assert avail["os-theme-cicada"]["installed"] is False
+    assert avail["os-theme-cicada"]["version"] == "1.40"
+
+
+def test_parse_plugins_available_tolerates_malformed():
+    assert parsers.parse_plugins({"plugin": None})["available"] == []
+    assert parsers.parse_plugins({})["available"] == []
+    assert parsers.parse_plugins(None)["available"] == []
+
+
 def test_parse_ids_rows_list_and_dict_and_keys():
     # bare list edge (the empty GET used to crash .get()): must not raise
     assert parsers.parse_ids_rows([]) == []

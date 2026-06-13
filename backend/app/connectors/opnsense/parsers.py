@@ -154,19 +154,27 @@ def parse_firmware_version(data: dict) -> str:
 
 
 def parse_plugins(info: dict) -> dict:
-    """firmware/info -> {product_version, plugins}. Reads the `plugin` array (OPNsense
-    plugins) and keeps only installed ones — NOT the much larger `package` array."""
+    """firmware/info -> {product_version, plugins, available}.
+
+    `plugins` keeps only INSTALLED plugin names (backward-compatible — the inventory builder relies on
+    it). `available` is EVERY plugin the box reports, each as {name, installed(bool), version,
+    locked(bool)} — the full install-state list the Plugins UI needs. Reads the `plugin` array
+    (OPNsense plugins), NOT the much larger `package` array.
+    """
     info = info or {}
     raw = info.get("plugin")
-    items = raw if isinstance(raw, list) else []
-    plugins = [
-        p.get("name", "")
+    items = [p for p in (raw if isinstance(raw, list) else []) if isinstance(p, dict) and p.get("name")]
+    available = [
+        {
+            "name": p.get("name", ""),
+            "installed": str(p.get("installed", "")) in ("1", "true", "True"),
+            "version": p.get("version", ""),
+            "locked": _truthy(p.get("locked")),
+        }
         for p in items
-        if isinstance(p, dict)
-        and str(p.get("installed", "")) in ("1", "true", "True")
-        and p.get("name")
     ]
-    return {"product_version": parse_firmware_version(info), "plugins": plugins}
+    plugins = [a["name"] for a in available if a["installed"]]
+    return {"product_version": parse_firmware_version(info), "plugins": plugins, "available": available}
 
 
 def _rows(data, *keys) -> list:
