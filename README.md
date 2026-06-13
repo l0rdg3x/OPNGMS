@@ -96,7 +96,7 @@ and localized into **12 languages** (with full right-to-left support).
 |---|---|
 | [![Report schedule](docs/ui/report-schedule.png)](docs/ui/report-schedule.png) | [![SMTP settings](docs/ui/smtp.png)](docs/ui/smtp.png) |
 
-| Per-tenant report settings (branding & sender) | Reports |
+| Per-tenant report settings (branding, sender & section toggles) | Reports |
 |---|---|
 | [![Report settings](docs/ui/report-settings.png)](docs/ui/report-settings.png) | [![Reports](docs/ui/reports.png)](docs/ui/reports.png) |
 
@@ -112,9 +112,9 @@ and localized into **12 languages** (with full right-to-left support).
 |---|---|
 | [![Log fleet](docs/ui/log-fleet.png)](docs/ui/log-fleet.png) | [![Localized UI](docs/ui/localization.png)](docs/ui/localization.png) |
 
-| Right-to-left layout (Arabic) | |
+| Right-to-left layout (Arabic) | Access groups (group-based RBAC) |
 |---|---|
-| [![RTL](docs/ui/rtl.png)](docs/ui/rtl.png) | |
+| [![RTL](docs/ui/rtl.png)](docs/ui/rtl.png) | [![Groups](docs/ui/groups.png)](docs/ui/groups.png) |
 
 ## Architecture
 
