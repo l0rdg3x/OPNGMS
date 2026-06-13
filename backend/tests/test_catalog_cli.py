@@ -81,3 +81,36 @@ def test_module_runs_as_main(tmp_path):
         cwd=backend, capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stderr
     assert out.exists() and json.loads(out.read_text())["version"] == "26.1.8"
+
+
+def test_generate_all_skips_versions_in_prior_manifest(tmp_path):
+    root = tmp_path / "src"
+    for v in ("26.1.7", "26.1.8"):
+        shutil.copytree(_FIX, root / v)
+    prior = tmp_path / "prior.json"
+    prior.write_text(json.dumps({"catalogs": {"community/26.1.7": "PRIORSHA"}}))
+    out = tmp_path / "out"
+    rc = main(["generate-all", "--edition", "community", "--versions", "26.1.7,26.1.8",
+               "--source-root", str(root), "--out-dir", str(out), "--prior-manifest", str(prior)])
+    assert rc == 0
+    assert not (out / "community-26.1.7.json").exists()   # already published -> skipped
+    assert (out / "community-26.1.8.json").exists()        # new -> generated
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["catalogs"]["community/26.1.7"] == "PRIORSHA"   # carried verbatim
+    assert "community/26.1.8" in manifest["catalogs"]               # freshly generated
+
+
+def test_generate_all_force_regenerates_all(tmp_path):
+    root = tmp_path / "src"
+    for v in ("26.1.7", "26.1.8"):
+        shutil.copytree(_FIX, root / v)
+    prior = tmp_path / "prior.json"
+    prior.write_text(json.dumps({"catalogs": {"community/26.1.7": "PRIORSHA"}}))
+    out = tmp_path / "out"
+    rc = main(["generate-all", "--edition", "community", "--versions", "26.1.7,26.1.8",
+               "--source-root", str(root), "--out-dir", str(out),
+               "--prior-manifest", str(prior), "--force"])
+    assert rc == 0
+    assert (out / "community-26.1.7.json").exists()   # regenerated despite prior
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["catalogs"]["community/26.1.7"] != "PRIORSHA"  # fresh sha replaces the carried one
