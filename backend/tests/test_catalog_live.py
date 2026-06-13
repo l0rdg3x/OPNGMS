@@ -44,3 +44,24 @@ def test_extract_grid_rows_uuid_keyed_with_option_cell():
 
 def test_extract_grid_rows_missing_node_is_empty():
     assert extract_grid_rows({}, _MODEL, _GRID) == []
+
+
+from app.services.catalog_live import extract_options
+
+_REF_MODEL = {
+    "model_root": "unbound",
+    "fields": [
+        {"path": "general.outgoing", "type": "ref"},
+        {"path": "general.port", "type": "int"},
+    ],
+}
+
+
+def test_extract_options_returns_choices_for_option_dict_fields():
+    get_response = {"unbound": {"general": {
+        "outgoing": {"lan": {"value": "LAN", "selected": "1"}, "wan": {"value": "WAN", "selected": "0"}},
+        "port": "53",
+    }}}
+    opts = extract_options(get_response, _REF_MODEL)
+    assert opts["general.outgoing"] == [{"value": "lan", "label": "LAN"}, {"value": "wan", "label": "WAN"}]
+    assert "general.port" not in opts  # plain string -> no options
