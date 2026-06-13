@@ -273,6 +273,7 @@ export const zh: Dict = {
     openWebgui: "在 WebGUI 中打开",
     searchAll: "搜索设置…",
     grid: { add: "添加行", save: "保存", edit: "编辑", delete: "删除", empty: "无行。" },
+    diff: { baseline: "对比版本", noBaseline: "没有更早的版本", newSince: "自 {v} 起新增", changedSince: "自 {v} 起更改", changes: "更改" },
   },
   config: {
     tabInfo: "信息",

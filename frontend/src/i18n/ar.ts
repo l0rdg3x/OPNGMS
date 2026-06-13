@@ -273,6 +273,7 @@ export const ar: Dict = {
     openWebgui: "فتح في WebGUI",
     searchAll: "البحث في الإعدادات…",
     grid: { add: "إضافة صف", save: "حفظ", edit: "تعديل", delete: "حذف", empty: "لا توجد صفوف." },
+    diff: { baseline: "قارن مع", noBaseline: "لا توجد نسخة أقدم", newSince: "جديد منذ {v}", changedSince: "تغيّر منذ {v}", changes: "تغييرات" },
   },
   config: {
     tabInfo: "معلومات",

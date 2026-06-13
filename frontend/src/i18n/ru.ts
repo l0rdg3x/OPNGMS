@@ -273,6 +273,7 @@ export const ru: Dict = {
     openWebgui: "Открыть в WebGUI",
     searchAll: "Поиск параметров…",
     grid: { add: "Добавить строку", save: "Сохранить", edit: "Изменить", delete: "Удалить", empty: "Нет строк." },
+    diff: { baseline: "Сравнить с", noBaseline: "Нет предыдущей версии", newSince: "Новое с {v}", changedSince: "Изменено с {v}", changes: "изменения" },
   },
   config: {
     tabInfo: "Сведения",

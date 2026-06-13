@@ -1873,6 +1873,62 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/map": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Config Map Endpoint",
+        "description": "Read-only LIVE config.xml tree, cross-referenced to the catalog (3c).\n\nAnnotates each node editable/read-only against the device's catalog model mounts. Falls back to the\nlatest stored snapshot (labelled stale) when the device is unreachable; 404 if neither is available.\nReuses the same connector, snapshot accessor (`.latest`) and decrypt path (`_xml`) as the audited\n`config/model` + `drift-check` endpoints, so build_tree's secret redaction and the SSRF/TLS guards\nare preserved unchanged.",
+        "operationId": "config_map_endpoint_api_tenants__tenant_id__devices__device_id__config_map_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Config Map Endpoint Api Tenants  Tenant Id  Devices  Device Id  Config Map Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/devices/{device_id}/config/capabilities": {
       "get": {
         "tags": [
@@ -2486,6 +2542,78 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Read Catalog Model Api Tenants  Tenant Id  Devices  Device Id  Catalog Models  Model Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/{tenant_id}/devices/{device_id}/catalog/diff": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Read Catalog Diff",
+        "description": "Cross-version catalog diff: the device's catalog vs a baseline (default the previous published).",
+        "operationId": "read_catalog_diff_api_tenants__tenant_id__devices__device_id__catalog_diff_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Read Catalog Diff Api Tenants  Tenant Id  Devices  Device Id  Catalog Diff Get"
                 }
               }
             }

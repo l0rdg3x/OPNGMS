@@ -56,3 +56,25 @@ export type MenuNode = {
   model_id?: string | null;
   children?: MenuNode[];
 };
+
+// Per-model field-level diff between the device's catalog version and a baseline.
+export type CatalogModelDiff = {
+  added_fields: string[];
+  removed_fields: string[];
+  changed_fields: string[];
+};
+
+// The `diff` payload of the /catalog/diff endpoint (the cross-version delta itself).
+export type CatalogDiffData = {
+  added_models: string[];
+  removed_models: string[];
+  models: Record<string, CatalogModelDiff>;
+};
+
+// Full /catalog/diff response: the device version (`to`) vs a baseline (`from`).
+export type CatalogDiff = {
+  from: string | null;
+  to: string;
+  available_baselines: string[];
+  diff: CatalogDiffData;
+};

@@ -272,6 +272,7 @@ export const en = {
     openWebgui: "Open in WebGUI",
     searchAll: "Search settings…",
     grid: { add: "Add row", save: "Save", edit: "Edit", delete: "Delete", empty: "No rows." },
+    diff: { baseline: "Compare with", noBaseline: "No earlier version", newSince: "New since {v}", changedSince: "Changed since {v}", changes: "changes" },
   },
   config: {
     tabInfo: "Info",

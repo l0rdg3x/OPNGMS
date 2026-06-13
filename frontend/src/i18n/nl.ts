@@ -273,6 +273,7 @@ export const nl: Dict = {
     openWebgui: "Openen in WebGUI",
     searchAll: "Instellingen zoeken…",
     grid: { add: "Rij toevoegen", save: "Opslaan", edit: "Bewerken", delete: "Verwijderen", empty: "Geen rijen." },
+    diff: { baseline: "Vergelijken met", noBaseline: "Geen eerdere versie", newSince: "Nieuw sinds {v}", changedSince: "Gewijzigd sinds {v}", changes: "wijzigingen" },
   },
   config: {
     tabInfo: "Info",

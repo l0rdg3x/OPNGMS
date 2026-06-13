@@ -569,6 +569,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/config/map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Config Map Endpoint
+         * @description Read-only LIVE config.xml tree, cross-referenced to the catalog (3c).
+         *
+         *     Annotates each node editable/read-only against the device's catalog model mounts. Falls back to the
+         *     latest stored snapshot (labelled stale) when the device is unreachable; 404 if neither is available.
+         *     Reuses the same connector, snapshot accessor (`.latest`) and decrypt path (`_xml`) as the audited
+         *     `config/model` + `drift-check` endpoints, so build_tree's secret redaction and the SSRF/TLS guards
+         *     are preserved unchanged.
+         */
+        get: operations["config_map_endpoint_api_tenants__tenant_id__devices__device_id__config_map_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/devices/{device_id}/config/capabilities": {
         parameters: {
             query?: never;
@@ -733,6 +759,26 @@ export interface paths {
          *     Denylisted models are returned read_only with no live read.
          */
         get: operations["read_catalog_model_api_tenants__tenant_id__devices__device_id__catalog_models__model_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/catalog/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Catalog Diff
+         * @description Cross-version catalog diff: the device's catalog vs a baseline (default the previous published).
+         */
+        get: operations["read_catalog_diff_api_tenants__tenant_id__devices__device_id__catalog_diff_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3980,6 +4026,40 @@ export interface operations {
             };
         };
     };
+    config_map_endpoint_api_tenants__tenant_id__devices__device_id__config_map_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     config_capabilities_api_tenants__tenant_id__devices__device_id__config_capabilities_get: {
         parameters: {
             query?: never;
@@ -4300,6 +4380,42 @@ export interface operations {
                 tenant_id: string;
                 device_id: string;
                 model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_catalog_diff_api_tenants__tenant_id__devices__device_id__catalog_diff_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
             };
             cookie?: never;
         };

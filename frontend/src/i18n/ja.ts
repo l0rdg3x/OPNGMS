@@ -273,6 +273,7 @@ export const ja: Dict = {
     openWebgui: "WebGUIで開く",
     searchAll: "設定を検索…",
     grid: { add: "行を追加", save: "保存", edit: "編集", delete: "削除", empty: "行はありません。" },
+    diff: { baseline: "比較対象", noBaseline: "以前のバージョンなし", newSince: "{v} 以降の新規", changedSince: "{v} 以降の変更", changes: "変更" },
   },
   config: {
     tabInfo: "情報",
