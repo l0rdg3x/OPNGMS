@@ -254,6 +254,22 @@ export const en = {
   logForwarding: {
     tab: "Log forwarding",
   },
+  catalog: {
+    tab: "Editor",
+    searchModels: "Search settings…",
+    noModels: "No catalog for this device version.",
+    selectModel: "Select a setting group on the left to edit it.",
+    readOnly: "Not editable (safety denylist).",
+    unreachable: "Device unreachable — live values are required to edit.",
+    liveValues: "Live values",
+    propose: "Propose change",
+    preview: "Review change",
+    noChanges: "No changes to propose.",
+    proposed: "Draft change created — schedule it from the Config tab.",
+    proposeFailed: "Could not create the change.",
+    loadFailed: "Could not load the model.",
+    grid: { add: "Add row", edit: "Edit", delete: "Delete", empty: "No rows." },
+  },
   config: {
     tabInfo: "Info",
     tabHealth: "Health",
