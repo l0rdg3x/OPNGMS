@@ -3,7 +3,7 @@
 A multi-tenant console for MSPs to **manage and monitor a fleet of [OPNsense](https://opnsense.org/)
 firewalls** from a single pane of glass: device inventory, health & network monitoring, alerting,
 security/event ingest, per-customer white-label PDF reporting **with scheduled email delivery**,
-configuration templates, and configuration backup/drift.
+configuration templates, a **version-aware OPNsense config editor**, and configuration backup/drift.
 
 [![CI](https://github.com/l0rdg3x/OPNGMS/actions/workflows/ci.yml/badge.svg)](https://github.com/l0rdg3x/OPNGMS/actions/workflows/ci.yml)
 [![Container Image Scan](https://github.com/l0rdg3x/OPNGMS/actions/workflows/trivy.yml/badge.svg)](https://github.com/l0rdg3x/OPNGMS/actions/workflows/trivy.yml)
@@ -57,6 +57,13 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   firewall aliases, any introspectable OPNsense setting, Suricata/IDS rulesets, "Rules [new]" firewall
   rules (interface bound at apply time), and Monit health-check tests — plus **profiles** (ordered
   bundles of templates).
+- **Version-aware config editor** (the project's flagship) — edit **every API-modifiable OPNsense
+  setting** from an **OPNsense-like editor**, matched to each device's exact firmware version. A
+  versioned **catalog** of all MVC models (generated offline from the `opnsense/core` source per
+  release, published as GitHub Release assets, fetched + SHA-256-verified by the app) drives a menu
+  tree + generated forms pre-filled with the device's **live** values; changes (scalars **and** grids)
+  are pushed through the same safe config pipeline (denylist-guarded, path-injection-safe). Business
+  devices map to their Community base automatically.
 - **Two-factor auth** — optional/enforceable **TOTP** login with recovery codes, a superadmin
   enforcement policy, and superadmin / break-glass recovery.
 - **Log lake** (optional) — managed firewalls ship their syslog over **mTLS** to an in-stack
@@ -140,15 +147,15 @@ backend/             FastAPI API, ARQ worker, OPNsense connector, models, Alembi
 frontend/            React/Mantine SPA (shell, pages, typed API client, tests); nginx/ = mode-aware serving
 docs/superpowers/    design specs and implementation plans, one per milestone
 docs/ui/             UI screenshots used in this README
-deploy/              Caddy config for the automatic-HTTPS override
-docker-compose*.yml  base prod stack + TLS overrides (tls / caddy / traefik)
+deploy/              Caddy/syslog-ng/OpenSearch config for the overlays
+docker-compose*.yml  prod (core) + full (core+log lake) + overlays: logs / logs.multinode / tls / caddy / traefik
 .env.example         every deployment variable, documented
-.github/workflows/   CI + security workflows (tests, audit, CodeQL, Trivy, gitleaks)
+.github/workflows/   CI + security (tests, audit, CodeQL, Trivy, gitleaks) + publish-images (GHCR) + publish-catalogs
 ```
 
 ## Quick start — development
 
-Requirements: Docker + Docker Compose, Python 3.14 (`venv`), Node.js 20+.
+Requirements: Docker + Docker Compose, Python 3.14 (`venv`), Node.js 24+.
 
 ```bash
 # 1. Infrastructure (TimescaleDB + Redis)
@@ -184,7 +191,9 @@ Create the first superadmin once via `POST /api/setup`. When MFA is enrolled, lo
 
 ## Deployment (production)
 
-The production stack is **one Docker Compose project** of six services:
+The production stack pulls **pre-built multi-arch images from GHCR** (no local build) — `docker-compose.prod.yml`
+is the **core** project of six services (below); `docker-compose.full.yml` is an all-in-one that also brings up
+the **log lake**. Images are versioned (`OPNGMS_VERSION`, default `latest`):
 
 | Service | Role |
 |---------|------|
@@ -328,12 +337,13 @@ Replace `https://<your-domain>` with `http://127.0.0.1:8080` if you're on Model 
 
 ### Operations
 
-- **Upgrades & migrations.** Pull the new code and re-run your `up` command with `--build`:
+- **Upgrades & migrations.** Pull the new GHCR images and re-run your `up` command (pin a release with
+  `OPNGMS_VERSION` in `.env`, default `latest` = newest tagged release):
   ```bash
-  git pull && docker compose -f docker-compose.prod.yml up -d --build
+  docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
   ```
   The one-shot `migrate` service runs `alembic upgrade head` automatically before `api`/`worker`
-  restart, so new database migrations are applied on every deploy.
+  restart, so a new image needing a schema change applies its migrations on every deploy.
 - **Backups.** All durable state is in the `opngms_pg` volume. Take logical backups with:
   ```bash
   docker compose -f docker-compose.prod.yml exec db \
@@ -526,9 +536,9 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
 | **OPNsense connector** — read/telemetry endpoints verified against real OPNsense 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step major upgrade (reboot-tolerant) + plugin install/remove, now or scheduled, behind a per-device confirm; a "Firmware" UI tab + a WebGUI deep-link button; plugin install/remove verified live on real OPNsense 26.1.9² | ✅ Done |
 | **Configuration templates (M1–M3)** — a global MSP **template library** (superadmin-managed) + per-tenant **override** + typed **apply** that reuses the config-push pipeline (preview → now/scheduled → snapshot), and **profiles** (M2): named, **ordered bundles of templates** applied to a device in one shot. A **kind-pluggable engine** ships five kinds: `firewall_alias`, the generic **`opnsense_setting`** (introspection-driven, value-controlled), **`suricata_ruleset`**, **`firewall_rule`** (Rules [new]/MVC; interface bound at apply time), and **`monit_test`**. Live-verified on real OPNsense 26.1.9³ | ✅ Done |
-| **Version-aware config editor (killer feature, sub-projects 1–2)** — an offline **catalog generator** (`backend/tools/opnsense_catalog/`) parses the `opnsense/core` source **per release tag** into a versioned JSON catalog of **every API-modifiable model** (scalars + grids; never-drop `raw` for unknown classes) with cross-version diff; a **dynamic distribution** (catalogs published as GitHub **Release assets**, fetched + DB-cached + **SHA-256-verified** by the app; a Business device resolves to its Community base via a scraped `business-base.json`); and a generic **`catalog_setting`** change kind that pushes any catalog setting through the existing config-push pipeline (denylist-guarded, path-injection-safe). The editor UI + a live `config.xml` map are sub-project 3 | 🔧 Engine ready⁴ |
+| **Version-aware config editor (flagship)** — an offline **catalog generator** (`backend/tools/opnsense_catalog/`) parses the `opnsense/core` source **per release tag** into a versioned JSON catalog of **every API-modifiable model** (scalars + grids; never-drop `raw` for unknown classes) with cross-version diff; a **dynamic distribution** (catalogs published as GitHub **Release assets** by a 6-hourly Action, fetched + DB-cached + **SHA-256-verified** by the app; a Business device resolves to its Community base via a scraped `business-base.json`); a generic **`catalog_setting`** change kind that pushes any catalog setting through the existing config-push pipeline (denylist-guarded, path-injection-safe); and an **OPNsense-like editor UI** — a device "Editor" tab with a menu tree rebuilt from the harvested `Menu.xml` + global search, generated forms pre-filled with the device's **live** values, scalars **and** grid editing, and live `ref` dropdowns. Sub-projects 1, 2, 3a (foundation) and 3b (navigation + live options) are merged | ✅ Done⁴ |
 | **Login MFA (TOTP)** — TOTP second factor + one-time recovery codes; self-enroll + superadmin enforcement policy (off/all/privileged) with a fail-closed setup gate; two-step login (pending→full session); superadmin reset of a user's MFA + a host **break-glass CLI**; adversarially security-reviewed | ✅ Done |
-| **Deployment** — production Dockerfiles + a base `docker-compose.prod.yml` (frontend HTTP, localhost-bound, safe-by-default) with override files for every TLS model (behind your proxy / built-in cert / automatic **Caddy** or **Traefik**); configurable container **timezone** | ✅ Done |
+| **Deployment** — **pre-built multi-arch GHCR images** (`ghcr.io/l0rdg3x/opngms-{backend,frontend}`, amd64+arm64, published only on a semver tag) pulled by `docker-compose.prod.yml` (core) or `docker-compose.full.yml` (core + log lake), pinnable via `OPNGMS_VERSION`; override files for every TLS model (behind your proxy / built-in cert / automatic **Caddy** or **Traefik**); a one-shot `migrate` auto-applies DB upgrades on each start; configurable container **timezone** | ✅ Done |
 | **Hardening** — web hardening, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, branch protection | ✅ Done |
 | **Log lake Phase 1** — opt-in `docker-compose.logs.yml` overlay; mTLS syslog-ng receiver (port 6514, CA-signed per-device client certs, CN/O → device_id/tenant_id); Suricata EVE JSON parsed inline; disk-buffered OpenSearch ingest (plain HTTP, internal-only, security disabled); daily indices | 🔧 Infra ready |
 | **Log lake Phase 2** — tenant-scoped, backend-mediated log **search API** (`LOG_VIEW`: tenant admins + operators) with a mandatory path-injected `tenant_id` filter a Lucene query can't escape, guarded query_string, capped page size / time range / paging depth; an in-app **Logs** investigation page (time + device + Lucene filters, results table, raw-document modal) | ✅ Done |
@@ -556,14 +566,15 @@ interface)`; **profile** apply threads the same `bindings` channel so a member r
 for the whole profile), and `monit_test` (condition + action, upserted by `name`). All merged & live-verified
 on the real 26.1.9 box.
 
-⁴ The version-aware config editor is the project's **killer feature**, built as a sequence of sub-projects:
-**1** = the offline catalog **generator** (full-core 26.1.8: 52 models / 941 fields, ~90% rich), **2** =
-dynamic **distribution + the generic apply engine** (this is what's merged). Publishing populates a rolling
-`catalogs` GitHub release (`generate-all` + `business-base` + `gh release upload`; see
-`backend/tools/opnsense_catalog/README.md`) — until then the app has nothing to fetch. **3** = the
-OPNsense-like **editor UI** (forms from the catalog + live values + version-diff) plus a per-device live
-`config.xml` map (read/diff coverage of settings the catalog can't write). **4** = Business proprietary
-deltas via a one-time box harvest.
+⁴ The version-aware config editor is the project's **flagship**, built as a sequence of sub-projects:
+**1** = the offline catalog **generator** (full-core 26.1.8: 52 models / 941 fields, ~90% rich); **2** =
+dynamic **distribution + the generic apply engine** — a `.github/workflows/publish-catalogs.yml` Action
+re-publishes the rolling `catalogs` GitHub release every 6 h (incrementally) so coverage tracks each
+OPNsense release with no app release; **3a** = the editor **foundation** (the device "Editor" tab: model
+list + generated form pre-filled with live values, scalars + grids, propose via the pipeline); **3b** =
+**OPNsense-like navigation** (menu tree from the harvested `Menu.xml` + global search) + **live `ref`
+options**. **All of 1–2–3a–3b are merged.** Remaining: **3c** = cross-version **diff badges** + a read-only
+live `config.xml` map; **4** = Business proprietary deltas via a one-time box harvest.
 
 Design specs and implementation plans for every milestone live in [`docs/superpowers/`](docs/superpowers/).
 
