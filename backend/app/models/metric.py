@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Index, String
+from sqlalchemy import DateTime, Float, Index, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +18,7 @@ class Metric(Base):
     # Composite PK that INCLUDES the partitioning column `time` (required by Timescale).
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-    metric: Mapped[str] = mapped_column(String, primary_key=True)
-    label: Mapped[str] = mapped_column(String, primary_key=True, default="")
+    metric: Mapped[str] = mapped_column(Text, primary_key=True)
+    label: Mapped[str] = mapped_column(Text, primary_key=True, default="")
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     value: Mapped[float] = mapped_column(Float)
