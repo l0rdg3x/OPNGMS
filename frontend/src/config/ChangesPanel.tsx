@@ -17,8 +17,8 @@ import {
 } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import { usePermissions } from "../auth/usePermissions";
 import { useT } from "../i18n";
-import { useTenant } from "../tenant/useTenant";
 import type { ConfigChange } from "./changeTypes";
 import {
   type DriftReport,
@@ -241,9 +241,7 @@ function PreviewModal({
 
 export function ChangesPanel({ deviceId }: { deviceId: string }) {
   const t = useT();
-  const { activeId, tenants } = useTenant();
-  const role = tenants.find((x) => x.id === activeId)?.role ?? null;
-  const canEdit = role === "tenant_admin" || role === "operator";
+  const { isOperator: canEdit } = usePermissions();
   const q = useConfigChanges(deviceId);
   const drift = useDriftCheck(deviceId);
   const [proposeOpen, setProposeOpen] = useState(false);

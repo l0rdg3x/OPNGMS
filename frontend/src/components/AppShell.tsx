@@ -4,9 +4,9 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { Navigate, NavLink as RouterNavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { usePermissions } from "../auth/usePermissions";
 import { useT } from "../i18n";
 import { TenantProvider } from "../tenant/TenantProvider";
-import { useTenant } from "../tenant/useTenant";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { TenantSwitcher } from "./TenantSwitcher";
 
@@ -59,21 +59,20 @@ function RequireSuperadmin({ children }: { children: ReactNode }) {
 function AppShellNav() {
   const t = useT();
   const { me } = useAuth();
-  const { activeId, tenants } = useTenant();
-  const role = tenants.find((ten) => ten.id === activeId)?.role ?? null;
+  const { isTenantAdmin, isOperator } = usePermissions();
   return (
     <Stack gap={2}>
       <NavItem to="/" label={t.nav.overview} icon={<IconOverview />} />
       <NavItem to="/devices" label={t.nav.devices} icon={<IconDevices />} />
       <NavItem to="/alerts" label={t.nav.alerts} icon={<IconAlerts />} />
       <NavItem to="/reports" label={t.nav.reports} icon={<IconReports />} />
-      {(role === "tenant_admin" || role === "operator") && (
+      {isOperator && (
         <NavItem to="/logs" label={t.nav.logs} icon={<IconLogs />} />
       )}
-      {role === "tenant_admin" && (
+      {isTenantAdmin && (
         <NavItem to="/reports/settings" label={t.nav.reportSettings} icon={<IconSettings />} />
       )}
-      {role === "tenant_admin" && (
+      {isTenantAdmin && (
         <NavItem to="/reports/schedule" label={t.nav.reportSchedule} icon={<IconSchedule />} />
       )}
       <NavItem to="/security/sessions" label={t.nav.sessions} icon={<IconSessions />} />
