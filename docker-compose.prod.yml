@@ -1,6 +1,16 @@
-# OPNGMS — production stack. Bring up with:
-#   cp .env.example .env   # then edit the secrets
-#   docker compose -f docker-compose.prod.yml up -d --build
+# OPNGMS — production stack (core). Pulls the pre-built GHCR images. Bring up with:
+#   cp .env.example .env                                    # then edit the secrets
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Images: ghcr.io/l0rdg3x/opngms-{backend,frontend} (multi-arch). OPNGMS_VERSION pins the release tag;
+# default `latest` = newest tagged release (images are published only from semver tags, never a dev
+# commit). To build from source instead: `docker build -t ghcr.io/l0rdg3x/opngms-backend:latest ./backend`
+# (and -frontend ./frontend) before `up`.
+#
+# UPGRADE: `docker compose -f docker-compose.prod.yml pull && up -d`. The one-shot `migrate` runs
+# `alembic upgrade head` on every start; api/worker wait for it (service_completed_successfully), so a
+# new image that needs a schema change applies its migrations automatically before the app starts.
 #
 # Services: db (TimescaleDB) + redis, a one-shot `migrate` (alembic, as the owner), the `api`
 # (uvicorn, as the non-superuser opngms_app -> RLS enforced), the `worker` (arq, as the owner),
@@ -36,7 +46,7 @@ services:
   # alembic env.py reads ALEMBIC_DATABASE_URL first — point it at the owner URL (opngms_app does not
   # exist until 0003 runs, so migrations MUST connect as the owner).
   migrate:
-    image: opngms-backend:latest
+    image: ghcr.io/l0rdg3x/opngms-backend:${OPNGMS_VERSION:-latest}
     command: ["alembic", "upgrade", "head"]
     env_file: .env
     environment:
@@ -48,8 +58,7 @@ services:
     restart: "no"
 
   api:
-    build: ./backend
-    image: opngms-backend:latest
+    image: ghcr.io/l0rdg3x/opngms-backend:${OPNGMS_VERSION:-latest}
     # --proxy-headers + --forwarded-allow-ips makes uvicorn honour X-Forwarded-For/-Proto so the
     # app sees the real client IP and original scheme behind a reverse proxy (nginx here, plus any
     # external proxy in front of it). "*" trusts all upstreams to set those headers, which is safe
@@ -79,7 +88,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: opngms-backend:latest
+    image: ghcr.io/l0rdg3x/opngms-backend:${OPNGMS_VERSION:-latest}
     command: ["arq", "app.worker.WorkerSettings"]
     env_file: .env
     environment:
@@ -100,8 +109,7 @@ services:
   #   auto (Caddy)  : docker compose -f docker-compose.prod.yml -f docker-compose.caddy.yml   up -d
   #   auto (Traefik): docker compose -f docker-compose.prod.yml -f docker-compose.traefik.yml up -d
   frontend:
-    build: ./frontend
-    image: opngms-frontend:latest
+    image: ghcr.io/l0rdg3x/opngms-frontend:${OPNGMS_VERSION:-latest}
     environment:
       TLS_MODE: ${TLS_MODE:-off}            # overrides flip this to `builtin`; base = terminate TLS upstream
       SERVER_NAME: ${SERVER_NAME:-_}        # your domain (e.g. opngms.example.com)
