@@ -520,8 +520,9 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
   auditing; hardened XML parsing (defusedxml).
 - **Continuous assurance** — an application-security test suite (CSRF, RLS, SSRF, secret redaction,
   headers, rate-limit, SQL-injection allowlist, XXE) and a dependency audit run in CI, alongside
-  Dependabot + Dependency Review, Trivy image scanning, and gitleaks. `main` is protected and
-  requires these checks to pass before merge. See [`SECURITY.md`](SECURITY.md) to report a vulnerability.
+  **CodeQL** code scanning (GitHub default setup — actions/JavaScript-TypeScript/Python), Dependabot +
+  Dependency Review, Trivy image scanning, and gitleaks. `main` is protected and requires these checks
+  to pass before merge. See [`SECURITY.md`](SECURITY.md) to report a vulnerability.
 
 ## Project status
 
