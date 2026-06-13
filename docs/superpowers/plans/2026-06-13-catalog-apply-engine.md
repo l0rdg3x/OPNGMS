@@ -1296,7 +1296,7 @@ git commit -m "feat(catalog): connector apply_grid_item (add/set/del, path+uuid 
 
 ```python
 # tests/test_catalog_kind.py
-from app.services.catalog_apply import apply_for_kind
+from app.services.config_apply import apply_for_kind
 from app.services.catalog_kind import CATALOG_DENYLIST  # noqa: F401  (constant exists)
 
 
