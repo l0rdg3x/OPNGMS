@@ -23,19 +23,23 @@ const CATALOG = {
                fields: [{ path: "general.enabled", type: "bool" }], grids: [],
                pages: [{ id: "general", fields: ["general.enabled"] }], read_only: false },
   },
+  menu: [{ id: "Services", label: "Services", order: 50, children: [
+    { id: "Unbound", label: "Unbound DNS", order: 0, children: [
+      { id: "General", label: "General", order: 10, url: "/ui/unbound/general", model_id: "unbound" }]}]}],
 };
 
 describe("CatalogEditorTab", () => {
-  it("lists models and opens one", async () => {
+  it("navigates the menu tree and opens a model", async () => {
     server.use(
       http.get("*/api/tenants/t1/devices/d1/catalog", () => HttpResponse.json(CATALOG)),
       http.get("*/api/tenants/t1/devices/d1/catalog/models/unbound", () =>
         HttpResponse.json({ model: CATALOG.models.unbound, values: { "general.enabled": "1" },
-                            grids: {}, reachable: true, read_only: false })),
+                            grids: {}, field_options: {}, grid_field_options: {},
+                            reachable: true, read_only: false })),
     );
-    renderWithProviders(withTenant(<CatalogEditorTab deviceId="d1" />));
-    await waitFor(() => expect(screen.getByText("Unbound")).toBeInTheDocument());
-    fireEvent.click(screen.getByText("Unbound"));
+    renderWithProviders(withTenant(<CatalogEditorTab deviceId="d1" baseUrl="https://1.2.3.4" />));
+    await waitFor(() => expect(screen.getByText("Services")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("General"));   // a menu leaf
     await waitFor(() => expect(screen.getByTestId("catalog-field-general.enabled")).toBeInTheDocument());
   });
 });
