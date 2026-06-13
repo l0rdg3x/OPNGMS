@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -67,5 +68,8 @@ async def collect_and_store(
     version = ident.version
     if version:
         device.firmware_version = version
+    # Plugin inventory is best-effort: a failure must not fail the poll or wipe the last good list.
+    with contextlib.suppress(OpnsenseError):
+        device.installed_plugins = (await client.get_plugin_info()).get("available", [])
     await session.flush()
     return PollState(reachable=True, gateways=gateways)
