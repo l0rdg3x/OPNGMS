@@ -1,6 +1,7 @@
 """Group-based RBAC: effective-role resolution, group-granted API access, and the admin API."""
 import uuid
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.access import resolve_effective_role, tenants_for_user
@@ -125,6 +126,35 @@ async def test_group_member_reaches_tenant_via_grant(api_client, db_engine):
     await api_client.post("/api/login", json={"email": "g@x.io", "password": "pw12345-secure"})
     resp = await api_client.get(f"/api/tenants/{tid}/devices")
     assert resp.status_code == 200
+
+
+async def test_wildcard_member_only_sees_path_tenant_rows(api_client, db_engine):
+    """A wildcard grant widens tenant ENTRY, not RLS/scope: entering tenant B returns ONLY B's rows.
+
+    Seeds a device in tenant A and tenant B; a user with an all-tenants grant requests tenant B's
+    devices and must see B's device only — never A's (the endpoint is pinned to the path tenant)."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        a = await make_tenant(s, slug="ta")
+        b = await make_tenant(s, slug="tb")
+        u = await make_user(s, email="w@x.io", password="pw12345-secure")
+        await _mk_group(s, "staff", [u.id], [(True, None, "operator")])
+        for tid, name in ((a.id, "dev-A"), (b.id, "dev-B")):
+            await s.execute(
+                text(
+                    "INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, "
+                    "verify_tls, status, tags) VALUES "
+                    "(:id, :t, :n, 'https://x', ''::bytea, ''::bytea, true, 'reachable', '{}')"
+                ),
+                {"id": uuid.uuid4(), "t": tid, "n": name},
+            )
+        await s.commit()
+        tid_b = b.id
+    await api_client.post("/api/login", json={"email": "w@x.io", "password": "pw12345-secure"})
+    resp = await api_client.get(f"/api/tenants/{tid_b}/devices")
+    assert resp.status_code == 200
+    names = {d["name"] for d in resp.json()}
+    assert names == {"dev-B"}  # tenant A's device must NOT leak in
 
 
 async def test_user_without_membership_or_grant_403(api_client, db_engine):

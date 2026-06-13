@@ -6,6 +6,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPKMixin
 
+# The only roles a group grant may carry — tenant roles, never an org/superadmin capability.
+_GRANT_ROLES_SQL = "role IN ('tenant_admin', 'operator', 'read_only')"
+
 
 class Group(UUIDPKMixin, TimestampMixin, Base):
     """Org-level access group (e.g. 'MSP Staff'), superadmin-managed. NOT tenant-scoped (no RLS)."""
@@ -33,7 +36,12 @@ class GroupMember(UUIDPKMixin, Base):
 class GroupGrant(UUIDPKMixin, Base):
     """A tenant-scoped role this group grants. Scope is the wildcard (all tenants) OR one tenant.
 
-    A grant can NEVER carry an org/critical capability — `role` is one of the three tenant roles only.
+    A grant can NEVER carry an org/critical capability — `role` is one of the three tenant roles only
+    (enforced by the schema validator AND a DB CHECK).
+
+    Operator note: a wildcard (`all_tenants`) `tenant_admin` grant is powerful — it gives every group
+    member full tenant_admin rights (incl. MEMBERSHIP_MANAGE) on EVERY tenant, present and future. Use
+    `operator`/`read_only` or a specific-tenant scope when that blast radius is not intended.
     """
     __tablename__ = "group_grants"
     __table_args__ = (
@@ -41,6 +49,7 @@ class GroupGrant(UUIDPKMixin, Base):
             "(all_tenants AND tenant_id IS NULL) OR (NOT all_tenants AND tenant_id IS NOT NULL)",
             name="ck_group_grants_scope",
         ),
+        CheckConstraint(_GRANT_ROLES_SQL, name="ck_group_grants_role"),
         # At most one wildcard grant per group, and at most one grant per (group, tenant).
         Index(
             "uq_group_grants_wildcard", "group_id", unique=True,

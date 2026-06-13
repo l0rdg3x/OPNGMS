@@ -47,6 +47,9 @@ def upgrade() -> None:
             "(all_tenants AND tenant_id IS NULL) OR (NOT all_tenants AND tenant_id IS NOT NULL)",
             name="ck_group_grants_scope",
         ),
+        sa.CheckConstraint(
+            "role IN ('tenant_admin', 'operator', 'read_only')", name="ck_group_grants_role"
+        ),
     )
     op.create_index("ix_group_grants_group_id", "group_grants", ["group_id"])
     op.create_index("ix_group_grants_tenant_id", "group_grants", ["tenant_id"])
