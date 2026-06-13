@@ -55,6 +55,7 @@ export const ja: Dict = {
     alertsLoadError: "アラートの読み込みに失敗しました",
     attackerCountries: {
       title: "攻撃元の上位国",
+      mapTitle: "攻撃元",
       empty: "この期間に記録された攻撃はありません。",
       private: "プライベート / 内部",
       unknown: "不明",

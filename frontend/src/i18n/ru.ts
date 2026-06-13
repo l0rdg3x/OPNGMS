@@ -55,6 +55,7 @@ export const ru: Dict = {
     alertsLoadError: "Не удалось загрузить оповещения",
     attackerCountries: {
       title: "Топ стран-источников атак",
+      mapTitle: "Источники атак",
       empty: "За этот период атак не зафиксировано.",
       private: "Частный / внутренний",
       unknown: "Неизвестно",

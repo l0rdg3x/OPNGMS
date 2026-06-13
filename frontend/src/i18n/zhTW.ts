@@ -55,6 +55,7 @@ export const zhTW: Dict = {
     alertsLoadError: "無法載入警示",
     attackerCountries: {
       title: "主要攻擊來源國家/地區",
+      mapTitle: "攻擊來源",
       empty: "此期間未記錄任何攻擊。",
       private: "私有 / 內部",
       unknown: "未知",
