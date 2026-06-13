@@ -30,6 +30,20 @@ table.ranked th { background: #f0f0f0; }
 .sample-note { font-size: 8pt; color: #b08900; font-style: italic; margin: 2px 0 6px; }
 .explain { font-size: 8pt; color: #555; margin: 1px 0 7px; max-width: 17cm; line-height: 1.3; }
 
+/* Executive summary KPI band (report-level, after the TOC) */
+.summary-band { page-break-before: always; page-break-after: always; }
+.summary-band h2 { border-bottom: 2px solid #333; padding-bottom: 4px; }
+.kpis { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.kpi { flex: 1 1 30%; min-width: 4.5cm; border: 1px solid #ccc; border-radius: 5px; padding: 10px 12px; background: #fafafa; }
+.kpi-value { font-size: 20pt; font-weight: bold; color: #11423a; }
+.kpi-label { font-size: 8pt; color: #555; margin-top: 2px; }
+.health-table { max-width: 9cm; }
+/* Alert severity badges (controlled enum classes) */
+.sev { display: inline-block; padding: 1px 6px; border-radius: 3px; color: #fff; font-size: 8pt; }
+.sev-info { background: #1971c2; }
+.sev-warning { background: #e8590c; }
+.sev-critical { background: #c92a2a; }
+
 /* Right-to-left languages (Arabic): the root carries dir="rtl"; pin `direction` in CSS too so
    WeasyPrint mirrors the block flow, and right-align the table caption explicitly. Inline text and
    logical (`start`) alignment above follow the direction automatically. */
