@@ -7,6 +7,7 @@ import { useAuth } from "../auth/useAuth";
 import { useT } from "../i18n";
 import { TenantProvider } from "../tenant/TenantProvider";
 import { useTenant } from "../tenant/useTenant";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { TenantSwitcher } from "./TenantSwitcher";
 
 // Heavy inner pages are lazy-loaded to split the initial JS bundle.
@@ -138,6 +139,7 @@ export function AppShell() {
             </Group>
             <Group gap="sm" wrap="nowrap">
               <Text size="sm" c="dimmed" className="noc-mono" visibleFrom="xs">{me?.email}</Text>
+              <LanguageSwitcher w={140} size="xs" />
               <Button size="xs" variant="default" onClick={logout}>{t.common.logout}</Button>
             </Group>
           </Group>
