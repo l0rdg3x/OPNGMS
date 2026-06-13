@@ -40,6 +40,7 @@
   <section class="attacker-countries">
     <h2>{{ ctx.t.attacker_countries_title }}</h2>
     <p class="explain">{{ ctx.t.attacker_countries_explain }}</p>
+    {% if ctx.attacker_countries.map_svg %}<div class="chart">{{ Markup(ctx.attacker_countries.map_svg) }}</div>{% endif %}
     <table class="ranked">
       <thead><tr><th>{{ ctx.t.col_country }}</th><th>{{ ctx.t.col_count }}</th><th>{{ ctx.t.col_share }}</th></tr></thead>
       <tbody>

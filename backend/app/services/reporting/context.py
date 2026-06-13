@@ -105,6 +105,7 @@ class CountryRow:
 class AttackerCountriesBlock:
     """Report-level (tenant-wide) breakdown of blocked attacker IPs by resolved country."""
     rows: list[CountryRow]
+    map_svg: str = ""                 # world choropleth SVG (marked safe at render); "" when absent
 
 
 @dataclass
@@ -222,6 +223,7 @@ from datetime import UTC  # noqa: E402
 from app.services.geoip import PRIVATE, UNKNOWN, GeoIp, localized_country_name  # noqa: E402
 from app.services.reporting.aggregation import ReportAggregator, pick_bucket  # noqa: E402
 from app.services.reporting.charts import line_chart  # noqa: E402
+from app.services.reporting.choropleth import choropleth_svg  # noqa: E402
 from app.services.reporting.i18n import ReportText, report_text  # noqa: E402
 
 
@@ -329,7 +331,14 @@ async def build_context(
                 )
                 for c in country_counts
             ]
-            attacker_countries = AttackerCountriesBlock(rows=rows)
+            # World choropleth shading each country by its share; sentinels carry no geometry so
+            # they're dropped here (and naturally absent from the geojson regardless).
+            pct_by_code = {
+                c.code: c.pct for c in country_counts if c.code not in (PRIVATE, UNKNOWN)
+            }
+            attacker_countries = AttackerCountriesBlock(
+                rows=rows, map_svg=choropleth_svg(pct_by_code)
+            )
 
     for dev in devices:
         # --- Device health (CPU/mem/disk avg+peak + cpu sparkline) ---

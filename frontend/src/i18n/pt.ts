@@ -55,6 +55,7 @@ export const pt: Dict = {
     alertsLoadError: "Falha ao carregar os alertas",
     attackerCountries: {
       title: "Principais países atacantes",
+      mapTitle: "Origens dos ataques",
       empty: "Nenhum ataque registado neste período.",
       private: "Privado / interno",
       unknown: "Desconhecido",

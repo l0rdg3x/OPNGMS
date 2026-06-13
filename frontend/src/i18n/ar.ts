@@ -55,6 +55,7 @@ export const ar: Dict = {
     alertsLoadError: "فشل تحميل التنبيهات",
     attackerCountries: {
       title: "أبرز الدول المهاجمة",
+      mapTitle: "مصادر الهجمات",
       empty: "لم تُسجَّل أي هجمات في هذه الفترة.",
       private: "خاص / داخلي",
       unknown: "غير معروف",

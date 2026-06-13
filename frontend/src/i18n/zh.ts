@@ -55,6 +55,7 @@ export const zh: Dict = {
     alertsLoadError: "加载告警失败",
     attackerCountries: {
       title: "主要攻击来源国家/地区",
+      mapTitle: "攻击来源",
       empty: "此期间未记录任何攻击。",
       private: "私有 / 内部",
       unknown: "未知",

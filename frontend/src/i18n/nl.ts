@@ -55,6 +55,7 @@ export const nl: Dict = {
     alertsLoadError: "Laden van waarschuwingen mislukt",
     attackerCountries: {
       title: "Belangrijkste aanvallerslanden",
+      mapTitle: "Herkomst van aanvallen",
       empty: "Geen aanvallen geregistreerd in deze periode.",
       private: "Privé / intern",
       unknown: "Onbekend",

@@ -54,6 +54,7 @@ export const en = {
     alertsLoadError: "Failed to load alerts",
     attackerCountries: {
       title: "Top attacker countries",
+      mapTitle: "Attack origins",
       empty: "No attacks recorded in this period.",
       private: "Private / internal",
       unknown: "Unknown",

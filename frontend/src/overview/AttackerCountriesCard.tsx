@@ -1,5 +1,6 @@
 import { Alert, Card, Group, Loader, Progress, Stack, Text } from "@mantine/core";
 import { useLocale, useT } from "../i18n";
+import { AttackerCountriesMap } from "./AttackerCountriesMap";
 import { useAttackerCountries } from "./attackerCountriesHooks";
 
 /**
@@ -35,7 +36,16 @@ export function AttackerCountriesCard() {
       <Stack gap="sm" mt="md">
         {isLoading && <Loader size="sm" />}
         {error && <Alert color="red">{tc.title}</Alert>}
-        {data && data.length === 0 && <Text c="dimmed">{tc.empty}</Text>}
+        {/* Map shares the single fetch with the ranked list below it. It renders its own
+            muted empty state on `[]`, so the card needs no separate empty branch. */}
+        {data && (
+          <>
+            <Text size="xs" c="dimmed">
+              {tc.mapTitle}
+            </Text>
+            <AttackerCountriesMap data={data} />
+          </>
+        )}
         {data &&
           data.length > 0 &&
           data.map((row) => (

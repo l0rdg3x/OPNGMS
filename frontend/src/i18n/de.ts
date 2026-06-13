@@ -55,6 +55,7 @@ export const de: Dict = {
     alertsLoadError: "Warnungen konnten nicht geladen werden",
     attackerCountries: {
       title: "Top-Angreiferländer",
+      mapTitle: "Angriffsursprünge",
       empty: "In diesem Zeitraum wurden keine Angriffe erfasst.",
       private: "Privat / intern",
       unknown: "Unbekannt",
