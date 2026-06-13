@@ -40,4 +40,18 @@ describe("CatalogModelForm", () => {
     expect(screen.getByText(/unreachable/i)).toBeInTheDocument();
     expect(screen.queryByTestId("catalog-propose")).toBeNull();
   });
+
+  it("renders a ref field as a live dropdown from field_options", () => {
+    const live: CatalogModelLive = {
+      model: { id: "unbound", title: "Unbound", model_root: "unbound", endpoints: {},
+               fields: [{ path: "general.outgoing", type: "ref" }], grids: [],
+               pages: [{ id: "general", fields: ["general.outgoing"] }] },
+      values: { "general.outgoing": "lan" }, grids: {},
+      field_options: { "general.outgoing": [{ value: "lan", label: "LAN" }] },
+      grid_field_options: {}, reachable: true, read_only: false,
+    };
+    renderWithProviders(<CatalogModelForm live={live} onPropose={() => Promise.resolve()} />);
+    // the Mantine Select renders the chosen label
+    expect(screen.getByTestId("catalog-field-general.outgoing")).toBeInTheDocument();
+  });
 });
