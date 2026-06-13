@@ -39,7 +39,10 @@ describe("CatalogEditorTab", () => {
     );
     renderWithProviders(withTenant(<CatalogEditorTab deviceId="d1" baseUrl="https://1.2.3.4" />));
     await waitFor(() => expect(screen.getByText("Services")).toBeInTheDocument());
-    fireEvent.click(screen.getByText("General"));   // a menu leaf
+    // Categories start collapsed (OPNsense-like); a search query expands the tree (defaultOpened),
+    // so the nested "General" leaf is reliably mounted before we click it (was flaky on a bare click).
+    fireEvent.change(screen.getByTestId("catalog-search"), { target: { value: "general" } });
+    fireEvent.click(await screen.findByText("General"));   // a menu leaf
     await waitFor(() => expect(screen.getByTestId("catalog-field-general.enabled")).toBeInTheDocument());
   });
 });

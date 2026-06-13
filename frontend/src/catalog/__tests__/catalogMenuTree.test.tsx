@@ -15,17 +15,19 @@ const MENU: MenuNode[] = [
 ];
 
 describe("CatalogMenuTree", () => {
+  // A non-empty `search` force-expands the tree (branches are collapsed by default), so the nested
+  // leaf is deterministically mounted — a bare click on a collapsed leaf was environment-flaky.
   it("selects a mapped leaf's model", () => {
     const onSelect = vi.fn();
     renderWithProviders(
-      <CatalogMenuTree nodes={MENU} baseUrl="https://1.2.3.4" search="" selected={null} onSelect={onSelect} />);
+      <CatalogMenuTree nodes={MENU} baseUrl="https://1.2.3.4" search="general" selected={null} onSelect={onSelect} />);
     fireEvent.click(screen.getByText("General"));
     expect(onSelect).toHaveBeenCalledWith("unbound");
   });
 
   it("renders an unmapped leaf as a WebGUI deep-link", () => {
     renderWithProviders(
-      <CatalogMenuTree nodes={MENU} baseUrl="https://1.2.3.4" search="" selected={null} onSelect={() => {}} />);
+      <CatalogMenuTree nodes={MENU} baseUrl="https://1.2.3.4" search="statistics" selected={null} onSelect={() => {}} />);
     const link = screen.getByTestId("catalog-menu-link-Stats");
     expect(link).toHaveAttribute("href", "https://1.2.3.4/ui/diagnostics/x");
   });
