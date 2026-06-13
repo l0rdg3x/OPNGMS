@@ -73,6 +73,13 @@ class DeviceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PluginInfoOut(BaseModel):
+    name: str
+    installed: bool
+    version: str = ""
+    locked: bool = False
+
+
 class TestResultOut(BaseModel):
     status: str  # reachable | unverified
     firmware_version: str | None = None

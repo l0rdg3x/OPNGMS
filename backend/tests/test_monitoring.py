@@ -32,6 +32,12 @@ class FakeClient:
     async def get_vpn_status(self):
         return [{"name": "wg0", "up": True}]
 
+    async def get_plugin_info(self):
+        return {"product_version": "26.1.9", "plugins": ["os-wireguard"], "available": [
+            {"name": "os-wireguard", "installed": True, "version": "2.6", "locked": False},
+            {"name": "os-acme-client", "installed": False, "version": "4.16", "locked": False},
+        ]}
+
 
 async def _make_device(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
@@ -71,3 +77,26 @@ async def test_collect_and_store_writes_metrics_and_updates_status(db_engine):
         assert device.status == "reachable"
         assert device.firmware_version == "26.1.9"
         assert device.last_seen is not None
+
+
+async def test_device_installed_plugins_defaults_to_empty_list(db_engine):
+    tenant_id, device_id = await _make_device(db_engine)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        device = await s.get(Device, device_id)
+        assert device.installed_plugins == []
+
+
+async def test_collect_and_store_persists_plugin_telemetry(db_engine):
+    tenant_id, device_id = await _make_device(db_engine)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        device = await s.get(Device, device_id)
+        await collect_and_store(s, device, FakeClient(), now=datetime.now(timezone.utc))
+        await s.commit()
+    async with factory() as s:
+        device = await s.get(Device, device_id)
+        by_name = {p["name"]: p for p in device.installed_plugins}
+        assert set(by_name) == {"os-wireguard", "os-acme-client"}
+        assert by_name["os-wireguard"]["installed"] is True
+        assert by_name["os-acme-client"]["installed"] is False
