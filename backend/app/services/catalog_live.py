@@ -35,3 +35,27 @@ def flatten_values(get_response: dict, model: dict) -> dict[str, str | list[str]
     # Keep only paths the catalog declares as scalar fields (drops grid nodes + unknown extras).
     field_paths = {f["path"] for f in model.get("fields", [])}
     return {p: v for p, v in out.items() if p in field_paths}
+
+
+def extract_grid_rows(get_response: dict, model: dict, grid: dict) -> list[dict]:
+    """Rows of one ArrayField grid: the device returns a uuid-keyed dict {uuid: {field: value}}.
+
+    Returns [{"uuid": <uuid>, <field>: <normalized value>, ...}] for the grid's catalog fields.
+    """
+    root = (get_response or {}).get(model.get("model_root", ""), {})
+    node = root
+    for part in grid["path"].split("."):
+        node = node.get(part, {}) if isinstance(node, dict) else {}
+    if not isinstance(node, dict):
+        return []
+    field_paths = [f["path"] for f in grid.get("fields", [])]
+    rows: list[dict] = []
+    for uuid, cells in node.items():
+        if not isinstance(cells, dict):
+            continue
+        row: dict = {"uuid": uuid}
+        for fp in field_paths:
+            leaf = _scalar(cells.get(fp))
+            row[fp] = leaf if leaf is not None else ""
+        rows.append(row)
+    return rows
