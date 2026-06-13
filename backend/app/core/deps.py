@@ -3,12 +3,11 @@ import uuid
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.access import resolve_effective_role
 from app.core.db import get_session, set_tenant_context
 from app.core.rbac import Action, can
-from app.models.membership import Membership
 from app.models.session import Session
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -86,17 +85,12 @@ async def tenant_context(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
     role: str | None = None
     if not user.is_superadmin:
-        result = await session.execute(
-            select(Membership).where(
-                Membership.user_id == user.id, Membership.tenant_id == tenant_id
-            )
-        )
-        membership = result.scalar_one_or_none()
-        if membership is None:
+        # Effective role = highest of the direct membership and any covering group grant.
+        role = await resolve_effective_role(session, user=user, tenant_id=tenant_id)
+        if role is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Tenant access denied"
             )
-        role = membership.role
     # RLS wiring: set app.current_tenant for this transaction.
     await set_tenant_context(session, tenant_id)
     return TenantContext(tenant=tenant, user=user, role=role)
