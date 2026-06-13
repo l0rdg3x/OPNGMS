@@ -214,7 +214,7 @@ commands, and the contribution flow are in the
 | **OPNsense connector** — telemetry verified on real 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step upgrade + plugin install/remove (now or scheduled), WebGUI deep-link | ✅ Done |
 | **Configuration templates** — MSP **library** + per-tenant overrides + typed apply + **profiles**; five kinds (alias, generic setting, IDS rulesets, firewall rules, Monit tests) | ✅ Done |
-| **Version-aware config editor** (flagship) — catalog **generator** + **distribution** (6-hourly publish, SHA-256-verified, DB-cached) + generic apply + **OPNsense-like editor** (menu tree + search, live-value forms, scalars + grids). 3a/3b merged; **3c** (cross-version diff badges + live `config.xml` map) in progress | 🔧 In progress |
+| **Version-aware config editor** (flagship) — catalog **generator** + **distribution** (6-hourly publish, SHA-256-verified, DB-cached) + generic apply + **OPNsense-like editor** (menu tree + search, live-value forms, scalars + grids), **cross-version diff badges**, and a read-only live **`config.xml` map** cross-referenced to the catalog. 3a/3b/3c merged; remaining: sub-project 4 (Business proprietary deltas) | ✅ Done |
 | **Login MFA (TOTP)** — second factor + recovery codes, enforcement policy (off/all/privileged), two-step login, break-glass CLI | ✅ Done |
 | **Localization** — **12-language** UI (en/it/es/fr/de/pt/nl/ru/ar/zh/zh-TW/ja) incl. full **RTL** (Arabic) | ✅ Done |
 | **Deployment** — multi-arch **GHCR** images (semver-tagged), TLS overlays (proxy / cert / Caddy / Traefik), one-shot auto-migrate, configurable timezone | ✅ Done |
