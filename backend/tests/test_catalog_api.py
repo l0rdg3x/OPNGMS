@@ -41,6 +41,10 @@ async def _fake_get_catalog(session, edition, version, **kw):
     return _CATALOG
 
 
+async def _no_catalog(session, edition, version, **kw):
+    return None
+
+
 async def _seed(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
@@ -91,6 +95,7 @@ async def test_create_catalog_change_scalar(api_client, db_engine, monkeypatch):
 
 async def test_create_catalog_change_unknown_model_422(api_client, db_engine, monkeypatch):
     monkeypatch.setattr(catalog_provider, "get_catalog", _fake_get_catalog)
+    monkeypatch.setattr(catalog_provider, "get_plugins_catalog", _no_catalog)  # no network in the fallback
     tid = await _seed(db_engine)
     did = await _device(db_engine, tid)
     await _login(api_client)
@@ -226,6 +231,7 @@ async def test_read_model_unreachable_degrades(api_client, db_engine, monkeypatc
 
 async def test_read_model_unknown_404(api_client, db_engine, monkeypatch):
     monkeypatch.setattr(catalog_provider, "get_catalog", _fake_get_catalog)
+    monkeypatch.setattr(catalog_provider, "get_plugins_catalog", _no_catalog)  # no network in the fallback
     tid = await _seed(db_engine)
     did = await _device(db_engine, tid)
     await _login(api_client)
