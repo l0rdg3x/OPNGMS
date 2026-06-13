@@ -18,6 +18,7 @@ def test_defaults_match_spec():
         "alerts_wan": True,
         "firmware_config": True,
         "attacks": True,
+        "attacker_countries": True,
         "web": True,
         "data": True,
         "status": True,
