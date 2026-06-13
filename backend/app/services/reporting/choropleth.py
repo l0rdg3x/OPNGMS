@@ -108,21 +108,23 @@ def choropleth_svg(pct_by_code: dict[str, float], *, width: int = 520, height: i
             f'<path d="{d}" fill="{fill}" stroke="#ffffff" stroke-width="0.3" />'
         )
 
-    # Gradient legend in the reserved bottom strip: a base->hot bar with 0% and {max_pct}% labels.
-    grad_id = "choro-legend"
+    # Gradient legend in the reserved bottom strip. Drawn as N solid-color segments (not an SVG
+    # <linearGradient>, which WeasyPrint does not render reliably) so the bar always shows the ramp.
     bar_x = 4.0
     bar_y = map_h + 6.0
     bar_w = 120.0
     bar_h = 8.0
-    parts.append(
-        f'<defs><linearGradient id="{grad_id}" x1="0%" y1="0%" x2="100%" y2="0%">'
-        f'<stop offset="0%" stop-color="{_BASE_HEX}" />'
-        f'<stop offset="100%" stop-color="{_HOT_HEX}" />'
-        f"</linearGradient></defs>"
-    )
+    segments = 30
+    seg_w = bar_w / segments
+    for i in range(segments):
+        color = _lerp_color(_BASE_HEX, _HOT_HEX, i / (segments - 1))
+        parts.append(
+            f'<rect x="{bar_x + i * seg_w:.2f}" y="{bar_y:.1f}" width="{seg_w + 0.5:.2f}" '
+            f'height="{bar_h:.1f}" fill="{color}" />'
+        )
     parts.append(
         f'<rect x="{bar_x:.1f}" y="{bar_y:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" '
-        f'fill="url(#{grad_id})" stroke="#cccccc" stroke-width="0.5" />'
+        f'fill="none" stroke="#cccccc" stroke-width="0.5" />'
     )
     parts.append(
         f'<text x="{bar_x:.1f}" y="{bar_y + bar_h + 8:.1f}" font-size="7" fill="#666" '
