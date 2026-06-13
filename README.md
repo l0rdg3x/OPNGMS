@@ -35,6 +35,7 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - [Repository layout](#repository-layout)
 - [Getting started](#getting-started)
 - [Project status](#project-status)
+- [Scope & limitations](#scope--limitations)
 - [Changelog](CHANGELOG.md)
 - [Tests](#tests)
 - [Security & multi-tenancy](#security--multi-tenancy)
@@ -204,6 +205,22 @@ version tag).
 Detailed per-milestone design specs + implementation plans live in
 [`docs/superpowers/`](docs/superpowers/); feature documentation is in the
 [Wiki](https://github.com/l0rdg3x/OPNGMS/wiki).
+
+## Scope & limitations
+
+OPNGMS manages each firewall **through OPNsense's own API** — it is a client of that API, not a
+replacement for it. Two boundaries follow directly from that and are worth stating plainly:
+
+- **Bounded by the OPNsense API.** OPNGMS can only do what OPNsense exposes over its API; anything the
+  firewall offers no API for cannot be automated from here. For example, OPNsense has no firmware
+  *rollback* or full `config.xml` *restore* API, so neither is offered; and legacy, non-MVC settings the
+  API can't write are surfaced **read-only** in the live `config.xml` map. As OPNsense widens its API
+  surface, OPNGMS can cover more — but it never reaches past the API.
+- **Built from public, open-source OPNsense.** The version-aware catalog — and the plugin coverage built
+  on it — is generated from the public `opnsense/core` and `opnsense/plugins` source. **Community
+  (public) plugins are covered; proprietary / Business-only plugins** that are not published on public
+  GitHub are not in the generated catalog. A Business box is still managed for everything its API
+  exposes, but those closed plugins have no generated configuration models.
 
 ## Tests
 
