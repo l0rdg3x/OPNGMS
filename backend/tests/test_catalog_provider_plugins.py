@@ -83,3 +83,15 @@ async def test_get_plugins_catalog_offline_cold_returns_none(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         assert await get_plugins_catalog(s, "community", "26.1.9", base_url=_BASE, auto_fetch=True) is None
+
+
+@respx.mock
+async def test_get_plugins_catalog_tolerates_malformed_business_base(db_engine):
+    # A business-base.json whose map value is null (not a string) must not crash resolution.
+    respx.get(f"{_BASE}/manifest.json").mock(return_value=Response(
+        200, json={"generated_at": "", "catalogs": {"community-plugins/26.1.6": _PSHA}}))
+    respx.get(f"{_BASE}/business-base.json").mock(
+        return_value=Response(200, json={"map": {"26.4": None}}))
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        assert await get_plugins_catalog(s, "business", "26.4", base_url=_BASE, auto_fetch=True) is None

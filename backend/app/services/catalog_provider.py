@@ -218,7 +218,10 @@ async def get_plugins_catalog(
                         await http.get(f"{base}/business-base.json")).raise_for_status().json()
                     bmap = (business_base or {}).get("map", {})
                     be = resolve_version(list(bmap), version)
-                    res_ver = resolve_version(plug_versions, bmap[be]) if be is not None else None
+                    # bmap[be] is fetched JSON: guard against a non-string value (null/number/object)
+                    # so a malformed business-base.json can't crash resolution.
+                    cv = bmap.get(be) if be is not None else None
+                    res_ver = resolve_version(plug_versions, cv) if isinstance(cv, str) else None
                 else:
                     res_ver = resolve_version(plug_versions, version)
                 if res_ver is not None and _SAFE_VERSION.match(res_ver):
@@ -241,8 +244,8 @@ async def get_plugins_catalog(
                         return content
                 else:
                     res_ver = None
-        except (httpx.HTTPError, ValueError, KeyError):
-            pass  # fall through to the offline fallback
+        except (httpx.HTTPError, ValueError, KeyError, AttributeError, TypeError):
+            pass  # fall through to the offline fallback — never crash on malformed remote JSON
 
     if res_ver is not None:
         row = await _cache_get(session, _PLUGINS_EDITION, res_ver)
