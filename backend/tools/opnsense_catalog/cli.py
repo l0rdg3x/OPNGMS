@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from tools.opnsense_catalog.diff import diff_catalogs
-from tools.opnsense_catalog.discover import discover_models
+from tools.opnsense_catalog.discover import discover_models, discover_plugin_models
 from tools.opnsense_catalog.emit import assemble_model, build_catalog, coverage_report
 from tools.opnsense_catalog.endpoints import resolve_endpoints
 from tools.opnsense_catalog.fetch import fetch_source
@@ -44,6 +44,37 @@ def _write_catalog(edition: str, version: str, source: Path, out_dir: Path) -> t
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{edition}-{version}.json").write_bytes(blob)
     return f"{edition}/{version}", blob
+
+
+def _generate_plugins(edition: str, version: str, source: Path) -> dict:
+    models = []
+    for pms in discover_plugin_models(source):
+        src = pms.source
+        parsed = parse_model(Path(src.model_xml).read_text())
+        if not parsed.mount:
+            print(f"SKIP {src.module}: model {src.model_xml} has no <mount>", file=sys.stderr)
+            continue
+        forms = parse_forms([(p.stem, p.read_text()) for p in src.form_paths])
+        php = "\n".join(p.read_text() for p in src.controller_paths)
+        eps, grid_eps, _conf = resolve_endpoints(src.module, parsed.grids, php or None)
+        plugin = {"package": pms.plugin.package, "title": pms.plugin.title,
+                  "category": pms.plugin.category, "version": pms.plugin.version}
+        m = assemble_model(src.module, parsed, forms, eps, grid_eps, source="plugins", plugin=plugin)
+        models.append(m)
+    cat = build_catalog(models, edition=edition, version=version,
+                        generated_from={"plugins": version})
+    fragments = [parse_menu(p.read_text()) for p in discover_menus(source)]
+    cat["menu"] = resolve_model_ids(merge_menus(fragments), set(cat["models"]))
+    return cat
+
+
+def _write_plugins_catalog(edition: str, version: str, source: Path, out_dir: Path) -> tuple[str, bytes]:
+    """Generate one plugins catalog, write <edition>-plugins-<version>.json, return (manifest-key, bytes)."""
+    cat = _generate_plugins(edition, version, source)
+    blob = (json.dumps(cat, indent=2, sort_keys=False) + "\n").encode("utf-8")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{edition}-plugins-{version}.json").write_bytes(blob)
+    return f"{edition}-plugins/{version}", blob
 
 
 def _fetch_core_tags() -> list[str]:  # pragma: no cover — network, ops use only
@@ -110,6 +141,10 @@ def main(argv: list[str]) -> int:
                     help="skip versions already in this manifest (carry their sha) — incremental publish")
     ga.add_argument("--force", action="store_true",
                     help="regenerate every version even if present in --prior-manifest")
+    ga.add_argument("--with-plugins", action="store_true",
+                    help="also generate a <edition>-plugins-<version>.json per version from opnsense/plugins")
+    ga.add_argument("--plugins-source-root",
+                    help="dir with one extracted plugins tree per version: <root>/<version>/ (no --fetch)")
     bb = sub.add_parser("business-base")
     bb.add_argument("--html-dir", help="dir of vendored BE_<version>.html files")
     bb.add_argument("--fetch", action="store_true", help="scrape docs.opnsense.org instead")
@@ -139,19 +174,44 @@ def main(argv: list[str]) -> int:
         carried: dict[str, str] = {}
         skipped: list[str] = []
         for version in versions:
-            key = f"{args.edition}/{version}"
-            if not args.force and key in prior:
-                carried[key] = prior[key]
+            core_key = f"{args.edition}/{version}"
+            plug_key = f"{args.edition}-plugins/{version}"
+            need_core = args.force or core_key not in prior
+            need_plug = args.with_plugins and (args.force or plug_key not in prior)
+            if not need_core and not need_plug:
+                if core_key in prior:
+                    carried[core_key] = prior[core_key]
+                if plug_key in prior:
+                    carried[plug_key] = prior[plug_key]
                 skipped.append(version)
                 continue
-            if args.fetch:
-                with tempfile.TemporaryDirectory() as tmp:
-                    source = fetch_source("core", version, Path(tmp))
+            # Core catalog
+            if need_core:
+                if args.fetch:
+                    with tempfile.TemporaryDirectory() as tmp:
+                        source = fetch_source("core", version, Path(tmp))
+                        key, blob = _write_catalog(args.edition, version, source, out_dir)
+                else:
+                    source = Path(args.source_root) / version
                     key, blob = _write_catalog(args.edition, version, source, out_dir)
-            else:
-                source = Path(args.source_root) / version
-                key, blob = _write_catalog(args.edition, version, source, out_dir)
-            entries[key] = blob
+                entries[key] = blob
+            elif core_key in prior:
+                carried[core_key] = prior[core_key]
+            # Plugins catalog
+            if need_plug:
+                try:
+                    if args.fetch:
+                        with tempfile.TemporaryDirectory() as tmp:
+                            psource = fetch_source("plugins", version, Path(tmp))
+                            pkey, pblob = _write_plugins_catalog(args.edition, version, psource, out_dir)
+                    else:
+                        psource = Path(args.plugins_source_root) / version
+                        pkey, pblob = _write_plugins_catalog(args.edition, version, psource, out_dir)
+                    entries[pkey] = pblob
+                except Exception as exc:  # missing plugins tag for this version, etc. — degrade gracefully
+                    print(f"SKIP plugins for {version}: {exc}", file=sys.stderr)
+            elif plug_key in prior:
+                carried[plug_key] = prior[plug_key]
         manifest = build_manifest(entries)
         manifest["catalogs"].update(carried)  # keep already-published entries in the manifest
         manifest["generated_at"] = datetime.now(UTC).isoformat()

@@ -43,6 +43,14 @@ def _community_versions(manifest: dict) -> list[str]:
     return [k.split("/", 1)[1] for k in manifest.get("catalogs", {}) if k.startswith("community/")]
 
 
+_PLUGINS_EDITION = "community-plugins"  # the plugins asset family (constant; never user-controlled)
+
+
+def _plugins_versions(manifest: dict) -> list[str]:
+    prefix = f"{_PLUGINS_EDITION}/"
+    return [k.split("/", 1)[1] for k in manifest.get("catalogs", {}) if k.startswith(prefix)]
+
+
 # A resolved (edition, version) is fetched into an asset URL and logged. Both come from the trusted
 # manifest, but a user-controlled baseline version reaches `get_catalog` via the diff API — gate them
 # to a strict shape (lowercase edition, dotted-numeric version) before any URL/log use: no path
@@ -179,6 +187,71 @@ async def get_catalog(
             return row.content
     row = await _cache_get(session, edition, version)
     return row.content if row is not None else None
+
+
+async def get_plugins_catalog(
+    session: AsyncSession,
+    edition: str,
+    version: str,
+    *,
+    base_url: str | None = None,
+    auto_fetch: bool | None = None,
+) -> dict | None:
+    """Resolve the device's version to the published plugins catalog, verify SHA-256 + cache, return it.
+
+    Plugins are Community-sourced: a Business device is served the community-plugins asset of its mapped
+    base version, exactly like the core catalog. Returns None when nothing resolves (offline cold, SHA
+    mismatch, or no published version <= the device's)."""
+    settings = get_settings()
+    base = (base_url if base_url is not None else settings.catalog_release_base_url).rstrip("/")
+    fetch = settings.catalog_auto_fetch if auto_fetch is None else auto_fetch
+    edition = (edition or "community").lower()
+
+    res_ver: str | None = None
+    if fetch:
+        try:
+            async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as http:
+                manifest = (await http.get(f"{base}/manifest.json")).raise_for_status().json()
+                plug_versions = _plugins_versions(manifest)
+                if edition == "business":
+                    business_base = (
+                        await http.get(f"{base}/business-base.json")).raise_for_status().json()
+                    bmap = (business_base or {}).get("map", {})
+                    be = resolve_version(list(bmap), version)
+                    # bmap[be] is fetched JSON: guard against a non-string value (null/number/object)
+                    # so a malformed business-base.json can't crash resolution.
+                    cv = bmap.get(be) if be is not None else None
+                    res_ver = resolve_version(plug_versions, cv) if isinstance(cv, str) else None
+                else:
+                    res_ver = resolve_version(plug_versions, version)
+                if res_ver is not None and _SAFE_VERSION.match(res_ver):
+                    row = await _cache_get(session, _PLUGINS_EDITION, res_ver)
+                    if row is not None:
+                        return row.content
+                    expected = manifest.get("catalogs", {}).get(f"{_PLUGINS_EDITION}/{res_ver}")
+                    raw = (await http.get(
+                        f"{base}/{_PLUGINS_EDITION}-{res_ver}.json")).raise_for_status().content
+                    actual = hashlib.sha256(raw).hexdigest()
+                    if not expected:
+                        logger.warning("plugins catalog sha256 missing for %s — rejected", res_ver)
+                    elif actual != expected:
+                        logger.warning("plugins catalog sha256 mismatch for %s — rejected", res_ver)
+                    else:
+                        content = json.loads(raw)
+                        session.add(CatalogCache(
+                            edition=_PLUGINS_EDITION, version=res_ver, sha256=actual, content=content))
+                        await session.flush()
+                        return content
+                else:
+                    res_ver = None
+        except (httpx.HTTPError, ValueError, KeyError, AttributeError, TypeError):
+            pass  # fall through to the offline fallback — never crash on malformed remote JSON
+
+    if res_ver is not None:
+        row = await _cache_get(session, _PLUGINS_EDITION, res_ver)
+        if row is not None:
+            return row.content
+    return None
 
 
 async def get_model(

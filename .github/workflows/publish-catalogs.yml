@@ -1,9 +1,9 @@
 name: Publish OPNsense catalogs
 
 # Keeps the rolling `catalogs` GitHub release fresh: every 6 hours it discovers the OPNsense
-# Community release tags, generates a versioned API-model catalog for any NEW version (incremental —
-# already-published versions are carried from the live manifest), refreshes the Business→Community
-# base map, and uploads manifest + per-version catalogs + business-base as release assets.
+# Community release tags, generates versioned API-model catalogs for core AND plugins for any NEW
+# version (incremental — already-published versions are carried from the live manifest), refreshes the
+# Business→Community base map, and uploads manifest + per-version catalogs + business-base as release assets.
 # The running app fetches these dynamically and SHA-256-verifies them; publishing needs no app release.
 
 on:
@@ -73,7 +73,7 @@ jobs:
           echo "Candidate versions (${MINIMUM}+): $VERSIONS"
           test -n "$VERSIONS"
           python -m tools.opnsense_catalog.cli generate-all \
-            --edition community --versions "$VERSIONS" --fetch $FORCE \
+            --edition community --versions "$VERSIONS" --fetch $FORCE --with-plugins \
             --prior-manifest "$GITHUB_WORKSPACE/prior/manifest.json" \
             --out-dir "$GITHUB_WORKSPACE/out"
           python -m tools.opnsense_catalog.cli business-base \
