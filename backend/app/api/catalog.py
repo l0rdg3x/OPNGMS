@@ -1,7 +1,7 @@
 import uuid
 
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.opnsense.client import OpnsenseClient, OpnsenseError
@@ -13,7 +13,7 @@ from app.models.config_change import ConfigChange
 from app.models.device import Device
 from app.schemas.catalog import CatalogChangeIn
 from app.schemas.config import ConfigChangeOut
-from app.services import catalog_provider
+from app.services import catalog_provider, catalog_versions
 from app.services.audit import AuditService
 from app.services.catalog_kind import CATALOG_DENYLIST
 from app.services.catalog_live import (
@@ -170,3 +170,33 @@ async def read_catalog_model(
     base["grid_field_options"] = {
         g["path"]: extract_grid_options(raw, model, g) for g in model.get("grids", [])}
     return base
+
+
+@router.get("/devices/{device_id}/catalog/diff")
+async def read_catalog_diff(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    from_version: str | None = Query(default=None, alias="from"),
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Cross-version catalog diff: the device's catalog vs a baseline (default the previous published)."""
+    device = await _load_device(session, tenant_id, device_id)
+    to_catalog = await catalog_provider.get_catalog(session, device.edition, device.firmware_version or "")
+    if to_catalog is None:
+        raise HTTPException(status_code=404, detail="No catalog available for this device version")
+    dev_ver = to_catalog.get("version", "")
+    versions = await catalog_provider.published_versions(device.edition or "community")
+    baselines = [v for v in versions if catalog_provider._parse_version(v)
+                 < catalog_provider._parse_version(dev_ver)]
+    chosen = from_version or catalog_provider.previous_version(versions, dev_ver)
+    empty = {"added_models": [], "removed_models": [], "models": {}}
+    if not chosen or chosen == dev_ver:
+        return {"from": None, "to": dev_ver, "available_baselines": baselines, "diff": empty}
+    from_catalog = await catalog_provider.get_catalog(session, device.edition, chosen)
+    if from_catalog is None:
+        return {"from": None, "to": dev_ver, "available_baselines": baselines, "diff": empty}
+    return {
+        "from": chosen, "to": dev_ver, "available_baselines": baselines,
+        "diff": catalog_versions.diff_catalogs(from_catalog, to_catalog),
+    }
