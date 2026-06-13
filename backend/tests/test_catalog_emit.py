@@ -36,3 +36,12 @@ def test_build_catalog_and_coverage():
     rep = coverage_report(cat)
     # 2 scalar fields + 1 grid field = 3 total (coverage counts grid fields too); 1 raw.
     assert rep["models"] == 1 and rep["fields_total"] == 3 and rep["fields_raw"] == 1
+
+
+def test_assemble_model_attaches_plugin_block():
+    plugin = {"package": "os-haproxy", "title": "HAProxy", "category": "net", "version": "5.1"}
+    m = assemble_model("HAProxy", ParsedModel(mount="//OPNsense/HAProxy/general"), {}, {}, {},
+                       source="plugins", plugin=plugin)
+    assert m.source == "plugins" and m.plugin == plugin
+    cat = build_catalog([m], edition="community", version="26.1.9", generated_from={"plugins": "26.1.9"})
+    assert cat["models"]["haproxy"]["plugin"]["package"] == "os-haproxy"

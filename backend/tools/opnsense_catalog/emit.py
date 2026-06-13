@@ -15,7 +15,8 @@ def _label_fields(fields: list[Field], forms: dict[str, dict]) -> list[Field]:
 
 
 def assemble_model(module: str, parsed: ParsedModel, forms: dict[str, dict],
-                   endpoints: dict[str, str], grid_endpoints: dict[str, dict], *, source: str) -> Model:
+                   endpoints: dict[str, str], grid_endpoints: dict[str, dict], *, source: str,
+                   plugin: dict | None = None) -> Model:
     # The API base / set-body root come from the MODULE (e.g. "unbound"); the mount only gives the
     # config.xml location, which can differ (Unbound mounts at //OPNsense/unboundplus).
     model_root = module.lower()
@@ -34,7 +35,8 @@ def assemble_model(module: str, parsed: ParsedModel, forms: dict[str, dict],
     page_list = [{"id": p, "fields": sorted(fs)} for p, fs in sorted(pages.items())]
     return Model(id=model_root, title=module, source=source, model_root=model_root,
                  xml_path=xml_path, endpoints=endpoints,
-                 fields=_label_fields(parsed.fields, forms), grids=grids, pages=page_list)
+                 fields=_label_fields(parsed.fields, forms), grids=grids, pages=page_list,
+                 plugin=plugin)
 
 
 def build_catalog(models: list[Model], *, edition: str, version: str, generated_from: dict) -> dict:
