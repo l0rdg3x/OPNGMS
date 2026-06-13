@@ -35,6 +35,7 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - [Repository layout](#repository-layout)
 - [Getting started](#getting-started)
 - [Project status](#project-status)
+- [Changelog](CHANGELOG.md)
 - [Tests](#tests)
 - [Security & multi-tenancy](#security--multi-tenancy)
 - [License](#license)
@@ -177,6 +178,10 @@ commands, and the contribution flow are in the
 [`AGENTS.md`](AGENTS.md) for LLM/agent contributors).
 
 ## Project status
+
+Per-release notes live in [`CHANGELOG.md`](CHANGELOG.md) and on the
+[GitHub Releases page](https://github.com/l0rdg3x/OPNGMS/releases) (published automatically from each
+version tag).
 
 | Area | Status |
 |------|--------|
