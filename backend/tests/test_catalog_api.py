@@ -125,10 +125,13 @@ async def test_create_catalog_change_unknown_scalar_field_422(api_client, db_eng
     assert r.status_code == 422
 
 
-async def test_create_catalog_change_no_catalog_404(api_client, db_engine, monkeypatch):
+async def test_create_catalog_change_no_catalog_422(api_client, db_engine, monkeypatch):
+    # With neither the core nor the plugins catalog resolving the model, the change endpoint reports
+    # it as an unknown model (422) — the core->plugins fallback collapses "no catalog" into "no model".
     async def _none(session, edition, version, **kw):
         return None
     monkeypatch.setattr(catalog_provider, "get_catalog", _none)
+    monkeypatch.setattr(catalog_provider, "get_plugins_catalog", _none)
     tid = await _seed(db_engine)
     did = await _device(db_engine, tid)
     await _login(api_client)
@@ -136,7 +139,7 @@ async def test_create_catalog_change_no_catalog_404(api_client, db_engine, monke
         f"/api/tenants/{tid}/devices/{did}/catalog/changes",
         json={"model_id": "unbound", "scalars": {"general.enabled": "1"}},
         headers=csrf_headers(api_client))
-    assert r.status_code == 404
+    assert r.status_code == 422
 
 
 async def test_read_catalog_returns_models_and_resolved(api_client, db_engine, monkeypatch):
