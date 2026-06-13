@@ -62,3 +62,28 @@ def _merge_lists(lists: list[list[dict]]) -> list[dict]:
 def merge_menus(fragments: list[list[dict]]) -> list[dict]:
     """Deep-merge parsed fragments into one tree (union children by id, sort by order then label)."""
     return _merge_lists(fragments)
+
+
+def _resolve_leaf(url: str, model_ids: set[str]) -> str | None:
+    parts = [p for p in url.split("/") if p]
+    if not parts or parts[0] != "ui" or len(parts) < 2:
+        return None
+    seg = parts[1:]  # after /ui/
+    candidates = []
+    if len(seg) >= 2:
+        candidates.append(f"{seg[0]}.{seg[1]}")
+    candidates.append(seg[0])
+    for c in candidates:
+        if c in model_ids:
+            return c
+    return None
+
+
+def resolve_model_ids(menu: list[dict], model_ids: set[str]) -> list[dict]:
+    """Set `model_id` on every leaf (a node with `url` and no children); recurse. Returns the menu."""
+    for node in menu:
+        if "children" in node:
+            resolve_model_ids(node["children"], model_ids)
+        elif node.get("url"):
+            node["model_id"] = _resolve_leaf(node["url"], model_ids)
+    return menu

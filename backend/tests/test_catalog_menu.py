@@ -48,3 +48,19 @@ def test_merge_keeps_existing_label_does_not_overwrite():
     unbound = merged[0]["children"][0]
     assert unbound["label"] == "Unbound DNS"  # kept from _A, not "Unbound"
     assert [c["id"] for c in unbound["children"]] == ["General", "Advanced"]  # children unioned, order-sorted
+from tools.opnsense_catalog.menu import resolve_model_ids
+
+
+def test_resolve_model_ids_maps_leaves():
+    menu = parse_menu("""
+    <menu><Services>
+      <Unbound><General order="10" url="/ui/unbound/general"/></Unbound>
+      <Firewall><Alias order="10" url="/ui/firewall/alias"/></Firewall>
+      <IDS><Log order="90" url="/ui/diagnostics/log/core/suricata"/></IDS>
+    </Services></menu>""")
+    resolved = resolve_model_ids(menu, {"unbound", "firewall.alias"})
+    services = resolved[0]["children"]
+    by_id = {g["id"]: g for g in services}
+    assert by_id["Unbound"]["children"][0]["model_id"] == "unbound"     # /ui/unbound/general -> unbound
+    assert by_id["Firewall"]["children"][0]["model_id"] == "firewall.alias"  # <a>.<b> match
+    assert by_id["IDS"]["children"][0]["model_id"] is None              # diagnostics -> no model
