@@ -3,17 +3,17 @@ name: Publish container images
 # Builds and pushes the OPNGMS backend + frontend images to the GitHub Container Registry (GHCR).
 # Multi-arch: each tag is a manifest list covering linux/amd64 + linux/arm64 (arm64 cross-built via
 # QEMU), so `docker pull` auto-selects the host architecture.
-# Versioned: every push to main publishes `latest` + an immutable `sha-<short>` (pin this for repro);
-# a semver git tag `vX.Y.Z` (or a published Release) additionally publishes `X.Y.Z`, `X.Y`, and `X`.
+# RELEASE-ONLY: images are published ONLY from a semver git tag `vX.Y.Z` — NOT on every push to main.
+# This guarantees a published image always corresponds to a deliberate, complete release (a mid-
+# development main commit never produces a `latest` that could break a deployment). Each `vX.Y.Z`
+# publishes `X.Y.Z`, `X.Y`, `X`, `latest`, and an immutable `sha-<short>`.
+# Cut a release: `git tag vX.Y.Z && git push origin vX.Y.Z` (or publish a GitHub Release on that tag).
 # Pull with: docker pull ghcr.io/l0rdg3x/opngms-backend:<tag>  (and -frontend).
 
 on:
   push:
-    branches: [main]
     tags: ["v*.*.*"]
-  release:
-    types: [published]
-  workflow_dispatch:
+  workflow_dispatch:  # manual re-publish (select a tag ref in the run dialog)
 
 # Least privilege: read the repo, write packages (push to GHCR).
 permissions:
@@ -59,13 +59,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/opngms-${{ matrix.name }}
+          # Release-only tags: vX.Y.Z -> X.Y.Z, X.Y, X, latest (flavor latest=auto on a non-prerelease
+          # semver tag) + an immutable sha-<short> for exact-commit pinning.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=sha,format=short
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=sha,format=short
           labels: |
             org.opencontainers.image.title=OPNGMS ${{ matrix.name }}
             org.opencontainers.image.description=OPNGMS (OPNsense Global Management System) ${{ matrix.name }} image
