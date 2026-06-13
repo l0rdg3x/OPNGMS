@@ -679,6 +679,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/catalog/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Catalog Change */
+        post: operations["create_catalog_change_api_tenants__tenant_id__devices__device_id__catalog_changes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Device Catalog
+         * @description The device's catalog (schema only), denylist-flagged. Live values come at edit time (sub-3).
+         *
+         *     For a Business device, `resolved_*` is the Community base actually served (the shared core).
+         */
+        get: operations["read_device_catalog_api_tenants__tenant_id__devices__device_id__catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tenants/{tenant_id}/devices/{device_id}/catalog/models/{model_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Catalog Model
+         * @description A catalog model's schema + the device's LIVE current values (for the editor form).
+         *
+         *     Reads `<model>/settings/get` live; degrades to reachable:false on any connector/credential error.
+         *     Denylisted models are returned read_only with no live read.
+         */
+        get: operations["read_catalog_model_api_tenants__tenant_id__devices__device_id__catalog_models__model_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/devices/{device_id}/firmware/check": {
         parameters: {
             query?: never;
@@ -1465,6 +1527,40 @@ export interface components {
             configured_sections: string[];
             /** Available Capabilities */
             available_capabilities: components["schemas"]["Capability"][];
+        };
+        /**
+         * CatalogChangeIn
+         * @description A generic catalog edit: scalar field values + grid ops for one model. Endpoints are resolved
+         *     server-side from the device's catalog (never trusted from the client).
+         */
+        CatalogChangeIn: {
+            /** Model Id */
+            model_id: string;
+            /** Scalars */
+            scalars?: {
+                [key: string]: string;
+            };
+            /** Grids */
+            grids?: components["schemas"]["CatalogGridOpIn"][];
+        };
+        /**
+         * CatalogGridOpIn
+         * @description One ArrayField grid op the editor wants applied. `grid` is the catalog grid path.
+         */
+        CatalogGridOpIn: {
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "add" | "set" | "del";
+            /** Grid */
+            grid: string;
+            /** Uuid */
+            uuid?: string | null;
+            /** Item */
+            item?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** CodeIn */
         CodeIn: {
@@ -4113,6 +4209,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigChangeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_catalog_change_api_tenants__tenant_id__devices__device_id__catalog_changes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigChangeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_device_catalog_api_tenants__tenant_id__devices__device_id__catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_catalog_model_api_tenants__tenant_id__devices__device_id__catalog_models__model_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

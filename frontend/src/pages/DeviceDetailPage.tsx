@@ -10,6 +10,7 @@ import { useT } from "../i18n";
 import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
 import { ApplyProfileSection } from "../profiles/ApplyProfileSection";
 import { ApplyTemplateTab } from "../templates/ApplyTemplateTab";
+import { CatalogEditorTab } from "../catalog/CatalogEditorTab";
 import { useTenant } from "../tenant/useTenant";
 
 export function DeviceDetailPage() {
@@ -40,6 +41,7 @@ export function DeviceDetailPage() {
           <Tabs.Tab value="firmware">{t.firmware.tab}</Tabs.Tab>
           <Tabs.Tab value="forwarding">{t.logForwarding.tab}</Tabs.Tab>
           <Tabs.Tab value="templates">{t.templates.tab}</Tabs.Tab>
+          <Tabs.Tab value="editor">{t.catalog.tab}</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="info" pt="md">
           <Card withBorder>
@@ -70,6 +72,9 @@ export function DeviceDetailPage() {
               <ApplyProfileSection deviceId={deviceId} />
             </Stack>
           )}
+        </Tabs.Panel>
+        <Tabs.Panel value="editor" pt="md">
+          {deviceId && <CatalogEditorTab deviceId={deviceId} />}
         </Tabs.Panel>
       </Tabs>
     </Stack>

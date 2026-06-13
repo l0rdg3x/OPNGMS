@@ -218,7 +218,9 @@ class OpnsenseClient:
 
     async def get_setting(self, get_path: str) -> dict:
         """Read an OPNsense model-setting endpoint (for introspection)."""
-        return await self._get(get_path)
+        # Symmetry with apply_setting: charset-validate the path before embedding it in the URL
+        # (the catalog editor sources it from stored payload — defence-in-depth vs a tampered catalog).
+        return await self._get(_safe_endpoint(get_path))
 
     async def apply_setting(self, set_path: str, reconfigure_path: str, model_root: str,
                             payload: dict, *, dry_run: bool = True, reconfigure: bool = True) -> dict:
