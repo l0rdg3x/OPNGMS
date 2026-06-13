@@ -1,0 +1,3 @@
+PLUGIN_NAME=		widget
+PLUGIN_VERSION=		1.0
+PLUGIN_COMMENT=		A devel widget

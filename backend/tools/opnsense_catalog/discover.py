@@ -38,3 +38,39 @@ def parse_plugin_makefile(text: str) -> dict:
     for m in _MK_VAR.finditer(text):
         out[_MK_KEY[m.group(1)]] = m.group(2).strip()
     return out if out.get("name") else {}
+
+
+@dataclass
+class PluginMeta:
+    package: str        # "os-haproxy"
+    title: str          # PLUGIN_COMMENT
+    category: str       # owning top-level dir, e.g. "net"
+    version: str        # PLUGIN_VERSION
+
+
+@dataclass
+class PluginModelSource:
+    source: ModelSource
+    plugin: PluginMeta
+
+
+def discover_plugin_models(root: Path) -> list[PluginModelSource]:
+    """Find every `<category>/<plugin>/Makefile` that defines PLUGIN_NAME and pair each of that
+    plugin's MVC models (via the core `discover_models`) with its `PluginMeta`. Plugins without MVC
+    models contribute nothing (installable but not config-editable)."""
+    out: list[PluginModelSource] = []
+    for makefile in sorted(root.rglob("Makefile")):
+        meta = parse_plugin_makefile(makefile.read_text())
+        if not meta:
+            continue
+        plugin_dir = makefile.parent
+        category = plugin_dir.parent.name
+        plugin = PluginMeta(
+            package=f"os-{meta['name']}",
+            title=meta.get("comment", ""),
+            category=category,
+            version=meta.get("version", ""),
+        )
+        for src in discover_models(plugin_dir):
+            out.append(PluginModelSource(source=src, plugin=plugin))
+    return out
