@@ -17,6 +17,7 @@ from app.api.devices import router as devices_router
 from app.api.events import router as events_router
 from app.api.firewall_rules import router as firewall_rules_router
 from app.api.firmware import router as firmware_router
+from app.api.groups import router as groups_router
 from app.api.ids import router as ids_router
 from app.api.log_fleet import router as log_fleet_router
 from app.api.log_forwarding import router as log_forwarding_router
@@ -65,6 +66,7 @@ app.include_router(auth_router)
 app.include_router(mfa_router)
 app.include_router(tenants_router)
 app.include_router(users_router)
+app.include_router(groups_router)
 app.include_router(memberships_router)
 app.include_router(devices_router)
 app.include_router(me_tenants_router)
