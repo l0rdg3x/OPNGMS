@@ -150,7 +150,7 @@ docs/ui/             UI screenshots used in this README
 deploy/              Caddy/syslog-ng/OpenSearch config for the overlays
 docker-compose*.yml  prod (core) + full (core+log lake) + overlays: logs / logs.multinode / tls / caddy / traefik
 .env.example         every deployment variable, documented
-.github/workflows/   CI + security (tests, audit, CodeQL, Trivy, gitleaks) + publish-images (GHCR) + publish-catalogs
+.github/workflows/   CI (tests, lint, audit) + security (Trivy, gitleaks, dependency-review, scheduled audit) + publish-images (GHCR) + publish-catalogs
 ```
 
 ## Quick start — development
@@ -520,7 +520,7 @@ Set via environment (see [`.env.example`](.env.example) for the full, documented
   auditing; hardened XML parsing (defusedxml).
 - **Continuous assurance** — an application-security test suite (CSRF, RLS, SSRF, secret redaction,
   headers, rate-limit, SQL-injection allowlist, XXE) and a dependency audit run in CI, alongside
-  CodeQL, Dependabot + Dependency Review, Trivy image scanning, and gitleaks. `main` is protected and
+  Dependabot + Dependency Review, Trivy image scanning, and gitleaks. `main` is protected and
   requires these checks to pass before merge. See [`SECURITY.md`](SECURITY.md) to report a vulnerability.
 
 ## Project status
