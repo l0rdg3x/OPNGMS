@@ -49,17 +49,28 @@ field classes fell through and add them to `_TYPE_MAP` — coverage rises withou
 
 ## Publishing catalogs to the `catalogs` release
 
-The running app fetches catalogs dynamically; they are NOT committed. To publish/refresh:
+The running app fetches catalogs dynamically; they are NOT committed.
+
+**Automated:** the `.github/workflows/publish-catalogs.yml` workflow runs **every 6 hours** (and on
+manual `workflow_dispatch`). It discovers the Community release tags, generates a catalog for any
+**new** version (incremental — already-published versions are carried from the live manifest via
+`--prior-manifest`), refreshes `business-base.json`, and uploads the assets to the rolling `catalogs`
+release. New OPNsense releases are picked up automatically with no app release. The `workflow_dispatch`
+`force_all` input regenerates every version (run it after a generator improvement so old catalogs are
+refreshed too).
+
+**Manual** (same steps the workflow runs):
 
 ```bash
 cd backend
-# 0. (optional) Discover the Community version list from the opnsense/core git tags, instead of
-#    hardcoding it — this is the set of released versions (every major/minor/hotfix is a tag):
+# 0. Discover the Community version list from the opnsense/core git tags (every major/minor/hotfix):
 VERSIONS=$(python -m tools.opnsense_catalog.cli list-versions --minimum 26.1)
 
-# 1. Generate every catalog + the sha256 manifest for those versions:
+# 1. Generate a catalog per version + the sha256 manifest. --prior-manifest skips versions already
+#    published (carrying their sha); --force regenerates everything:
 python -m tools.opnsense_catalog.cli generate-all \
-    --edition community --versions "$VERSIONS" --fetch --out-dir /tmp/catalogs
+    --edition community --versions "$VERSIONS" --fetch \
+    --prior-manifest /tmp/published-manifest.json --out-dir /tmp/catalogs
 
 # 2. Refresh the Business→Community base map (scrapes docs.opnsense.org):
 python -m tools.opnsense_catalog.cli business-base --fetch --out /tmp/catalogs/business-base.json
@@ -70,4 +81,3 @@ gh release upload catalogs /tmp/catalogs/* --clobber
 
 The app reads `<CATALOG_RELEASE_BASE_URL>/manifest.json`, `<...>/business-base.json` (for Business
 devices) and `<...>/community-<version>.json`, verifying each catalog's SHA-256 against the manifest.
-Publishing a new OPNsense version requires NO app release.

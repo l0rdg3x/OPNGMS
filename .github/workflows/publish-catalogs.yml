@@ -1,0 +1,84 @@
+name: Publish OPNsense catalogs
+
+# Keeps the rolling `catalogs` GitHub release fresh: every 6 hours it discovers the OPNsense
+# Community release tags, generates a versioned API-model catalog for any NEW version (incremental —
+# already-published versions are carried from the live manifest), refreshes the Business→Community
+# base map, and uploads manifest + per-version catalogs + business-base as release assets.
+# The running app fetches these dynamically and SHA-256-verifies them; publishing needs no app release.
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"   # every 6 hours
+  workflow_dispatch:
+    inputs:
+      minimum:
+        description: "Lowest OPNsense version to publish (e.g. 26.1)"
+        default: "26.1"
+        required: false
+      force_all:
+        description: "Regenerate every version (ignore the published manifest)"
+        type: boolean
+        default: false
+
+# Needs write to create/manage the rolling `catalogs` release and replace its assets.
+permissions:
+  contents: write
+
+# Never let two publish runs race on the same release.
+concurrency:
+  group: publish-catalogs
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Generate + publish versioned OPNsense catalogs
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # Inputs passed via env (never interpolated into run: scripts) — injection-safe.
+      MINIMUM: ${{ github.event.inputs.minimum || '26.1' }}
+      FORCE_ALL: ${{ github.event.inputs.force_all || 'false' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install generator dependencies
+        run: pip install httpx defusedxml
+
+      - name: Ensure the rolling `catalogs` release exists
+        run: |
+          gh release view catalogs >/dev/null 2>&1 || gh release create catalogs \
+            --title "OPNsense catalogs (rolling)" \
+            --notes "Auto-published versioned OPNsense API-model catalogs (manifest + per-version + business-base). Assets are replaced in place — this is not a software release." \
+            --latest=false
+
+      - name: Fetch the currently-published manifest
+        run: |
+          set -euo pipefail
+          mkdir -p out prior
+          gh release download catalogs -p manifest.json -D prior 2>/dev/null || true
+          test -f prior/manifest.json || echo '{"catalogs":{}}' > prior/manifest.json
+          echo "Already published:"; jq -r '.catalogs | keys[]?' prior/manifest.json || true
+
+      - name: Generate new catalogs (incremental) + Business→Community map
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          FORCE=""
+          [ "$FORCE_ALL" = "true" ] && FORCE="--force"
+          VERSIONS=$(python -m tools.opnsense_catalog.cli list-versions --minimum "$MINIMUM")
+          echo "Candidate versions (${MINIMUM}+): $VERSIONS"
+          test -n "$VERSIONS"
+          python -m tools.opnsense_catalog.cli generate-all \
+            --edition community --versions "$VERSIONS" --fetch $FORCE \
+            --prior-manifest "$GITHUB_WORKSPACE/prior/manifest.json" \
+            --out-dir "$GITHUB_WORKSPACE/out"
+          python -m tools.opnsense_catalog.cli business-base \
+            --fetch --out "$GITHUB_WORKSPACE/out/business-base.json"
+          echo "Assets to upload:"; ls -la "$GITHUB_WORKSPACE/out"
+
+      - name: Upload assets to the `catalogs` release
+        run: gh release upload catalogs out/* --clobber

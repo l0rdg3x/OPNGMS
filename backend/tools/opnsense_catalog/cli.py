@@ -44,13 +44,19 @@ def _write_catalog(edition: str, version: str, source: Path, out_dir: Path) -> t
 
 def _fetch_core_tags() -> list[str]:  # pragma: no cover — network, ops use only
     """All tags of opnsense/core via the GitHub API (paginated). Filtered by release_versions()."""
+    import os
+
     import httpx
 
+    headers = {"Accept": "application/vnd.github+json"}
+    token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    if token:  # authenticated => 5000/h instead of 60/h (matters in the scheduled CI publish)
+        headers["Authorization"] = f"Bearer {token}"
     tags: list[str] = []
     for page in range(1, 21):  # safety cap: 20 * 100 tags
         r = httpx.get("https://api.github.com/repos/opnsense/core/tags",
                       params={"per_page": 100, "page": page},
-                      headers={"Accept": "application/vnd.github+json"},
+                      headers=headers,
                       timeout=30.0, follow_redirects=True)
         r.raise_for_status()
         batch = r.json()
@@ -96,6 +102,10 @@ def main(argv: list[str]) -> int:
     ga.add_argument("--source-root", help="dir with one extracted source tree per version: <root>/<version>/")
     ga.add_argument("--fetch", action="store_true", help="download each tag instead of --source-root")
     ga.add_argument("--out-dir", required=True)
+    ga.add_argument("--prior-manifest",
+                    help="skip versions already in this manifest (carry their sha) — incremental publish")
+    ga.add_argument("--force", action="store_true",
+                    help="regenerate every version even if present in --prior-manifest")
     bb = sub.add_parser("business-base")
     bb.add_argument("--html-dir", help="dir of vendored BE_<version>.html files")
     bb.add_argument("--fetch", action="store_true", help="scrape docs.opnsense.org instead")
@@ -116,8 +126,20 @@ def main(argv: list[str]) -> int:
     if args.cmd == "generate-all":
         versions = [v.strip() for v in args.versions.split(",") if v.strip()]
         out_dir = Path(args.out_dir)
+        # Incremental: versions already in the prior manifest are skipped (their catalog asset +
+        # sha are carried verbatim into the output manifest), unless --force regenerates everything.
+        prior: dict[str, str] = {}
+        if args.prior_manifest and Path(args.prior_manifest).exists():
+            prior = json.loads(Path(args.prior_manifest).read_text()).get("catalogs", {})
         entries: dict[str, bytes] = {}
+        carried: dict[str, str] = {}
+        skipped: list[str] = []
         for version in versions:
+            key = f"{args.edition}/{version}"
+            if not args.force and key in prior:
+                carried[key] = prior[key]
+                skipped.append(version)
+                continue
             if args.fetch:
                 with tempfile.TemporaryDirectory() as tmp:
                     source = fetch_source("core", version, Path(tmp))
@@ -127,9 +149,11 @@ def main(argv: list[str]) -> int:
                 key, blob = _write_catalog(args.edition, version, source, out_dir)
             entries[key] = blob
         manifest = build_manifest(entries)
+        manifest["catalogs"].update(carried)  # keep already-published entries in the manifest
         manifest["generated_at"] = datetime.now(UTC).isoformat()
+        out_dir.mkdir(parents=True, exist_ok=True)  # may be empty if every version was skipped
         (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-        print(json.dumps({"wrote": str(out_dir), "versions": versions}))
+        print(json.dumps({"wrote": str(out_dir), "generated": sorted(entries), "skipped": skipped}))
         return 0
     if args.cmd == "list-versions":
         versions = release_versions(_fetch_core_tags(), minimum=args.minimum)
