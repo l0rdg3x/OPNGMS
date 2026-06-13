@@ -33,6 +33,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      # The job does no checkout (it only downloads DB-IP + uses gh release), so tell gh which repo to
+      # target — otherwise `gh release` tries to infer it from a non-existent git checkout and fails with
+      # "failed to run git: fatal: not a git repository".
+      GH_REPO: ${{ github.repository }}
       # Input passed via env (never interpolated into run: scripts) — injection-safe.
       MONTH_INPUT: ${{ github.event.inputs.month || '' }}
     steps:
