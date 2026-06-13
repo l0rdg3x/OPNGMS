@@ -421,6 +421,26 @@ export interface paths {
         patch: operations["update_device_api_tenants__tenant_id__devices__device_id__patch"];
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/devices/{device_id}/plugins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Device Plugins
+         * @description The plugins the box last reported (installed + available), for the Plugins UI badges.
+         */
+        get: operations["get_device_plugins_api_tenants__tenant_id__devices__device_id__plugins_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/devices/{device_id}/test-connection": {
         parameters: {
             query?: never;
@@ -2525,6 +2545,23 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** PluginInfoOut */
+        PluginInfoOut: {
+            /** Name */
+            name: string;
+            /** Installed */
+            installed: boolean;
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
+        };
         /** PreviewTemplateIn */
         PreviewTemplateIn: {
             /**
@@ -4032,6 +4069,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_device_plugins_api_tenants__tenant_id__devices__device_id__plugins_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginInfoOut"][];
                 };
             };
             /** @description Validation Error */
