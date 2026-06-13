@@ -105,6 +105,9 @@ export function AttackerCountriesMap({ data }: { data: CountryRow[] }) {
         projection="geoEqualEarth"
         width={520}
         height={260}
+        // Default geoEqualEarth scale (~160) overflows a 520-wide frame and clips Asia (Russia/Japan —
+        // the top origins). Scale the whole world to fit, centred on the prime meridian.
+        projectionConfig={{ scale: 100, center: [0, 0] }}
         style={{ width: "100%", height: "auto" }}
       >
         <ZoomableGroup minZoom={1} maxZoom={6}>
