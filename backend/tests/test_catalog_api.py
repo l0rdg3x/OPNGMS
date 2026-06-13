@@ -30,6 +30,10 @@ _CATALOG = {
                                      "reconfigure": "interfaces/service/reconfigure"},
                        "fields": [{"path": "lan.if", "type": "string"}], "grids": []},
     },
+    "menu": [{"id": "Services", "label": "Services", "order": 50, "children": [
+        {"id": "Unbound", "label": "Unbound DNS", "order": 0, "children": [
+            {"id": "General", "label": "General", "order": 10,
+             "url": "/ui/unbound/general", "model_id": "unbound"}]}]}],
 }
 
 
@@ -150,6 +154,9 @@ async def test_read_catalog_returns_models_and_resolved(api_client, db_engine, m
     assert body["resolved_edition"] == "community" and body["resolved_version"] == "26.1.8"
     assert body["models"]["interfaces"]["read_only"] is True
     assert body["models"]["unbound"]["read_only"] is False
+    # the OPNsense-like menu tree (3b) must be forwarded to the editor
+    assert body["menu"][0]["id"] == "Services"
+    assert body["menu"][0]["children"][0]["children"][0]["model_id"] == "unbound"
 
 
 async def test_read_catalog_404_when_unavailable(api_client, db_engine, monkeypatch):

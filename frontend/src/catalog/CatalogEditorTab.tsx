@@ -50,7 +50,9 @@ export function CatalogEditorTab({ deviceId, baseUrl }: { deviceId: string; base
         <Card withBorder>
           {!selected && <Text c="dimmed">{t.catalog.selectModel}</Text>}
           {selected && model.isLoading && <Loader />}
-          {selected && model.data && <CatalogModelForm live={model.data} onPropose={onPropose} />}
+          {selected && model.data && (
+            <CatalogModelForm key={model.data.model.id} live={model.data} onPropose={onPropose} />
+          )}
         </Card>
       </Grid.Col>
     </Grid>

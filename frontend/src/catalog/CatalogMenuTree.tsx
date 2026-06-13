@@ -6,7 +6,8 @@ import type { MenuNode } from "./catalogTypes";
 /** Validated WebGUI deep-link (http(s) base only), else undefined (mirrors DeviceActions). */
 function deepLink(baseUrl: string, url: string): string | undefined {
   if (!/^https?:\/\//i.test(baseUrl)) return undefined;
-  return baseUrl.replace(/\/$/, "") + url;
+  const path = url.startsWith("/") ? url : "/" + url;  // a Menu.xml url may omit the leading slash
+  return baseUrl.replace(/\/$/, "") + path;
 }
 
 function matches(node: MenuNode, q: string): boolean {

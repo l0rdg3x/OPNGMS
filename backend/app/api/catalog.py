@@ -128,6 +128,7 @@ async def read_device_catalog(
         "resolved_edition": catalog.get("edition", ""),
         "resolved_version": catalog.get("version", ""),
         "models": models,
+        "menu": catalog.get("menu", []),  # the OPNsense-like nav tree (3b); [] for pre-3b catalogs
     }
 
 

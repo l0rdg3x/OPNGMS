@@ -97,6 +97,8 @@ def extract_grid_options(get_response: dict, model: dict, grid: dict) -> dict[st
         return out
     field_paths = [f["path"] for f in grid.get("fields", [])]
     for cells in node.values():
+        if len(out) == len(field_paths):
+            break  # every grid field's choices already captured (first row wins) — stop scanning
         if not isinstance(cells, dict):
             continue
         for fp in field_paths:
