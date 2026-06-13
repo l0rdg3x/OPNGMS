@@ -38,6 +38,7 @@ from app.services.config_drift import compute_drift, gather_live_state, unsuppor
 from app.services.config_model import build_tree
 from app.services.config_push import create_change, preview_change
 from app.services.config_revert import NoInverseError, RevertError, has_inverse, revert_change
+from app.services.metric_labels import device_friendly_labels
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["config"])
 
@@ -163,6 +164,22 @@ async def config_model(
     if snap is None:
         raise HTTPException(status_code=404, detail="No config snapshot for device")
     return build_tree(_xml(snap))
+
+
+@router.get("/devices/{device_id}/metric-labels", response_model=dict)
+async def metric_labels(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Map raw metric labels (interface/gateway/VPN identifiers) to their assigned names.
+
+    Parsed from the device's latest config snapshot (descr-bearing entries only); the Health charts
+    use it to label series (e.g. `opt1` -> "DMZ"), falling back to the raw identifier. Degrades to an
+    empty map (no snapshot yet) — never an error.
+    """
+    return await device_friendly_labels(session, tenant_id, device_id)
 
 
 @router.get("/devices/{device_id}/config/map", response_model=dict)

@@ -276,6 +276,7 @@ async def build_context(
     # Local import: mock_sections imports the dataclasses from this module, so importing it here
     # (rather than at module top) avoids a circular-import cycle and lets mock_sections be imported
     # standalone. Swapped for a real aggregator when app-id/category ingest lands.
+    from app.services.metric_labels import device_friendly_labels
     from app.services.reporting.mock_sections import applications_block, web_filter_block
     from app.services.reporting.sections import resolve_sections
 
@@ -350,6 +351,9 @@ async def build_context(
             raw_alerts = await aggregator.alerts_in_range(frm=frm, to=to, device_id=dev.id)
             gws = await aggregator.gateway_quality(frm=frm, to=to, device_id=dev.id)
             vpns = await aggregator.vpn_status(frm=frm, to=to, device_id=dev.id)
+            # Show the assigned gateway/VPN names (from the device config) instead of raw ids — the
+            # same mapping the Health dashboard uses; falls back to the raw name when none is set.
+            labels = await device_friendly_labels(aggregator.session, aggregator.tenant_id, dev.id)
             alert_items = []
             for a in raw_alerts:
                 sev_cls, sev_lbl = _sev(a.severity)
@@ -361,8 +365,8 @@ async def build_context(
                 ))
             alerts_wan = AlertsWanBlock(
                 alerts=alert_items,
-                gateways=[GatewayRow(name=g.name, rtt_ms=g.rtt_ms, loss_pct=g.loss_pct, up_pct=g.up_pct) for g in gws],
-                vpns=[VpnRow(name=v.name, up_pct=v.up_pct) for v in vpns],
+                gateways=[GatewayRow(name=labels.get(g.name, g.name), rtt_ms=g.rtt_ms, loss_pct=g.loss_pct, up_pct=g.up_pct) for g in gws],
+                vpns=[VpnRow(name=labels.get(v.name, v.name), up_pct=v.up_pct) for v in vpns],
             )
 
         # --- Attacks block (IDS): timeline + three ranked tables ---

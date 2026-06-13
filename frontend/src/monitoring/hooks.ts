@@ -56,3 +56,21 @@ export function useDeviceMetrics(deviceId: string | undefined, metric: string, r
     },
   });
 }
+
+/** Map of raw metric labels (interface/gateway/VPN identifiers) -> their assigned names, parsed
+ *  from the device's latest config snapshot. Empty when no snapshot — charts fall back to the id. */
+export function useMetricLabels(deviceId: string | undefined) {
+  const { activeId } = useTenant();
+  return useQuery({
+    queryKey: ["metric-labels", activeId, deviceId],
+    enabled: !!activeId && !!deviceId,
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data, error } = await api.GET(
+        "/api/tenants/{tenant_id}/devices/{device_id}/metric-labels",
+        { params: { path: { tenant_id: activeId!, device_id: deviceId! } } },
+      );
+      if (error) return {};
+      return (data as Record<string, string>) ?? {};
+    },
+  });
+}

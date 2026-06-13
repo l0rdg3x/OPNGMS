@@ -28,6 +28,16 @@ describe("toChartData", () => {
     const { series } = toChartData(points);
     expect(series).toEqual(["value"]);
   });
+
+  it("renames raw labels via labelMap, falling back to the id", () => {
+    const multi: MetricPoint[] = [
+      { time: "t1", label: "opt1", value: 1 },
+      { time: "t1", label: "wan", value: 2 },
+    ];
+    const { data, series } = toChartData(multi, { opt1: "DMZ" });
+    expect(series).toEqual(["DMZ", "wan"]); // opt1 -> DMZ; wan unmapped -> raw id
+    expect(data).toEqual([{ time: "t1", DMZ: 1, wan: 2 }]);
+  });
 });
 
 describe("MetricChart", () => {

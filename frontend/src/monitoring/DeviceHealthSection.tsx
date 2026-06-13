@@ -3,7 +3,7 @@ import { Group, SegmentedControl, SimpleGrid, Stack, Title } from "@mantine/core
 import { useT } from "../i18n";
 import { humanBytes } from "../utils/bytes";
 import { MetricChart } from "./MetricChart";
-import { useDeviceMetrics } from "./hooks";
+import { useDeviceMetrics, useMetricLabels } from "./hooks";
 import type { MetricPoint, Range } from "./types";
 
 function ChartFor({
@@ -12,6 +12,7 @@ function ChartFor({
   title,
   unit,
   valueFormatter,
+  labelMap,
   range,
 }: {
   deviceId: string;
@@ -19,16 +20,26 @@ function ChartFor({
   title: string;
   unit?: string;
   valueFormatter?: (value: number) => string;
+  labelMap?: Record<string, string>;
   range: Range;
 }) {
   const q = useDeviceMetrics(deviceId, metric, range);
   const points = (q.data?.points ?? []) as MetricPoint[];
-  return <MetricChart title={title} points={points} unit={unit} valueFormatter={valueFormatter} />;
+  return (
+    <MetricChart
+      title={title}
+      points={points}
+      unit={unit}
+      valueFormatter={valueFormatter}
+      labelMap={labelMap}
+    />
+  );
 }
 
 export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
   const t = useT();
   const [range, setRange] = useState<Range>("24h");
+  const labelMap = useMetricLabels(deviceId).data ?? {};
   return (
     <Stack>
       <Group justify="space-between">
@@ -52,6 +63,7 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
           metric="iface.bytes_in"
           title={t.deviceHealth.trafficIn}
           valueFormatter={humanBytes}
+          labelMap={labelMap}
           range={range}
         />
         <ChartFor
@@ -59,6 +71,7 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
           metric="iface.bytes_out"
           title={t.deviceHealth.trafficOut}
           valueFormatter={humanBytes}
+          labelMap={labelMap}
           range={range}
         />
         <ChartFor
@@ -66,6 +79,7 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
           metric="gateway.rtt_ms"
           title={t.deviceHealth.gatewayRtt}
           unit="ms"
+          labelMap={labelMap}
           range={range}
         />
         <ChartFor
@@ -73,9 +87,10 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
           metric="gateway.loss_pct"
           title={t.deviceHealth.gatewayLoss}
           unit="%"
+          labelMap={labelMap}
           range={range}
         />
-        <ChartFor deviceId={deviceId} metric="vpn.up" title={t.deviceHealth.vpnUp} range={range} />
+        <ChartFor deviceId={deviceId} metric="vpn.up" title={t.deviceHealth.vpnUp} labelMap={labelMap} range={range} />
       </SimpleGrid>
     </Stack>
   );
