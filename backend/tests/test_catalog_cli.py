@@ -116,6 +116,36 @@ def test_generate_all_force_regenerates_all(tmp_path):
     assert manifest["catalogs"]["community/26.1.7"] != "PRIORSHA"  # fresh sha replaces the carried one
 
 
+def test_generate_all_with_plugins_emits_plugins_asset_and_manifest_key(tmp_path):
+    from tools.opnsense_catalog.cli import main
+    # Minimal core tree for version 26.1.9
+    core = tmp_path / "core" / "26.1.9" / "src/opnsense/mvc/app"
+    (core / "models/OPNsense/IDS").mkdir(parents=True)
+    (core / "models/OPNsense/IDS/IDS.xml").write_text(
+        "<model><mount>//OPNsense/IDS</mount><items><general><enabled type='BooleanField'/></general></items></model>")
+    # Minimal plugins tree for the same version
+    plug = tmp_path / "plugins" / "26.1.9" / "net/haproxy"
+    (plug / "src/opnsense/mvc/app/models/OPNsense/HAProxy").mkdir(parents=True)
+    (plug / "Makefile").write_text("PLUGIN_NAME=\thaproxy\nPLUGIN_VERSION=\t5.1\nPLUGIN_COMMENT=\tLB\n")
+    (plug / "src/opnsense/mvc/app/models/OPNsense/HAProxy/HAProxy.xml").write_text(
+        "<model><mount>//OPNsense/HAProxy/general</mount><items><general><enabled type='BooleanField'/></general></items></model>")
+    out = tmp_path / "out"
+    rc = main(["generate-all", "--edition", "community", "--versions", "26.1.9",
+               "--source-root", str(tmp_path / "core"),
+               "--with-plugins", "--plugins-source-root", str(tmp_path / "plugins"),
+               "--out-dir", str(out)])
+    assert rc == 0
+    assert (out / "community-26.1.9.json").exists()
+    assert (out / "community-plugins-26.1.9.json").exists()
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert "community/26.1.9" in manifest["catalogs"]
+    assert "community-plugins/26.1.9" in manifest["catalogs"]
+    import json as _j
+    pcat = _j.loads((out / "community-plugins-26.1.9.json").read_text())
+    assert pcat["models"]["haproxy"]["source"] == "plugins"
+    assert pcat["models"]["haproxy"]["plugin"]["package"] == "os-haproxy"
+
+
 def test_generate_emits_resolved_menu(tmp_path):
     out = tmp_path / "26.1.8.json"
     rc = main(["generate", "--edition", "community", "--version", "26.1.8",
