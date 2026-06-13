@@ -264,3 +264,10 @@ Full threat model and operator hardening checklist:
 ## License
 
 See [LICENSE](LICENSE).
+
+## Trademarks & disclaimer
+
+OPNsense® is a registered trademark of Deciso B.V. All other product names, logos, and brands are the
+property of their respective owners. OPNGMS is an **independent**, third-party project and is **not
+affiliated with, endorsed by, sponsored by, or supported by** Deciso B.V. or the OPNsense project.
+References to "OPNsense" are used solely for identification and to describe interoperability.

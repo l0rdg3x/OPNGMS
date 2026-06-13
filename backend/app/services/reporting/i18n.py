@@ -1,5 +1,5 @@
-"""Server-side report localisation. English is the only locale today; the resolver falls back to en,
-so adding a language = adding a dict (no template surgery) — mirrors the frontend i18n maturity."""
+"""Server-side report localisation. Ships 12 locales (matching the frontend UI); the resolver falls
+back to en for unknown/partial locales, so adding a language = adding a dict (no template surgery)."""
 from __future__ import annotations
 
 _EN: dict[str, str] = {
@@ -414,6 +414,326 @@ _NL: dict[str, str] = {
     "footer_of": "/",
 }
 
+_RU: dict[str, str] = {
+    # section titles
+    "attacks_title": "Атаки",
+    "web_title": "Веб-активность",
+    "data_title": "Использование данных",
+    "status_title": "Статус (онлайн/офлайн)",
+    "apps_title": "Приложения",
+    "webfilter_title": "Веб-фильтр",
+    "toc_title": "Содержание",
+    # explanations
+    "attacks_explain": "Попытки вторжения, заблокированные системой обнаружения угроз вашего межсетевого экрана за этот период. На графике показано, сколько попыток происходило с течением времени; в таблицах перечислены наиболее частые типы атак, какие из ваших устройств были целью и откуда исходили попытки.",
+    "web_explain": "Веб-сайты и онлайн-сервисы, к которым обращалась ваша сеть. На графике показан объём запросов с течением времени; в таблицах показаны наиболее посещаемые сайты, самые активные устройства и заблокированные домены.",
+    "data_explain": "Сколько данных прошло через ваш межсетевой экран с течением времени (входящие плюс исходящие). Итоги ниже обобщают весь период.",
+    "status_explain": "Был ли этот межсетевой экран в сети и доступен в течение периода. «Время в сети» — это доля времени, когда он был онлайн; чем больше, тем лучше.",
+    "apps_explain": "Приложения, замеченные в вашей сети, каждое с простой оценкой риска — зелёный (Низкий), синий (Умеренный), оранжевый (Высокий). Эти показатели являются примерными данными, пока не включён мониторинг приложений.",
+    "webfilter_explain": "Категории веб-контента, запрашиваемого из вашей сети, каждая с оценкой риска. Эти показатели являются примерными данными, пока не включена категоризация контента.",
+    "apps_sample": "Примерные данные — видимость приложений ещё не собрана.",
+    "webfilter_sample": "Примерные данные — категоризация контента ещё не собрана.",
+    # misc
+    "no_data": "Нет данных",
+    "total_in": "Всего входящих",
+    "total_out": "Всего исходящих",
+    "uptime": "Время в сети",
+    "threat": "Угроза",
+    "threat_low": "Низкий",
+    "threat_guarded": "Умеренный",
+    "threat_high": "Высокий",
+    # ranked-table titles + columns
+    "t_top_attempts": "Основные попытки",
+    "t_top_targets": "Основные цели",
+    "t_top_initiators": "Основные источники",
+    "t_top_sites": "Основные сайты",
+    "t_top_blocked": "Чаще всего блокировались",
+    "t_top_detected": "Чаще всего обнаружены",
+    "t_top_categories": "Основные категории",
+    "col_signature": "Сигнатура",
+    "col_count": "Количество",
+    "col_target": "Цель",
+    "col_initiator": "Источник",
+    "col_site": "Сайт",
+    "col_hits": "Обращения",
+    "col_domain": "Домен",
+    "col_blocks": "Блокировки",
+    "col_application": "Приложение",
+    "col_sessions": "Сеансы",
+    "col_category": "Категория",
+    "col_requests": "Запросы",
+    # axis labels
+    "axis_time": "Время",
+    "axis_attempts": "Попытки",
+    "axis_dns": "DNS-запросы",
+    "axis_data": "Данные / период",
+    "axis_status": "Статус",
+    "axis_sessions": "Сеансы",
+    "axis_requests": "Запросы",
+    "status_up": "Онлайн",
+    "status_down": "Офлайн",
+    # footer labels
+    "footer_tz": "Отчёт сформирован для часового пояса",
+    "footer_owner": "Владелец отчёта:",
+    "footer_page": "Страница",
+    "footer_of": "/",
+}
+
+_AR: dict[str, str] = {
+    # section titles
+    "attacks_title": "الهجمات",
+    "web_title": "نشاط الويب",
+    "data_title": "استخدام البيانات",
+    "status_title": "حالة الاتصال/الانقطاع",
+    "apps_title": "التطبيقات",
+    "webfilter_title": "فلتر الويب",
+    "toc_title": "جدول المحتويات",
+    # explanations
+    "attacks_explain": "محاولات اختراق حظرها نظام كشف التهديدات في جدار الحماية خلال هذه الفترة. يوضّح الرسم البياني عدد المحاولات التي وقعت عبر الزمن؛ وتُدرج الجداول أكثر أنواع الهجمات تكراراً، وأيٌّ من أجهزتك كان مستهدفاً، ومن أين أتت المحاولات.",
+    "web_explain": "المواقع والخدمات عبر الإنترنت التي استعلمت عنها شبكتك. يوضّح الرسم البياني حجم الاستعلامات عبر الزمن؛ وتُظهر الجداول أكثر المواقع زيارةً، والأجهزة الأكثر نشاطاً، والنطاقات التي تم حظرها.",
+    "data_explain": "حجم البيانات التي مرّت عبر جدار الحماية عبر الزمن (الوارد زائد الصادر). تُلخّص الإجماليات أدناه الفترة بأكملها.",
+    "status_explain": "ما إذا كان جدار الحماية هذا متصلاً وقابلاً للوصول خلال الفترة. «مدة التشغيل» هي نسبة الوقت الذي كان فيه متصلاً — وكلما ارتفعت كان أفضل.",
+    "apps_explain": "التطبيقات المرصودة على شبكتك، ولكلٍّ منها تقييم مخاطر مبسّط — أخضر (منخفض)، أزرق (محصور)، برتقالي (مرتفع). هذه الأرقام بيانات عيّنة إلى حين تفعيل مراقبة التطبيقات.",
+    "webfilter_explain": "فئات محتوى الويب المطلوب من شبكتك، ولكلٍّ منها تقييم مخاطر. هذه الأرقام بيانات عيّنة إلى حين تفعيل تصنيف المحتوى.",
+    "apps_sample": "بيانات عيّنة — لم يتم بعد جمع رؤية التطبيقات.",
+    "webfilter_sample": "بيانات عيّنة — لم يتم بعد جمع تصنيف المحتوى.",
+    # misc
+    "no_data": "لا توجد بيانات",
+    "total_in": "إجمالي الوارد",
+    "total_out": "إجمالي الصادر",
+    "uptime": "مدة التشغيل",
+    "threat": "التهديد",
+    "threat_low": "منخفض",
+    "threat_guarded": "محصور",
+    "threat_high": "مرتفع",
+    # ranked-table titles + columns
+    "t_top_attempts": "أبرز المحاولات",
+    "t_top_targets": "أبرز الأهداف",
+    "t_top_initiators": "أبرز المصادر",
+    "t_top_sites": "أبرز المواقع",
+    "t_top_blocked": "الأكثر حظراً",
+    "t_top_detected": "الأكثر اكتشافاً",
+    "t_top_categories": "أبرز الفئات",
+    "col_signature": "التوقيع",
+    "col_count": "العدد",
+    "col_target": "الهدف",
+    "col_initiator": "المصدر",
+    "col_site": "الموقع",
+    "col_hits": "الزيارات",
+    "col_domain": "النطاق",
+    "col_blocks": "عمليات الحظر",
+    "col_application": "التطبيق",
+    "col_sessions": "الجلسات",
+    "col_category": "الفئة",
+    "col_requests": "الطلبات",
+    # axis labels
+    "axis_time": "الزمن",
+    "axis_attempts": "المحاولات",
+    "axis_dns": "استعلامات DNS",
+    "axis_data": "البيانات / الفترة",
+    "axis_status": "الحالة",
+    "axis_sessions": "الجلسات",
+    "axis_requests": "الطلبات",
+    "status_up": "متصل",
+    "status_down": "منقطع",
+    # footer labels
+    "footer_tz": "تم إنشاء التقرير للمنطقة الزمنية",
+    "footer_owner": "مالك التقرير:",
+    "footer_page": "صفحة",
+    "footer_of": "/",
+}
+
+_ZH: dict[str, str] = {
+    # section titles
+    "attacks_title": "攻击",
+    "web_title": "网络活动",
+    "data_title": "数据用量",
+    "status_title": "在线/离线状态",
+    "apps_title": "应用",
+    "webfilter_title": "网页过滤",
+    "toc_title": "目录",
+    # explanations
+    "attacks_explain": "在此期间，防火墙的威胁检测所拦截的入侵尝试。图表显示一段时间内发生的尝试次数；表格列出了最常见的攻击类型、哪些设备成为目标，以及尝试的来源。",
+    "web_explain": "您的网络查询过的网站和在线服务。图表显示一段时间内的查询量；表格显示访问最多的网站、最繁忙的设备以及被拦截的域名。",
+    "data_explain": "一段时间内流经防火墙的数据量（入站加出站）。下方的合计汇总了整个期间。",
+    "status_explain": "此防火墙在该期间是否在线且可访问。“在线时长”是其处于在线状态的时间占比——越高越好。",
+    "apps_explain": "在您的网络上检测到的应用，每个都附带简单的风险评级——绿色（低）、蓝色（关注）、橙色（高）。在启用应用监控之前，这些数字为示例数据。",
+    "webfilter_explain": "从您的网络请求的网页内容类别，每个都附带风险评级。在启用内容分类之前，这些数字为示例数据。",
+    "apps_sample": "示例数据——应用可见性尚未采集。",
+    "webfilter_sample": "示例数据——内容分类尚未采集。",
+    # misc
+    "no_data": "暂无数据",
+    "total_in": "入站合计",
+    "total_out": "出站合计",
+    "uptime": "在线时长",
+    "threat": "威胁",
+    "threat_low": "低",
+    "threat_guarded": "关注",
+    "threat_high": "高",
+    # ranked-table titles + columns
+    "t_top_attempts": "尝试排行",
+    "t_top_targets": "目标排行",
+    "t_top_initiators": "发起者排行",
+    "t_top_sites": "网站排行",
+    "t_top_blocked": "拦截排行",
+    "t_top_detected": "检测排行",
+    "t_top_categories": "类别排行",
+    "col_signature": "签名",
+    "col_count": "数量",
+    "col_target": "目标",
+    "col_initiator": "发起者",
+    "col_site": "网站",
+    "col_hits": "命中数",
+    "col_domain": "域名",
+    "col_blocks": "拦截数",
+    "col_application": "应用",
+    "col_sessions": "会话数",
+    "col_category": "类别",
+    "col_requests": "请求数",
+    # axis labels
+    "axis_time": "时间",
+    "axis_attempts": "尝试次数",
+    "axis_dns": "DNS 查询",
+    "axis_data": "数据 / 周期",
+    "axis_status": "状态",
+    "axis_sessions": "会话数",
+    "axis_requests": "请求数",
+    "status_up": "在线",
+    "status_down": "离线",
+    # footer labels
+    "footer_tz": "报告按以下时区生成",
+    "footer_owner": "报告所有者：",
+    "footer_page": "第",
+    "footer_of": "/",
+}
+
+_ZH_TW: dict[str, str] = {
+    # section titles
+    "attacks_title": "攻擊",
+    "web_title": "網路活動",
+    "data_title": "資料用量",
+    "status_title": "上線／離線狀態",
+    "apps_title": "應用程式",
+    "webfilter_title": "網頁過濾",
+    "toc_title": "目錄",
+    # explanations
+    "attacks_explain": "在此期間您防火牆的威脅偵測所阻擋的入侵嘗試。圖表顯示這段期間發生了多少次嘗試；表格列出最常見的攻擊類型、您的哪些裝置遭到鎖定，以及這些嘗試來自何處。",
+    "web_explain": "您的網路所查詢的網站與線上服務。圖表顯示這段期間的查詢量；表格顯示造訪最多的網站、最繁忙的裝置，以及遭到阻擋的網域。",
+    "data_explain": "這段期間有多少資料流經您的防火牆（流入加流出）。下方的總計彙整了整個期間。",
+    "status_explain": "此防火牆在這段期間是否上線且可連線。「上線時間」是它處於上線狀態的時間比例——越高越好。",
+    "apps_explain": "在您網路上偵測到的應用程式，每個都附有簡單的風險評等——綠色（低）、藍色（防護）、橙色（高）。在啟用應用程式監控之前，這些數據為範例資料。",
+    "webfilter_explain": "從您網路所請求的網頁內容類別，每個都附有風險評等。在啟用內容分類之前，這些數據為範例資料。",
+    "apps_sample": "範例資料——尚未擷取應用程式可見性。",
+    "webfilter_sample": "範例資料——尚未擷取內容分類。",
+    # misc
+    "no_data": "沒有資料",
+    "total_in": "流入總計",
+    "total_out": "流出總計",
+    "uptime": "上線時間",
+    "threat": "威脅",
+    "threat_low": "低",
+    "threat_guarded": "防護",
+    "threat_high": "高",
+    # ranked-table titles + columns
+    "t_top_attempts": "主要嘗試",
+    "t_top_targets": "主要目標",
+    "t_top_initiators": "主要發起者",
+    "t_top_sites": "主要網站",
+    "t_top_blocked": "最常阻擋",
+    "t_top_detected": "最常偵測",
+    "t_top_categories": "主要類別",
+    "col_signature": "特徵碼",
+    "col_count": "次數",
+    "col_target": "目標",
+    "col_initiator": "發起者",
+    "col_site": "網站",
+    "col_hits": "點擊次數",
+    "col_domain": "網域",
+    "col_blocks": "阻擋次數",
+    "col_application": "應用程式",
+    "col_sessions": "工作階段",
+    "col_category": "類別",
+    "col_requests": "請求次數",
+    # axis labels
+    "axis_time": "時間",
+    "axis_attempts": "嘗試",
+    "axis_dns": "DNS 查詢",
+    "axis_data": "資料／期間",
+    "axis_status": "狀態",
+    "axis_sessions": "工作階段",
+    "axis_requests": "請求",
+    "status_up": "上線",
+    "status_down": "離線",
+    # footer labels
+    "footer_tz": "報表產生所用時區",
+    "footer_owner": "報表擁有者：",
+    "footer_page": "頁",
+    "footer_of": "/",
+}
+
+_JA: dict[str, str] = {
+    # section titles
+    "attacks_title": "攻撃",
+    "web_title": "Web アクティビティ",
+    "data_title": "データ使用量",
+    "status_title": "オンライン/オフライン状態",
+    "apps_title": "アプリケーション",
+    "webfilter_title": "Web フィルター",
+    "toc_title": "目次",
+    # explanations
+    "attacks_explain": "この期間にファイアウォールの脅威検知がブロックした侵入の試みです。グラフは時間経過に伴う試行回数を示し、表には最も頻度の高い攻撃の種類、標的となったデバイス、試行の発信元が一覧表示されます。",
+    "web_explain": "ネットワークが参照した Web サイトおよびオンラインサービスです。グラフは時間経過に伴う参照件数を示し、表には最もアクセスの多いサイト、最も活発なデバイス、ブロックされたドメインが表示されます。",
+    "data_explain": "ファイアウォールを通過したデータ量の推移です（受信＋送信）。以下の合計は期間全体を要約したものです。",
+    "status_explain": "この期間にファイアウォールがオンラインで到達可能だったかを示します。「稼働率」はオンラインだった時間の割合で、高いほど良好です。",
+    "apps_explain": "ネットワーク上で検出されたアプリケーションと、それぞれの簡易なリスク評価です — 緑（低）、青（要注意）、オレンジ（高）。これらの数値はアプリケーション監視が有効になるまでサンプルデータです。",
+    "webfilter_explain": "ネットワークから要求された Web コンテンツのカテゴリと、それぞれのリスク評価です。これらの数値はコンテンツ分類が有効になるまでサンプルデータです。",
+    "apps_sample": "サンプルデータ — アプリケーションの可視化はまだ取り込まれていません。",
+    "webfilter_sample": "サンプルデータ — コンテンツ分類はまだ取り込まれていません。",
+    # misc
+    "no_data": "データなし",
+    "total_in": "受信合計",
+    "total_out": "送信合計",
+    "uptime": "稼働率",
+    "threat": "脅威",
+    "threat_low": "低",
+    "threat_guarded": "要注意",
+    "threat_high": "高",
+    # ranked-table titles + columns
+    "t_top_attempts": "主な試行",
+    "t_top_targets": "主な標的",
+    "t_top_initiators": "主な発信元",
+    "t_top_sites": "主なサイト",
+    "t_top_blocked": "ブロック上位",
+    "t_top_detected": "検出上位",
+    "t_top_categories": "主なカテゴリ",
+    "col_signature": "シグネチャ",
+    "col_count": "件数",
+    "col_target": "標的",
+    "col_initiator": "発信元",
+    "col_site": "サイト",
+    "col_hits": "アクセス数",
+    "col_domain": "ドメイン",
+    "col_blocks": "ブロック数",
+    "col_application": "アプリケーション",
+    "col_sessions": "セッション",
+    "col_category": "カテゴリ",
+    "col_requests": "リクエスト",
+    # axis labels
+    "axis_time": "時間",
+    "axis_attempts": "試行回数",
+    "axis_dns": "DNS ルックアップ",
+    "axis_data": "データ / 期間",
+    "axis_status": "状態",
+    "axis_sessions": "セッション",
+    "axis_requests": "リクエスト",
+    "status_up": "オンライン",
+    "status_down": "オフライン",
+    # footer labels
+    "footer_tz": "次のタイムゾーン向けに生成されたレポート",
+    "footer_owner": "レポートオーナー:",
+    "footer_page": "ページ",
+    "footer_of": "/",
+}
+
 REPORT_LOCALES: dict[str, dict[str, str]] = {
     "en": _EN,
     "it": _IT,
@@ -422,12 +742,27 @@ REPORT_LOCALES: dict[str, dict[str, str]] = {
     "de": _DE,
     "pt": _PT,
     "nl": _NL,
+    "ru": _RU,
+    "ar": _AR,
+    "zh": _ZH,
+    "zh-TW": _ZH_TW,
+    "ja": _JA,
 }
 
 LANGUAGE_NAMES: dict[str, str] = {
     "en": "English", "it": "Italiano", "es": "Español", "fr": "Français",
     "de": "Deutsch", "pt": "Português", "nl": "Nederlands",
+    "ru": "Русский", "ar": "العربية", "zh": "简体中文", "zh-TW": "繁體中文", "ja": "日本語",
 }
+
+# Right-to-left locales: the report template emits dir="rtl" (+ CSS direction) so WeasyPrint mirrors
+# the layout and right-aligns text. Arabic is the only RTL language we ship today.
+_RTL_LOCALES: frozenset[str] = frozenset({"ar"})
+
+
+def is_rtl(locale: str) -> bool:
+    """True for right-to-left locales (drives the report's dir="rtl")."""
+    return locale in _RTL_LOCALES
 
 
 def available_locales() -> list[tuple[str, str]]:

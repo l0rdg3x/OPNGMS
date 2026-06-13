@@ -56,7 +56,9 @@ jobs:
             libgdk-pixbuf-2.0-0 \
             libffi8 \
             shared-mime-info \
-            fonts-dejavu-core
+            fonts-dejavu-core \
+            fonts-noto-core \
+            fonts-noto-cjk
 
       - uses: actions/setup-python@v6
         with:
