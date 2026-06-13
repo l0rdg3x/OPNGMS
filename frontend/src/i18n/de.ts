@@ -150,6 +150,8 @@ export const de: Dict = {
     removeConfirm: "Dieses Plugin entfernen?",
     empty: "Noch keine Plugins gemeldet — das Gerät wird regelmäßig abgefragt.",
     loadFailed: "Plugins konnten nicht geladen werden.",
+    configure: "Konfigurieren",
+    configureTitle: "Plugin-Konfiguration",
   },
   templates: {
     tab: "Vorlagen",

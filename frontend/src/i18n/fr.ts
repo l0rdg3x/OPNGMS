@@ -150,6 +150,8 @@ export const fr: Dict = {
     removeConfirm: "Supprimer cette extension ?",
     empty: "Aucune extension signalée pour l'instant — l'appareil est interrogé périodiquement.",
     loadFailed: "Impossible de charger les extensions.",
+    configure: "Configurer",
+    configureTitle: "Configuration de l'extension",
   },
   templates: {
     tab: "Modèles",

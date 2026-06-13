@@ -150,6 +150,8 @@ export const ru: Dict = {
     removeConfirm: "Удалить этот плагин?",
     empty: "Плагины пока не сообщены — устройство опрашивается периодически.",
     loadFailed: "Не удалось загрузить плагины.",
+    configure: "Настроить",
+    configureTitle: "Конфигурация плагина",
   },
   templates: {
     tab: "Шаблоны",

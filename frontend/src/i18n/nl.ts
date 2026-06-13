@@ -150,6 +150,8 @@ export const nl: Dict = {
     removeConfirm: "Deze plug-in verwijderen?",
     empty: "Nog geen plug-ins gerapporteerd — het apparaat wordt periodiek opgevraagd.",
     loadFailed: "Kon de plug-ins niet laden.",
+    configure: "Configureren",
+    configureTitle: "Plug-inconfiguratie",
   },
   templates: {
     tab: "Sjablonen",

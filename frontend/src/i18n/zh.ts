@@ -150,6 +150,8 @@ export const zh: Dict = {
     removeConfirm: "移除该插件？",
     empty: "尚未报告任何插件——设备会定期轮询。",
     loadFailed: "无法加载插件。",
+    configure: "配置",
+    configureTitle: "插件配置",
   },
   templates: {
     tab: "模板",

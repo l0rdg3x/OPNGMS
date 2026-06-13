@@ -150,6 +150,8 @@ export const ar: Dict = {
     removeConfirm: "إزالة هذه الإضافة؟",
     empty: "لم يتم الإبلاغ عن أي إضافات بعد — يتم استطلاع الجهاز دوريًا.",
     loadFailed: "تعذّر تحميل الإضافات.",
+    configure: "تهيئة",
+    configureTitle: "إعدادات الإضافة",
   },
   templates: {
     tab: "القوالب",

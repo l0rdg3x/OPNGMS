@@ -150,6 +150,8 @@ export const ja: Dict = {
     removeConfirm: "このプラグインを削除しますか？",
     empty: "報告されたプラグインはまだありません — デバイスは定期的にポーリングされます。",
     loadFailed: "プラグインを読み込めませんでした。",
+    configure: "設定",
+    configureTitle: "プラグインの設定",
   },
   templates: {
     tab: "テンプレート",
