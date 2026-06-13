@@ -22,11 +22,21 @@ from app.core.db_roles import (
     create_app_role_statements,
     grant_app_role_statements,
 )
+from app.core.queue import get_enqueuer
 from app.core.rls import enable_rls_statements
 from app.main import app
 from app.models import Base
 
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL")
+
+
+async def _noop_enqueue(name, *args, defer_until=None):
+    """Default test enqueuer: swallow jobs so tests don't connect to Redis.
+
+    Tests that assert on enqueued jobs install their own capturing override
+    (set after the fixture runs, so it wins).
+    """
+    return None
 
 
 def csrf_headers(client) -> dict:
@@ -136,6 +146,7 @@ async def api_client(db_engine):
             yield s
 
     app.dependency_overrides[get_session] = _override_get_session
+    app.dependency_overrides[get_enqueuer] = lambda: _noop_enqueue
     transport = ASGITransport(app=app)
     # base_url https:// so httpx stores the `secure=True` cookies (ASGITransport does no real TLS).
     async with AsyncClient(transport=transport, base_url="https://test") as c:
@@ -155,6 +166,7 @@ async def app_role_api_client(db_engine):
             yield s
 
     app.dependency_overrides[get_session] = _override_get_session
+    app.dependency_overrides[get_enqueuer] = lambda: _noop_enqueue
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="https://test") as c:
         yield c
