@@ -18,6 +18,8 @@ RUN apt-get update \
         libffi8 \
         shared-mime-info \
         fonts-dejavu-core \
+        fonts-noto-core \
+        fonts-noto-cjk \
         tzdata \
     && rm -rf /var/lib/apt/lists/*
 
