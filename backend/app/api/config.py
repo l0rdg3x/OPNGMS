@@ -200,8 +200,8 @@ async def config_map_endpoint(
         tree = build_tree(xml)  # conservative secret redaction applied here
         return {"source": "live", "reachable": True,
                 "tree": config_map.annotate_with_catalog(tree, catalog)}
-    except (OpnsenseError, InvalidToken, ParseError, DefusedXmlException, ValueError, KeyError):
-        pass  # connector/credential/parse error -> degrade to the last snapshot
+    except (OpnsenseError, InvalidToken, ParseError, DefusedXmlException):
+        pass  # connector/credential/parse error -> degrade to the last snapshot (mirrors drift-check)
 
     # 2) Fall back to the latest stored snapshot (same accessor + decrypt path as config/model).
     snap = await ConfigSnapshotRepository(session, tenant_id).latest(device_id)

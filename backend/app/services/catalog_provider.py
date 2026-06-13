@@ -53,10 +53,12 @@ def previous_version(versions: list[str], version: str) -> str | None:
 
 
 async def published_versions(edition: str = "community") -> list[str]:
-    """All published versions for an edition (from the release manifest), sorted ascending.
+    """All published versions (from the release manifest), sorted ascending.
 
     Network-only (no cache): used by the diff endpoint to list selectable baselines. Returns [] on any
-    fetch error so the caller degrades to 'no baselines'."""
+    fetch error so the caller degrades to 'no baselines'. `edition` is accepted for call-site symmetry
+    but intentionally ignored: Business devices are served the shared Community catalog, so the baseline
+    version list is always the Community one (see `get_catalog`'s edition resolution)."""
     settings = get_settings()
     base = settings.catalog_release_base_url.rstrip("/")
     try:
