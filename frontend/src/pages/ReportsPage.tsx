@@ -12,8 +12,8 @@ import {
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import { useState } from "react";
+import { usePermissions } from "../auth/usePermissions";
 import { useT } from "../i18n";
-import { useTenant } from "../tenant/useTenant";
 import {
   useDownloadReport,
   useGeneratedReports,
@@ -43,9 +43,7 @@ function defaultTo(): string {
 
 export function ReportsPage() {
   const t = useT();
-  const { activeId, tenants } = useTenant();
-  const role = tenants.find((ten) => ten.id === activeId)?.role ?? null;
-  const canGenerate = role === "tenant_admin" || role === "operator";
+  const { isOperator: canGenerate } = usePermissions();
 
   const reportsQuery = useGeneratedReports();
   const generateMutation = useGenerateReport();

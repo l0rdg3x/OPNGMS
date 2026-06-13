@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
+import { usePermissions } from "../auth/usePermissions";
 import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
 import {
@@ -33,10 +34,9 @@ import {
 
 export function ReportSettingsPage() {
   const t = useT();
-  const { activeId, tenants } = useTenant();
-  const role = tenants.find((ten) => ten.id === activeId)?.role ?? null;
+  const { isTenantAdmin } = usePermissions();
 
-  if (role !== "tenant_admin") {
+  if (!isTenantAdmin) {
     return (
       <Alert color="yellow" data-testid="admins-only-alert">
         {t.reports.settings.adminsOnly}

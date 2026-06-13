@@ -77,4 +77,23 @@ describe("AppShell", () => {
     expect(await screen.findByText("op@x.io")).toBeInTheDocument();
     expect(screen.queryByText("Log fleet")).toBeNull();
   });
+
+  it("shows the tenant-admin nav links to a superadmin even when role is null", async () => {
+    // /api/me/tenants returns role:null for a superadmin (global access, no membership row).
+    // Gating purely on the tenant role would hide Report settings/schedule + Logs from the most
+    // privileged user; usePermissions folds is_superadmin in so the UI matches the API.
+    server.use(
+      http.get("/api/me/tenants", () =>
+        HttpResponse.json([{ id: "t1", name: "Alpha", slug: "alpha", role: null }]),
+      ),
+      http.get("/api/tenants/t1/health", () =>
+        HttpResponse.json({ total_devices: 0, by_status: {}, active_alerts: 0 }),
+      ),
+      http.get("/api/tenants/t1/alerts", () => HttpResponse.json([])),
+    );
+    renderWithProviders(withAuth(<AppShell />, true));
+    expect(await screen.findByRole("link", { name: /report settings/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /report schedule/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^logs$/i })).toBeInTheDocument();
+  });
 });

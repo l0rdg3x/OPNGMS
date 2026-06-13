@@ -5,6 +5,7 @@ import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ReportSettingsPage } from "../ReportSettingsPage";
+import { AuthContext } from "../../auth/AuthProvider";
 import { TenantContext } from "../../tenant/TenantProvider";
 import { server } from "../../test/server";
 import { renderWithProviders } from "../../test/utils";
@@ -356,5 +357,32 @@ describe("ReportSettingsPage — non-admin roles", () => {
 
     expect(await screen.findByTestId("admins-only-alert")).toBeInTheDocument();
     expect(screen.queryByTestId("btn-save")).not.toBeInTheDocument();
+  });
+});
+
+describe("ReportSettingsPage — superadmin", () => {
+  it("renders the form for a superadmin even when the tenant role is null", async () => {
+    // /api/me/tenants reports role:null for a superadmin; the page must still render the
+    // form (the API authorizes them via is_superadmin) instead of the admins-only alert.
+    server.use(
+      http.get(SETTINGS_URL, () => HttpResponse.json(defaultSettings)),
+      defaultLanguagesHandler,
+    );
+
+    renderWithProviders(
+      <AuthContext.Provider
+        value={{
+          me: { id: "1", email: "admin@x.io", name: "Admin", is_superadmin: true },
+          loading: false,
+          refresh: vi.fn(),
+          setMe: vi.fn(),
+        }}
+      >
+        {withTenant(<ReportSettingsPage />, null as unknown as string)}
+      </AuthContext.Provider>,
+    );
+
+    expect(await screen.findByTestId("field-title")).toHaveValue("My Report");
+    expect(screen.queryByTestId("admins-only-alert")).not.toBeInTheDocument();
   });
 });

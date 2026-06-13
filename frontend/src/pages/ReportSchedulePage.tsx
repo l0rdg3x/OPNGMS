@@ -4,8 +4,8 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
+import { usePermissions } from "../auth/usePermissions";
 import { useT } from "../i18n";
-import { useTenant } from "../tenant/useTenant";
 import {
   type ScheduleIn, type ScheduleOut, useReportSchedules, useSendScheduleNow, useUpsertReportSchedule,
 } from "../reports/scheduleHooks";
@@ -135,12 +135,11 @@ function ScheduleEditor({ prefix, deviceId, existing }: {
 }
 
 export function ReportSchedulePage() {
-  const { activeId, tenants } = useTenant();
-  const role = tenants.find((tn) => tn.id === activeId)?.role ?? null;
+  const { isTenantAdmin } = usePermissions();
   const schedules = useReportSchedules();
   const devices = useTenantDevices();
 
-  if (role !== "tenant_admin") {
+  if (!isTenantAdmin) {
     return <Alert color="red" data-testid="schedule-forbidden">Tenant admins only.</Alert>;
   }
 
