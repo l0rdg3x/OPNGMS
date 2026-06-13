@@ -1,0 +1,106 @@
+name: Bug report
+description: Report a problem with OPNGMS
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        ⚠️ **Do not report security vulnerabilities here.** Please follow our
+        [Security Policy](https://github.com/l0rdg3x/OPNGMS/blob/main/SECURITY.md) instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Step-by-step instructions so we can reproduce the problem.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See the error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of OPNGMS does this affect?
+      options:
+        - Frontend / UI
+        - API / backend
+        - Worker (polling, reports, ingest)
+        - Config editor / templates / catalogs
+        - Reporting / PDF / email delivery
+        - Log lake (syslog / OpenSearch)
+        - Deployment / Docker / TLS
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: OPNGMS version
+      description: The `OPNGMS_VERSION` image tag you run, or the git commit if you built from source.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      description: How are you running OPNGMS?
+      options:
+        - docker-compose.prod.yml (core)
+        - docker-compose.full.yml (core + log lake)
+        - prod + logs overlay
+        - prod + a TLS overlay (tls / caddy / traefik)
+        - Built from source
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: opnsense
+    attributes:
+      label: OPNsense version / edition (managed device)
+      description: If relevant — the firmware version and edition of the affected box.
+      placeholder: "26.1.9 (Community)"
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & UI language
+      description: For a UI bug — browser + version, and the UI language if not English.
+      placeholder: "Firefox 128 · language = it"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / screenshots
+      description: |
+        Output from `docker compose logs api` / `worker` / `migrate`, the browser console, or screenshots.
+        **Redact every secret, API key, token, hostname, and any customer data before pasting.**
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I have removed all secrets, credentials, and customer data from this report.
+          required: true
