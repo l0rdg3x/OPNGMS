@@ -1,0 +1,10 @@
+# Require contributors to pick a structured template; steer security reports and how-to questions
+# away from the public bug/feature trackers.
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/l0rdg3x/OPNGMS/blob/main/SECURITY.md
+    about: Please report vulnerabilities privately per our Security Policy — do NOT open a public issue.
+  - name: 📖 Documentation (Wiki)
+    url: https://github.com/l0rdg3x/OPNGMS/wiki
+    about: Installation, configuration, upgrading, the configuration editor, the log lake, and troubleshooting.
