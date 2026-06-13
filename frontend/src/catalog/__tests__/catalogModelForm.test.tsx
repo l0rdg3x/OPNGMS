@@ -12,7 +12,7 @@ const LIVE: CatalogModelLive = {
     grids: [], pages: [{ id: "general", fields: ["general.enabled", "general.port"] }],
   },
   values: { "general.enabled": "0", "general.port": "53" },
-  grids: {}, reachable: true, read_only: false,
+  grids: {}, field_options: {}, grid_field_options: {}, reachable: true, read_only: false,
 };
 
 describe("CatalogModelForm", () => {
