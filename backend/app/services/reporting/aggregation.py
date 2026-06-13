@@ -36,6 +36,67 @@ def pick_bucket(span: timedelta) -> str:
 class DeviceRow:
     id: uuid.UUID
     name: str
+    firmware_version: str | None = None
+    edition: str = ""
+    firmware_series: str = ""
+    status: str = ""
+
+
+@dataclass
+class HealthStat:
+    """avg + peak of a 0-100 percentage metric over the range (None when no samples)."""
+    avg: float | None
+    peak: float | None
+
+
+@dataclass
+class HealthSummary:
+    cpu: HealthStat
+    mem: HealthStat
+    disk: HealthStat
+    cpu_series: list[tuple[datetime, float]]  # bucketed avg cpu.pct, for the sparkline
+    has_data: bool
+
+
+@dataclass
+class GatewayQuality:
+    name: str
+    rtt_ms: float | None    # avg round-trip time
+    loss_pct: float | None  # avg packet loss
+    up_pct: float           # availability over the range (0-100)
+
+
+@dataclass
+class VpnStatus:
+    name: str
+    up_pct: float           # share of polls the tunnel was up (0-100)
+
+
+@dataclass
+class AlertRow:
+    type: str
+    label: str
+    severity: str
+    opened_at: datetime
+    resolved_at: datetime | None
+
+
+@dataclass
+class ConfigChangeRow:
+    kind: str
+    operation: str
+    target: str
+    applied_at: datetime | None
+
+
+@dataclass
+class Kpis:
+    devices_total: int
+    devices_online: int
+    attacks_blocked: int     # IDS events in the range
+    data_total: float        # bytes in + out over the range
+    uptime_pct: float        # fleet-wide poll-presence availability (0-100)
+    alerts_count: int        # alerts raised in the range
 
 
 class ReportAggregator:
@@ -44,13 +105,22 @@ class ReportAggregator:
         self.tenant_id = tenant_id
 
     async def devices(self, *, device_id: uuid.UUID | None = None) -> list[DeviceRow]:
-        sql = "SELECT id, name FROM devices WHERE tenant_id = :tid"
+        sql = (
+            "SELECT id, name, firmware_version, edition, firmware_series, status "
+            "FROM devices WHERE tenant_id = :tid"
+        )
         params: dict = {"tid": self.tenant_id}
         if device_id is not None:
             sql += " AND id = :did"
             params["did"] = device_id
         rows = (await self.session.execute(text(sql + " ORDER BY name"), params)).all()
-        return [DeviceRow(id=r.id, name=r.name) for r in rows]
+        return [
+            DeviceRow(
+                id=r.id, name=r.name, firmware_version=r.firmware_version,
+                edition=r.edition or "", firmware_series=r.firmware_series or "", status=r.status or "",
+            )
+            for r in rows
+        ]
 
     async def _ranked(
         self, *, field: str, source: str, frm: datetime, to: datetime,
@@ -179,3 +249,171 @@ class ReportAggregator:
             cur = cur + delta
         uptime = (sum(v for _, v in series) / len(series) * 100.0) if series else 0.0
         return series, uptime
+
+    # ── Enrichment accessors (report-enrichment) ─────────────────────────────
+
+    async def health_summary(
+        self, *, frm: datetime, to: datetime, bucket: str, device_id: uuid.UUID,
+    ) -> HealthSummary:
+        """avg + peak of cpu/mem/disk percentage, plus a bucketed cpu sparkline series."""
+        delta = _bucket_delta(bucket)
+        stat_sql = text(
+            "SELECT metric, avg(value) AS a, max(value) AS p FROM metrics "
+            "WHERE tenant_id = :tid AND device_id = :did "
+            "AND metric IN ('cpu.pct','mem.pct','disk.pct') AND time >= :frm AND time < :to "
+            "GROUP BY metric"
+        )
+        rows = (await self.session.execute(
+            stat_sql, {"tid": self.tenant_id, "did": device_id, "frm": frm, "to": to}
+        )).all()
+        by_metric = {r.metric: (float(r.a), float(r.p)) for r in rows}
+
+        def _stat(name: str) -> HealthStat:
+            v = by_metric.get(name)
+            return HealthStat(avg=None, peak=None) if v is None else HealthStat(avg=round(v[0], 1), peak=round(v[1], 1))
+
+        series_sql = text(
+            "SELECT time_bucket(:bucket, time) AS b, avg(value) AS a FROM metrics "
+            "WHERE tenant_id = :tid AND device_id = :did AND metric = 'cpu.pct' "
+            "AND time >= :frm AND time < :to GROUP BY b ORDER BY b"
+        )
+        series_rows = (await self.session.execute(
+            series_sql, {"bucket": delta, "tid": self.tenant_id, "did": device_id, "frm": frm, "to": to}
+        )).all()
+        cpu_series = [(r.b, float(r.a)) for r in series_rows]
+        return HealthSummary(
+            cpu=_stat("cpu.pct"), mem=_stat("mem.pct"), disk=_stat("disk.pct"),
+            cpu_series=cpu_series, has_data=bool(by_metric),
+        )
+
+    async def gateway_quality(
+        self, *, frm: datetime, to: datetime, device_id: uuid.UUID,
+    ) -> list[GatewayQuality]:
+        """Per-gateway (label) avg RTT, avg loss, and availability over the range."""
+        sql = text(
+            "SELECT label, "
+            "  avg(value) FILTER (WHERE metric = 'gateway.rtt_ms') AS rtt, "
+            "  avg(value) FILTER (WHERE metric = 'gateway.loss_pct') AS loss, "
+            "  avg(value) FILTER (WHERE metric = 'gateway.up') AS up "
+            "FROM metrics WHERE tenant_id = :tid AND device_id = :did "
+            "AND metric IN ('gateway.rtt_ms','gateway.loss_pct','gateway.up') "
+            "AND time >= :frm AND time < :to GROUP BY label ORDER BY label"
+        )
+        rows = (await self.session.execute(
+            sql, {"tid": self.tenant_id, "did": device_id, "frm": frm, "to": to}
+        )).all()
+        return [
+            GatewayQuality(
+                name=r.label or "—",
+                rtt_ms=round(float(r.rtt), 1) if r.rtt is not None else None,
+                loss_pct=round(float(r.loss), 1) if r.loss is not None else None,
+                up_pct=round(float(r.up) * 100.0, 1) if r.up is not None else 0.0,
+            )
+            for r in rows
+        ]
+
+    async def vpn_status(
+        self, *, frm: datetime, to: datetime, device_id: uuid.UUID,
+    ) -> list[VpnStatus]:
+        """Per-tunnel (label) availability over the range."""
+        sql = text(
+            "SELECT label, avg(value) AS up FROM metrics "
+            "WHERE tenant_id = :tid AND device_id = :did AND metric = 'vpn.up' "
+            "AND time >= :frm AND time < :to GROUP BY label ORDER BY label"
+        )
+        rows = (await self.session.execute(
+            sql, {"tid": self.tenant_id, "did": device_id, "frm": frm, "to": to}
+        )).all()
+        return [VpnStatus(name=r.label or "—", up_pct=round(float(r.up) * 100.0, 1)) for r in rows]
+
+    async def alerts_in_range(
+        self, *, frm: datetime, to: datetime, device_id: uuid.UUID, limit: int = 50,
+    ) -> list[AlertRow]:
+        """Alerts opened within the range for this device, newest first."""
+        sql = text(
+            "SELECT type, label, severity, opened_at, resolved_at FROM alerts "
+            "WHERE tenant_id = :tid AND device_id = :did AND opened_at >= :frm AND opened_at < :to "
+            "ORDER BY opened_at DESC LIMIT :limit"
+        )
+        rows = (await self.session.execute(
+            sql, {"tid": self.tenant_id, "did": device_id, "frm": frm, "to": to, "limit": min(limit, 200)}
+        )).all()
+        return [
+            AlertRow(type=r.type, label=r.label or "", severity=r.severity or "warning",
+                     opened_at=r.opened_at, resolved_at=r.resolved_at)
+            for r in rows
+        ]
+
+    async def config_changes_in_range(
+        self, *, frm: datetime, to: datetime, device_id: uuid.UUID, limit: int = 50,
+    ) -> tuple[int, list[ConfigChangeRow]]:
+        """(count, newest-first list) of config changes APPLIED to this device within the range."""
+        where = (
+            "tenant_id = :tid AND device_id = :did AND status = 'applied' "
+            "AND applied_at >= :frm AND applied_at < :to"
+        )
+        params = {"tid": self.tenant_id, "did": device_id, "frm": frm, "to": to}
+        count = (await self.session.execute(
+            text(f"SELECT count(*) AS c FROM config_changes WHERE {where}"), params
+        )).scalar_one()
+        rows = (await self.session.execute(
+            text(
+                f"SELECT kind, operation, target, applied_at FROM config_changes WHERE {where} "
+                "ORDER BY applied_at DESC LIMIT :limit"
+            ),
+            {**params, "limit": min(limit, 200)},
+        )).all()
+        items = [
+            ConfigChangeRow(kind=r.kind, operation=r.operation, target=r.target or "", applied_at=r.applied_at)
+            for r in rows
+        ]
+        return int(count), items
+
+    async def kpis(self, *, frm: datetime, to: datetime, bucket: str) -> Kpis:
+        """Tenant-level KPIs for the executive summary band."""
+        delta = _bucket_delta(bucket)
+        dev = (await self.session.execute(
+            text(
+                "SELECT count(*) AS total, count(*) FILTER (WHERE status = 'reachable') AS online "
+                "FROM devices WHERE tenant_id = :tid"
+            ),
+            {"tid": self.tenant_id},
+        )).one()
+        attacks = (await self.session.execute(
+            text(
+                "SELECT count(*) AS c FROM events "
+                "WHERE tenant_id = :tid AND source = 'ids' AND time >= :frm AND time < :to"
+            ),
+            {"tid": self.tenant_id, "frm": frm, "to": to},
+        )).scalar_one()
+        tin, tout = await self.bandwidth_totals(frm=frm, to=to, bucket=bucket, device_id=None)
+        alerts = (await self.session.execute(
+            text(
+                "SELECT count(*) AS c FROM alerts "
+                "WHERE tenant_id = :tid AND opened_at >= :frm AND opened_at < :to"
+            ),
+            {"tid": self.tenant_id, "frm": frm, "to": to},
+        )).scalar_one()
+        # Fleet-wide availability: share of (device, bucket) cells that recorded a successful poll.
+        n_buckets = max(1, int((to - frm) / delta))
+        total_devices = int(dev.total)
+        present = (await self.session.execute(
+            text(
+                "SELECT count(*) AS c FROM ("
+                "  SELECT device_id, time_bucket(:bucket, time) AS b FROM metrics "
+                "  WHERE tenant_id = :tid AND metric = 'cpu.pct' AND time >= :frm AND time < :to "
+                "  GROUP BY device_id, b"
+                ") s"
+            ),
+            {"bucket": delta, "tid": self.tenant_id, "frm": frm, "to": to},
+        )).scalar_one()
+        denom = total_devices * n_buckets
+        uptime = round(min(100.0, int(present) / denom * 100.0), 1) if denom else 0.0
+        return Kpis(
+            devices_total=total_devices,
+            devices_online=int(dev.online),
+            attacks_blocked=int(attacks),
+            data_total=tin + tout,
+            uptime_pct=uptime,
+            alerts_count=int(alerts),
+        )

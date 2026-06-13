@@ -2429,6 +2429,10 @@ export interface components {
             hour: number;
             /** Recipients */
             recipients?: string[];
+            /** Sections */
+            sections?: {
+                [key: string]: boolean;
+            } | null;
         };
         /** ReportScheduleOut */
         ReportScheduleOut: {
@@ -2449,6 +2453,10 @@ export interface components {
             hour: number;
             /** Recipients */
             recipients: string[];
+            /** Sections */
+            sections: {
+                [key: string]: boolean;
+            } | null;
             /** Next Run At */
             next_run_at: string | null;
             /** Last Run At */
@@ -2478,6 +2486,13 @@ export interface components {
              * @default
              */
             from_email: string;
+            /**
+             * Sections
+             * @default {}
+             */
+            sections: {
+                [key: string]: boolean;
+            };
         };
         /** ReportSettingsOut */
         ReportSettingsOut: {
@@ -2495,6 +2510,13 @@ export interface components {
             language: string;
             /** From Email */
             from_email: string;
+            /**
+             * Sections
+             * @default {}
+             */
+            sections: {
+                [key: string]: boolean;
+            };
         };
         /** RevokeIn */
         RevokeIn: {

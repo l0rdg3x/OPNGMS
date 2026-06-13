@@ -381,7 +381,7 @@ async def deliver_scheduled_report(ctx: dict, schedule_id: str, manual: bool = F
             settings = await ReportSettingsRepository(session, sched.tenant_id).get_or_default()
             pdf = await ReportService(session, sched.tenant_id).build_report(
                 tenant_name=tenant.name, frm=frm, to=to, locale=settings.language,
-                device_id=sched.device_id,
+                device_id=sched.device_id, section_overrides=sched.sections,
             )
             report = await GeneratedReportRepository(session, sched.tenant_id).create(
                 kind="scheduled", period_from=frm, period_to=to, created_by=None, pdf=pdf,

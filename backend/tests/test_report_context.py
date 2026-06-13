@@ -65,8 +65,10 @@ async def test_build_context_includes_applications_and_web_filter(db_engine):
         await s.commit()
     async with factory() as s:
         agg = ReportAggregator(s, tid)
+        # applications + web_filter default OFF (sample data) since report enrichment; enable them here.
         ctx = await build_context(agg, tenant_name="Acme", timezone_name="UTC", owner=None,
-                                  frm=base - timedelta(hours=1), to=base + timedelta(hours=1))
+                                  frm=base - timedelta(hours=1), to=base + timedelta(hours=1),
+                                  sections_enabled={"applications": True, "web_filter": True})
     sec = ctx.sections[0]
     assert sec.applications is not None and sec.web_filter is not None
     html = render_html(ctx)

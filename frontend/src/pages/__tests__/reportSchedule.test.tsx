@@ -69,4 +69,57 @@ describe("ReportSchedulePage", () => {
     await userEvent.click(screen.getByTestId("device-d1-save"));
     await waitFor(() => expect(putBody.device_id).toBe("d1"));
   });
+
+  it("per-device editor: customize-off sends sections: null", async () => {
+    let putBody: { sections?: Record<string, boolean> | null } = {};
+    server.use(
+      http.get(LIST, () => HttpResponse.json([])),
+      http.get(DEVICES, () => HttpResponse.json([{ id: "d1", name: "fw-1" }])),
+      http.put(LIST, async ({ request }) => {
+        putBody = (await request.json()) as { sections?: Record<string, boolean> | null };
+        return HttpResponse.json({ id: "s1", device_id: "d1", enabled: true, frequency: "weekly",
+          weekday: 0, hour: 4, recipients: [], sections: null, next_run_at: null, last_run_at: null });
+      }),
+    );
+    renderWithProviders(withTenant(<ReportSchedulePage />, "tenant_admin"));
+    await userEvent.click(await screen.findByTestId("device-schedule-row-d1"));
+
+    // The customize switch is present and off; section toggles are hidden.
+    const customize = await screen.findByTestId("device-d1-customize-sections");
+    expect(customize).not.toBeChecked();
+    expect(screen.queryByTestId("device-d1-section-toggle-summary")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("device-d1-save"));
+    await waitFor(() => expect(putBody.sections).toBeNull());
+  });
+
+  it("per-device editor: turning on customize reveals toggles and sends a non-null map", async () => {
+    let putBody: { sections?: Record<string, boolean> | null } = {};
+    server.use(
+      http.get(LIST, () => HttpResponse.json([])),
+      http.get(DEVICES, () => HttpResponse.json([{ id: "d1", name: "fw-1" }])),
+      http.put(LIST, async ({ request }) => {
+        putBody = (await request.json()) as { sections?: Record<string, boolean> | null };
+        return HttpResponse.json({ id: "s1", device_id: "d1", enabled: true, frequency: "weekly",
+          weekday: 0, hour: 4, recipients: [], sections: putBody.sections ?? null,
+          next_run_at: null, last_run_at: null });
+      }),
+    );
+    renderWithProviders(withTenant(<ReportSchedulePage />, "tenant_admin"));
+    await userEvent.click(await screen.findByTestId("device-schedule-row-d1"));
+
+    // Turn on customize; the ten section toggles appear.
+    await userEvent.click(await screen.findByTestId("device-d1-customize-sections"));
+    const summaryToggle = await screen.findByTestId("device-d1-section-toggle-summary");
+    expect(summaryToggle).toBeChecked();
+    expect(screen.getByTestId("device-d1-section-toggle-web_filter")).toBeInTheDocument();
+
+    // Toggle one off, then save: a non-null explicit map is sent.
+    await userEvent.click(summaryToggle);
+    await userEvent.click(screen.getByTestId("device-d1-save"));
+
+    await waitFor(() => expect(putBody.sections).not.toBeNull());
+    expect(putBody.sections).toMatchObject({ summary: false, health: true });
+    expect(Object.keys(putBody.sections ?? {})).toHaveLength(10);
+  });
 });
