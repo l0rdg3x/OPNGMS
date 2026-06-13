@@ -105,6 +105,7 @@ class ReportContext:
     sections: list[DeviceSection] = field(default_factory=list)
     logo_data_uri: str | None = None
     t: ReportText | None = None
+    locale: str = "en"
 
     def __post_init__(self) -> None:
         # The template always dereferences ctx.t; default to English so any ReportContext renders.
@@ -116,6 +117,17 @@ class ReportContext:
     @property
     def toc(self) -> list[str]:
         return [s.device_name for s in self.sections]
+
+    @property
+    def is_rtl(self) -> bool:
+        # Drives the template's dir="rtl" (+ CSS direction) for right-to-left languages (e.g. Arabic).
+        from app.services.reporting.i18n import is_rtl
+
+        return is_rtl(self.locale)
+
+    @property
+    def dir(self) -> str:
+        return "rtl" if self.is_rtl else "ltr"
 
 
 from datetime import UTC  # noqa: E402
@@ -219,4 +231,5 @@ async def build_context(
         sections=sections,
         logo_data_uri=logo_data_uri,
         t=t,
+        locale=locale,
     )
