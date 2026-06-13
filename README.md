@@ -48,9 +48,12 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   uptime, firmware), network (interfaces, gateways, VPN), and up/down status.
 - **Alerting** — threshold-based alerts evaluated on every poll, with an active/historical view.
 - **Event ingest** — incremental, deduplicated pull of Suricata IDS/IPS alerts and DNS queries.
-- **Reporting** — per-customer white-label PDF reports (attacks, web activity, data usage), localized
-  per tenant (en/it/es/fr/de/pt/nl), with **scheduled email delivery** (per-tenant **and** per-device,
-  weekly/monthly/on-demand) via a superadmin SMTP relay, white-label sender, "send now", and send-retry.
+- **Reporting** — per-customer white-label PDF reports with an **executive-summary KPI band** and
+  per-device sections (health, alerts & connectivity, firmware & config, attacks, web, data, status),
+  each **toggleable per tenant and per device**; localized across **all 12 languages** (incl. RTL Arabic),
+  with **scheduled email delivery** (per-tenant **and** per-device, weekly/monthly/on-demand) via a
+  superadmin SMTP relay, white-label sender, "send now", and send-retry.
+  **[See sample reports →](docs/demo-reports/)**
 - **Config management** — versioned, encrypted backup with drift detection, targeted **revert**, and a
   firewall-aware editing UI; optional **live config push** behind a default-OFF master switch.
 - **Device actions** — firmware update / major upgrade and plugin install/remove (now or scheduled), run
