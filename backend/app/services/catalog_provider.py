@@ -43,6 +43,30 @@ def _community_versions(manifest: dict) -> list[str]:
     return [k.split("/", 1)[1] for k in manifest.get("catalogs", {}) if k.startswith("community/")]
 
 
+def previous_version(versions: list[str], version: str) -> str | None:
+    """Highest published version strictly less than `version` (semver-ish), or None."""
+    target = _parse_version(version)
+    below = [v for v in versions if _parse_version(v) < target]
+    if not below:
+        return None
+    return max(below, key=_parse_version)
+
+
+async def published_versions(edition: str = "community") -> list[str]:
+    """All published versions for an edition (from the release manifest), sorted ascending.
+
+    Network-only (no cache): used by the diff endpoint to list selectable baselines. Returns [] on any
+    fetch error so the caller degrades to 'no baselines'."""
+    settings = get_settings()
+    base = settings.catalog_release_base_url.rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=True) as http:
+            manifest = (await http.get(f"{base}/manifest.json")).raise_for_status().json()
+    except (httpx.HTTPError, ValueError, KeyError):
+        return []
+    return sorted(_community_versions(manifest), key=_parse_version)
+
+
 def resolve_target(
     manifest: dict, business_base: dict | None, edition: str, version: str
 ) -> tuple[str, str] | None:
