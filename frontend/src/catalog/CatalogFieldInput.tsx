@@ -5,16 +5,19 @@ import type { CatalogField } from "./catalogTypes";
 /** A single catalog field as a controlled Mantine input. `value` is always a string
  *  (multienum = comma-joined keys); onChange reports the new string value for the path. */
 export function CatalogFieldInput({
-  field, value, onChange, disabled,
+  field, value, onChange, disabled, liveOptions,
 }: {
   field: CatalogField;
   value: string;
   onChange: (path: string, value: string) => void;
   disabled: boolean;
+  liveOptions?: { value: string; label: string }[];
 }) {
   const label = field.label || field.path;
   const testid = `catalog-field-${field.path}`;
-  const options = (field.options ?? []).map((o) => ({ value: o, label: o }));
+  // Live dropdown: prefer device-provided options for ref/enum/multienum.
+  const live = liveOptions && liveOptions.length > 0 ? liveOptions : null;
+  const options = live ?? (field.options ?? []).map((o) => ({ value: o, label: o }));
 
   if (field.type === "bool") {
     return (
@@ -32,7 +35,7 @@ export function CatalogFieldInput({
         onChange={(v) => onChange(field.path, v === "" || v == null ? "" : String(v))} />
     );
   }
-  if (field.type === "enum") {
+  if (field.type === "enum" || (field.type === "ref" && live)) {
     return (
       <Select
         label={label} data={options} data-testid={testid} disabled={disabled}

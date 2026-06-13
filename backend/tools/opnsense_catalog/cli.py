@@ -13,6 +13,7 @@ from tools.opnsense_catalog.emit import assemble_model, build_catalog, coverage_
 from tools.opnsense_catalog.endpoints import resolve_endpoints
 from tools.opnsense_catalog.fetch import fetch_source
 from tools.opnsense_catalog.form_parser import parse_forms
+from tools.opnsense_catalog.menu import discover_menus, merge_menus, parse_menu, resolve_model_ids
 from tools.opnsense_catalog.model_parser import parse_model
 from tools.opnsense_catalog.publish import build_manifest, parse_business_base, release_versions
 
@@ -29,8 +30,11 @@ def _generate(edition: str, version: str, source: Path) -> dict:
         eps, grid_eps, _conf = resolve_endpoints(src.module, parsed.grids, php or None)
         m = assemble_model(src.module, parsed, forms, eps, grid_eps, source="core")
         models.append(m)
-    return build_catalog(models, edition=edition, version=version,
-                         generated_from={"core": version})
+    cat = build_catalog(models, edition=edition, version=version,
+                        generated_from={"core": version})
+    fragments = [parse_menu(p.read_text()) for p in discover_menus(source)]
+    cat["menu"] = resolve_model_ids(merge_menus(fragments), set(cat["models"]))
+    return cat
 
 
 def _write_catalog(edition: str, version: str, source: Path, out_dir: Path) -> tuple[str, bytes]:

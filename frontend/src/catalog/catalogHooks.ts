@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
-import type { CatalogChangeBody, CatalogModel, CatalogModelLive } from "./catalogTypes";
+import type { CatalogChangeBody, CatalogModel, CatalogModelLive, MenuNode } from "./catalogTypes";
 
 export function useDeviceCatalog(deviceId: string) {
   const { activeId } = useTenant();
@@ -11,13 +11,13 @@ export function useDeviceCatalog(deviceId: string) {
   return useQuery({
     queryKey: ["device-catalog", activeId, deviceId],
     enabled: !!activeId && !!deviceId,
-    queryFn: async (): Promise<{ resolved_version: string; models: Record<string, CatalogModel> }> => {
+    queryFn: async (): Promise<{ resolved_version: string; models: Record<string, CatalogModel>; menu?: MenuNode[] }> => {
       const { data, error } = await api.GET(
         "/api/tenants/{tenant_id}/devices/{device_id}/catalog",
         { params: { path: { tenant_id: activeId!, device_id: deviceId } } },
       );
       if (error || !data) throw new Error(t.catalog.loadFailed);
-      return data as { resolved_version: string; models: Record<string, CatalogModel> };
+      return data as { resolved_version: string; models: Record<string, CatalogModel>; menu?: MenuNode[] };
     },
   });
 }

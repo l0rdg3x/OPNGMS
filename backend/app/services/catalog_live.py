@@ -3,7 +3,7 @@
 Pure + device-independent: the API layer fetches the raw `get` response and hands it here. Option/enum
 dicts are normalized to their selected key(s); grid (uuid-keyed) nodes are returned as row lists.
 """
-from app.services.opnsense_values import is_option_dict, selected
+from app.services.opnsense_values import is_option_dict, options, selected
 
 
 def _scalar(value) -> str | list[str] | None:
@@ -59,3 +59,49 @@ def extract_grid_rows(get_response: dict, model: dict, grid: dict) -> list[dict]
             row[fp] = leaf if leaf is not None else ""
         rows.append(row)
     return rows
+
+
+def extract_options(get_response: dict, model: dict) -> dict[str, list[dict]]:
+    """{field_path: [{value, label}]} for scalar fields the device renders as an option-dict
+    (enum/ref/interface). The live choices the editor needs for dropdowns."""
+    root = (get_response or {}).get(model.get("model_root", ""), {})
+    field_paths = {f["path"] for f in model.get("fields", [])}
+    out: dict[str, list[dict]] = {}
+
+    def walk(node, prefix: str) -> None:
+        if not isinstance(node, dict):
+            return
+        for key, val in node.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if is_option_dict(val):
+                if path in field_paths:
+                    out[path] = options(val)
+            elif isinstance(val, dict):
+                walk(val, path)
+
+    walk(root, "")
+    return out
+
+
+def extract_grid_options(get_response: dict, model: dict, grid: dict) -> dict[str, list[dict]]:
+    """{field_path: [{value, label}]} for a grid's cells the device renders as option-dicts.
+
+    Reads the FIRST existing row's cells for the choices (the option set is identical across rows).
+    """
+    root = (get_response or {}).get(model.get("model_root", ""), {})
+    node = root
+    for part in grid["path"].split("."):
+        node = node.get(part, {}) if isinstance(node, dict) else {}
+    out: dict[str, list[dict]] = {}
+    if not isinstance(node, dict):
+        return out
+    field_paths = [f["path"] for f in grid.get("fields", [])]
+    for cells in node.values():
+        if len(out) == len(field_paths):
+            break  # every grid field's choices already captured (first row wins) — stop scanning
+        if not isinstance(cells, dict):
+            continue
+        for fp in field_paths:
+            if fp not in out and is_option_dict(cells.get(fp)):
+                out[fp] = options(cells[fp])
+    return out

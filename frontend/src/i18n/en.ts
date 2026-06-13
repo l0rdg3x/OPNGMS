@@ -268,6 +268,8 @@ export const en = {
     proposed: "Draft change created — schedule it from the Config tab.",
     proposeFailed: "Could not create the change.",
     loadFailed: "Could not load the model.",
+    openWebgui: "Open in WebGUI",
+    searchAll: "Search settings…",
     grid: { add: "Add row", save: "Save", edit: "Edit", delete: "Delete", empty: "No rows." },
   },
   config: {

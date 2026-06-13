@@ -8,12 +8,13 @@ import type { CatalogGrid, CatalogGridOp, GridRow } from "./catalogTypes";
 /** Editable table for one ArrayField grid. Tracks add/edit/delete against the live `rows`
  *  and reports the accumulated grid ops via onOps. Values are strings (see CatalogFieldInput). */
 export function CatalogGridTable({
-  grid, rows, disabled, onOps,
+  grid, rows, disabled, onOps, fieldOptions = {},
 }: {
   grid: CatalogGrid;
   rows: GridRow[];
   disabled: boolean;
   onOps: (ops: CatalogGridOp[]) => void;
+  fieldOptions?: Record<string, { value: string; label: string }[]>;
 }) {
   const t = useT();
   const [ops, setOps] = useState<CatalogGridOp[]>([]);
@@ -75,6 +76,7 @@ export function CatalogGridTable({
         <Stack>
           {editing && grid.fields.map((f) => (
             <CatalogFieldInput key={f.path} field={f} value={editing.item[f.path] ?? ""} disabled={false}
+              liveOptions={fieldOptions[f.path]}
               onChange={(p, v) => setEditing({ ...editing, item: { ...editing.item, [p]: v } })} />
           ))}
           <Button onClick={save} data-testid={`catalog-grid-${grid.path}-save`}>

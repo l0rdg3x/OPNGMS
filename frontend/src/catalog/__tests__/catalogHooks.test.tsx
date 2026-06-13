@@ -9,6 +9,7 @@ import { server } from "../../test/server";
 import { TenantContext } from "../../tenant/TenantProvider";
 import { I18nProvider } from "../../i18n";
 import { useCatalogModel } from "../catalogHooks";
+import { useDeviceCatalog } from "../catalogHooks";
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -35,5 +36,22 @@ describe("useCatalogModel", () => {
     const { result } = renderHook(() => useCatalogModel("d1", "unbound"), { wrapper });
     await waitFor(() => expect(result.current.data?.reachable).toBe(true));
     expect(result.current.data?.values["general.enabled"]).toBe("1");
+  });
+});
+
+describe("useDeviceCatalog", () => {
+  it("returns the menu tree", async () => {
+    server.use(
+      http.get("*/api/tenants/t1/devices/d1/catalog", () =>
+        HttpResponse.json({
+          resolved_version: "26.1.8", models: {},
+          menu: [{ id: "Services", label: "Services", order: 50,
+                   children: [{ id: "Unbound", label: "Unbound DNS", order: 0,
+                                children: [{ id: "General", label: "General", order: 10,
+                                             url: "/ui/unbound/general", model_id: "unbound" }] }] }],
+        })),
+    );
+    const { result } = renderHook(() => useDeviceCatalog("d1"), { wrapper });
+    await waitFor(() => expect(result.current.data?.menu?.[0].id).toBe("Services"));
   });
 });

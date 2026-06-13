@@ -15,7 +15,7 @@ export function CatalogModelForm({
   onPropose: (body: CatalogChangeBody) => Promise<unknown>;
 }) {
   const t = useT();
-  const { model, values, grids, reachable, read_only } = live;
+  const { model, values, grids, field_options, grid_field_options, reachable, read_only } = live;
   const editable = reachable && !read_only;
 
   // Seed working scalar state from the live values (all as strings).
@@ -57,6 +57,7 @@ export function CatalogModelForm({
             if (!f) return null;
             return (
               <CatalogFieldInput key={path} field={f} value={work[path] ?? ""} disabled={!editable}
+                liveOptions={field_options[path]}
                 onChange={(p, v) => setWork((w) => ({ ...w, [p]: v }))} />
             );
           })}
@@ -66,6 +67,7 @@ export function CatalogModelForm({
         <Stack key={g.path} gap="xs">
           <Text fw={600}>{g.path}</Text>
           <CatalogGridTable grid={g} rows={grids[g.path] ?? []} disabled={!editable}
+            fieldOptions={grid_field_options[g.path] ?? {}}
             onOps={(ops) => setGridOps((m) => ({ ...m, [g.path]: ops }))} />
         </Stack>
       ))}

@@ -114,3 +114,18 @@ def test_generate_all_force_regenerates_all(tmp_path):
     assert (out / "community-26.1.7.json").exists()   # regenerated despite prior
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["catalogs"]["community/26.1.7"] != "PRIORSHA"  # fresh sha replaces the carried one
+
+
+def test_generate_emits_resolved_menu(tmp_path):
+    out = tmp_path / "26.1.8.json"
+    rc = main(["generate", "--edition", "community", "--version", "26.1.8",
+               "--source", str(_FIX), "--out", str(out)])
+    assert rc == 0
+    cat = json.loads(out.read_text())
+    menu = cat["menu"]
+    services = next(c for c in menu if c["id"] == "Services")
+    ids = next(g for g in services["children"] if g["id"] == "IDS")
+    admin = next(p for p in ids["children"] if p["id"] == "Administration")
+    assert admin["model_id"] == "ids"          # /ui/ids -> model 'ids'
+    log = next(p for p in ids["children"] if p["id"] == "Log")
+    assert log["model_id"] is None             # diagnostics -> unmapped

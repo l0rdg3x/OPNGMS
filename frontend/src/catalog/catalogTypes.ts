@@ -30,6 +30,8 @@ export type CatalogModelLive = {
   model: CatalogModel;
   values: Record<string, string | string[]>;
   grids: Record<string, GridRow[]>;
+  field_options: Record<string, { value: string; label: string }[]>;
+  grid_field_options: Record<string, Record<string, { value: string; label: string }[]>>;
   reachable: boolean;
   read_only: boolean;
 };
@@ -43,4 +45,14 @@ export type CatalogChangeBody = {
   model_id: string;
   scalars: Record<string, string>;
   grids: CatalogGridOp[];
+};
+
+export type MenuNode = {
+  id: string;
+  label: string;
+  order: number;
+  icon?: string;
+  url?: string;
+  model_id?: string | null;
+  children?: MenuNode[];
 };

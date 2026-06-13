@@ -74,7 +74,7 @@ export function DeviceDetailPage() {
           )}
         </Tabs.Panel>
         <Tabs.Panel value="editor" pt="md">
-          {deviceId && <CatalogEditorTab deviceId={deviceId} />}
+          {deviceId && <CatalogEditorTab deviceId={deviceId} baseUrl={device.base_url} />}
         </Tabs.Panel>
       </Tabs>
     </Stack>
