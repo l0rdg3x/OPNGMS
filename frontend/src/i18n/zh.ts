@@ -274,6 +274,7 @@ export const zh: Dict = {
     searchAll: "搜索设置…",
     grid: { add: "添加行", save: "保存", edit: "编辑", delete: "删除", empty: "无行。" },
     diff: { baseline: "对比版本", noBaseline: "没有更早的版本", newSince: "自 {v} 起新增", changedSince: "自 {v} 起更改", changes: "更改" },
+    map: { tabMenu: "菜单", tabMap: "配置映射", editInCatalog: "在目录中编辑", readOnly: "只读（无 API）", staleBanner: "已过期 — 设备无法访问；显示 {when} 的最近备份" },
   },
   config: {
     tabInfo: "信息",

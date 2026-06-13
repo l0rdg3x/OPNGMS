@@ -273,6 +273,7 @@ export const en = {
     searchAll: "Search settings…",
     grid: { add: "Add row", save: "Save", edit: "Edit", delete: "Delete", empty: "No rows." },
     diff: { baseline: "Compare with", noBaseline: "No earlier version", newSince: "New since {v}", changedSince: "Changed since {v}", changes: "changes" },
+    map: { tabMenu: "Menu", tabMap: "Config map", editInCatalog: "Edit in catalog", readOnly: "read-only (no API)", staleBanner: "Stale — device unreachable; showing the last backup from {when}" },
   },
   config: {
     tabInfo: "Info",

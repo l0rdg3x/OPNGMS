@@ -78,3 +78,25 @@ export type CatalogDiff = {
   available_baselines: string[];
   diff: CatalogDiffData;
 };
+
+// A node of the live config.xml tree, annotated by the backend with catalog coverage.
+// `editable` nodes fall under a catalog model's xml_path mount (→ `catalog_model_id`);
+// everything else is read-only (legacy / non-MVC, no API).
+export type MapNode = {
+  tag: string;
+  path: string;
+  attributes: Record<string, string | null>;
+  value?: string | null;
+  sensitive?: boolean;
+  editable: boolean;
+  catalog_model_id?: string;
+  children: MapNode[];
+};
+
+// The /config/map response: the live (or stale snapshot) config.xml tree, cross-referenced.
+export type ConfigMapResponse = {
+  source: "live" | "snapshot";
+  reachable: boolean;
+  taken_at?: string;
+  tree: MapNode;
+};

@@ -274,6 +274,7 @@ export const pt: Dict = {
     searchAll: "Procurar definições…",
     grid: { add: "Adicionar linha", save: "Guardar", edit: "Editar", delete: "Eliminar", empty: "Sem linhas." },
     diff: { baseline: "Comparar com", noBaseline: "Sem versão anterior", newSince: "Novo desde {v}", changedSince: "Alterado desde {v}", changes: "alterações" },
+    map: { tabMenu: "Menu", tabMap: "Mapa de config", editInCatalog: "Editar no catálogo", readOnly: "somente leitura (sem API)", staleBanner: "Desatualizado — dispositivo inacessível; mostrando o último backup de {when}" },
   },
   config: {
     tabInfo: "Informações",

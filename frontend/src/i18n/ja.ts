@@ -274,6 +274,7 @@ export const ja: Dict = {
     searchAll: "設定を検索…",
     grid: { add: "行を追加", save: "保存", edit: "編集", delete: "削除", empty: "行はありません。" },
     diff: { baseline: "比較対象", noBaseline: "以前のバージョンなし", newSince: "{v} 以降の新規", changedSince: "{v} 以降の変更", changes: "変更" },
+    map: { tabMenu: "メニュー", tabMap: "設定マップ", editInCatalog: "カタログで編集", readOnly: "読み取り専用（API なし）", staleBanner: "古い情報 — デバイスに到達できません。{when} の最新バックアップを表示しています" },
   },
   config: {
     tabInfo: "情報",

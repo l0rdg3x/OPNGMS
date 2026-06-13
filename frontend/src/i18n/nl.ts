@@ -274,6 +274,7 @@ export const nl: Dict = {
     searchAll: "Instellingen zoeken…",
     grid: { add: "Rij toevoegen", save: "Opslaan", edit: "Bewerken", delete: "Verwijderen", empty: "Geen rijen." },
     diff: { baseline: "Vergelijken met", noBaseline: "Geen eerdere versie", newSince: "Nieuw sinds {v}", changedSince: "Gewijzigd sinds {v}", changes: "wijzigingen" },
+    map: { tabMenu: "Menu", tabMap: "Config-kaart", editInCatalog: "Bewerken in catalogus", readOnly: "alleen-lezen (geen API)", staleBanner: "Verouderd — apparaat onbereikbaar; laatste back-up van {when} wordt getoond" },
   },
   config: {
     tabInfo: "Info",

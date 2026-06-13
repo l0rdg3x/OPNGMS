@@ -274,6 +274,7 @@ export const fr: Dict = {
     searchAll: "Rechercher des paramètres…",
     grid: { add: "Ajouter une ligne", save: "Enregistrer", edit: "Modifier", delete: "Supprimer", empty: "Aucune ligne." },
     diff: { baseline: "Comparer avec", noBaseline: "Aucune version antérieure", newSince: "Nouveau depuis {v}", changedSince: "Modifié depuis {v}", changes: "modifications" },
+    map: { tabMenu: "Menu", tabMap: "Carte de config", editInCatalog: "Modifier dans le catalogue", readOnly: "lecture seule (pas d'API)", staleBanner: "Obsolète — appareil injoignable ; affichage de la dernière sauvegarde du {when}" },
   },
   config: {
     tabInfo: "Infos",
