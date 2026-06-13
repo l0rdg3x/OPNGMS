@@ -33,6 +33,9 @@ class FakeClient:
     async def get_vpn_status(self):
         return []
 
+    async def get_plugin_info(self):
+        return {"product_version": "26.1.9", "plugins": [], "available": []}
+
 
 class FailClient:
     async def get_device_identity(self):

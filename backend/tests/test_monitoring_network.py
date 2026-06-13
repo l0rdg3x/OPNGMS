@@ -34,6 +34,9 @@ class NetClient:
     async def get_vpn_status(self):
         return [{"name": "wg0", "up": True}]
 
+    async def get_plugin_info(self):
+        return {"product_version": "26.1.9", "plugins": [], "available": []}
+
 
 async def _device(db_engine):
     f = async_sessionmaker(db_engine, expire_on_commit=False)
