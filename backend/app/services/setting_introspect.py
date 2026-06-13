@@ -5,19 +5,7 @@ option-dict -> select / multiselect; "0"|"1" -> switch; plain string -> text; ne
 recurse (dotted path). Fields in the endpoint's `exclude_fields` (hardware/device-specific) and
 non-dict/str leaves (lists) are skipped."""
 from app.connectors.opnsense.setting_endpoints import SettingEndpoint
-
-
-def _is_option_dict(v) -> bool:
-    return isinstance(v, dict) and len(v) > 0 and all(
-        isinstance(o, dict) and "selected" in o for o in v.values())
-
-
-def _options(v: dict) -> list[dict]:
-    return [{"value": k, "label": str(o.get("value", k))} for k, o in v.items()]
-
-
-def _selected(v: dict) -> list[str]:
-    return [k for k, o in v.items() if str(o.get("selected")) == "1"]
+from app.services.opnsense_values import is_option_dict, options, selected
 
 
 def infer_fields(get_response: dict, endpoint: SettingEndpoint) -> list[dict]:
@@ -32,12 +20,12 @@ def _walk(node: dict, prefix: str, ep: SettingEndpoint, out: list[dict]) -> None
         path = f"{prefix}.{key}" if prefix else key
         if path in ep.exclude_fields:
             continue
-        if _is_option_dict(val):
-            sel = _selected(val)
+        if is_option_dict(val):
+            sel = selected(val)
             multi = len(sel) >= 2 or path in ep.multi_fields
             out.append({"path": path, "label": key,
                         "control": "multiselect" if multi else "select",
-                        "options": _options(val),
+                        "options": options(val),
                         "value": sel if multi else (sel[0] if sel else "")})
         elif isinstance(val, str) and val in ("0", "1"):
             out.append({"path": path, "label": key, "control": "switch", "value": val})

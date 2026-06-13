@@ -3,7 +3,7 @@
 Reuses the setting-introspection classifiers. The flat `rule` model is walked once: device-specific
 reference fields and computed/display-mirror fields are excluded; the `interface` field's options are
 surfaced separately (they power the apply-time interface picker, not a template body field)."""
-from app.services.setting_introspect import _is_option_dict, _options, _selected
+from app.services.opnsense_values import is_option_dict, options, selected
 
 # Device-specific references / computed fields that must NOT be templated (not fleet-portable).
 _EXCLUDE = {
@@ -17,17 +17,17 @@ def infer_rule_fields(get_rule_response: dict) -> dict:
     fields: list[dict] = []
     interfaces: list[dict] = []
     for key, val in model.items():
-        if key == "interface" and _is_option_dict(val):
-            interfaces = _options(val)
+        if key == "interface" and is_option_dict(val):
+            interfaces = options(val)
             continue
         if key in _EXCLUDE or key.startswith("%"):
             continue
-        if _is_option_dict(val):
-            sel = _selected(val)
+        if is_option_dict(val):
+            sel = selected(val)
             multi = len(sel) >= 2
             fields.append({"path": key, "label": key,
                            "control": "multiselect" if multi else "select",
-                           "options": _options(val),
+                           "options": options(val),
                            "value": sel if multi else (sel[0] if sel else "")})
         elif isinstance(val, str) and val in ("0", "1"):
             fields.append({"path": key, "label": key, "control": "switch", "value": val})
