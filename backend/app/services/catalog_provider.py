@@ -43,6 +43,14 @@ def _community_versions(manifest: dict) -> list[str]:
     return [k.split("/", 1)[1] for k in manifest.get("catalogs", {}) if k.startswith("community/")]
 
 
+# A resolved (edition, version) is fetched into an asset URL and logged. Both come from the trusted
+# manifest, but a user-controlled baseline version reaches `get_catalog` via the diff API — gate them
+# to a strict shape (lowercase edition, dotted-numeric version) before any URL/log use: no path
+# traversal, SSRF, or log forging is possible from a value that matches these.
+_SAFE_EDITION = re.compile(r"\A[a-z]+\Z")
+_SAFE_VERSION = re.compile(r"\A\d+(?:\.\d+){0,3}\Z")
+
+
 def previous_version(versions: list[str], version: str) -> str | None:
     """Highest published version strictly less than `version` (semver-ish), or None."""
     target = _parse_version(version)
@@ -135,29 +143,32 @@ async def get_catalog(
                 target = resolve_target(manifest, business_base, edition, version)
                 if target is not None:
                     res_ed, res_ver = target
-                    row = await _cache_get(session, res_ed, res_ver)
-                    if row is not None:
-                        return row.content
-                    expected = manifest.get("catalogs", {}).get(f"{res_ed}/{res_ver}")
-                    raw = (
-                        await http.get(f"{base}/{res_ed}-{res_ver}.json")
-                    ).raise_for_status().content
-                    actual = hashlib.sha256(raw).hexdigest()
-                    # Fail closed: a missing manifest entry is NOT a pass — a tampered manifest that
-                    # drops the key while serving a malicious catalog must be rejected, not cached.
-                    if not expected:
-                        logger.warning(
-                            "catalog sha256 missing in manifest for %s/%s — rejected",
-                            res_ed, res_ver)
-                    elif actual != expected:
-                        logger.warning(
-                            "catalog sha256 mismatch for %s/%s — rejected", res_ed, res_ver)
+                    if not (_SAFE_EDITION.match(res_ed) and _SAFE_VERSION.match(res_ver)):
+                        target = None  # malformed identity — never let it reach the asset URL / logs
                     else:
-                        content = json.loads(raw)
-                        session.add(CatalogCache(
-                            edition=res_ed, version=res_ver, sha256=actual, content=content))
-                        await session.flush()
-                        return content
+                        row = await _cache_get(session, res_ed, res_ver)
+                        if row is not None:
+                            return row.content
+                        expected = manifest.get("catalogs", {}).get(f"{res_ed}/{res_ver}")
+                        raw = (
+                            await http.get(f"{base}/{res_ed}-{res_ver}.json")
+                        ).raise_for_status().content
+                        actual = hashlib.sha256(raw).hexdigest()
+                        # Fail closed: a missing manifest entry is NOT a pass — a tampered manifest that
+                        # drops the key while serving a malicious catalog must be rejected, not cached.
+                        if not expected:
+                            logger.warning(
+                                "catalog sha256 missing in manifest for %s/%s — rejected",
+                                res_ed, res_ver)
+                        elif actual != expected:
+                            logger.warning(
+                                "catalog sha256 mismatch for %s/%s — rejected", res_ed, res_ver)
+                        else:
+                            content = json.loads(raw)
+                            session.add(CatalogCache(
+                                edition=res_ed, version=res_ver, sha256=actual, content=content))
+                            await session.flush()
+                            return content
         except (httpx.HTTPError, ValueError, KeyError):
             pass  # fall through to the offline fallback
 
