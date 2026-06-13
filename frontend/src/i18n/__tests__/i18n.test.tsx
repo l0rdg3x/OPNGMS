@@ -1,17 +1,23 @@
-import { MantineProvider } from "@mantine/core";
+import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DirectionSync } from "../../components/DirectionSync";
 import { LanguageSwitcher } from "../../components/LanguageSwitcher";
+import { ar } from "../ar";
 import { de } from "../de";
 import { en } from "../en";
 import { es } from "../es";
 import { fr } from "../fr";
 import { I18nProvider, type Locale, useLocale, useT } from "../index";
 import { it as itDict } from "../it";
+import { ja } from "../ja";
 import { detectInitialLocale, SUPPORTED_LOCALES } from "../locale";
 import { nl } from "../nl";
 import { pt } from "../pt";
+import { ru } from "../ru";
+import { zh } from "../zh";
+import { zhTW } from "../zhTW";
 
 type Tree = Record<string, unknown>;
 
@@ -52,15 +58,16 @@ function flatten(obj: Tree, prefix = ""): string[] {
 
 describe("dictionary key parity", () => {
   const enKeys = flatten(en).sort();
-  const others: Record<string, Tree> = { it: itDict, es, fr, de, pt, nl };
+  const allDicts: Record<string, Tree> = {
+    en, it: itDict, es, fr, de, pt, nl, ru, ar, zh, "zh-TW": zhTW, ja,
+  };
 
   it("registers a dictionary for every supported locale", () => {
-    expect([...SUPPORTED_LOCALES].sort()).toEqual(
-      ["de", "en", "es", "fr", "it", "nl", "pt"],
-    );
+    expect(Object.keys(allDicts).sort()).toEqual([...SUPPORTED_LOCALES].sort());
   });
 
-  for (const [name, dict] of Object.entries(others)) {
+  for (const [name, dict] of Object.entries(allDicts)) {
+    if (name === "en") continue;
     it(`${name} has exactly the same keys as en`, () => {
       expect(flatten(dict).sort()).toEqual(enKeys);
     });
@@ -96,8 +103,28 @@ describe("detectInitialLocale", () => {
   });
 
   it("falls back to en for an unsupported browser language", () => {
-    setBrowserLanguages(["zh-CN"]);
+    setBrowserLanguages(["xh-ZA"]);
     expect(detectInitialLocale()).toBe("en");
+  });
+
+  it("matches an exact regional tag (zh-TW)", () => {
+    setBrowserLanguages(["zh-TW"]);
+    expect(detectInitialLocale()).toBe("zh-TW");
+  });
+
+  it("maps generic/mainland Chinese to Simplified", () => {
+    setBrowserLanguages(["zh-CN"]);
+    expect(detectInitialLocale()).toBe("zh");
+  });
+
+  it("maps Traditional Chinese regions/scripts to zh-TW", () => {
+    setBrowserLanguages(["zh-Hant-HK"]);
+    expect(detectInitialLocale()).toBe("zh-TW");
+  });
+
+  it("detects Arabic", () => {
+    setBrowserLanguages(["ar-EG"]);
+    expect(detectInitialLocale()).toBe("ar");
   });
 });
 
@@ -161,5 +188,33 @@ describe("LanguageSwitcher", () => {
       </I18nProvider>,
     );
     expect(screen.getByRole("combobox")).toHaveValue("Deutsch");
+  });
+});
+
+describe("DirectionSync (RTL)", () => {
+  afterEach(() => {
+    document.documentElement.removeAttribute("dir");
+  });
+
+  function renderWithDirection(locale: Locale) {
+    return render(
+      <I18nProvider locale={locale}>
+        <DirectionProvider>
+          <MantineProvider>
+            <DirectionSync />
+          </MantineProvider>
+        </DirectionProvider>
+      </I18nProvider>,
+    );
+  }
+
+  it("sets <html dir> to rtl for Arabic", () => {
+    renderWithDirection("ar");
+    expect(document.documentElement.getAttribute("dir")).toBe("rtl");
+  });
+
+  it("sets <html dir> to ltr for a left-to-right locale", () => {
+    renderWithDirection("ja");
+    expect(document.documentElement.getAttribute("dir")).toBe("ltr");
   });
 });

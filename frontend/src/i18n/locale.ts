@@ -4,7 +4,9 @@
 // involvement) — independent of the per-tenant report language. To add a language:
 // add its code here, a matching label, and a sibling dictionary wired in ./index.ts.
 
-export const SUPPORTED_LOCALES = ["en", "it", "es", "fr", "de", "pt", "nl"] as const;
+export const SUPPORTED_LOCALES = [
+  "en", "it", "es", "fr", "de", "pt", "nl", "ru", "ar", "zh", "zh-TW", "ja",
+] as const;
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
@@ -17,7 +19,20 @@ export const LOCALE_LABELS: Record<Locale, string> = {
   de: "Deutsch",
   pt: "Português",
   nl: "Nederlands",
+  ru: "Русский",
+  ar: "العربية",
+  zh: "简体中文",
+  "zh-TW": "繁體中文",
+  ja: "日本語",
 };
+
+// Right-to-left locales — the app flips layout direction for these (see DirectionSync).
+const RTL_LOCALES = new Set<Locale>(["ar"]);
+
+/** Whether the given locale uses a right-to-left script. */
+export function isRtl(locale: Locale): boolean {
+  return RTL_LOCALES.has(locale);
+}
 
 export const DEFAULT_LOCALE: Locale = "en";
 
@@ -41,9 +56,20 @@ export function detectInitialLocale(): Locale {
   }
   try {
     const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
-    for (const lang of langs) {
-      const prefix = lang?.toLowerCase().split("-")[0];
-      if (isLocale(prefix)) return prefix;
+    const supportedLower = SUPPORTED_LOCALES.map((l) => l.toLowerCase());
+    for (const raw of langs) {
+      if (!raw) continue;
+      const lang = raw.toLowerCase();
+      // Exact tag match first (e.g. `zh-TW` → `zh-TW`).
+      const exact = supportedLower.indexOf(lang);
+      if (exact >= 0) return SUPPORTED_LOCALES[exact];
+      // Chinese: pick Traditional vs Simplified by script/region; default Simplified.
+      if (lang.startsWith("zh")) {
+        return /hant|tw|hk|mo/.test(lang) ? "zh-TW" : "zh";
+      }
+      // Otherwise match by primary subtag (e.g. `fr-FR` → `fr`).
+      const prefix = supportedLower.indexOf(lang.split("-")[0]);
+      if (prefix >= 0) return SUPPORTED_LOCALES[prefix];
     }
   } catch {
     // navigator unavailable — fall through to default

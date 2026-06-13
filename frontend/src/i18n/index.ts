@@ -8,13 +8,18 @@ import {
   useMemo,
   useState,
 } from "react";
+import { ar } from "./ar";
 import { de } from "./de";
 import { en, type Dict } from "./en";
 import { es } from "./es";
 import { fr } from "./fr";
 import { it } from "./it";
+import { ja } from "./ja";
 import { nl } from "./nl";
 import { pt } from "./pt";
+import { ru } from "./ru";
+import { zh } from "./zh";
+import { zhTW } from "./zhTW";
 import {
   DEFAULT_LOCALE,
   detectInitialLocale,
@@ -30,7 +35,9 @@ export type { Locale } from "./locale";
 
 // Every supported locale's dictionary. Each is typed `: Dict`, so `tsc -b` guarantees
 // they all share en's exact key structure.
-const dictionaries: Record<Locale, Dict> = { en, it, es, fr, de, pt, nl };
+const dictionaries: Record<Locale, Dict> = {
+  en, it, es, fr, de, pt, nl, ru, ar, zh, "zh-TW": zhTW, ja,
+};
 
 interface I18nState {
   locale: Locale;
