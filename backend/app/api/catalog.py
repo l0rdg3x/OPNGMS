@@ -89,3 +89,30 @@ async def create_catalog_change(
         details={"model_id": body.model_id})
     await session.commit()
     return change
+
+
+@router.get("/devices/{device_id}/catalog")
+async def read_device_catalog(
+    tenant_id: uuid.UUID,
+    device_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """The device's catalog (schema only), denylist-flagged. Live values come at edit time (sub-3).
+
+    For a Business device, `resolved_*` is the Community base actually served (the shared core)."""
+    device = await _load_device(session, tenant_id, device_id)
+    catalog = await catalog_provider.get_catalog(session, device.edition, device.firmware_version or "")
+    if catalog is None:
+        raise HTTPException(status_code=404, detail="No catalog available for this device version")
+    models = {
+        mid: {**m, "read_only": mid in CATALOG_DENYLIST}
+        for mid, m in catalog.get("models", {}).items()
+    }
+    return {
+        "edition": device.edition or "community",
+        "version": device.firmware_version or "",
+        "resolved_edition": catalog.get("edition", ""),
+        "resolved_version": catalog.get("version", ""),
+        "models": models,
+    }

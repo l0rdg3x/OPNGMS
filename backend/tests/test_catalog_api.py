@@ -124,3 +124,32 @@ async def test_create_catalog_change_no_catalog_404(api_client, db_engine, monke
         json={"model_id": "unbound", "scalars": {"general.enabled": "1"}},
         headers=csrf_headers(api_client))
     assert r.status_code == 404
+
+
+async def test_read_catalog_returns_models_and_resolved(api_client, db_engine, monkeypatch):
+    monkeypatch.setattr(catalog_provider, "get_catalog", _fake_get_catalog)
+    tid = await _seed(db_engine)
+    did = await _device(db_engine, tid, edition="business", version="26.4")
+    await _login(api_client)
+    r = await api_client.get(
+        f"/api/tenants/{tid}/devices/{did}/catalog",
+        headers=csrf_headers(api_client))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["edition"] == "business" and body["version"] == "26.4"
+    # resolved_* come from the served catalog (Community shared core)
+    assert body["resolved_edition"] == "community" and body["resolved_version"] == "26.1.8"
+    assert body["models"]["interfaces"]["read_only"] is True
+    assert body["models"]["unbound"]["read_only"] is False
+
+
+async def test_read_catalog_404_when_unavailable(api_client, db_engine, monkeypatch):
+    async def _none(session, edition, version, **kw):
+        return None
+    monkeypatch.setattr(catalog_provider, "get_catalog", _none)
+    tid = await _seed(db_engine)
+    did = await _device(db_engine, tid)
+    await _login(api_client)
+    r = await api_client.get(
+        f"/api/tenants/{tid}/devices/{did}/catalog", headers=csrf_headers(api_client))
+    assert r.status_code == 404
