@@ -117,7 +117,13 @@ async def get_catalog(
                         await http.get(f"{base}/{res_ed}-{res_ver}.json")
                     ).raise_for_status().content
                     actual = hashlib.sha256(raw).hexdigest()
-                    if expected and actual != expected:
+                    # Fail closed: a missing manifest entry is NOT a pass — a tampered manifest that
+                    # drops the key while serving a malicious catalog must be rejected, not cached.
+                    if not expected:
+                        logger.warning(
+                            "catalog sha256 missing in manifest for %s/%s — rejected",
+                            res_ed, res_ver)
+                    elif actual != expected:
                         logger.warning(
                             "catalog sha256 mismatch for %s/%s — rejected", res_ed, res_ver)
                     else:

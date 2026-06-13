@@ -228,6 +228,11 @@ class OpnsenseClient:
         `reconfigure=False` skips the reload (the catalog applier batches one reconfigure at the end)."""
         if dry_run:
             return {"dry_run": True, "endpoint": set_path, "fields": sorted(payload.keys())}
+        # Defence-in-depth: the catalog_setting kind sources these paths from stored payload, so
+        # charset-validate BOTH up front (before any mutation) before embedding them in a URL.
+        _safe_endpoint(set_path)
+        if reconfigure:
+            _safe_endpoint(reconfigure_path)
         nested = _unflatten(payload)
         res = await self._post(set_path, {model_root: nested})
         if reconfigure:
@@ -236,7 +241,7 @@ class OpnsenseClient:
 
     async def reconfigure(self, reconfigure_path: str) -> dict:
         """Run a model's reconfigure/reload endpoint once (slow; long timeout)."""
-        return await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
+        return await self._post(_safe_endpoint(reconfigure_path), {}, timeout=RECONFIGURE_TIMEOUT)
 
     async def apply_grid_item(self, op: str, endpoints: dict, *, row: str,
                               uuid: str | None = None, item: dict | None = None,

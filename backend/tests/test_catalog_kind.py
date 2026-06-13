@@ -47,3 +47,16 @@ async def test_catalog_setting_dry_run_no_reconfigure():
 
 async def test_catalog_denylist_has_interfaces():
     assert "interfaces" in CATALOG_DENYLIST
+
+
+def test_preview_catalog_setting_redacts_values():
+    from app.models.config_change import ConfigChange
+    from app.services.config_push import preview_change
+    ch = ConfigChange(kind="catalog_setting", operation="set", target="unbound",
+                      payload={"scalars": {"general.password": "s3cr3t"},
+                               "grids": [{"op": "add", "row": "host", "item": {"x": "1"}}]})
+    out = preview_change(ch)
+    assert out["scalar_fields"] == ["general.password"]
+    assert out["grid_ops"] == [{"op": "add", "grid": "host"}]
+    assert "s3cr3t" not in str(out)
+    assert "new" not in out

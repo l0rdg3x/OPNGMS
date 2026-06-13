@@ -83,3 +83,20 @@ async def test_apply_grid_item_rejects_unsafe_endpoint():
     bad = {**_EPS, "del": "unbound/settings/delHostOverride/../danger"}
     with pytest.raises(ApiError):
         await _client().apply_grid_item("del", bad, row="host", uuid="abc", dry_run=False)
+
+
+async def test_apply_setting_rejects_unsafe_set_path():
+    with pytest.raises(ApiError):
+        await _client().apply_setting("../../auth/changepassword", "unbound/service/reconfigure",
+                                      "root", {"a": "1"}, dry_run=False)
+
+
+async def test_apply_setting_rejects_unsafe_reconfigure_path():
+    with pytest.raises(ApiError):
+        await _client().apply_setting("unbound/settings/set", "../../danger", "root",
+                                      {"a": "1"}, dry_run=False)
+
+
+async def test_reconfigure_rejects_unsafe_path():
+    with pytest.raises(ApiError):
+        await _client().reconfigure("../../danger")

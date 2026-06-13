@@ -112,3 +112,17 @@ async def test_get_model_returns_named_model(db_engine):
         model = await get_model(s, "community", "26.1.8", "unbound", base_url=_BASE, auto_fetch=True)
         assert model == {"id": "unbound"}
         assert await get_model(s, "community", "26.1.8", "nope", base_url=_BASE, auto_fetch=True) is None
+
+
+@respx.mock
+async def test_get_catalog_rejects_when_manifest_lacks_sha(db_engine, monkeypatch):
+    # Defensive fail-closed: a resolved version with no manifest sha must be rejected, not cached.
+    import app.services.catalog_provider as cp
+    monkeypatch.setattr(cp, "resolve_target", lambda *a, **k: ("community", "99.9.9"))
+    respx.get(f"{_BASE}/manifest.json").mock(
+        return_value=Response(200, json={"generated_at": "", "catalogs": {"community/26.1.8": _SHA}}))
+    respx.get(f"{_BASE}/community-99.9.9.json").mock(return_value=Response(200, content=_BLOB))
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        assert await get_catalog(s, "community", "0", base_url=_BASE, auto_fetch=True) is None
+        assert (await s.execute(select(CatalogCache))).first() is None
