@@ -77,7 +77,9 @@ export function CatalogGridTable({
             <CatalogFieldInput key={f.path} field={f} value={editing.item[f.path] ?? ""} disabled={false}
               onChange={(p, v) => setEditing({ ...editing, item: { ...editing.item, [p]: v } })} />
           ))}
-          <Button onClick={save} data-testid={`catalog-grid-${grid.path}-save`}>{t.catalog.grid.add}</Button>
+          <Button onClick={save} data-testid={`catalog-grid-${grid.path}-save`}>
+            {editing?.uuid ? t.catalog.grid.save : t.catalog.grid.add}
+          </Button>
         </Stack>
       </Modal>
     </Stack>

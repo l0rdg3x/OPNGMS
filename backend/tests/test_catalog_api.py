@@ -236,3 +236,27 @@ async def test_read_model_denylist_is_read_only_no_live(api_client, db_engine, m
     body = r.json()
     assert body["read_only"] is True
     assert body["values"] == {} and body["reachable"] is False
+
+
+async def test_create_catalog_change_no_reconfigure_endpoint_422(api_client, db_engine, monkeypatch):
+    # A model whose catalog entry has no reconfigure endpoint cannot be applied safely (partial-apply
+    # hazard: scalars/grids would write, then the reload fails) -> refuse at proposal time.
+    no_recon = {
+        "edition": "community", "version": "26.1.8",
+        "models": {"weird": {"id": "weird", "model_root": "weird",
+                             "endpoints": {"get": "weird/settings/get", "set": "weird/settings/set"},
+                             "fields": [{"path": "general.x", "type": "string"}], "grids": []}},
+    }
+
+    async def _fake(session, edition, version, **kw):
+        return no_recon
+
+    monkeypatch.setattr(catalog_provider, "get_catalog", _fake)
+    tid = await _seed(db_engine)
+    did = await _device(db_engine, tid)
+    await _login(api_client)
+    r = await api_client.post(
+        f"/api/tenants/{tid}/devices/{did}/catalog/changes",
+        json={"model_id": "weird", "scalars": {"general.x": "1"}},
+        headers=csrf_headers(api_client))
+    assert r.status_code == 422

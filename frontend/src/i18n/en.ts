@@ -268,7 +268,7 @@ export const en = {
     proposed: "Draft change created — schedule it from the Config tab.",
     proposeFailed: "Could not create the change.",
     loadFailed: "Could not load the model.",
-    grid: { add: "Add row", edit: "Edit", delete: "Delete", empty: "No rows." },
+    grid: { add: "Add row", save: "Save", edit: "Edit", delete: "Delete", empty: "No rows." },
   },
   config: {
     tabInfo: "Info",

@@ -52,9 +52,13 @@ def _build_payload(model: dict, body: CatalogChangeIn) -> dict:
             "op": opp.op, "endpoints": gdef.get("endpoints", {}),
             "row": opp.grid.split(".")[-1], "uuid": opp.uuid, "item": opp.item})
     eps = model.get("endpoints", {})
+    # The applier reloads the service ONCE after all scalar/grid writes. A model with no reconfigure
+    # endpoint would mutate the device then fail the reload (partial apply) — refuse at proposal time.
+    if not eps.get("reconfigure"):
+        raise HTTPException(status_code=422, detail="model has no reconfigure endpoint (cannot apply safely)")
     return {
         "model_id": model["id"], "set_path": eps.get("set", ""),
-        "reconfigure_path": eps.get("reconfigure", ""), "model_root": model.get("model_root", ""),
+        "reconfigure_path": eps["reconfigure"], "model_root": model.get("model_root", ""),
         "scalars": dict(body.scalars), "grids": grids_payload,
     }
 
@@ -151,7 +155,7 @@ async def read_catalog_model(
             verify_tls=device.verify_tls, tls_fingerprint=device.tls_fingerprint,
             edition=device.edition, version=device.firmware_version or "")
         raw = await client.get_setting(model["endpoints"]["get"])
-    except (OpnsenseError, InvalidToken, KeyError):
+    except (OpnsenseError, InvalidToken, ValueError, KeyError):
         return base  # unreachable / unreadable -> schema only, editing disabled
     base["reachable"] = True
     base["values"] = flatten_values(raw, model)
