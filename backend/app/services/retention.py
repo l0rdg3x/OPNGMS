@@ -3,8 +3,8 @@
 The purge runs in the worker as the DB owner (RLS-exempt — the only role that can drop TimescaleDB
 retention policies and that sees every tenant). It is NEVER called on a user-facing path.
 
-Disk caveat: until PR2 removes the native TimescaleDB retention policies on events/metrics, only the
-perimeter rollup is swept by this helper; events/metrics keep their global native policy until then.
+Migration 0039 removes the native TimescaleDB retention policies on events/metrics; the per-tenant
+``purge_events`` / ``purge_metrics`` sweeps below (run from the worker cron) take over enforcement.
 """
 from datetime import datetime
 
@@ -47,3 +47,19 @@ async def _purge_table(session: AsyncSession, *, table: str, time_col: str, stor
     """)
     res = await session.execute(stmt, {"now": now, "gd": global_default, "mn": _MIN, "mx": _MAX})
     return res.rowcount or 0
+
+
+async def purge_events(session: AsyncSession, now: datetime, *, global_default: int) -> int:
+    """Per-tenant retention sweep on the events hypertable (time < each tenant's effective cutoff).
+
+    Replaces the native TimescaleDB retention policy removed in migration 0039."""
+    return await _purge_table(session, table="events", time_col="time",
+                              store="events", now=now, global_default=global_default)
+
+
+async def purge_metrics(session: AsyncSession, now: datetime, *, global_default: int) -> int:
+    """Per-tenant retention sweep on the metrics hypertable (time < each tenant's effective cutoff).
+
+    Replaces the native TimescaleDB retention policy removed in migration 0039."""
+    return await _purge_table(session, table="metrics", time_col="time",
+                              store="metrics", now=now, global_default=global_default)
