@@ -28,3 +28,21 @@ def test_worker_exposes_config_change_apply():
     from app.worker import WorkerSettings, apply_config_change
 
     assert apply_config_change in WorkerSettings.functions
+
+
+def test_worker_registers_perimeter_retention():
+    from app.worker import WorkerSettings, purge_perimeter_attackers
+
+    assert purge_perimeter_attackers in WorkerSettings.functions
+    # the daily retention cron is registered (>= the previous count + 1)
+    assert len(WorkerSettings.cron_jobs) >= 9
+
+
+def test_ingest_device_events_runs_perimeter(monkeypatch):
+    # ingest_device_events must call ingest_perimeter (best-effort, same client).
+    import inspect
+
+    from app import worker
+
+    src = inspect.getsource(worker.ingest_device_events)
+    assert "ingest_perimeter(" in src

@@ -440,6 +440,14 @@ class OpnsenseClient:
         """`since` is accepted for caller convenience; filtering/dedup happen downstream."""
         return await self._capability("dns_events")
 
+    async def get_firewall_blocks(self, since: datetime | None = None) -> list[dict]:
+        """Blocked-traffic attacker IPs from the firewall log. `since` filtered downstream."""
+        return await self._capability("firewall_blocks")
+
+    async def get_auth_failures(self, since: datetime | None = None) -> list[dict]:
+        """Failed-login attempts (attacker IP + user) from the audit log. `since` filtered downstream."""
+        return await self._capability("auth_failures")
+
     async def get_plugin_info(self) -> dict:
         return await self._capability("plugin_info")
 

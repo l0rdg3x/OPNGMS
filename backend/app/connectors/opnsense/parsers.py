@@ -254,3 +254,62 @@ def series_of(s) -> str:
     """'26.1.9_1' -> '26.1' (the YY.M series; point/hotfix ignored)."""
     y, m, _, _ = parse_version(s)
     return f"{y}.{m}"
+
+
+def parse_firewall_blocks(data) -> list[dict]:
+    """diagnostics/firewall/log rows -> normalized firewall-BLOCK observations (action=block only).
+
+    Structured source; `__digest__` is the per-line dedup key. Defensive toward missing keys; the
+    firewall log returns a bare JSON array, which `_rows` already handles."""
+    out: list[dict] = []
+    for r in _rows(data):
+        if not isinstance(r, dict) or str(r.get("action", "")).lower() != "block":
+            continue
+        src = r.get("src", "")
+        if not src:
+            continue
+        ts = parse_ts(r.get("__timestamp__") or r.get("timestamp"))
+        key = r.get("__digest__") or event_key(ts, src, r.get("dst", ""), r.get("dstport", ""))
+        out.append({
+            "time": ts,
+            "src_ip": src,
+            "name": str(r.get("dstport", "")),  # the targeted port
+            "event_key": str(key),
+            "attributes": {k: r.get(k) for k in ("dst", "dstport", "srcport", "interface", "protoname")},
+        })
+    return out
+
+
+# Failed-login lines on OPNsense's audit log (process_name="audit") name the attempted user + the
+# remote IP. Matches the known failure families ("authentication failed", "could not authenticate",
+# "wrong password", "login failed", "denied") followed by `user '<name>' ... from[:] <ip>`. Fail-safe:
+# an unrecognized line is skipped (NEVER crashes ingest). Verify/extend against a really-attacked box.
+_AUTH_FAIL = re.compile(
+    r"(?:authentication failed|could not authenticate|wrong (?:password|username)|login failed|denied)"
+    r".*?user '(?P<user>[^']+)'.*?from[: ]+(?P<ip>\d{1,3}(?:\.\d{1,3}){3})",
+    re.IGNORECASE,
+)
+
+
+def parse_auth_failures(data) -> list[dict]:
+    """diagnostics/log/core/audit rows -> failed-login observations (process_name=audit only).
+
+    Text-log parsing; fail-safe (an unrecognized line is skipped). Extracts the attempted username +
+    the source IP."""
+    out: list[dict] = []
+    for r in _rows(data, "rows"):
+        if not isinstance(r, dict) or r.get("process_name") != "audit":
+            continue
+        m = _AUTH_FAIL.search(str(r.get("line", "")))
+        if not m:
+            continue
+        ts = parse_ts(r.get("timestamp"))
+        ip, user = m.group("ip"), m.group("user")
+        out.append({
+            "time": ts,
+            "src_ip": ip,
+            "name": user,
+            "event_key": event_key(ts, ip, user),
+            "attributes": {"username": user, "severity": r.get("severity", "")},
+        })
+    return out

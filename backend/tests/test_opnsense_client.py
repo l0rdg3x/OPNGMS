@@ -78,3 +78,27 @@ def test_client_timeout_defaults_to_setting(monkeypatch):
         assert c2._timeout == 1.0
     finally:
         config.get_settings.cache_clear()
+
+
+@respx.mock
+async def test_get_firewall_blocks_returns_blocks_only():
+    url = f"{BASE}/api/diagnostics/firewall/log"
+    respx.get(url).mock(return_value=httpx.Response(200, json=[
+        {"action": "block", "src": "1.1.1.1", "dstport": "22", "interface": "igb0",
+         "__timestamp__": "2026-06-14T10:00:00", "__digest__": "d1"},
+        {"action": "pass", "src": "10.0.0.1", "__timestamp__": "2026-06-14T10:00:01", "__digest__": "d2"},
+    ]))
+    out = await OpnsenseClient(BASE, "k", "s").get_firewall_blocks()
+    assert len(out) == 1 and out[0]["src_ip"] == "1.1.1.1" and out[0]["event_key"] == "d1"
+
+
+@respx.mock
+async def test_get_auth_failures_parses_audit_log_post():
+    url = f"{BASE}/api/diagnostics/log/core/audit"
+    route = respx.post(url).mock(return_value=httpx.Response(200, json={"rows": [
+        {"timestamp": "2026-06-14T10:00:00", "process_name": "audit",
+         "line": " authentication failed for user 'admin' from 203.0.113.7"},
+    ]}))
+    out = await OpnsenseClient(BASE, "k", "s").get_auth_failures()
+    assert route.called  # the audit log is queried via POST, not GET
+    assert len(out) == 1 and out[0]["src_ip"] == "203.0.113.7" and out[0]["name"] == "admin"
