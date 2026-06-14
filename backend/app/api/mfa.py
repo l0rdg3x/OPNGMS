@@ -74,6 +74,10 @@ async def mfa_setup(
     row.totp_secret_enc = crypto.encrypt(secret)
     row.confirmed_at = None
     row.last_used_step = None
+    await AuditService(session).record(
+        actor_user_id=user.id, tenant_id=None, action="mfa.setup_start",
+        target_type="user", target_id=str(user.id), ip=None, details={},
+    )
     await session.commit()
     return SetupOut(otpauth_uri=mfa_svc.provisioning_uri(secret, user.email), secret=secret)
 

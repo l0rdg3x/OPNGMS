@@ -99,3 +99,27 @@ async def test_send_now_writes_audit(api_client, session_factory):
             await s.execute(select(AuditLog).where(AuditLog.action == "report.schedule.send_now"))
         ).scalars().all()
     assert len(rows) == 1 and rows[0].target_id == str(sched_id)
+
+
+async def test_mfa_setup_writes_audit(api_client, session_factory):
+    email = "mfauser@test.com"
+    async with session_factory() as s:
+        user = await make_user(s, email=email, password="pw12345-secure")
+        await s.commit()
+        user_id = user.id
+    r = await api_client.post("/api/login", json={"email": email, "password": "pw12345-secure"})
+    assert r.status_code == 200
+    csrf = api_client.cookies.get("opngms_csrf")
+    r = await api_client.post(
+        "/api/me/mfa/setup",
+        json={"password": "pw12345-secure"},
+        headers={"X-OPNGMS-CSRF": csrf},
+    )
+    assert r.status_code == 200
+    async with session_factory() as s:
+        rows = (
+            await s.execute(select(AuditLog).where(AuditLog.action == "mfa.setup_start"))
+        ).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].tenant_id is None
+    assert rows[0].target_id == str(user_id)
