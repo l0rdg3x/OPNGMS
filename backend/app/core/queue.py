@@ -16,7 +16,7 @@ async def enqueue(name: str, *args, defer_until: datetime | None = None) -> None
         kwargs = {"_defer_until": defer_until} if defer_until is not None else {}
         await pool.enqueue_job(name, *args, **kwargs)
     finally:
-        await pool.close()
+        await pool.aclose()
 
 
 async def get_enqueuer():
