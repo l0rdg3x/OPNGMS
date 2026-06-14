@@ -53,3 +53,23 @@ async def test_per_tenant_cutoffs_and_isolation(two_tenants, db_engine):
     assert deleted == 2
     # A: 10d row gone (>7d), 3d row kept. B: 40d gone (>30d), 20d kept (within 30d, NOT cut at A's 7d).
     assert remaining == {"10.0.0.2", "10.0.1.2"}
+
+
+async def test_non_numeric_override_falls_back_to_global(two_tenants, db_engine):
+    """A hand-edited / non-numeric override must NOT crash the purge — it falls back to the global default."""
+    ta, _ = two_tenants
+    now = datetime(2026, 6, 14, 12, 0, tzinfo=UTC)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        da = await _device(s, ta)
+        # Write a bogus override directly (the API would reject this; a manual DB edit could produce it).
+        await s.execute(text(
+            "INSERT INTO tenant_retention (tenant_id, overrides) VALUES (:t, '{\"perimeter\": \"oops\"}'::jsonb)"
+        ), {"t": ta})
+        s.add(_row(da, ta, "10.0.0.1", now - timedelta(days=40)))  # older than the 30d global
+        s.add(_row(da, ta, "10.0.0.2", now - timedelta(days=5)))   # within the 30d global
+        await s.commit()
+        deleted = await purge_perimeter(s, now, global_default=30)  # must not raise
+        await s.commit()
+        remaining = {r.src_ip for r in (await s.execute(select(PerimeterAttacker))).scalars().all()}
+    assert deleted == 1 and remaining == {"10.0.0.2"}  # global 30d applied, not a crash

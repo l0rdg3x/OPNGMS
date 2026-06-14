@@ -43,7 +43,9 @@ async def put_retention(
     await AuditService(session).record(
         actor_user_id=ctx.user.id, tenant_id=tenant_id, action="tenant.retention.update",
         target_type="tenant_retention", target_id=str(tenant_id),
-        ip=request.client.host if request.client else None, details={"keys": sorted(body.values)},
+        ip=request.client.host if request.client else None, details={"patch": dict(body.values)},
     )
+    # Read the defaults before committing (the session's state after commit is intentionally not relied on).
+    defaults = await _defaults(session)
     await session.commit()
-    return RetentionOut(overrides=merged, defaults=await _defaults(session))
+    return RetentionOut(overrides=merged, defaults=defaults)

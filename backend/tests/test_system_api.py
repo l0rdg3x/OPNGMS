@@ -36,9 +36,12 @@ async def test_superadmin_get_runtime_settings(api_client, db_engine):
     r = await api_client.get("/api/admin/settings")
     assert r.status_code == 200
     settings = {s["key"]: s for s in r.json()["settings"]}
-    # all ten runtime-safe settings are exposed (every consumer is wired)
-    assert len(settings) == 10
+    # all eleven ACTIVE runtime-safe settings are exposed (consumer wired): the original ten + the
+    # perimeter retention default. events/metrics retention are inactive until PR2 wires their purge.
+    assert len(settings) == 11
     assert "session_ttl_hours" in settings and "login_max_attempts" in settings
+    assert settings["perimeter_retention_days"]["value"] == 30 == settings["perimeter_retention_days"]["default"]
+    assert "events_retention_days" not in settings and "metrics_retention_days" not in settings
     # effective == default when nothing is overridden
     assert settings["session_ttl_hours"]["value"] == 12 == settings["session_ttl_hours"]["default"]
     assert settings["session_ttl_hours"]["kind"] == "int"

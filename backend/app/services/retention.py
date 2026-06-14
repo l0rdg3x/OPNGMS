@@ -24,13 +24,22 @@ def effective_retention_days(store: str, *, global_default: int, tenant_override
 
 async def _purge_table(session: AsyncSession, *, table: str, time_col: str, store: str,
                        now: datetime, global_default: int) -> int:
-    """One statement: per-tenant cutoff from (tenants LEFT JOIN tenant_retention), clamped to [1,3650]."""
+    """One statement: per-tenant cutoff from (tenants LEFT JOIN tenant_retention), clamped to [1,3650].
+
+    `table`, `time_col` and `store` are internal constants (only this module's wrappers pass them) — never
+    request-derived — so the f-string interpolation is safe by construction. The override is read defensively:
+    only an all-digits string is used (a hand-edited / non-numeric JSONB value falls back to the global
+    default instead of raising a cast error that would abort the whole purge).
+    """
     stmt = text(f"""
         DELETE FROM {table} d
         USING (
             SELECT t.id AS tenant_id,
-                   CAST(:now AS timestamptz) - make_interval(days => LEAST(:mx, GREATEST(:mn,
-                       COALESCE(NULLIF(tr.overrides->>'{store}', '')::int, :gd)))) AS cutoff
+                   CAST(:now AS timestamptz) - make_interval(days => CASE
+                       WHEN tr.overrides->>'{store}' ~ '^[0-9]+$'
+                       THEN LEAST(:mx, GREATEST(:mn, (tr.overrides->>'{store}')::int))
+                       ELSE :gd
+                   END) AS cutoff
             FROM tenants t
             LEFT JOIN tenant_retention tr ON tr.tenant_id = t.id
         ) c
