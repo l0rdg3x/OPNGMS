@@ -15,10 +15,13 @@ from app.repositories.metric import MAX_POINTS, MetricRepository
 from app.schemas.alert import AlertOut
 from app.schemas.health import CountryCountOut, HealthOut
 from app.schemas.metric import MetricSeriesOut
+from app.schemas.perimeter import PerimeterAttackerOut
 from app.services.geoip_provider import get_geoip
 from app.services.reporting.aggregation import ReportAggregator
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["monitoring"])
+
+_PERIMETER_KINDS = {"login_failed", "firewall_block"}
 
 # Cap the breakdown so a widget/report never has to render an unbounded list of countries.
 _ATTACKER_COUNTRIES_LIMIT = 20
@@ -136,3 +139,38 @@ async def attacker_countries(
         frm=start, to=end, device_id=device_id, limit=_ATTACKER_COUNTRIES_LIMIT, geoip=geoip,
     )
     return [CountryCountOut(code=r.code, count=r.count, pct=r.pct) for r in rows]
+
+
+@router.get("/perimeter/attackers", response_model=list[PerimeterAttackerOut])
+async def perimeter_attackers(
+    tenant_id: uuid.UUID,
+    kind: str = Query(...),
+    frm: datetime | None = Query(None),
+    to: datetime | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    device_id: uuid.UUID | None = Query(None),
+    ctx: TenantContext = Depends(require_tenant(Action.DEVICE_VIEW)),
+    session: AsyncSession = Depends(get_session),
+) -> list[PerimeterAttackerOut]:
+    """Top attacker IPs for a perimeter `kind` ('login_failed' | 'firewall_block'), ranked by cumulative
+    count, active in the window (defaults to the last 7 days). Country is resolved offline via the
+    cached mmdb (UNKNOWN if no mmdb). Serves both the Overview cards (small limit) and the /perimeter
+    page (larger limit)."""
+    if kind not in _PERIMETER_KINDS:
+        raise HTTPException(status_code=422, detail=f"unknown kind: {kind!r}")
+    now = datetime.now(UTC)
+    start = _ensure_utc(frm) or (now - timedelta(days=7))
+    end = _ensure_utc(to) or now
+    if start >= end:
+        raise HTTPException(status_code=400, detail="Invalid interval: 'frm' must precede 'to'")
+    if end - start > timedelta(days=92):
+        raise HTTPException(status_code=400, detail="Range must not exceed 92 days")
+    geoip = await get_geoip(session)  # None is fine: country -> UNKNOWN (this view is IP-based)
+    rows = await ReportAggregator(session, tenant_id).perimeter_top(
+        kind=kind, frm=start, to=end, geoip=geoip, limit=limit, device_id=device_id,
+    )
+    return [
+        PerimeterAttackerOut(src_ip=r.src_ip, country=r.country, count=r.count,
+                             last_seen=r.last_seen, label=r.label)
+        for r in rows
+    ]

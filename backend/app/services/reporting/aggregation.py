@@ -99,6 +99,25 @@ class CountryCount:
 
 
 @dataclass
+class PerimeterRow:
+    """One attacker IP in the perimeter view: resolved country, cumulative count, last-seen, a label
+    (the last attempted username for failed logins / the most-targeted port for firewall blocks)."""
+    src_ip: str
+    country: str
+    count: int
+    last_seen: datetime
+    label: str
+
+
+def _perimeter_label(kind: str, detail: dict) -> str:
+    """Display label for a perimeter attacker row from its rollup detail."""
+    if kind == "firewall_block":
+        ports = detail.get("top_ports") or []
+        return str(ports[0]) if ports else ""
+    return str(detail.get("last_username") or "")
+
+
+@dataclass
 class Kpis:
     devices_total: int
     devices_online: int
@@ -469,3 +488,39 @@ class ReportAggregator:
         if limit is not None:
             counts = counts[:limit]
         return counts
+
+    async def perimeter_top(
+        self, *, kind: str, frm: datetime, to: datetime, geoip: GeoIp | None,
+        limit: int, device_id: uuid.UUID | None = None,
+    ) -> list[PerimeterRow]:
+        """Top attacker IPs for a perimeter `kind` active in [frm, to], ranked by cumulative count.
+
+        Reads the bounded `perimeter_attacker` rollup (already per-src_ip per device) and aggregates by
+        src_ip ACROSS devices: SUM(count), MAX(last_seen), most-recent detail. `count` is cumulative —
+        the rollup is not per-window — so the window filters WHICH attackers (by last_seen), not the
+        count. label = last attempted username (login_failed) / most-targeted port (firewall_block).
+        Country via the injected GeoIp; empty input -> []."""
+        clauses = ["tenant_id = :tid", "kind = :kind", "last_seen >= :frm", "last_seen < :to"]
+        params: dict = {"tid": self.tenant_id, "kind": kind, "frm": frm, "to": to, "lim": limit}
+        if device_id is not None:
+            clauses.append("device_id = :did")
+            params["did"] = device_id
+        where = " AND ".join(clauses)
+        sql = text(
+            "SELECT src_ip, sum(count) AS c, max(last_seen) AS seen, "
+            "(array_agg(detail ORDER BY last_seen DESC))[1] AS detail "
+            f"FROM perimeter_attacker WHERE {where} "
+            "GROUP BY src_ip ORDER BY c DESC, src_ip LIMIT :lim"
+        )
+        rows = (await self.session.execute(sql, params)).all()
+        out: list[PerimeterRow] = []
+        for r in rows:
+            detail = r.detail if isinstance(r.detail, dict) else {}
+            out.append(PerimeterRow(
+                src_ip=str(r.src_ip),
+                country=(geoip.country(str(r.src_ip)) if geoip else None) or UNKNOWN,
+                count=int(r.c),
+                last_seen=r.seen,
+                label=_perimeter_label(kind, detail),
+            ))
+        return out
