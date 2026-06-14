@@ -29,7 +29,7 @@ async def _purge_table(session: AsyncSession, *, table: str, time_col: str, stor
         DELETE FROM {table} d
         USING (
             SELECT t.id AS tenant_id,
-                   :now - make_interval(days => LEAST(:mx, GREATEST(:mn,
+                   CAST(:now AS timestamptz) - make_interval(days => LEAST(:mx, GREATEST(:mn,
                        COALESCE(NULLIF(tr.overrides->>'{store}', '')::int, :gd)))) AS cutoff
             FROM tenants t
             LEFT JOIN tenant_retention tr ON tr.tenant_id = t.id
