@@ -50,6 +50,12 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   uptime, firmware), network (interfaces, gateways, VPN), and up/down status.
 - **Alerting** — threshold-based alerts evaluated on every poll, with an active/historical view.
 - **Event ingest** — incremental, deduplicated pull of Suricata IDS/IPS alerts and DNS queries.
+- **Security / Perimeter** — surfaces the attackers hitting each box: **failed logins** (source IP +
+  attempted username, from the OPNsense audit log) and **firewall blocks** (source IP + targeted port,
+  from the structured firewall log), each resolved to a **country** via the offline GeoIP layer. Shown
+  as Overview cards and a dedicated **Perimeter** page (ranked per-IP, 24h/7d/30d), and as two PDF
+  report sections (toggled with the other report sections). Backed by a bounded per-attacker-IP rollup
+  with daily retention.
 - **Reporting** — per-customer white-label PDF reports with an **executive-summary KPI band** and
   per-device sections (health, alerts & connectivity, firmware & config, attacks, web, data, status),
   each **toggleable per tenant and per device**; localized across **all 12 languages** (incl. RTL Arabic),
@@ -71,7 +77,12 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Log lake** (optional) — managed firewalls ship syslog over **mTLS** into **OpenSearch**;
   enable/rotate/revoke forwarding per device, investigate from a tenant-scoped **Logs** page, and watch
   the estate from a superadmin **Log fleet** dashboard.
-- **Localized, multi-tenant UI** — fleet overview + per-device charts; **12-language** SPA with full RTL.
+- **Configurable tunables** — operational knobs are either deploy-time (`.env`: worker concurrency, DB
+  pool, connector timeout) or **runtime-editable** from a superadmin **System** page (firmware poll
+  budget, catalog/GeoIP auto-fetch, silent-tenant detector, login brute-force limits, session TTL/idle),
+  with the env value as the default and a live DB override — no restart, no fork.
+- **Localized, multi-tenant UI** — fleet overview + per-device charts; **fully translated 12-language**
+  SPA with full RTL (every page, including the System and Log-fleet admin screens).
 
 ## Screenshots
 
@@ -81,10 +92,12 @@ and localized into **12 languages** (with full right-to-left support).
 | Fleet overview | Version-aware config editor (OPNsense-like) |
 |---|---|
 | [![Overview](docs/ui/overview.png)](docs/ui/overview.png) | [![Config editor](docs/ui/config-editor.png)](docs/ui/config-editor.png) |
+| **Perimeter — failed logins & firewall blocks (GeoIP)** | **System — runtime settings** |
+| [![Perimeter](docs/ui/perimeter.png)](docs/ui/perimeter.png) | [![System runtime settings](docs/ui/system.png)](docs/ui/system.png) |
 
 > **📸 Full gallery → [Screenshots wiki page](https://github.com/l0rdg3x/OPNGMS/wiki/Screenshots)** — devices &
-> health, the GeoIP attacker-countries view, templates, reporting, MFA, access groups, the log fleet, RTL, and more.
-> Sample PDF reports live under [`docs/demo-reports/`](docs/demo-reports/).
+> health, the GeoIP attacker-countries view, the perimeter view, templates, reporting, runtime settings, MFA,
+> access groups, the log fleet, RTL, and more. Sample PDF reports live under [`docs/demo-reports/`](docs/demo-reports/).
 
 | Right-to-left layout (Arabic) | Access groups (group-based RBAC) |
 |---|---|
@@ -189,7 +202,9 @@ version tag).
 | **Foundation & inventory** — auth/RBAC, org admin, device onboarding, encrypted secrets, SPA shell | ✅ Done |
 | **Monitoring** — poller, health + network metrics, alerting, dashboard | ✅ Done |
 | **Event ingest** — Suricata IDS + DNS into the `events` hypertable, keyset-paginated query API | ✅ Done |
-| **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 7-language localization | ✅ Done |
+| **Security / Perimeter** — failed logins + firewall blocks per attacker IP (GeoIP country), bounded rollup + retention; Overview cards, a **Perimeter** page, and two PDF report sections (toggled alongside the other report sections) | ✅ Done |
+| **Configurable tunables** — boot-time `.env` knobs (worker concurrency, DB pool, connector timeout) + a runtime-settings registry on the superadmin **System** page (env default + live DB override) | ✅ Done |
+| **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 12-language localization | ✅ Done |
 | **Report email delivery** — per-tenant **and per-device** schedules; one superadmin SMTP relay (test-send); white-label sender; "send now"; hourly cron + send-retry | ✅ Done |
 | **Config management** — encrypted backup, drift detection, targeted revert, firewall-aware UI, default-OFF live push | ✅ Done |
 | **OPNsense connector** — telemetry verified on real 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |

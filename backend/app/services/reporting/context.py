@@ -277,11 +277,9 @@ def _fmt_duration(start: datetime, end: datetime | None, ongoing: str) -> str:
     return " ".join(parts)
 
 
-async def _perimeter_block(aggregator, kind, toggle, frm, to, gi, t, locale):
-    """Build a perimeter report section (over the toggle-enabled devices); None when no rows."""
-    rows = await aggregator.perimeter_top(
-        kind=kind, frm=frm, to=to, geoip=gi, limit=15, report_toggle=toggle
-    )
+async def _perimeter_block(aggregator, kind, frm, to, gi, t, locale):
+    """Build a perimeter report section (tenant-wide top attacker IPs for the kind); None when no rows."""
+    rows = await aggregator.perimeter_top(kind=kind, frm=frm, to=to, geoip=gi, limit=15)
     if not rows:
         return None
     return PerimeterBlock(rows=[
@@ -379,13 +377,17 @@ async def build_context(
                 rows=rows, map_svg=choropleth_svg(pct_by_code)
             )
 
-    # Perimeter sections (per-device toggle): top attacker IPs across the toggle-enabled devices for
-    # each kind. Independent of the attacker-countries section; gi may be None -> country UNKNOWN.
-    from app.services.geoip_provider import get_geoip  # local import: avoids an import cycle
+    # Perimeter sections: top attacker IPs (tenant-wide) per kind. Toggled like every other section
+    # (BUILTIN_DEFAULTS < tenant settings < per-schedule). gi may be None -> country UNKNOWN.
+    failed_logins = firewall_blocks = None
+    if enabled["failed_logins"] or enabled["firewall_blocks"]:
+        from app.services.geoip_provider import get_geoip  # local import: avoids an import cycle
 
-    _gi = geoip if geoip is not None else await get_geoip(aggregator.session)
-    failed_logins = await _perimeter_block(aggregator, "login_failed", "failed_logins", frm, to, _gi, t, locale)
-    firewall_blocks = await _perimeter_block(aggregator, "firewall_block", "firewall_blocks", frm, to, _gi, t, locale)
+        _gi = geoip if geoip is not None else await get_geoip(aggregator.session)
+        if enabled["failed_logins"]:
+            failed_logins = await _perimeter_block(aggregator, "login_failed", frm, to, _gi, t, locale)
+        if enabled["firewall_blocks"]:
+            firewall_blocks = await _perimeter_block(aggregator, "firewall_block", frm, to, _gi, t, locale)
 
     for dev in devices:
         # --- Device health (CPU/mem/disk avg+peak + cpu sparkline) ---

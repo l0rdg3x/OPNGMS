@@ -289,7 +289,7 @@ describe("ReportSettingsPage — tenant_admin", () => {
       web_filter: true,
     });
     // All eleven keys are present in the explicit map.
-    expect(Object.keys(putBody.sections ?? {})).toHaveLength(11);
+    expect(Object.keys(putBody.sections ?? {})).toHaveLength(13);
   });
 
   it("seeds section toggle state from the loaded sections map", async () => {

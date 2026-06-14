@@ -411,6 +411,8 @@ export const it: Dict = {
       alerts_wan: "Avvisi e connettività",
       attacks: "Attacchi",
       attacker_countries: "Paesi di attacco",
+      failed_logins: "Accessi falliti",
+      firewall_blocks: "Blocchi del firewall",
       web: "Attività web",
       data: "Utilizzo dati",
       status: "Stato online/offline",
@@ -637,7 +639,5 @@ export const it: Dict = {
     empty: "Nessuna attività in questo periodo.",
     viewAll: "Vedi tutto",
     loadError: "Impossibile caricare i dati del perimetro.",
-    reportToggleTitle: "Includi nei report",
-    reportToggleError: "Impossibile aggiornare l'impostazione del report.",
   },
 };

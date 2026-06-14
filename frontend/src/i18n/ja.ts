@@ -411,6 +411,8 @@ export const ja: Dict = {
       alerts_wan: "アラートと接続性",
       attacks: "攻撃",
       attacker_countries: "攻撃元の国",
+      failed_logins: "ログイン失敗",
+      firewall_blocks: "ファイアウォールブロック",
       web: "Web アクティビティ",
       data: "データ使用量",
       status: "オンライン/オフライン状態",
@@ -637,7 +639,5 @@ export const ja: Dict = {
     empty: "この期間にアクティビティはありません。",
     viewAll: "すべて表示",
     loadError: "境界データの読み込みに失敗しました。",
-    reportToggleTitle: "レポートに含める",
-    reportToggleError: "レポート設定の更新に失敗しました。",
   },
 };

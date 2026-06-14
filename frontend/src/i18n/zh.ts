@@ -411,6 +411,8 @@ export const zh: Dict = {
       alerts_wan: "告警与连接",
       attacks: "攻击",
       attacker_countries: "攻击来源国家/地区",
+      failed_logins: "失败登录",
+      firewall_blocks: "防火墙拦截",
       web: "网络活动",
       data: "数据用量",
       status: "在线/离线状态",
@@ -637,7 +639,5 @@ export const zh: Dict = {
     empty: "此时间窗口内无活动。",
     viewAll: "查看全部",
     loadError: "加载边界数据失败。",
-    reportToggleTitle: "包含在报告中",
-    reportToggleError: "更新报告设置失败。",
   },
 };

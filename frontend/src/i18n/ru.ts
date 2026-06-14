@@ -411,6 +411,8 @@ export const ru: Dict = {
       alerts_wan: "Оповещения и подключение",
       attacks: "Атаки",
       attacker_countries: "Страны-источники атак",
+      failed_logins: "Неудачные входы",
+      firewall_blocks: "Блокировки межсетевого экрана",
       web: "Веб-активность",
       data: "Использование данных",
       status: "Статус доступности",
@@ -637,7 +639,5 @@ export const ru: Dict = {
     empty: "Нет активности за этот период.",
     viewAll: "Показать все",
     loadError: "Не удалось загрузить данные периметра.",
-    reportToggleTitle: "Включать в отчёты",
-    reportToggleError: "Не удалось обновить настройку отчёта.",
   },
 };

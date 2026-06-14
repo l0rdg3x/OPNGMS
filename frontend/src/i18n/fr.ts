@@ -411,6 +411,8 @@ export const fr: Dict = {
       alerts_wan: "Alertes et connectivité",
       attacks: "Attaques",
       attacker_countries: "Pays attaquants",
+      failed_logins: "Échecs de connexion",
+      firewall_blocks: "Blocages du pare-feu",
       web: "Activité web",
       data: "Utilisation des données",
       status: "État en ligne/hors ligne",
@@ -637,7 +639,5 @@ export const fr: Dict = {
     empty: "Aucune activité sur cette période.",
     viewAll: "Tout afficher",
     loadError: "Échec du chargement des données de périmètre.",
-    reportToggleTitle: "Inclure dans les rapports",
-    reportToggleError: "Échec de la mise à jour du paramètre de rapport.",
   },
 };

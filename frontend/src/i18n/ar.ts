@@ -411,6 +411,8 @@ export const ar: Dict = {
       alerts_wan: "التنبيهات والاتصال",
       attacks: "الهجمات",
       attacker_countries: "الدول المهاجمة",
+      failed_logins: "محاولات تسجيل دخول فاشلة",
+      firewall_blocks: "حظر الجدار الناري",
       web: "نشاط الويب",
       data: "استخدام البيانات",
       status: "حالة التشغيل/الإيقاف",
@@ -637,7 +639,5 @@ export const ar: Dict = {
     empty: "لا يوجد نشاط في هذه الفترة.",
     viewAll: "عرض الكل",
     loadError: "فشل تحميل بيانات المحيط.",
-    reportToggleTitle: "تضمين في التقارير",
-    reportToggleError: "فشل تحديث إعداد التقرير.",
   },
 };

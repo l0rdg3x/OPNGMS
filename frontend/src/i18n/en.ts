@@ -410,6 +410,8 @@ export const en = {
       alerts_wan: "Alerts & connectivity",
       attacks: "Attacks",
       attacker_countries: "Attacker countries",
+      failed_logins: "Failed logins",
+      firewall_blocks: "Firewall blocks",
       web: "Web activity",
       data: "Data usage",
       status: "Up/down status",
@@ -636,8 +638,6 @@ export const en = {
     empty: "No activity in this window.",
     viewAll: "View all",
     loadError: "Failed to load perimeter data.",
-    reportToggleTitle: "Include in reports",
-    reportToggleError: "Failed to update the report setting.",
   },
 } as const;
 
