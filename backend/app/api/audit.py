@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime
@@ -55,7 +56,7 @@ def _to_entry(row) -> AuditEntryOut:
 async def list_audit(
     actor_user_id: uuid.UUID | None = None,
     tenant_id: uuid.UUID | None = None,
-    action: str | None = None,
+    action: str | None = Query(None, max_length=100),
     frm: datetime | None = None,
     to: datetime | None = None,
     limit: int = Query(50, ge=1, le=200),
@@ -79,7 +80,7 @@ async def list_audit(
 async def export_audit(
     actor_user_id: uuid.UUID | None = None,
     tenant_id: uuid.UUID | None = None,
-    action: str | None = None,
+    action: str | None = Query(None, max_length=100),
     frm: datetime | None = None,
     to: datetime | None = None,
     user: User = Depends(require_org(Action.AUDIT_VIEW)),
@@ -116,7 +117,7 @@ async def export_audit(
                     e.target_type or "",
                     e.target_id or "",
                     e.ip or "",
-                    str(e.details),
+                    json.dumps(e.details, default=str),
                 ]
             )
             yield _take()
