@@ -26,6 +26,7 @@ from app.services.monitoring import collect_and_store
 from app.services.perimeter import ingest_perimeter, purge_perimeter
 from app.services.report_schedule import ON_DEMAND, report_window
 from app.services.report_schedule import next_run_at as _next_run_at
+from app.services.retention import purge_events, purge_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -565,6 +566,34 @@ async def purge_perimeter_attackers(ctx: dict) -> str:
     return f"purged {n} stale perimeter rows"
 
 
+async def purge_timeseries_retention(ctx: dict) -> dict:
+    """Cron: drop events/metrics hypertable rows past each tenant's effective retention (global
+    default, DB-overridable, then per-tenant override) — the replacement for the native TimescaleDB
+    retention policies removed in migration 0039. Owner session — RLS-exempt, never user-facing.
+
+    Each store is swept INDEPENDENTLY: a failure on one (logged) must not block the other."""
+    from app.services.runtime_settings import get_runtime_config
+
+    factory = ctx["session_factory"]
+    now = datetime.now(UTC)
+    summary: dict[str, int | str] = {}
+    async with factory() as session:
+        cfg = await get_runtime_config(session)
+        specs = [
+            ("events", purge_events, int(cfg["events_retention_days"])),
+            ("metrics", purge_metrics, int(cfg["metrics_retention_days"])),
+        ]
+        for store, purge, gd in specs:
+            try:
+                async with session.begin_nested():
+                    summary[store] = await purge(session, now, global_default=gd)
+            except Exception:  # noqa: BLE001 — one store failing must not block the other
+                logger.warning("timeseries retention purge failed for %s", store, exc_info=True)
+                summary[store] = "error"
+        await session.commit()
+    return summary
+
+
 async def on_startup(ctx: dict) -> None:
     engine = create_async_engine(_owner_url(), pool_pre_ping=True)
     ctx["engine"] = engine
@@ -584,7 +613,7 @@ RETRY_INTERVAL = 600            # seconds between send retries
 
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job, purge_perimeter_attackers]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job, purge_perimeter_attackers, purge_timeseries_retention]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, _ingest_step))),  # events, every N minutes
@@ -595,6 +624,7 @@ class WorkerSettings:
         cron(renew_device_certs, hour={_settings.cert_renewal_hour}, minute={0}),  # daily: renew expiring certs
         cron(detect_silent_tenants, minute={_settings.silent_alert_cron_minute}),  # hourly: silent-tenant alerts
         cron(purge_perimeter_attackers, hour={4}, minute={30}),  # daily: perimeter rollup retention sweep
+        cron(purge_timeseries_retention, hour={4}, minute={45}),  # daily: events/metrics per-tenant retention sweep
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
