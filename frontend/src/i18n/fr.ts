@@ -659,6 +659,9 @@ export const fr: Dict = {
       events: "Événements (jours)",
       metrics: "Métriques (jours)",
     },
+    warningTitle: "Des planifications de rapports dépassent la rétention",
+    warningItem:
+      "Une planification {frequency} couvre {range} jours mais les données {store} sont conservées {bound} jours.",
   },
   audit: {
     title: "Journal d'audit",

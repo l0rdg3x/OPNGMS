@@ -659,6 +659,9 @@ export const ru: Dict = {
       events: "События (дни)",
       metrics: "Метрики (дни)",
     },
+    warningTitle: "Расписания отчётов превышают срок хранения",
+    warningItem:
+      "Расписание «{frequency}» охватывает {range} дн., но данные «{store}» хранятся {bound} дн.",
   },
   audit: {
     title: "Журнал аудита",

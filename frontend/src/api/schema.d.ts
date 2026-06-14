@@ -2966,6 +2966,11 @@ export interface components {
             defaults: {
                 [key: string]: number;
             };
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["RetentionWarning"][];
         };
         /** RetentionPatch */
         RetentionPatch: {
@@ -2973,6 +2978,28 @@ export interface components {
             values?: {
                 [key: string]: number | null;
             };
+        };
+        /**
+         * RetentionWarning
+         * @description One enabled report schedule whose covered range now exceeds the tenant's effective retention.
+         *
+         *     Computed on read (SP-1 PR4b) so it always reflects current truth: an existing schedule can become
+         *     over-long when retention is later lowered below the window it covers.
+         */
+        RetentionWarning: {
+            /**
+             * Schedule Id
+             * Format: uuid
+             */
+            schedule_id: string;
+            /** Frequency */
+            frequency: string;
+            /** Range Days */
+            range_days: number;
+            /** Bound */
+            bound: number;
+            /** Limiting Store */
+            limiting_store: string;
         };
         /** RevokeIn */
         RevokeIn: {

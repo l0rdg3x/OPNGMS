@@ -659,6 +659,9 @@ export const nl: Dict = {
       events: "Gebeurtenissen (dagen)",
       metrics: "Metrieken (dagen)",
     },
+    warningTitle: "Rapportschema's overschrijden de bewaartermijn",
+    warningItem:
+      "Een {frequency}-schema beslaat {range} dagen maar {store}-gegevens worden {bound} dagen bewaard.",
   },
   audit: {
     title: "Auditlogboek",

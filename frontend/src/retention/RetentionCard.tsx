@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
+  List,
   Loader,
   NumberInput,
   Stack,
@@ -51,6 +53,8 @@ export function RetentionCard() {
   if (query.error) return <Text c="red" data-testid="retention-error">{t.errors.retentionLoad}</Text>;
 
   const defaults = query.data?.defaults ?? {};
+  // Enabled schedules whose covered range now exceeds the effective retention (computed on read by the API).
+  const warnings = query.data?.warnings ?? [];
 
   async function handleSave() {
     // Empty input → null (clear the override back to inherit); a number sets an override.
@@ -73,6 +77,22 @@ export function RetentionCard() {
           <Title order={4}>{rt.title}</Title>
           <Text size="sm" c="dimmed">{rt.subtitle}</Text>
         </div>
+
+        {warnings.length > 0 && (
+          <Alert color="orange" title={rt.warningTitle} data-testid="retention-warnings">
+            <List size="sm" spacing={4}>
+              {warnings.map((w) => (
+                <List.Item key={w.schedule_id}>
+                  {rt.warningItem
+                    .replace("{frequency}", w.frequency)
+                    .replace("{range}", String(w.range_days))
+                    .replace("{store}", w.limiting_store)
+                    .replace("{bound}", String(w.bound))}
+                </List.Item>
+              ))}
+            </List>
+          </Alert>
+        )}
 
         {STORES.map((store) => {
           const inherited = defaults[store];

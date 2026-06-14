@@ -659,6 +659,8 @@ export const zh: Dict = {
       events: "事件（天）",
       metrics: "指标（天）",
     },
+    warningTitle: "报告计划超出保留期限",
+    warningItem: "{frequency} 计划覆盖 {range} 天，但 {store} 数据仅保留 {bound} 天。",
   },
   audit: {
     title: "审计日志",

@@ -659,6 +659,9 @@ export const es: Dict = {
       events: "Eventos (días)",
       metrics: "Métricas (días)",
     },
+    warningTitle: "Las programaciones de informes superan la retención",
+    warningItem:
+      "Una programación {frequency} cubre {range} días pero los datos de {store} se conservan {bound} días.",
   },
   audit: {
     title: "Registro de auditoría",

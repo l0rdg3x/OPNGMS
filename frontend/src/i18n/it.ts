@@ -659,6 +659,9 @@ export const it: Dict = {
       events: "Eventi (giorni)",
       metrics: "Metriche (giorni)",
     },
+    warningTitle: "Le pianificazioni dei report superano la conservazione",
+    warningItem:
+      "Una pianificazione {frequency} copre {range} giorni ma i dati {store} sono conservati {bound} giorni.",
   },
   audit: {
     title: "Registro audit",

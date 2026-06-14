@@ -124,6 +124,43 @@ describe("RetentionCard — per-tenant", () => {
 
     expect(await screen.findByTestId("retention-error")).toBeInTheDocument();
   });
+
+  it("renders the warning Alert when a schedule now exceeds retention", async () => {
+    server.use(
+      http.get(RETENTION_URL, () =>
+        HttpResponse.json({
+          ...defaultsOnly,
+          warnings: [
+            {
+              schedule_id: "11111111-1111-1111-1111-111111111111",
+              frequency: "monthly",
+              range_days: 30,
+              bound: 14,
+              limiting_store: "metrics",
+            },
+          ],
+        }),
+      ),
+    );
+
+    renderWithProviders(withTenant(<RetentionCard />));
+
+    expect(await screen.findByTestId("retention-warnings")).toBeInTheDocument();
+    // The interpolated line names the frequency, the window, the limiting store and the bound.
+    expect(
+      screen.getByText(/monthly schedule covers 30 days but metrics data is kept 14 days/),
+    ).toBeInTheDocument();
+  });
+
+  it("renders no warning Alert when warnings is empty", async () => {
+    server.use(http.get(RETENTION_URL, () => HttpResponse.json({ ...defaultsOnly, warnings: [] })));
+
+    renderWithProviders(withTenant(<RetentionCard />));
+
+    // The card loads (inputs present) but no warnings Alert is shown.
+    expect(await screen.findByTestId("retention-perimeter")).toBeInTheDocument();
+    expect(screen.queryByTestId("retention-warnings")).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------

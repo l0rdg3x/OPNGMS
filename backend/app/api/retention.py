@@ -7,8 +7,9 @@ from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
 from app.core.rbac import Action
 from app.repositories.tenant_retention import TenantRetentionRepository
-from app.schemas.retention import RetentionOut, RetentionPatch
+from app.schemas.retention import RetentionOut, RetentionPatch, RetentionWarning
 from app.services.audit import AuditService
+from app.services.report_retention import schedule_retention_warnings
 from app.services.retention import RETENTION_STORES
 from app.services.runtime_settings import get_runtime_config
 
@@ -27,7 +28,8 @@ async def get_retention(
     session: AsyncSession = Depends(get_session),
 ) -> RetentionOut:
     overrides = await TenantRetentionRepository(session, tenant_id).get_overrides()
-    return RetentionOut(overrides=overrides, defaults=await _defaults(session))
+    warnings = [RetentionWarning(**w) for w in await schedule_retention_warnings(session, tenant_id)]
+    return RetentionOut(overrides=overrides, defaults=await _defaults(session), warnings=warnings)
 
 
 @router.put("/retention", response_model=RetentionOut, dependencies=[Depends(enforce_csrf)])
@@ -45,7 +47,9 @@ async def put_retention(
         target_type="tenant_retention", target_id=str(tenant_id),
         ip=request.client.host if request.client else None, details={"patch": dict(body.values)},
     )
-    # Read the defaults before committing (the session's state after commit is intentionally not relied on).
+    # Read the defaults + recompute the warnings against the just-applied overrides before committing (the
+    # session's state after commit is intentionally not relied on), so the PUT response matches a fresh GET.
     defaults = await _defaults(session)
+    warnings = [RetentionWarning(**w) for w in await schedule_retention_warnings(session, tenant_id)]
     await session.commit()
-    return RetentionOut(overrides=merged, defaults=defaults)
+    return RetentionOut(overrides=merged, defaults=defaults, warnings=warnings)
