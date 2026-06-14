@@ -411,6 +411,8 @@ export const zhTW: Dict = {
       alerts_wan: "警示與連線",
       attacks: "攻擊",
       attacker_countries: "攻擊來源國家/地區",
+      failed_logins: "登入失敗",
+      firewall_blocks: "防火牆封鎖",
       web: "網路活動",
       data: "資料用量",
       status: "上線/離線狀態",
@@ -637,7 +639,5 @@ export const zhTW: Dict = {
     empty: "此期間沒有任何活動。",
     viewAll: "檢視全部",
     loadError: "無法載入邊界資料。",
-    reportToggleTitle: "納入報告",
-    reportToggleError: "更新報告設定失敗。",
   },
 };

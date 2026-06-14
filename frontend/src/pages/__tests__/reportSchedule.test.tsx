@@ -120,6 +120,6 @@ describe("ReportSchedulePage", () => {
 
     await waitFor(() => expect(putBody.sections).not.toBeNull());
     expect(putBody.sections).toMatchObject({ summary: false, health: true });
-    expect(Object.keys(putBody.sections ?? {})).toHaveLength(11);
+    expect(Object.keys(putBody.sections ?? {})).toHaveLength(13);
   });
 });

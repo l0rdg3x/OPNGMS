@@ -19,6 +19,8 @@ def test_defaults_match_spec():
         "firmware_config": True,
         "attacks": True,
         "attacker_countries": True,
+        "failed_logins": True,
+        "firewall_blocks": True,
         "web": True,
         "data": True,
         "status": True,

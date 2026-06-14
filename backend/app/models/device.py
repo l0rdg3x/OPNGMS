@@ -33,9 +33,3 @@ class Device(UUIDPKMixin, TimestampMixin, Base):
     # locked}; refreshed every poll, read by the Plugins UI to badge install state. [] until first poll.
     installed_plugins: Mapped[list] = mapped_column(
         JSONB, default=list, server_default=text("'[]'::jsonb"))
-    # Per-device report toggles for the two perimeter sections (default on). Controls whether THIS
-    # device contributes to the report's "Failed logins" / "Firewall blocks" sections.
-    report_perimeter: Mapped[dict] = mapped_column(
-        JSONB,
-        default=lambda: {"failed_logins": True, "firewall_blocks": True},
-        server_default=text('\'{"failed_logins": true, "firewall_blocks": true}\'::jsonb'))

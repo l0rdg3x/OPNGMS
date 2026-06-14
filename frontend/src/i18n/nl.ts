@@ -411,6 +411,8 @@ export const nl: Dict = {
       alerts_wan: "Waarschuwingen en connectiviteit",
       attacks: "Aanvallen",
       attacker_countries: "Aanvallerslanden",
+      failed_logins: "Mislukte aanmeldingen",
+      firewall_blocks: "Firewall-blokkeringen",
       web: "Webactiviteit",
       data: "Datagebruik",
       status: "Online-/offlinestatus",
@@ -637,7 +639,5 @@ export const nl: Dict = {
     empty: "Geen activiteit in dit venster.",
     viewAll: "Alles weergeven",
     loadError: "Laden van perimetergegevens mislukt.",
-    reportToggleTitle: "Opnemen in rapporten",
-    reportToggleError: "Bijwerken van de rapportinstelling mislukt.",
   },
 };

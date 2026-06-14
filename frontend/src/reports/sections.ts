@@ -8,6 +8,8 @@ export const REPORT_SECTION_KEYS = [
   "alerts_wan",
   "attacks",
   "attacker_countries",
+  "failed_logins",
+  "firewall_blocks",
   "web",
   "data",
   "status",
