@@ -22,7 +22,9 @@ from app.core.rbac import (
         (False, READ_ONLY, Action.DEVICE_VIEW, True),
         (False, OPERATOR, Action.DEVICE_WRITE, True),
         (False, READ_ONLY, Action.DEVICE_WRITE, False),
-        (False, READ_ONLY, Action.AUDIT_VIEW, True),
+        # AUDIT_VIEW is org-level (global cross-tenant ledger) -> superadmin only, no tenant role.
+        (True, None, Action.AUDIT_VIEW, True),
+        (False, READ_ONLY, Action.AUDIT_VIEW, False),
         # Hardening: no tenant role can perform org-level actions (anti-escalation)
         (False, OPERATOR, Action.TENANT_MANAGE, False),
         (False, READ_ONLY, Action.TENANT_MANAGE, False),
@@ -32,7 +34,7 @@ from app.core.rbac import (
         # Positive-path tenant_admin sulle azioni tenant
         (False, TENANT_ADMIN, Action.DEVICE_VIEW, True),
         (False, TENANT_ADMIN, Action.DEVICE_WRITE, True),
-        (False, TENANT_ADMIN, Action.AUDIT_VIEW, True),
+        (False, TENANT_ADMIN, Action.AUDIT_VIEW, False),
         # CONFIG_PUSH: granted to tenant_admin + operator + superadmin, denied to read_only
         (False, TENANT_ADMIN, Action.CONFIG_PUSH, True),
         (False, OPERATOR, Action.CONFIG_PUSH, True),
