@@ -15,12 +15,12 @@ class Action(str, enum.Enum):
     GROUP_MANAGE = "group.manage"
     LOG_FLEET_VIEW = "log_fleet.view"
     SYSTEM_MANAGE = "system.manage"
+    AUDIT_VIEW = "audit.view"  # global cross-tenant audit log -> superadmin only
     # tenant-level
     MEMBERSHIP_MANAGE = "membership.manage"
     DEVICE_VIEW = "device.view"
     DEVICE_WRITE = "device.write"
     CONFIG_PUSH = "config.push"
-    AUDIT_VIEW = "audit.view"
     REPORT_GENERATE = "report.generate"
     REPORT_CONFIG = "report.config"
     LOG_VIEW = "log.view"
@@ -34,6 +34,7 @@ _ORG_ACTIONS = {
     Action.GROUP_MANAGE,
     Action.LOG_FLEET_VIEW,
     Action.SYSTEM_MANAGE,
+    Action.AUDIT_VIEW,
 }
 
 # Tenant-role precedence (highest wins) when a user reaches a tenant via several paths
@@ -57,7 +58,6 @@ _TENANT_MATRIX: dict[Action, set[str]] = {
     Action.DEVICE_VIEW: {TENANT_ADMIN, OPERATOR, READ_ONLY},
     Action.DEVICE_WRITE: {TENANT_ADMIN, OPERATOR},
     Action.CONFIG_PUSH: {TENANT_ADMIN, OPERATOR},
-    Action.AUDIT_VIEW: {TENANT_ADMIN, OPERATOR, READ_ONLY},
     Action.REPORT_GENERATE: {TENANT_ADMIN, OPERATOR},
     Action.REPORT_CONFIG: {TENANT_ADMIN},
     Action.LOG_VIEW: {TENANT_ADMIN, OPERATOR},
