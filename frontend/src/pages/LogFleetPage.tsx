@@ -22,12 +22,13 @@ import {
   useLogFleetDevices,
   useSilentTenantAlerts,
 } from "../logs/logFleetHooks";
+import { useT } from "../i18n";
 
-async function exportFleet(window: string, format: "csv" | "pdf") {
+async function exportFleet(window: string, format: "csv" | "pdf", failedMsg: string) {
   try {
     await downloadLogFleet(window, format);
   } catch {
-    notifications.show({ color: "red", message: "Export failed." });
+    notifications.show({ color: "red", message: failedMsg });
   }
 }
 
@@ -57,18 +58,24 @@ function TenantDevicesModal({
   window: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const q = useLogFleetDevices(tenant?.id ?? null, window);
   return (
-    <Modal opened={!!tenant} onClose={onClose} size="xl" title={tenant ? `Devices — ${tenant.name}` : ""}>
+    <Modal
+      opened={!!tenant}
+      onClose={onClose}
+      size="xl"
+      title={tenant ? `${t.logFleet.devicesTitle} — ${tenant.name}` : ""}
+    >
       {q.isLoading && <Loader size="sm" />}
-      {q.isError && <Alert color="red">Failed to load devices.</Alert>}
-      {q.data && q.data.devices.length === 0 && <Text c="dimmed">No devices.</Text>}
+      {q.isError && <Alert color="red">{t.logFleet.devicesLoadError}</Alert>}
+      {q.data && q.data.devices.length === 0 && <Text c="dimmed">{t.logFleet.noDevices}</Text>}
       {q.data && q.data.devices.length > 0 && (
         <Table>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Device</Table.Th><Table.Th>Forwarding</Table.Th>
-              <Table.Th>Last log</Table.Th><Table.Th>Volume {q.data.window}</Table.Th>
+              <Table.Th>{t.logFleet.table.device}</Table.Th><Table.Th>{t.logFleet.table.forwarding}</Table.Th>
+              <Table.Th>{t.logFleet.table.lastLog}</Table.Th><Table.Th>{t.logFleet.volume} {q.data.window}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -79,7 +86,7 @@ function TenantDevicesModal({
                     {d.name}
                     {d.is_silent && (
                       <Badge color="red" variant="light" data-testid={`device-silent-${d.device_id}`}>
-                        silent
+                        {t.logFleet.silentBadge}
                       </Badge>
                     )}
                   </Group>
@@ -108,6 +115,7 @@ function StatCard({ label, value, testid }: { label: string; value: number; test
 }
 
 export function LogFleetPage() {
+  const t = useT();
   const [window, setWindow] = useState("24h");
   const [drill, setDrill] = useState<{ id: string; name: string } | null>(null);
   const fleet = useLogFleet(window);
@@ -126,7 +134,7 @@ export function LogFleetPage() {
     return (
       <Stack>
         <Group justify="space-between">
-          <Title order={3}>Log fleet</Title>
+          <Title order={3}>{t.logFleet.title}</Title>
           {selector}
         </Group>
         <Loader />
@@ -137,10 +145,10 @@ export function LogFleetPage() {
     return (
       <Stack>
         <Group justify="space-between">
-          <Title order={3}>Log fleet</Title>
+          <Title order={3}>{t.logFleet.title}</Title>
           {selector}
         </Group>
-        <Alert color="red">Failed to load the log fleet.</Alert>
+        <Alert color="red">{t.logFleet.loadError}</Alert>
       </Stack>
     );
   }
@@ -153,56 +161,56 @@ export function LogFleetPage() {
   return (
     <Stack>
       {alerts.length > 0 && (
-        <Alert color="red" title="Silent-tenant alerts" data-testid="silent-alert-banner">
-          {alerts.map((a) => a.tenant_name).join(", ")} — enabled forwarding but no recent logs.
+        <Alert color="red" title={t.logFleet.silentAlertsTitle} data-testid="silent-alert-banner">
+          {alerts.map((a) => a.tenant_name).join(", ")} — {t.logFleet.silentAlertsBody}
         </Alert>
       )}
       <Group justify="space-between">
-        <Title order={3}>Log fleet</Title>
+        <Title order={3}>{t.logFleet.title}</Title>
         <Group gap="sm">
-          <Button variant="default" size="xs" onClick={() => exportFleet(window, "csv")}>
-            Export CSV
+          <Button variant="default" size="xs" onClick={() => exportFleet(window, "csv", t.logFleet.exportFailed)}>
+            {t.logFleet.exportCsv}
           </Button>
-          <Button variant="default" size="xs" onClick={() => exportFleet(window, "pdf")}>
-            Export PDF
+          <Button variant="default" size="xs" onClick={() => exportFleet(window, "pdf", t.logFleet.exportFailed)}>
+            {t.logFleet.exportPdf}
           </Button>
           {selector}
         </Group>
       </Group>
       <SimpleGrid cols={{ base: 2, md: 4 }}>
-        <StatCard label="Tenants forwarding" value={totals.tenants_with_forwarding} />
-        <StatCard label="Enabled devices" value={totals.enabled_devices} />
-        <StatCard label={`Volume (${windowLabel})`} value={totals.volume} />
-        <StatCard label="Silent tenants" value={totals.silent_tenants} testid="fleet-silent-count" />
+        <StatCard label={t.logFleet.stats.tenantsForwarding} value={totals.tenants_with_forwarding} />
+        <StatCard label={t.logFleet.stats.enabledDevices} value={totals.enabled_devices} />
+        <StatCard label={`${t.logFleet.volume} (${windowLabel})`} value={totals.volume} />
+        <StatCard label={t.logFleet.stats.silentTenants} value={totals.silent_tenants} testid="fleet-silent-count" />
       </SimpleGrid>
 
       <Table highlightOnHover>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Tenant</Table.Th><Table.Th>Forwarding</Table.Th><Table.Th>Revoked</Table.Th>
-            <Table.Th>Last log</Table.Th><Table.Th>Volume {windowLabel}</Table.Th>
+            <Table.Th>{t.logFleet.table.tenant}</Table.Th><Table.Th>{t.logFleet.table.forwarding}</Table.Th><Table.Th>{t.logFleet.table.revoked}</Table.Th>
+            <Table.Th>{t.logFleet.table.lastLog}</Table.Th><Table.Th>{t.logFleet.volume} {windowLabel}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {tenants.map((t) => (
+          {tenants.map((tn) => (
             <Table.Tr
-              key={t.tenant_id}
+              key={tn.tenant_id}
               style={{ cursor: "pointer" }}
-              data-testid={`fleet-row-${t.tenant_id}`}
-              onClick={() => setDrill({ id: t.tenant_id, name: t.tenant_name })}
+              data-testid={`fleet-row-${tn.tenant_id}`}
+              onClick={() => setDrill({ id: tn.tenant_id, name: tn.tenant_name })}
             >
               <Table.Td>
                 <Group gap="xs">
-                  {t.tenant_name}
-                  {isSilent(t.enabled, t.last_log_at ?? null) && (
-                    <Badge color="red" variant="light" data-testid={`fleet-silent-${t.tenant_id}`}>silent</Badge>
+                  {tn.tenant_name}
+                  {isSilent(tn.enabled, tn.last_log_at ?? null) && (
+                    <Badge color="red" variant="light" data-testid={`fleet-silent-${tn.tenant_id}`}>{t.logFleet.silentBadge}</Badge>
                   )}
                 </Group>
               </Table.Td>
-              <Table.Td>{t.enabled} / {t.total_devices}</Table.Td>
-              <Table.Td>{t.revoked}</Table.Td>
-              <Table.Td>{t.last_log_at ?? "—"}</Table.Td>
-              <Table.Td>{t.volume ?? "—"}</Table.Td>
+              <Table.Td>{tn.enabled} / {tn.total_devices}</Table.Td>
+              <Table.Td>{tn.revoked}</Table.Td>
+              <Table.Td>{tn.last_log_at ?? "—"}</Table.Td>
+              <Table.Td>{tn.volume ?? "—"}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
