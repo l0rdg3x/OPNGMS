@@ -9098,6 +9098,14 @@
             },
             "type": "object",
             "title": "Defaults"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/RetentionWarning"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
           }
         },
         "type": "object",
@@ -9128,6 +9136,41 @@
         },
         "type": "object",
         "title": "RetentionPatch"
+      },
+      "RetentionWarning": {
+        "properties": {
+          "schedule_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Schedule Id"
+          },
+          "frequency": {
+            "type": "string",
+            "title": "Frequency"
+          },
+          "range_days": {
+            "type": "integer",
+            "title": "Range Days"
+          },
+          "bound": {
+            "type": "integer",
+            "title": "Bound"
+          },
+          "limiting_store": {
+            "type": "string",
+            "title": "Limiting Store"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schedule_id",
+          "frequency",
+          "range_days",
+          "bound",
+          "limiting_store"
+        ],
+        "title": "RetentionWarning",
+        "description": "One enabled report schedule whose covered range now exceeds the tenant's effective retention.\n\nComputed on read (SP-1 PR4b) so it always reflects current truth: an existing schedule can become\nover-long when retention is later lowered below the window it covers."
       },
       "RevokeIn": {
         "properties": {

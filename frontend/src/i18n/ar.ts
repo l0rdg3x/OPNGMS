@@ -659,6 +659,9 @@ export const ar: Dict = {
       events: "الأحداث (أيام)",
       metrics: "المقاييس (أيام)",
     },
+    warningTitle: "جداول التقارير تتجاوز مدة الاحتفاظ",
+    warningItem:
+      "يغطي جدول {frequency} مدة {range} يومًا لكن بيانات {store} يُحتفظ بها {bound} يومًا.",
   },
   audit: {
     title: "سجل التدقيق",

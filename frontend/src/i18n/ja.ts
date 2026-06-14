@@ -659,6 +659,9 @@ export const ja: Dict = {
       events: "イベント（日）",
       metrics: "メトリクス（日）",
     },
+    warningTitle: "レポートのスケジュールが保持期間を超えています",
+    warningItem:
+      "{frequency} のスケジュールは {range} 日間を対象としますが、{store} データの保持期間は {bound} 日です。",
   },
   audit: {
     title: "監査ログ",

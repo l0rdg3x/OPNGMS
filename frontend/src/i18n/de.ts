@@ -659,6 +659,9 @@ export const de: Dict = {
       events: "Ereignisse (Tage)",
       metrics: "Metriken (Tage)",
     },
+    warningTitle: "Berichtszeitpläne überschreiten die Aufbewahrung",
+    warningItem:
+      "Ein {frequency}-Zeitplan umfasst {range} Tage, aber {store}-Daten werden {bound} Tage aufbewahrt.",
   },
   audit: {
     title: "Audit-Protokoll",

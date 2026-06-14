@@ -658,6 +658,9 @@ export const en = {
       events: "Events (days)",
       metrics: "Metrics (days)",
     },
+    warningTitle: "Report schedules exceed retention",
+    warningItem:
+      "A {frequency} schedule covers {range} days but {store} data is kept {bound} days.",
   },
   audit: {
     title: "Audit log",

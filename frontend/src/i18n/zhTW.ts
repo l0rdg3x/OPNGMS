@@ -659,6 +659,8 @@ export const zhTW: Dict = {
       events: "事件（天）",
       metrics: "指標（天）",
     },
+    warningTitle: "報告排程超出保留期限",
+    warningItem: "{frequency} 排程涵蓋 {range} 天，但 {store} 資料僅保留 {bound} 天。",
   },
   audit: {
     title: "稽核日誌",
