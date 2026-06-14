@@ -62,3 +62,19 @@ async def test_test_connection_reads_nested_firmware_version():
     respx.get(FW_URL).mock(return_value=httpx.Response(200, json=load("firmware_status.json")))
     version = await OpnsenseClient(BASE, "key", "sec").test_connection()
     assert version == "26.1.9"
+
+
+def test_client_timeout_defaults_to_setting(monkeypatch):
+    from app.connectors.opnsense.client import OpnsenseClient
+    from app.core import config
+
+    monkeypatch.setenv("OPNSENSE_HTTP_TIMEOUT", "3.5")
+    config.get_settings.cache_clear()
+    try:
+        c = OpnsenseClient(BASE, "key", "sec")
+        assert c._timeout == 3.5
+        # an explicit timeout arg still overrides the setting
+        c2 = OpnsenseClient(BASE, "key", "sec", timeout=1.0)
+        assert c2._timeout == 1.0
+    finally:
+        config.get_settings.cache_clear()
