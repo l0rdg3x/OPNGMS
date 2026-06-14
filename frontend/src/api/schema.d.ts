@@ -1176,6 +1176,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Retention */
+        get: operations["get_retention_api_tenants__tenant_id__retention_get"];
+        /** Put Retention */
+        put: operations["put_retention_api_tenants__tenant_id__retention_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/templates": {
         parameters: {
             query?: never;
@@ -2936,6 +2954,24 @@ export interface components {
              */
             sections: {
                 [key: string]: boolean;
+            };
+        };
+        /** RetentionOut */
+        RetentionOut: {
+            /** Overrides */
+            overrides: {
+                [key: string]: number;
+            };
+            /** Defaults */
+            defaults: {
+                [key: string]: number;
+            };
+        };
+        /** RetentionPatch */
+        RetentionPatch: {
+            /** Values */
+            values?: {
+                [key: string]: number | null;
             };
         };
         /** RevokeIn */
@@ -5808,6 +5844,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_retention_api_tenants__tenant_id__retention_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_retention_api_tenants__tenant_id__retention_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetentionPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionOut"];
                 };
             };
             /** @description Validation Error */
