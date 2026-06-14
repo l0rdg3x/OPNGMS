@@ -637,5 +637,7 @@ export const nl: Dict = {
     empty: "Geen activiteit in dit venster.",
     viewAll: "Alles weergeven",
     loadError: "Laden van perimetergegevens mislukt.",
+    reportToggleTitle: "Opnemen in rapporten",
+    reportToggleError: "Bijwerken van de rapportinstelling mislukt.",
   },
 };

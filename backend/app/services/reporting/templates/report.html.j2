@@ -52,6 +52,30 @@
   </section>
   {% endif %}
 
+  {% if ctx.failed_logins %}
+  <section class="perimeter failed-logins">
+    <h2>{{ ctx.t.failed_logins_title }}</h2>
+    <table class="ranked">
+      <thead><tr><th>{{ ctx.t.col_src_ip }}</th><th>{{ ctx.t.col_country }}</th><th>{{ ctx.t.col_user }}</th><th>{{ ctx.t.col_count }}</th></tr></thead>
+      <tbody>
+        {% for row in ctx.failed_logins.rows %}<tr><td>{{ row.src_ip }}</td><td>{{ row.country }}</td><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if ctx.firewall_blocks %}
+  <section class="perimeter firewall-blocks">
+    <h2>{{ ctx.t.firewall_blocks_title }}</h2>
+    <table class="ranked">
+      <thead><tr><th>{{ ctx.t.col_src_ip }}</th><th>{{ ctx.t.col_country }}</th><th>{{ ctx.t.col_port }}</th><th>{{ ctx.t.col_count }}</th></tr></thead>
+      <tbody>
+        {% for row in ctx.firewall_blocks.rows %}<tr><td>{{ row.src_ip }}</td><td>{{ row.country }}</td><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
   {% for section in ctx.sections %}
   <section class="device-section">
     <h2>{{ section.device_name }}</h2>

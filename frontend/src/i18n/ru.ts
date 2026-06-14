@@ -637,5 +637,7 @@ export const ru: Dict = {
     empty: "Нет активности за этот период.",
     viewAll: "Показать все",
     loadError: "Не удалось загрузить данные периметра.",
+    reportToggleTitle: "Включать в отчёты",
+    reportToggleError: "Не удалось обновить настройку отчёта.",
   },
 };

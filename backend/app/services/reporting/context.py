@@ -109,6 +109,21 @@ class AttackerCountriesBlock:
 
 
 @dataclass
+class PerimeterReportRow:
+    """One attacker IP in a perimeter report section: src IP, localized country, label, count."""
+    src_ip: str
+    country: str
+    label: str
+    count: int
+
+
+@dataclass
+class PerimeterBlock:
+    """A perimeter report section (failed logins / firewall blocks), over the toggle-enabled devices."""
+    rows: list[PerimeterReportRow]
+
+
+@dataclass
 class HealthBlock:
     cpu_avg: float | None
     cpu_peak: float | None
@@ -191,6 +206,8 @@ class ReportContext:
     sections: list[DeviceSection] = field(default_factory=list)
     summary: ExecutiveSummaryBlock | None = None
     attacker_countries: AttackerCountriesBlock | None = None
+    failed_logins: PerimeterBlock | None = None
+    firewall_blocks: PerimeterBlock | None = None
     logo_data_uri: str | None = None
     t: ReportText | None = None
     locale: str = "en"
@@ -258,6 +275,28 @@ def _fmt_duration(start: datetime, end: datetime | None, ongoing: str) -> str:
     if m or not parts:
         parts.append(f"{m}m")
     return " ".join(parts)
+
+
+async def _perimeter_block(aggregator, kind, toggle, frm, to, gi, t, locale):
+    """Build a perimeter report section (over the toggle-enabled devices); None when no rows."""
+    rows = await aggregator.perimeter_top(
+        kind=kind, frm=frm, to=to, geoip=gi, limit=15, report_toggle=toggle
+    )
+    if not rows:
+        return None
+    return PerimeterBlock(rows=[
+        PerimeterReportRow(
+            src_ip=r.src_ip,
+            country=(
+                t.country_private if r.country == PRIVATE
+                else t.country_unknown if r.country == UNKNOWN
+                else localized_country_name(r.country, locale)
+            ),
+            label=r.label,
+            count=r.count,
+        )
+        for r in rows
+    ])
 
 
 async def build_context(
@@ -339,6 +378,14 @@ async def build_context(
             attacker_countries = AttackerCountriesBlock(
                 rows=rows, map_svg=choropleth_svg(pct_by_code)
             )
+
+    # Perimeter sections (per-device toggle): top attacker IPs across the toggle-enabled devices for
+    # each kind. Independent of the attacker-countries section; gi may be None -> country UNKNOWN.
+    from app.services.geoip_provider import get_geoip  # local import: avoids an import cycle
+
+    _gi = geoip if geoip is not None else await get_geoip(aggregator.session)
+    failed_logins = await _perimeter_block(aggregator, "login_failed", "failed_logins", frm, to, _gi, t, locale)
+    firewall_blocks = await _perimeter_block(aggregator, "firewall_block", "firewall_blocks", frm, to, _gi, t, locale)
 
     for dev in devices:
         # --- Device health (CPU/mem/disk avg+peak + cpu sparkline) ---
@@ -467,6 +514,8 @@ async def build_context(
         sections=sections,
         summary=summary,
         attacker_countries=attacker_countries,
+        failed_logins=failed_logins,
+        firewall_blocks=firewall_blocks,
         logo_data_uri=logo_data_uri,
         t=t,
         locale=locale,

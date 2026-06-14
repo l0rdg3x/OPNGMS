@@ -637,5 +637,7 @@ export const zh: Dict = {
     empty: "此时间窗口内无活动。",
     viewAll: "查看全部",
     loadError: "加载边界数据失败。",
+    reportToggleTitle: "包含在报告中",
+    reportToggleError: "更新报告设置失败。",
   },
 };

@@ -146,3 +146,26 @@ async def test_create_device_rejects_non_https_base_url(api_client, db_engine):
         headers=csrf_headers(api_client),
     )
     assert resp.status_code == 422  # rejected by the schema validator (non-https)
+
+
+async def test_report_perimeter_toggle_round_trip(api_client, db_engine):
+    tenant_id = await _seed_admin_member(db_engine)
+    _override_prober(reachable=True, version="26.1.9")
+    _override_enqueuer()
+    await api_client.post("/api/login", json={"email": "ta@x.io", "password": "pw12345-secure"})
+    create = await api_client.post(
+        f"/api/tenants/{tenant_id}/devices",
+        json={"name": "fw1", "base_url": "https://fw1", "api_key": "k", "api_secret": "s"},
+        headers=csrf_headers(api_client),
+    )
+    did = create.json()["id"]
+    # default: both perimeter report sections on
+    assert create.json()["report_perimeter"] == {"failed_logins": True, "firewall_blocks": True}
+    # PATCH turns firewall_blocks off (the frontend always sends both current values)
+    r = await api_client.patch(
+        f"/api/tenants/{tenant_id}/devices/{did}",
+        json={"report_perimeter": {"failed_logins": True, "firewall_blocks": False}},
+        headers=csrf_headers(api_client),
+    )
+    assert r.status_code == 200
+    assert r.json()["report_perimeter"] == {"failed_logins": True, "firewall_blocks": False}

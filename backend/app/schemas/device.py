@@ -33,6 +33,12 @@ class DeviceIn(BaseModel):
         return _validate_base_url_syntax(v)
 
 
+class ReportPerimeterIn(BaseModel):
+    """Per-device toggles for the two perimeter report sections (default on)."""
+    failed_logins: bool = True
+    firewall_blocks: bool = True
+
+
 class DeviceUpdateIn(BaseModel):
     name: str | None = None
     base_url: str | None = None
@@ -40,6 +46,7 @@ class DeviceUpdateIn(BaseModel):
     tls_fingerprint: str | None = None
     site: str | None = None
     tags: list[str] | None = None
+    report_perimeter: ReportPerimeterIn | None = None
 
     @field_validator("base_url")
     @classmethod
@@ -67,6 +74,7 @@ class DeviceOut(BaseModel):
     status: str
     last_seen: datetime | None
     firmware_version: str | None
+    report_perimeter: dict
     created_at: datetime
     updated_at: datetime
 

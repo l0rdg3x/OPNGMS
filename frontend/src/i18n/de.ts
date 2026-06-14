@@ -637,5 +637,7 @@ export const de: Dict = {
     empty: "Keine Aktivität in diesem Zeitraum.",
     viewAll: "Alle anzeigen",
     loadError: "Perimeterdaten konnten nicht geladen werden.",
+    reportToggleTitle: "In Berichte aufnehmen",
+    reportToggleError: "Berichtseinstellung konnte nicht aktualisiert werden.",
   },
 };
