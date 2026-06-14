@@ -31,6 +31,7 @@ from app.api.monitoring import router as monitoring_router
 from app.api.profiles import router as profiles_router
 from app.api.report_schedules import router as report_schedules_router
 from app.api.reports import router as reports_router
+from app.api.retention import router as retention_router
 from app.api.settings import router as settings_router
 from app.api.setup import router as setup_router
 from app.api.smtp import router as smtp_router
@@ -78,6 +79,7 @@ app.include_router(catalog_router)
 app.include_router(firmware_router)
 app.include_router(reports_router)
 app.include_router(report_schedules_router)
+app.include_router(retention_router)
 app.include_router(templates_router)
 app.include_router(profiles_router)
 app.include_router(settings_router)
