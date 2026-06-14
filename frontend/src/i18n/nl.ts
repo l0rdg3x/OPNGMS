@@ -580,6 +580,9 @@ export const nl: Dict = {
       saved: "Runtime-instellingen opgeslagen",
       saveError: "Opslaan van runtime-instellingen mislukt",
       defaultLabel: "standaard",
+      impactsTitle: "Het verlagen van deze bewaarwaarde raakt tenants",
+      impactItem:
+        "{tenant}: een {store}-rapportplanning heeft {range} dagen nodig maar {store} wordt nu {bound} dagen bewaard.",
       groups: {
         firmware: "Firmware",
         distribution: "Catalogus- en GeoIP-distributie",

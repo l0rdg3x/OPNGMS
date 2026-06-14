@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -19,8 +21,26 @@ class RuntimeSettingOut(BaseModel):
     group: str
 
 
+class RetentionImpact(BaseModel):
+    """A tenant whose enabled report schedule now over-runs a just-lowered GLOBAL retention default.
+
+    Emitted by ``PUT /api/admin/settings`` only when a superadmin lowers a retention store AND the tenant
+    has NO per-tenant override for that store (so it follows the global). The mirror per-tenant warning is
+    already shown on the tenant's own Retention card (PR4b); this is the superadmin's immediate feedback.
+    """
+
+    tenant_id: UUID
+    tenant_name: str
+    store: str
+    range_days: int
+    bound: int
+
+
 class RuntimeSettingsOut(BaseModel):
     settings: list[RuntimeSettingOut]
+    # Non-empty only when this PUT lowered a global retention default and tenants without an override for
+    # that store have an enabled schedule whose range now exceeds it; otherwise []. GET always returns [].
+    retention_impacts: list[RetentionImpact] = []
 
 
 class RuntimeSettingsPatch(BaseModel):

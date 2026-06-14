@@ -9083,6 +9083,41 @@
         ],
         "title": "ReportSettingsOut"
       },
+      "RetentionImpact": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenant Id"
+          },
+          "tenant_name": {
+            "type": "string",
+            "title": "Tenant Name"
+          },
+          "store": {
+            "type": "string",
+            "title": "Store"
+          },
+          "range_days": {
+            "type": "integer",
+            "title": "Range Days"
+          },
+          "bound": {
+            "type": "integer",
+            "title": "Bound"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "tenant_name",
+          "store",
+          "range_days",
+          "bound"
+        ],
+        "title": "RetentionImpact",
+        "description": "A tenant whose enabled report schedule now over-runs a just-lowered GLOBAL retention default.\n\nEmitted by ``PUT /api/admin/settings`` only when a superadmin lowers a retention store AND the tenant\nhas NO per-tenant override for that store (so it follows the global). The mirror per-tenant warning is\nalready shown on the tenant's own Retention card (PR4b); this is the superadmin's immediate feedback."
+      },
       "RetentionOut": {
         "properties": {
           "overrides": {
@@ -9291,6 +9326,14 @@
             },
             "type": "array",
             "title": "Settings"
+          },
+          "retention_impacts": {
+            "items": {
+              "$ref": "#/components/schemas/RetentionImpact"
+            },
+            "type": "array",
+            "title": "Retention Impacts",
+            "default": []
           }
         },
         "type": "object",

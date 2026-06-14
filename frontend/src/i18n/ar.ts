@@ -580,6 +580,9 @@ export const ar: Dict = {
       saved: "تم حفظ إعدادات التشغيل",
       saveError: "فشل حفظ إعدادات التشغيل",
       defaultLabel: "افتراضي",
+      impactsTitle: "خفض قيمة الاحتفاظ هذه يؤثر على المستأجرين",
+      impactItem:
+        "{tenant}: يحتاج جدول تقرير {store} إلى {range} يومًا لكن يتم الآن الاحتفاظ بـ {store} لمدة {bound} يومًا.",
       groups: {
         firmware: "البرنامج الثابت",
         distribution: "توزيع الكتالوج و GeoIP",

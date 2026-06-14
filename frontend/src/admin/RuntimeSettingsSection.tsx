@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Group,
+  List,
   Loader,
   NumberInput,
   Stack,
@@ -15,7 +16,7 @@ import {
 import { notifications } from "@mantine/notifications";
 
 import { useRuntimeSettings, useUpdateRuntimeSettings } from "./systemHooks";
-import type { RuntimeSettingOut } from "./systemHooks";
+import type { RetentionImpact, RuntimeSettingOut } from "./systemHooks";
 import { useT } from "../i18n";
 
 const GROUP_ORDER = ["firmware", "distribution", "maintenance", "retention", "security_login", "security_session"];
@@ -31,6 +32,10 @@ export function RuntimeSettingsSection() {
   const query = useRuntimeSettings();
   const update = useUpdateRuntimeSettings();
   const [draft, setDraft] = useState<Draft>({});
+  // Tenants whose enabled report schedule now over-runs a just-lowered GLOBAL retention default (returned
+  // by the last successful PUT). Each tenant ALSO sees this on its own Retention card; this is the
+  // superadmin's immediate, fleet-wide feedback. Cleared on every new save attempt.
+  const [impacts, setImpacts] = useState<RetentionImpact[]>([]);
 
   const settings = useMemo(() => query.data?.settings ?? [], [query.data]);
   const effective = useMemo<Draft>(
@@ -49,10 +54,12 @@ export function RuntimeSettingsSection() {
   }
 
   async function handleSave() {
+    setImpacts([]);  // drop any prior impacts before the attempt — never show a stale list
     const values: Draft = Object.fromEntries(dirtyKeys.map((s) => [s.key, draft[s.key]]));
     try {
-      await update.mutateAsync(values);
+      const result = await update.mutateAsync(values);
       setDraft({});
+      setImpacts(result.retention_impacts ?? []);
       notifications.show({ message: rt.saved });
     } catch {
       notifications.show({ color: "red", message: rt.saveError });
@@ -146,6 +153,22 @@ export function RuntimeSettingsSection() {
                 </Button>
               )}
             </Group>
+
+            {impacts.length > 0 && (
+              <Alert color="orange" title={rt.impactsTitle} data-testid="runtime-settings-impacts">
+                <List size="sm" spacing={4}>
+                  {impacts.map((imp) => (
+                    <List.Item key={`${imp.tenant_id}-${imp.store}`}>
+                      {rt.impactItem
+                        .replaceAll("{tenant}", imp.tenant_name)
+                        .replaceAll("{store}", imp.store)
+                        .replace("{range}", String(imp.range_days))
+                        .replace("{bound}", String(imp.bound))}
+                    </List.Item>
+                  ))}
+                </List>
+              </Alert>
+            )}
           </>
         )}
       </Stack>

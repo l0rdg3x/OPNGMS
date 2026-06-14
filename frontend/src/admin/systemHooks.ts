@@ -5,6 +5,7 @@ import type { components } from "../api/schema";
 export type LivePushOut = components["schemas"]["LivePushOut"];
 export type RuntimeSettingOut = components["schemas"]["RuntimeSettingOut"];
 export type RuntimeSettingsOut = components["schemas"]["RuntimeSettingsOut"];
+export type RetentionImpact = components["schemas"]["RetentionImpact"];
 
 const livePushKey = () => ["live-push"] as const;
 

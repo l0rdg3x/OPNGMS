@@ -580,6 +580,9 @@ export const zh: Dict = {
       saved: "运行时设置已保存",
       saveError: "保存运行时设置失败",
       defaultLabel: "默认",
+      impactsTitle: "降低此保留默认值会影响租户",
+      impactItem:
+        "{tenant}：一个 {store} 报告计划需要 {range} 天，但 {store} 现在仅保留 {bound} 天。",
       groups: {
         firmware: "固件",
         distribution: "目录与 GeoIP 分发",

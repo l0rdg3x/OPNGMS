@@ -188,4 +188,49 @@ describe("RuntimeSettingsSection — retention group", () => {
     // The group heading renders from the new i18n label.
     expect(screen.getByText("Data retention")).toBeInTheDocument();
   });
+
+  // After lowering a global default, the PUT may return impacted tenants — surface them. -------------
+  async function lowerMetricsAndSave(impacts: unknown[]) {
+    server.use(
+      http.get(RS, () => HttpResponse.json(retentionSettings)),
+      http.put(RS, () =>
+        HttpResponse.json({ settings: retentionSettings.settings, retention_impacts: impacts }),
+      ),
+    );
+
+    renderWithProviders(<RuntimeSettingsSection />);
+
+    // Type a lower value so the knob is dirty and Save enables.
+    const metrics = await screen.findByTestId("rs-metrics_retention_days");
+    await userEvent.clear(metrics);
+    await userEvent.type(metrics, "14");
+    await userEvent.click(screen.getByTestId("runtime-settings-save"));
+  }
+
+  it("shows the impacted-tenants list when the PUT returns retention_impacts", async () => {
+    await lowerMetricsAndSave([
+      {
+        tenant_id: "t-1",
+        tenant_name: "Acme",
+        store: "metrics",
+        range_days: 30,
+        bound: 14,
+      },
+    ]);
+
+    expect(await screen.findByTestId("runtime-settings-impacts")).toBeInTheDocument();
+    // The interpolated line names the tenant, the store, the needed range and the new bound.
+    expect(
+      screen.getByText(/Acme: a metrics report schedule needs 30 days but metrics is now kept 14 days/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no impacts Alert when retention_impacts is empty", async () => {
+    await lowerMetricsAndSave([]);
+
+    // The save completes (the knob reverts to the committed value) but no impacts Alert appears.
+    await waitFor(() =>
+      expect(screen.queryByTestId("runtime-settings-impacts")).not.toBeInTheDocument(),
+    );
+  });
 });

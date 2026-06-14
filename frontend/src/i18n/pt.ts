@@ -580,6 +580,9 @@ export const pt: Dict = {
       saved: "Definições de runtime guardadas",
       saveError: "Falha ao guardar as definições de runtime",
       defaultLabel: "padrão",
+      impactsTitle: "Reduzir este valor de retenção afeta inquilinos",
+      impactItem:
+        "{tenant}: um agendamento de relatório {store} precisa de {range} dias mas {store} agora é mantido {bound} dias.",
       groups: {
         firmware: "Firmware",
         distribution: "Distribuição de catálogo e GeoIP",

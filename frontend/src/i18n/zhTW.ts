@@ -580,6 +580,9 @@ export const zhTW: Dict = {
       saved: "已儲存執行階段設定",
       saveError: "無法儲存執行階段設定",
       defaultLabel: "預設值",
+      impactsTitle: "降低此保留預設值會影響租戶",
+      impactItem:
+        "{tenant}：一個 {store} 報告排程需要 {range} 天，但 {store} 現在僅保留 {bound} 天。",
       groups: {
         firmware: "韌體",
         distribution: "目錄與 GeoIP 散佈",

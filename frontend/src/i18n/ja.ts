@@ -580,6 +580,9 @@ export const ja: Dict = {
       saved: "ランタイム設定を保存しました",
       saveError: "ランタイム設定の保存に失敗しました",
       defaultLabel: "既定値",
+      impactsTitle: "この保持期間の既定値を下げるとテナントに影響します",
+      impactItem:
+        "{tenant}: {store} のレポートスケジュールには {range} 日が必要ですが、{store} は現在 {bound} 日しか保持されません。",
       groups: {
         firmware: "ファームウェア",
         distribution: "カタログと GeoIP の配信",
