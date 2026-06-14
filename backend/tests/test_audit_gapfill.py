@@ -72,3 +72,30 @@ async def test_setup_writes_audit(api_client, session_factory):
     assert len(rows) == 1
     assert rows[0].tenant_id is None
     assert rows[0].details.get("email") == "first@admin.io"
+
+
+async def test_send_now_writes_audit(api_client, session_factory):
+    tenant_id, _ = await _login(api_client, session_factory, email="sa2@test.com")
+    sched_id = uuid.uuid4()
+    async with session_factory() as s:
+        await set_tenant_context(s, tenant_id)
+        await s.execute(
+            sa.text(
+                "INSERT INTO report_schedule "
+                "(id, tenant_id, frequency, recipients, enabled, hour) "
+                "VALUES (:id,:t,'weekly','{}',true,4)"
+            ),
+            {"id": sched_id, "t": tenant_id},
+        )
+        await s.commit()
+    csrf = api_client.cookies.get("opngms_csrf")
+    r = await api_client.post(
+        f"/api/tenants/{tenant_id}/report-schedules/{sched_id}/send-now",
+        headers={"X-OPNGMS-CSRF": csrf},
+    )
+    assert r.status_code == 202
+    async with session_factory() as s:
+        rows = (
+            await s.execute(select(AuditLog).where(AuditLog.action == "report.schedule.send_now"))
+        ).scalars().all()
+    assert len(rows) == 1 and rows[0].target_id == str(sched_id)

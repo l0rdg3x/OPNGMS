@@ -95,6 +95,7 @@ async def delete_schedule(
 async def send_now(
     tenant_id: uuid.UUID,
     schedule_id: uuid.UUID,
+    request: Request,
     ctx: TenantContext = Depends(require_tenant(Action.REPORT_CONFIG)),
     session: AsyncSession = Depends(get_session),
     enqueue=Depends(get_enqueuer),
@@ -103,4 +104,10 @@ async def send_now(
     if row is None:
         raise HTTPException(status_code=404, detail="Schedule not found")
     await enqueue("deliver_scheduled_report", str(schedule_id), True)
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id, tenant_id=tenant_id, action="report.schedule.send_now",
+        target_type="report_schedule", target_id=str(schedule_id),
+        ip=request.client.host if request.client else None, details={},
+    )
+    await session.commit()
     return Response(status_code=status.HTTP_202_ACCEPTED)
