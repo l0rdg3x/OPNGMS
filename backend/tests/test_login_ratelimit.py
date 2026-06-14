@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.api.auth import login_limiter
 from app.models.audit import AuditLog
+from app.services.runtime_settings import update_runtime_config
 
 # Use a unique email per-test (or reset the limiter) to avoid cross-test pollution.
 _TEST_EMAIL = "ratelimit_test@x.io"
@@ -49,6 +50,21 @@ async def test_fifth_wrong_attempt_is_401_sixth_is_429(api_client, db_engine):
     assert "Retry-After" in r6.headers
     retry_after = int(r6.headers["Retry-After"])
     assert retry_after >= 1
+
+
+async def test_login_max_attempts_honors_runtime_override(api_client, db_engine):
+    """Lowering login_max_attempts at runtime tightens the lockout: 2 wrong -> 401, the 3rd -> 429."""
+    await _setup_user(api_client)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await update_runtime_config(s, {"login_max_attempts": 2})
+        await s.commit()
+
+    for i in range(2):
+        r = await api_client.post("/api/login", json={"email": _TEST_EMAIL, "password": "WRONG"})
+        assert r.status_code == 401, f"attempt {i + 1} expected 401, got {r.status_code}"
+    r3 = await api_client.post("/api/login", json={"email": _TEST_EMAIL, "password": "WRONG"})
+    assert r3.status_code == 429  # the runtime override (2), not the env default (5), is the cap
 
 
 async def test_429_fires_before_auth_so_no_extra_audit_row(api_client, db_engine):

@@ -27,6 +27,7 @@ from app.services import mfa as mfa_svc
 from app.services.app_settings import get_mfa_policy
 from app.services.audit import AuditService
 from app.services.auth import AuthService
+from app.services.runtime_settings import get_runtime_config_or_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +56,19 @@ async def login(
     ip = client_ip or "?"
     key = f"{payload.email.lower()}|{ip}"
 
+    # Brute-force thresholds + the session TTL are runtime-tunable (System page); read once per login.
+    runtime = await get_runtime_config_or_defaults(session)
+
     # Fail CLOSED on a limiter fault: this gates credential validation, so a transient limiter error
     # must NOT silently disable brute-force protection. Brief 503 unavailability is the safer failure
     # mode; the limiter is in-process + memory-bounded, so a fault here is a genuine (rare) defect we
     # want to surface. Always log it so operators can detect a degraded defense.
     try:
-        allowed, retry = login_limiter.check(key)
+        allowed, retry = login_limiter.check(
+            key,
+            max_attempts=runtime["login_max_attempts"],
+            window_seconds=runtime["login_lockout_window_seconds"],
+        )
     except Exception as exc:  # noqa: BLE001
         logger.error("login rate-limiter check failed; failing closed", exc_info=True)
         raise HTTPException(
@@ -117,7 +125,7 @@ async def login(
     # mfa_pending is a short challenge window (minutes); mfa_setup keeps the 1h enrollment window;
     # full uses the normal session TTL. create_session accepts a fractional ttl_hours.
     if kind == "full":
-        ttl_hours: float = settings.session_ttl_hours
+        ttl_hours: float = runtime["session_ttl_hours"]
     elif kind == "mfa_pending":
         ttl_hours = settings.mfa_pending_ttl_minutes / 60
     else:  # mfa_setup
@@ -172,10 +180,15 @@ async def login_mfa(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No MFA challenge")
     client_ip = _client_ip(request)
     key = f"mfa|{sess.user_id}|{client_ip or '?'}"
+    runtime = await get_runtime_config_or_defaults(session)
     # Fail CLOSED on a limiter fault, mirroring /api/login: this gates MFA verification, so a
     # transient limiter error must not silently disable brute-force protection.
     try:
-        allowed, retry = login_limiter.check(key)
+        allowed, retry = login_limiter.check(
+            key,
+            max_attempts=runtime["login_max_attempts"],
+            window_seconds=runtime["login_lockout_window_seconds"],
+        )
     except Exception as exc:  # noqa: BLE001
         logger.error("mfa rate-limiter check failed; failing closed", exc_info=True)
         raise HTTPException(
@@ -247,9 +260,8 @@ async def login_mfa(
     raw_old = request.cookies.get(SESSION_COOKIE)
     if raw_old:
         await AuthService(session).delete_session_by_token(raw_old)
-    settings = get_settings()
     full, raw_token = await AuthService(session).create_session(
-        user, ttl_hours=settings.session_ttl_hours, kind="full",
+        user, ttl_hours=runtime["session_ttl_hours"], kind="full",
         ip=client_ip, user_agent=request.headers.get("user-agent"),
     )
     try:
@@ -262,7 +274,7 @@ async def login_mfa(
         target_type="session", target_id=str(full.id), ip=client_ip, details={},
     )
     await session.commit()
-    max_age = settings.session_ttl_hours * 3600
+    max_age = round(runtime["session_ttl_hours"] * 3600)
     response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
     response.set_cookie(CSRF_COOKIE, full.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
     return LoginOut(

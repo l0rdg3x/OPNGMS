@@ -1,11 +1,13 @@
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+import app.services.runtime_settings as rs
 from app.models.app_setting import AppSetting
 from app.services.runtime_settings import (
     RUNTIME_SETTINGS,
     active_settings,
     get_runtime_config,
+    get_runtime_config_or_defaults,
     runtime_defaults,
     update_runtime_config,
 )
@@ -31,18 +33,11 @@ def test_registry_covers_the_ten_runtime_settings():
     }
 
 
-def test_auth_settings_are_inactive_for_now():
-    # session/login consumers are wired in a follow-up PR; they must not be exposed for editing yet.
-    inactive = {r.key for r in RUNTIME_SETTINGS if not r.active}
-    assert inactive == {
-        "login_max_attempts",
-        "login_lockout_window_seconds",
-        "session_ttl_hours",
-        "session_idle_minutes",
-    }
-    active = {r.key for r in active_settings()}
-    assert active.isdisjoint(inactive)
-    assert "silent_alert_after_hours" in active and len(active) == 6
+def test_all_settings_are_active():
+    # Every registered setting has its consumer wired, so all are exposed by the admin API.
+    assert all(r.active for r in RUNTIME_SETTINGS)
+    assert {r.key for r in active_settings()} == {r.key for r in RUNTIME_SETTINGS}
+    assert len(active_settings()) == 10
 
 
 def test_defaults_match_env_settings():
@@ -102,6 +97,18 @@ async def test_update_rejects_out_of_bounds(db_engine):
     async with factory() as s:
         with pytest.raises(ValueError, match=">="):
             await update_runtime_config(s, {"session_ttl_hours": 0})
+
+
+async def test_get_runtime_config_or_defaults_falls_back_on_error(db_engine, monkeypatch):
+    # A config-store read failure must degrade to the defaults, never raise into an auth hot path.
+    async def boom(session):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(rs, "get_runtime_config", boom)
+    factory = await _session(db_engine)
+    async with factory() as s:
+        cfg = await get_runtime_config_or_defaults(s)
+    assert cfg == runtime_defaults()
 
 
 async def test_get_ignores_corrupt_stored_value(db_engine):

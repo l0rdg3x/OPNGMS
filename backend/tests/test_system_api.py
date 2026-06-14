@@ -36,12 +36,12 @@ async def test_superadmin_get_runtime_settings(api_client, db_engine):
     r = await api_client.get("/api/admin/settings")
     assert r.status_code == 200
     settings = {s["key"]: s for s in r.json()["settings"]}
-    # only the active (consumer-wired) settings are exposed; the auth-path ones are inactive for now
-    assert len(settings) == 6
-    assert "session_ttl_hours" not in settings and "login_max_attempts" not in settings
+    # all ten runtime-safe settings are exposed (every consumer is wired)
+    assert len(settings) == 10
+    assert "session_ttl_hours" in settings and "login_max_attempts" in settings
     # effective == default when nothing is overridden
-    assert settings["silent_alert_after_hours"]["value"] == 6 == settings["silent_alert_after_hours"]["default"]
-    assert settings["silent_alert_after_hours"]["kind"] == "int"
+    assert settings["session_ttl_hours"]["value"] == 12 == settings["session_ttl_hours"]["default"]
+    assert settings["session_ttl_hours"]["kind"] == "int"
     assert settings["silent_alert_enabled"]["value"] is True
     assert settings["firmware_poll_interval_seconds"]["kind"] == "float"
 
@@ -78,14 +78,18 @@ async def test_put_runtime_settings_rejects_invalid(api_client, db_engine):
     assert r.status_code == 422
 
 
-async def test_put_runtime_settings_rejects_inactive_key(api_client, db_engine):
+async def test_put_runtime_settings_accepts_auth_keys(api_client, db_engine):
     await _superadmin(api_client)
-    # session_ttl_hours is a real registry key but inactive (consumer not wired) -> treated as unknown
+    # the session/login settings are now active (consumers wired) and editable
     r = await api_client.put(
-        "/api/admin/settings", json={"values": {"session_ttl_hours": 24}}, headers=csrf_headers(api_client)
+        "/api/admin/settings",
+        json={"values": {"session_ttl_hours": 24, "login_max_attempts": 3}},
+        headers=csrf_headers(api_client),
     )
-    assert r.status_code == 422
-    assert "session_ttl_hours" in r.json()["detail"]
+    assert r.status_code == 200
+    settings = {s["key"]: s for s in r.json()["settings"]}
+    assert settings["session_ttl_hours"]["value"] == 24
+    assert settings["login_max_attempts"]["value"] == 3
 
 
 async def test_put_runtime_settings_requires_csrf(api_client, db_engine):

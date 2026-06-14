@@ -35,15 +35,29 @@ class SlidingWindowLimiter:
             self._hits.popitem(last=False)  # evict the least-recently-used (never the key we just touched)
         return dq
 
-    def check(self, key: str, *, now: float | None = None) -> tuple[bool, int]:
-        """(allowed, retry_after_seconds). Does not record; call record_failure on a failed attempt."""
+    def check(
+        self,
+        key: str,
+        *,
+        now: float | None = None,
+        max_attempts: int | None = None,
+        window_seconds: float | None = None,
+    ) -> tuple[bool, int]:
+        """(allowed, retry_after_seconds). Does not record; call record_failure on a failed attempt.
+
+        `max_attempts`/`window_seconds` override the construction-time thresholds for this call (the
+        in-process window state is shared and preserved). The login path passes them from the runtime
+        config so the brute-force policy is tunable without rebuilding this singleton.
+        """
         now = time.monotonic() if now is None else now
+        limit = self.max if max_attempts is None else max_attempts
+        window = self.window if window_seconds is None else window_seconds
         with self._lock:
             dq = self._touch(key)
-            while dq and dq[0] <= now - self.window:
+            while dq and dq[0] <= now - window:
                 dq.popleft()
-            if len(dq) >= self.max:
-                return False, max(int(self.window - (now - dq[0])) + 1, 1)
+            if len(dq) >= limit:
+                return False, max(int(window - (now - dq[0])) + 1, 1)
             return True, 0
 
     def record_failure(self, key: str, *, now: float | None = None) -> None:

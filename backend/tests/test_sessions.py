@@ -54,6 +54,35 @@ def test_settings_have_idle_timeout():
     assert s.session_idle_minutes == 120
 
 
+async def test_idle_expiry_reads_runtime_override(factory):
+    """session_idle_minutes is a runtime setting: shrinking it expires an otherwise-valid session."""
+    from app.models.user import User
+    from app.services.auth import AuthService
+    from app.services.runtime_settings import update_runtime_config
+
+    uid = await _make_user(factory)
+    async with factory() as s:
+        await update_runtime_config(s, {"session_idle_minutes": 1})  # idle window -> 1 minute
+        user = await s.get(User, uid)
+        sess, raw = await AuthService(s).create_session(user, ttl_hours=12)  # absolute TTL stays 12h
+        await s.commit()
+        token_hash = sess.token_hash
+
+    # A fresh session (last_seen now) is still valid under the 1-minute idle window.
+    async with factory() as s:
+        assert await AuthService(s).get_session_for_token(raw) is not None
+
+    # Backdate last_seen by 2 minutes: now past the 1-minute idle window (but well within the 12h TTL).
+    async with factory() as s:
+        await s.execute(
+            text("UPDATE sessions SET last_seen_at = :t WHERE token_hash = :h"),
+            {"t": datetime.now(timezone.utc) - timedelta(minutes=2), "h": token_hash},
+        )
+        await s.commit()
+    async with factory() as s:
+        assert await AuthService(s).get_session_for_token(raw) is None  # idle-expired via the override
+
+
 def test_csrf_cookie_constant_exists():
     from app.core.deps import CSRF_COOKIE
 
