@@ -22,6 +22,7 @@ from app.services.config_push import _advisory_key, apply_change
 from app.services.email.smtp import EmailSendError, send_report_email
 from app.services.ingest import ingest_events
 from app.services.monitoring import collect_and_store
+from app.services.perimeter import ingest_perimeter, purge_perimeter
 from app.services.report_schedule import ON_DEMAND, report_window
 from app.services.report_schedule import next_run_at as _next_run_at
 
@@ -87,7 +88,11 @@ async def ingest_device_events(ctx: dict, device_id: str) -> int:
             verify_tls=device.verify_tls,
             tls_fingerprint=device.tls_fingerprint,
         )
-        n = await ingest_events(session, device, client, now=datetime.now(UTC))
+        now = datetime.now(UTC)
+        n = await ingest_events(session, device, client, now=now)
+        # Perimeter signals (failed logins + firewall blocks) reuse the same client + cron; best-effort
+        # (ingest_perimeter suppresses an unavailable source) and never blocks the events ingest.
+        await ingest_perimeter(session, device, client, now=now)
         await session.commit()
         return n
 
@@ -538,6 +543,15 @@ async def cleanup_expired_sessions(ctx: dict) -> str:
     return f"purged {n} expired sessions"
 
 
+async def purge_perimeter_attackers(ctx: dict) -> str:
+    """Cron: drop perimeter rollup rows not seen within the retention window."""
+    factory = ctx["session_factory"]
+    async with factory() as session:
+        n = await purge_perimeter(session, datetime.now(UTC))
+        await session.commit()
+    return f"purged {n} stale perimeter rows"
+
+
 async def on_startup(ctx: dict) -> None:
     engine = create_async_engine(_owner_url(), pool_pre_ping=True)
     ctx["engine"] = engine
@@ -557,7 +571,7 @@ RETRY_INTERVAL = 600            # seconds between send retries
 
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job, purge_perimeter_attackers]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, _ingest_step))),  # events, every N minutes
@@ -567,6 +581,7 @@ class WorkerSettings:
         cron(sweep_orphaned_actions, minute=set(range(0, 60, min(30, max(1, _settings.sweep_every_minutes))))),
         cron(renew_device_certs, hour={_settings.cert_renewal_hour}, minute={0}),  # daily: renew expiring certs
         cron(detect_silent_tenants, minute={_settings.silent_alert_cron_minute}),  # hourly: silent-tenant alerts
+        cron(purge_perimeter_attackers, hour={4}, minute={30}),  # daily: perimeter rollup retention sweep
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
