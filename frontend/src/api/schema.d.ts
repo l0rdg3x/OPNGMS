@@ -6911,6 +6911,7 @@ export interface operations {
         parameters: {
             query?: {
                 actor_user_id?: string | null;
+                actor_email?: string | null;
                 tenant_id?: string | null;
                 action?: string | null;
                 frm?: string | null;
@@ -6948,6 +6949,7 @@ export interface operations {
         parameters: {
             query?: {
                 actor_user_id?: string | null;
+                actor_email?: string | null;
                 tenant_id?: string | null;
                 action?: string | null;
                 frm?: string | null;

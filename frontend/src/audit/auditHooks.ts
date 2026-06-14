@@ -8,7 +8,7 @@ export type AuditListOut = components["schemas"]["AuditListOut"];
 // All audit filters are optional; empty strings are normalised to undefined so they're omitted
 // from the query string (the backend treats an absent param as "no filter").
 export interface AuditFilters {
-  actor_user_id?: string;
+  actor_email?: string;
   tenant_id?: string;
   action?: string;
   frm?: string;
@@ -46,9 +46,9 @@ export function useAuditQuery(filters: AuditFilters) {
 // the export streams every matching row.
 export async function downloadAuditCsv(filters: AuditFilters): Promise<void> {
   // The export endpoint takes the filters but no pagination — it streams every matching row.
-  const { actor_user_id, tenant_id, action, frm, to } = clean(filters);
+  const { actor_email, tenant_id, action, frm, to } = clean(filters);
   const { data, error } = await api.GET("/api/admin/audit/export.csv", {
-    params: { query: { actor_user_id, tenant_id, action, frm, to } },
+    params: { query: { actor_email, tenant_id, action, frm, to } },
     parseAs: "blob",
   });
   if (error || !data) throw new Error("export failed");

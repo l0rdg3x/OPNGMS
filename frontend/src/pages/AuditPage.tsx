@@ -42,13 +42,13 @@ export function AuditPage() {
 
   // Draft filter inputs (edited freely); committed to `applied` on Apply so the query only refetches
   // when the user asks for it. Offset resets to 0 whenever filters change.
-  const [actor, setActor] = useState("");
+  const [actorEmail, setActorEmail] = useState("");
   const [tenant, setTenant] = useState("");
   const [action, setAction] = useState("");
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
   const [applied, setApplied] = useState<{
-    actor_user_id?: string;
+    actor_email?: string;
     tenant_id?: string;
     action?: string;
     frm?: string;
@@ -61,7 +61,7 @@ export function AuditPage() {
 
   function applyFilters() {
     setApplied({
-      actor_user_id: actor.trim() || undefined,
+      actor_email: actorEmail.trim() || undefined,
       tenant_id: tenant.trim() || undefined,
       action: action.trim() || undefined,
       frm: toIso(from),
@@ -71,7 +71,7 @@ export function AuditPage() {
   }
 
   function resetFilters() {
-    setActor("");
+    setActorEmail("");
     setTenant("");
     setAction("");
     setFrom(null);
@@ -108,8 +108,8 @@ export function AuditPage() {
       <Group align="flex-end" gap="sm" wrap="wrap">
         <TextInput
           label={t.audit.filters.actor}
-          value={actor}
-          onChange={(e) => setActor(e.currentTarget.value)}
+          value={actorEmail}
+          onChange={(e) => setActorEmail(e.currentTarget.value)}
           data-testid="audit-filter-actor"
         />
         <TextInput
