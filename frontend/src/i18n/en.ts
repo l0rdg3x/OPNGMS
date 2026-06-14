@@ -592,6 +592,32 @@ export const en = {
       },
     },
   },
+  logFleet: {
+    title: "Log fleet",
+    loadError: "Failed to load the log fleet.",
+    exportCsv: "Export CSV",
+    exportPdf: "Export PDF",
+    exportFailed: "Export failed.",
+    silentBadge: "silent",
+    silentAlertsTitle: "Silent-tenant alerts",
+    silentAlertsBody: "enabled forwarding but no recent logs.",
+    volume: "Volume",
+    devicesTitle: "Devices",
+    devicesLoadError: "Failed to load devices.",
+    noDevices: "No devices.",
+    stats: {
+      tenantsForwarding: "Tenants forwarding",
+      enabledDevices: "Enabled devices",
+      silentTenants: "Silent tenants",
+    },
+    table: {
+      tenant: "Tenant",
+      device: "Device",
+      forwarding: "Forwarding",
+      revoked: "Revoked",
+      lastLog: "Last log",
+    },
+  },
 } as const;
 
 // Widen the string leaves to `string` while preserving the exact key structure, so sibling
