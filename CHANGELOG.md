@@ -12,6 +12,25 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-14
+### Added
+- **Configurable deployment tunables.** Operational knobs are now configurable without forking. Four
+  boot-time settings come from `.env` — the ARQ worker concurrency (`WORKER_MAX_JOBS`), the SQLAlchemy
+  pool (`DB_POOL_SIZE` / `DB_MAX_OVERFLOW`), and the OPNsense connector timeout (`OPNSENSE_HTTP_TIMEOUT`)
+  — alongside a comprehensive `.env.example`. Ten more are editable **live** from the superadmin
+  **System → Runtime settings** page (the env/code value is the default; a DB override wins): the
+  firmware poll budget, catalog / GeoIP auto-fetch, the silent-tenant detector switch + threshold, the
+  login brute-force limits, and the session TTL + idle timeout. A small generic registry over the
+  existing `app_setting` store backs `GET`/`PUT /api/admin/settings` (superadmin, CSRF, audited).
+  Defaults preserve previous behavior. (#139, #140, #141, #142)
+### Changed
+- **The whole UI is now translated.** The System page and the Log fleet page — previously hardcoded
+  English — are fully translated across all 12 locales (the live-push toggle, the new Runtime settings
+  form, and the entire Log fleet dashboard). (#142, #143)
+### Fixed
+- Release the per-call ARQ pool with the redis `aclose()` API instead of the deprecated `close()`,
+  clearing the last deprecated redis lifecycle call. (#138)
+
 ## [0.7.0] - 2026-06-14
 ### Added
 - **Community plugin coverage & lifecycle.** The version-aware catalog now covers `opnsense/plugins` (a
@@ -87,7 +106,8 @@ annotated tag when a version is cut.
   monitoring + alerting, PDF reporting, the version-aware config catalog editor (generator + dynamic
   distribution + apply engine + editor UI), the syslog log lake, and the Docker deployment stack.
 
-[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.4.0...v0.5.0
