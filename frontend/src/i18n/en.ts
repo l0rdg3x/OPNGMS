@@ -636,6 +636,8 @@ export const en = {
     empty: "No activity in this window.",
     viewAll: "View all",
     loadError: "Failed to load perimeter data.",
+    reportToggleTitle: "Include in reports",
+    reportToggleError: "Failed to update the report setting.",
   },
 } as const;
 

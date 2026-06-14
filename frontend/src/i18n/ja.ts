@@ -637,5 +637,7 @@ export const ja: Dict = {
     empty: "この期間にアクティビティはありません。",
     viewAll: "すべて表示",
     loadError: "境界データの読み込みに失敗しました。",
+    reportToggleTitle: "レポートに含める",
+    reportToggleError: "レポート設定の更新に失敗しました。",
   },
 };

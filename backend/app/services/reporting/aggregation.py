@@ -491,7 +491,7 @@ class ReportAggregator:
 
     async def perimeter_top(
         self, *, kind: str, frm: datetime, to: datetime, geoip: GeoIp | None,
-        limit: int, device_id: uuid.UUID | None = None,
+        limit: int, device_id: uuid.UUID | None = None, report_toggle: str | None = None,
     ) -> list[PerimeterRow]:
         """Top attacker IPs for a perimeter `kind` active in [frm, to], ranked by cumulative count.
 
@@ -499,18 +499,25 @@ class ReportAggregator:
         src_ip ACROSS devices: SUM(count), MAX(last_seen), most-recent detail. `count` is cumulative —
         the rollup is not per-window — so the window filters WHICH attackers (by last_seen), not the
         count. label = last attempted username (login_failed) / most-targeted port (firewall_block).
-        Country via the injected GeoIp; empty input -> []."""
-        clauses = ["tenant_id = :tid", "kind = :kind", "last_seen >= :frm", "last_seen < :to"]
+        Country via the injected GeoIp; empty input -> [].
+
+        `report_toggle` (the report path) restricts to devices whose per-device `report_perimeter`
+        toggle of that name is on (`failed_logins` / `firewall_blocks`)."""
+        clauses = ["pa.tenant_id = :tid", "pa.kind = :kind", "pa.last_seen >= :frm", "pa.last_seen < :to"]
         params: dict = {"tid": self.tenant_id, "kind": kind, "frm": frm, "to": to, "lim": limit}
+        join = ""
+        if report_toggle is not None:
+            join = "JOIN devices d ON d.id = pa.device_id AND COALESCE((d.report_perimeter->>:toggle)::bool, false)"
+            params["toggle"] = report_toggle
         if device_id is not None:
-            clauses.append("device_id = :did")
+            clauses.append("pa.device_id = :did")
             params["did"] = device_id
         where = " AND ".join(clauses)
         sql = text(
-            "SELECT src_ip, sum(count) AS c, max(last_seen) AS seen, "
-            "(array_agg(detail ORDER BY last_seen DESC))[1] AS detail "
-            f"FROM perimeter_attacker WHERE {where} "
-            "GROUP BY src_ip ORDER BY c DESC, src_ip LIMIT :lim"
+            "SELECT pa.src_ip, sum(pa.count) AS c, max(pa.last_seen) AS seen, "
+            "(array_agg(pa.detail ORDER BY pa.last_seen DESC))[1] AS detail "
+            f"FROM perimeter_attacker pa {join} WHERE {where} "
+            "GROUP BY pa.src_ip ORDER BY c DESC, pa.src_ip LIMIT :lim"
         )
         rows = (await self.session.execute(sql, params)).all()
         out: list[PerimeterRow] = []

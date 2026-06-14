@@ -637,5 +637,7 @@ export const es: Dict = {
     empty: "Sin actividad en este período.",
     viewAll: "Ver todo",
     loadError: "No se pudieron cargar los datos del perímetro.",
+    reportToggleTitle: "Incluir en los informes",
+    reportToggleError: "No se pudo actualizar la configuración del informe.",
   },
 };

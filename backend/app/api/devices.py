@@ -132,6 +132,10 @@ async def update_device(
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     changes = payload.model_dump(exclude_unset=True)
+    # report_perimeter is a full-replacement object: store both toggles (defaults filled) so a partial
+    # patch can't drop a key. The frontend always sends both current values.
+    if payload.report_perimeter is not None:
+        changes["report_perimeter"] = payload.report_perimeter.model_dump()
     for field, value in changes.items():
         setattr(device, field, value)
     await session.flush()

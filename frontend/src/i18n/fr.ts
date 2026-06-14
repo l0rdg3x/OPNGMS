@@ -637,5 +637,7 @@ export const fr: Dict = {
     empty: "Aucune activité sur cette période.",
     viewAll: "Tout afficher",
     loadError: "Échec du chargement des données de périmètre.",
+    reportToggleTitle: "Inclure dans les rapports",
+    reportToggleError: "Échec de la mise à jour du paramètre de rapport.",
   },
 };

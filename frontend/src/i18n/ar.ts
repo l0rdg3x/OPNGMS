@@ -637,5 +637,7 @@ export const ar: Dict = {
     empty: "لا يوجد نشاط في هذه الفترة.",
     viewAll: "عرض الكل",
     loadError: "فشل تحميل بيانات المحيط.",
+    reportToggleTitle: "تضمين في التقارير",
+    reportToggleError: "فشل تحديث إعداد التقرير.",
   },
 };

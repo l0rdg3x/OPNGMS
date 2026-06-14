@@ -637,5 +637,7 @@ export const zhTW: Dict = {
     empty: "此期間沒有任何活動。",
     viewAll: "檢視全部",
     loadError: "無法載入邊界資料。",
+    reportToggleTitle: "納入報告",
+    reportToggleError: "更新報告設定失敗。",
   },
 };

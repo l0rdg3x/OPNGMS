@@ -637,5 +637,7 @@ export const pt: Dict = {
     empty: "Sem atividade neste período.",
     viewAll: "Ver tudo",
     loadError: "Falha ao carregar os dados do perímetro.",
+    reportToggleTitle: "Incluir nos relatórios",
+    reportToggleError: "Falha ao atualizar a definição do relatório.",
   },
 };

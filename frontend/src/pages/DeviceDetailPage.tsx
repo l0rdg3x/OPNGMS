@@ -9,6 +9,7 @@ import { LogForwardingCard } from "../components/LogForwardingCard";
 import { useT } from "../i18n";
 import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
 import { PluginsTab } from "../plugins/PluginsTab";
+import { ReportPerimeterToggles } from "../perimeter/ReportPerimeterToggles";
 import { ApplyProfileSection } from "../profiles/ApplyProfileSection";
 import { ApplyTemplateTab } from "../templates/ApplyTemplateTab";
 import { CatalogEditorTab } from "../catalog/CatalogEditorTab";
@@ -53,6 +54,16 @@ export function DeviceDetailPage() {
           </Card>
           {activeId && deviceId && (
             <DeviceActions tenantId={activeId} deviceId={deviceId} baseUrl={device.base_url} />
+          )}
+          {activeId && deviceId && (
+            <ReportPerimeterToggles
+              tenantId={activeId}
+              deviceId={deviceId}
+              value={{
+                failed_logins: (device.report_perimeter as { failed_logins?: boolean })?.failed_logins ?? true,
+                firewall_blocks: (device.report_perimeter as { firewall_blocks?: boolean })?.firewall_blocks ?? true,
+              }}
+            />
           )}
         </Tabs.Panel>
         <Tabs.Panel value="health" pt="md">

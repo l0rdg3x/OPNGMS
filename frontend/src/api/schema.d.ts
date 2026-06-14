@@ -1985,6 +1985,10 @@ export interface components {
             last_seen: string | null;
             /** Firmware Version */
             firmware_version: string | null;
+            /** Report Perimeter */
+            report_perimeter: {
+                [key: string]: unknown;
+            };
             /**
              * Created At
              * Format: date-time
@@ -2010,6 +2014,7 @@ export interface components {
             site?: string | null;
             /** Tags */
             tags?: string[] | null;
+            report_perimeter?: components["schemas"]["ReportPerimeterIn"] | null;
         };
         /** DriftReport */
         DriftReport: {
@@ -2736,6 +2741,22 @@ export interface components {
             code: string;
             /** Name */
             name: string;
+        };
+        /**
+         * ReportPerimeterIn
+         * @description Per-device toggles for the two perimeter report sections (default on).
+         */
+        ReportPerimeterIn: {
+            /**
+             * Failed Logins
+             * @default true
+             */
+            failed_logins: boolean;
+            /**
+             * Firewall Blocks
+             * @default true
+             */
+            firewall_blocks: boolean;
         };
         /** ReportRequest */
         ReportRequest: {

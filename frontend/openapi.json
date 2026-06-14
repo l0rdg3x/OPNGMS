@@ -6428,6 +6428,11 @@
             ],
             "title": "Firmware Version"
           },
+          "report_perimeter": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Report Perimeter"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -6452,6 +6457,7 @@
           "status",
           "last_seen",
           "firmware_version",
+          "report_perimeter",
           "created_at",
           "updated_at"
         ],
@@ -6527,6 +6533,16 @@
               }
             ],
             "title": "Tags"
+          },
+          "report_perimeter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportPerimeterIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -8259,6 +8275,23 @@
           "name"
         ],
         "title": "ReportLanguageOut"
+      },
+      "ReportPerimeterIn": {
+        "properties": {
+          "failed_logins": {
+            "type": "boolean",
+            "title": "Failed Logins",
+            "default": true
+          },
+          "firewall_blocks": {
+            "type": "boolean",
+            "title": "Firewall Blocks",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "ReportPerimeterIn",
+        "description": "Per-device toggles for the two perimeter report sections (default on)."
       },
       "ReportRequest": {
         "properties": {
