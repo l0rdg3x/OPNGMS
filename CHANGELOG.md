@@ -12,6 +12,13 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-06-14
+### Changed
+- The two **perimeter** report sections — "Failed logins" and "Firewall blocks" — are now toggled like
+  every other report section (from **Report settings**, with a per-tenant default and an optional
+  per-schedule override), instead of the per-device toggle that shipped in v0.9.0. The
+  `devices.report_perimeter` column is dropped (migration 0036). (#150)
+
 ## [0.9.0] - 2026-06-14
 ### Added
 - **Security / Perimeter.** Two new perimeter threat signals, surfaced per tenant: **failed logins** to
@@ -118,7 +125,8 @@ annotated tag when a version is cut.
   monitoring + alerting, PDF reporting, the version-aware config catalog editor (generator + dynamic
   distribution + apply engine + editor UI), the syslog log lake, and the Docker deployment stack.
 
-[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.6.0...v0.7.0
