@@ -18,7 +18,7 @@ import { useRuntimeSettings, useUpdateRuntimeSettings } from "./systemHooks";
 import type { RuntimeSettingOut } from "./systemHooks";
 import { useT } from "../i18n";
 
-const GROUP_ORDER = ["firmware", "distribution", "maintenance", "security_login", "security_session"];
+const GROUP_ORDER = ["firmware", "distribution", "maintenance", "retention", "security_login", "security_session"];
 
 type Draft = Record<string, boolean | number>;
 
