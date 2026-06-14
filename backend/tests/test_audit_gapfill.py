@@ -57,3 +57,18 @@ async def test_firmware_action_writes_audit(api_client, session_factory):
     assert len(rows) == 1
     assert rows[0].target_id == str(device_id)
     assert rows[0].details.get("kind") == "firmware_update"
+
+
+async def test_setup_writes_audit(api_client, session_factory):
+    r = await api_client.post(
+        "/api/setup",
+        json={"email": "first@admin.io", "name": "First", "password": "pw12345-secure"},
+    )
+    assert r.status_code == 201
+    async with session_factory() as s:
+        rows = (
+            await s.execute(select(AuditLog).where(AuditLog.action == "setup.bootstrap"))
+        ).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].tenant_id is None
+    assert rows[0].details.get("email") == "first@admin.io"
