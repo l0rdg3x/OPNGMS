@@ -23,6 +23,7 @@ class Action(str, enum.Enum):
     CONFIG_PUSH = "config.push"
     REPORT_GENERATE = "report.generate"
     REPORT_CONFIG = "report.config"
+    RETENTION_CONFIG = "retention.config"
     LOG_VIEW = "log.view"
 
 
@@ -60,6 +61,7 @@ _TENANT_MATRIX: dict[Action, set[str]] = {
     Action.CONFIG_PUSH: {TENANT_ADMIN, OPERATOR},
     Action.REPORT_GENERATE: {TENANT_ADMIN, OPERATOR},
     Action.REPORT_CONFIG: {TENANT_ADMIN},
+    Action.RETENTION_CONFIG: {TENANT_ADMIN},
     Action.LOG_VIEW: {TENANT_ADMIN, OPERATOR},
 }
 

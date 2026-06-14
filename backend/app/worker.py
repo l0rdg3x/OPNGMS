@@ -553,10 +553,14 @@ async def cleanup_expired_sessions(ctx: dict) -> str:
 
 
 async def purge_perimeter_attackers(ctx: dict) -> str:
-    """Cron: drop perimeter rollup rows not seen within the retention window."""
+    """Cron: drop perimeter rollup rows past each tenant's effective retention (global default,
+    DB-overridable, then per-tenant override). Owner session — RLS-exempt, never user-facing."""
+    from app.services.runtime_settings import get_runtime_config
+
     factory = ctx["session_factory"]
     async with factory() as session:
-        n = await purge_perimeter(session, datetime.now(UTC))
+        gd = int((await get_runtime_config(session))["perimeter_retention_days"])
+        n = await purge_perimeter(session, datetime.now(UTC), global_default=gd)
         await session.commit()
     return f"purged {n} stale perimeter rows"
 

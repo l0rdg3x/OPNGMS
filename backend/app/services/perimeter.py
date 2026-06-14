@@ -3,9 +3,9 @@ rollup (NOT per-packet events). Reuses IngestCursor; resilient (one source's err
 other). The rollup feeds the Overview cards, the /perimeter page, and the report sections.
 """
 import contextlib
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from sqlalchemy import delete, func
+from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,10 +13,10 @@ from app.connectors.opnsense.client import OpnsenseError
 from app.models.device import Device
 from app.models.ingest_cursor import IngestCursor
 from app.models.perimeter_attacker import PerimeterAttacker
+from app.services.retention import _purge_table
 
 # (kind == IngestCursor.source, client getter). kind matches the perimeter_attacker.kind column.
 _KINDS = [("firewall_block", "get_firewall_blocks"), ("login_failed", "get_auth_failures")]
-RETENTION_DAYS = 30
 
 
 async def ingest_perimeter(session: AsyncSession, device: Device, client, now: datetime) -> int:
@@ -85,8 +85,7 @@ async def _advance(session: AsyncSession, device_id, kind: str, new_time: dateti
     await session.execute(stmt)
 
 
-async def purge_perimeter(session: AsyncSession, now: datetime) -> int:
-    """Retention sweep: drop rollup rows not seen within RETENTION_DAYS. Returns rows deleted."""
-    cutoff = now - timedelta(days=RETENTION_DAYS)
-    res = await session.execute(delete(PerimeterAttacker).where(PerimeterAttacker.last_seen < cutoff))
-    return res.rowcount or 0
+async def purge_perimeter(session: AsyncSession, now: datetime, *, global_default: int) -> int:
+    """Per-tenant retention sweep on the rollup (last_seen < each tenant's effective cutoff)."""
+    return await _purge_table(session, table="perimeter_attacker", time_col="last_seen",
+                              store="perimeter", now=now, global_default=global_default)

@@ -27,6 +27,7 @@ from app.models.smtp_settings import SmtpSettings  # noqa: F401
 from app.models.syslog_ca import SyslogCa  # noqa: F401
 from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.tenant import Tenant
+from app.models.tenant_retention import TenantRetention  # noqa: F401
 from app.models.user import User
 from app.models.user_mfa import UserMfa  # noqa: F401
 from app.models.user_recovery_code import UserRecoveryCode  # noqa: F401
@@ -67,4 +68,5 @@ __all__ = [
     "SilentTenantAlert",
     "SyslogCa",
     "PerimeterAttacker",
+    "TenantRetention",
 ]

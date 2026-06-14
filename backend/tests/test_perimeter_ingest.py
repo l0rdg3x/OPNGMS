@@ -89,7 +89,7 @@ async def test_purge_perimeter_drops_stale_rows(db_engine, two_tenants):
         s.add(PerimeterAttacker(device_id=did, kind="firewall_block", src_ip="8.8.8.8", tenant_id=ta,
                                 count=1, first_seen=now, last_seen=now))
         await s.commit()
-        deleted = await purge_perimeter(s, now=now)
+        deleted = await purge_perimeter(s, now, global_default=30)
         await s.commit()
         remaining = (await s.execute(select(PerimeterAttacker.src_ip))).scalars().all()
     assert deleted == 1 and remaining == ["8.8.8.8"]
