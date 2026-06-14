@@ -27,6 +27,7 @@ const SmtpSettingsPage = lazy(() => import("../pages/SmtpSettingsPage").then((m)
 const LogFleetPage = lazy(() => import("../pages/LogFleetPage").then((m) => ({ default: m.LogFleetPage })));
 const SystemSettingsPage = lazy(() => import("../pages/SystemSettingsPage").then((m) => ({ default: m.SystemSettingsPage })));
 const GroupsPage = lazy(() => import("../pages/GroupsPage").then((m) => ({ default: m.GroupsPage })));
+const AuditPage = lazy(() => import("../pages/AuditPage").then((m) => ({ default: m.AuditPage })));
 
 // ── Inline icon set (stroke, currentColor) — keeps the bundle dependency-free ──
 const ic = {
@@ -46,6 +47,7 @@ const IconSmtp = () => (<svg {...ic}><rect x="3" y="5" width="18" height="14" rx
 const IconSchedule = () => (<svg {...ic}><rect x="3" y="4" width="18" height="17" rx="1.5" /><path d="M3 9h18M8 2v4M16 2v4" /><path d="M12 13v3l2 1.5" /></svg>);
 const IconLogs = () => (<svg {...ic}><rect x="4" y="3" width="16" height="18" rx="1.5" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>);
 const IconGroups = () => (<svg {...ic}><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" /><path d="M16 5.2a3 3 0 0 1 0 5.6M18 14c2 .8 3.5 2.7 3.5 5" /></svg>);
+const IconAudit = () => (<svg {...ic}><path d="M12 8v4l2.5 1.5" /><path d="M3.05 11a9 9 0 1 1 .5 4" /><path d="M3 5v4h4" /></svg>);
 
 function NavItem({ to, label, icon }: { to: string; label: string; icon: ReactNode }) {
   return <NavLink component={RouterNavLink} to={to} end={to === "/"} label={label} leftSection={icon} />;
@@ -96,6 +98,9 @@ function AppShellNav() {
       )}
       {me?.is_superadmin && (
         <NavItem to="/admin/system" label={t.nav.system} icon={<IconSettings />} />
+      )}
+      {me?.is_superadmin && (
+        <NavItem to="/admin/audit" label={t.nav.audit} icon={<IconAudit />} />
       )}
     </Stack>
   );
@@ -176,6 +181,7 @@ export function AppShell() {
               <Route path="/admin/smtp" element={<RequireSuperadmin><SmtpSettingsPage /></RequireSuperadmin>} />
               <Route path="/admin/log-fleet" element={<RequireSuperadmin><LogFleetPage /></RequireSuperadmin>} />
               <Route path="/admin/system" element={<RequireSuperadmin><SystemSettingsPage /></RequireSuperadmin>} />
+              <Route path="/admin/audit" element={<RequireSuperadmin><AuditPage /></RequireSuperadmin>} />
             </Routes>
           </Suspense>
         </MantineAppShell.Main>
