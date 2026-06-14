@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, func, text
+from sqlalchemy import DateTime, ForeignKey, Index, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +10,9 @@ from app.models.base import Base, UUIDPKMixin
 
 class AuditLog(UUIDPKMixin, Base):
     __tablename__ = "audit_log"
+
+    # Serves the Audit viewer's "filter by action, order by ts DESC" query (migration 0037).
+    __table_args__ = (Index("ix_audit_log_action_ts", "action", "ts"),)
 
     ts: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
