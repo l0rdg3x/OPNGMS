@@ -12,6 +12,20 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-14
+### Added
+- **Audit viewer (superadmin).** A new superadmin-only **Audit** page (`/admin/audit`) over the existing
+  application audit ledger: every recorded action — actor (with email), tenant, action, target, IP and
+  details — is browsable with filters (actor email, tenant, action, date range), offset pagination, and a
+  CSV export. Backed by `GET /api/admin/audit` + `/export.csv` (superadmin-gated — the `AUDIT_VIEW`
+  permission is now org-level), with actor→email / tenant→name enrichment and a supporting `(action, ts)`
+  index. Security-reviewed. (#153, #154, #155)
+### Changed
+- **Complete, regression-proof audit coverage.** Mutating routes that previously recorded no audit entry now
+  do — firmware actions (upgrade / reboot / plugin install-remove), first-superadmin setup, the immediate
+  report send, and MFA enrollment start. A new CI guard test fails the build if any future mutating route
+  ships without an audit record (or an explicit read-only exemption), so coverage stays complete. (#153)
+
 ## [0.9.1] - 2026-06-14
 ### Changed
 - The two **perimeter** report sections — "Failed logins" and "Firewall blocks" — are now toggled like
@@ -125,7 +139,8 @@ annotated tag when a version is cut.
   monitoring + alerting, PDF reporting, the version-aware config catalog editor (generator + dynamic
   distribution + apply engine + editor UI), the syslog log lake, and the Docker deployment stack.
 
-[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.7.0...v0.8.0
