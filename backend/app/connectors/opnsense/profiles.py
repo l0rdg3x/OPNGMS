@@ -90,4 +90,13 @@ CAPABILITIES: dict[str, list[ProfileRule]] = {
     "config_backup": [_default(_spec(
         _GET("core/backup/download/this", kind="text"),
         combine=lambda r: r[0]))],
+    # Perimeter signals. The firewall log is structured (action=block -> attacker src). The audit log
+    # holds auth events; OPNsense's diagnostics-log API is POST (a GET returns []), paged like IDS.
+    "firewall_blocks": [_default(_spec(
+        _GET("diagnostics/firewall/log"),
+        combine=lambda r: parsers.parse_firewall_blocks(r[0])))],
+    "auth_failures": [_default(_spec(
+        _POST("diagnostics/log/core/audit",
+              {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""}),
+        combine=lambda r: parsers.parse_auth_failures(r[0])))],
 }
