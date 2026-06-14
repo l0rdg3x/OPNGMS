@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     cors_allow_origins: str = ""  # comma-separated; empty = CORS disabled (same-origin)
     login_max_attempts: int = 5
     login_lockout_window_seconds: int = 900
+    # Per-tenant-overridable data retention (worker purge reads the effective value). See app/services/retention.py.
+    perimeter_retention_days: int = 30   # per-tenant-overridable; worker purge reads the effective value
+    events_retention_days: int = 90      # replaces the native TimescaleDB retention policy (PR2)
+    metrics_retention_days: int = 30     # replaces the native TimescaleDB retention policy (PR2)
     # Worker cron cadences (configurable; see app/worker.py).
     ingest_every_minutes: int = 5  # event ingest cadence (1..30)
     config_backup_hour: int = 3  # daily config backup hour (UTC, 0..23)

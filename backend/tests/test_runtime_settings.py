@@ -5,6 +5,7 @@ import app.services.runtime_settings as rs
 from app.models.app_setting import AppSetting
 from app.services.runtime_settings import (
     RUNTIME_SETTINGS,
+    _BY_KEY,
     active_settings,
     get_runtime_config,
     get_runtime_config_or_defaults,
@@ -17,7 +18,7 @@ async def _session(db_engine):
     return async_sessionmaker(db_engine, expire_on_commit=False)
 
 
-def test_registry_covers_the_ten_runtime_settings():
+def test_registry_covers_the_runtime_settings():
     keys = {r.key for r in RUNTIME_SETTINGS}
     assert keys == {
         "firmware_max_status_polls",
@@ -30,14 +31,24 @@ def test_registry_covers_the_ten_runtime_settings():
         "login_lockout_window_seconds",
         "session_ttl_hours",
         "session_idle_minutes",
+        "perimeter_retention_days",
+        "events_retention_days",
+        "metrics_retention_days",
     }
 
 
-def test_all_settings_are_active():
-    # Every registered setting has its consumer wired, so all are exposed by the admin API.
-    assert all(r.active for r in RUNTIME_SETTINGS)
-    assert {r.key for r in active_settings()} == {r.key for r in RUNTIME_SETTINGS}
-    assert len(active_settings()) == 10
+def test_active_settings_exclude_unwired_consumers():
+    # An active setting has its consumer wired (exposed by the admin API). events/metrics retention
+    # purges land in PR2, so those two stay inactive until then; the rest are active.
+    inactive = {r.key for r in RUNTIME_SETTINGS if not r.active}
+    assert inactive == {"events_retention_days", "metrics_retention_days"}
+    assert {r.key for r in active_settings()} == {r.key for r in RUNTIME_SETTINGS} - inactive
+
+
+def test_perimeter_retention_default_and_override(db_engine):
+    assert runtime_defaults()["perimeter_retention_days"] == 30
+    assert _BY_KEY["perimeter_retention_days"].active is True
+    assert _BY_KEY["events_retention_days"].active is False
 
 
 def test_defaults_match_env_settings():
