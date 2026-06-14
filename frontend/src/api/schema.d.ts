@@ -1625,6 +1625,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Runtime Settings */
+        get: operations["get_runtime_settings_api_admin_settings_get"];
+        /** Update Runtime Settings */
+        put: operations["update_runtime_settings_api_admin_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/live-push": {
         parameters: {
             query?: never;
@@ -2811,6 +2829,35 @@ export interface components {
             api_key: string;
             /** Api Secret */
             api_secret: string;
+        };
+        /** RuntimeSettingOut */
+        RuntimeSettingOut: {
+            /** Key */
+            key: string;
+            /** Value */
+            value: boolean | number;
+            /** Default */
+            default: boolean | number;
+            /** Kind */
+            kind: string;
+            /** Minimum */
+            minimum?: number | null;
+            /** Maximum */
+            maximum?: number | null;
+            /** Group */
+            group: string;
+        };
+        /** RuntimeSettingsOut */
+        RuntimeSettingsOut: {
+            /** Settings */
+            settings: components["schemas"]["RuntimeSettingOut"][];
+        };
+        /** RuntimeSettingsPatch */
+        RuntimeSettingsPatch: {
+            /** Values */
+            values: {
+                [key: string]: boolean | number;
+            };
         };
         /** ScheduleIn */
         ScheduleIn: {
@@ -6584,6 +6631,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogFleetDevicesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_runtime_settings_api_admin_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSettingsOut"];
+                };
+            };
+        };
+    };
+    update_runtime_settings_api_admin_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeSettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSettingsOut"];
                 };
             };
             /** @description Validation Error */

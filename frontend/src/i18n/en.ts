@@ -551,6 +551,47 @@ export const en = {
     reportGenerate: "Failed to generate report",
     attackerCountriesLoad: "Failed to load attacker countries",
   },
+  system: {
+    title: "System",
+    subtitle: "Platform-wide runtime settings.",
+    livePush: {
+      label: "Live config push to devices",
+      help: "When ON, applying a config change writes to the real device. When OFF, changes are dry-run only.",
+      loadError: "Failed to load the live-push setting.",
+      enabled: "Live config push enabled",
+      disabled: "Live config push disabled",
+      updateError: "Failed to update live config push",
+    },
+    runtime: {
+      title: "Runtime settings",
+      subtitle: "Tunable without a restart; the value here overrides the deploy default from .env.",
+      loadError: "Failed to load runtime settings.",
+      save: "Save",
+      discard: "Discard changes",
+      saved: "Runtime settings saved",
+      saveError: "Failed to save runtime settings",
+      defaultLabel: "default",
+      groups: {
+        firmware: "Firmware",
+        distribution: "Catalog & GeoIP distribution",
+        maintenance: "Maintenance",
+        security_login: "Login protection",
+        security_session: "Sessions",
+      },
+      items: {
+        firmware_max_status_polls: { label: "Max status polls", help: "Status polls before a firmware action is given up." },
+        firmware_poll_interval_seconds: { label: "Poll interval (s)", help: "Delay between firmware status polls." },
+        catalog_auto_fetch: { label: "Auto-fetch config catalogs", help: "Fetch versioned catalogs from the release on a cache miss." },
+        geoip_auto_fetch: { label: "Auto-fetch GeoIP database", help: "Fetch the GeoIP database from the release on a cache miss." },
+        silent_alert_enabled: { label: "Silent-tenant alerts", help: "Alert when a tenant with forwarding stops shipping logs." },
+        silent_alert_after_hours: { label: "Silent after (hours)", help: "Hours of silence before a tenant is flagged." },
+        login_max_attempts: { label: "Max login attempts", help: "Failed login attempts allowed before lockout." },
+        login_lockout_window_seconds: { label: "Lockout window (s)", help: "Sliding window for the failed-login count." },
+        session_ttl_hours: { label: "Session lifetime (hours)", help: "Absolute session lifetime." },
+        session_idle_minutes: { label: "Idle timeout (minutes)", help: "Idle time before a session expires." },
+      },
+    },
+  },
 } as const;
 
 // Widen the string leaves to `string` while preserving the exact key structure, so sibling
