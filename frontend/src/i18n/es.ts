@@ -580,6 +580,9 @@ export const es: Dict = {
       saved: "Ajustes de ejecución guardados",
       saveError: "No se pudieron guardar los ajustes de ejecución",
       defaultLabel: "por defecto",
+      impactsTitle: "Reducir este valor de retención afecta a los inquilinos",
+      impactItem:
+        "{tenant}: una programación de informe {store} necesita {range} días pero {store} ahora se conserva {bound} días.",
       groups: {
         firmware: "Firmware",
         distribution: "Distribución de catálogo y GeoIP",

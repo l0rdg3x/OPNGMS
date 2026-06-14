@@ -580,6 +580,9 @@ export const de: Dict = {
       saved: "Laufzeiteinstellungen gespeichert",
       saveError: "Laufzeiteinstellungen konnten nicht gespeichert werden",
       defaultLabel: "Standard",
+      impactsTitle: "Das Senken dieses Aufbewahrungswerts betrifft Mandanten",
+      impactItem:
+        "{tenant}: Ein {store}-Berichtszeitplan benötigt {range} Tage, aber {store} wird jetzt {bound} Tage aufbewahrt.",
       groups: {
         firmware: "Firmware",
         distribution: "Katalog- & GeoIP-Verteilung",

@@ -579,6 +579,9 @@ export const en = {
       saved: "Runtime settings saved",
       saveError: "Failed to save runtime settings",
       defaultLabel: "default",
+      impactsTitle: "Lowering this retention default affects tenants",
+      impactItem:
+        "{tenant}: a {store} report schedule needs {range} days but {store} is now kept {bound} days.",
       groups: {
         firmware: "Firmware",
         distribution: "Catalog & GeoIP distribution",

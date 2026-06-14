@@ -580,6 +580,9 @@ export const it: Dict = {
       saved: "Impostazioni di runtime salvate",
       saveError: "Impossibile salvare le impostazioni di runtime",
       defaultLabel: "default",
+      impactsTitle: "Abbassare questo valore di conservazione influisce sui tenant",
+      impactItem:
+        "{tenant}: una pianificazione report {store} richiede {range} giorni ma {store} ora viene conservato {bound} giorni.",
       groups: {
         firmware: "Firmware",
         distribution: "Distribuzione catalogo e GeoIP",

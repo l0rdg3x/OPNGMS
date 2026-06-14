@@ -50,6 +50,15 @@ async def set_tenant_context(session: AsyncSession, tenant_id: uuid.UUID) -> Non
     )
 
 
+async def reset_tenant_context(session: AsyncSession) -> None:
+    """Clear app.current_tenant back to the fail-closed neutral state ('' -> NULL -> no rows).
+
+    Used after a loop that sets the context for several tenants in turn (e.g. the superadmin
+    impacted-tenants scan), so a later query on the same session can't inherit the last tenant's context.
+    """
+    await session.execute(text("SELECT set_config('app.current_tenant', '', true)"))
+
+
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with get_session_factory()() as session:
         yield session

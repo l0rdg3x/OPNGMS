@@ -580,6 +580,9 @@ export const fr: Dict = {
       saved: "Paramètres d'exécution enregistrés",
       saveError: "Échec de l'enregistrement des paramètres d'exécution",
       defaultLabel: "par défaut",
+      impactsTitle: "Réduire cette valeur de conservation affecte des locataires",
+      impactItem:
+        "{tenant} : une planification de rapport {store} nécessite {range} jours mais {store} est désormais conservé {bound} jours.",
       groups: {
         firmware: "Firmware",
         distribution: "Distribution du catalogue et de GeoIP",

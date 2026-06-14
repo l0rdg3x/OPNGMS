@@ -580,6 +580,9 @@ export const ru: Dict = {
       saved: "Параметры времени выполнения сохранены",
       saveError: "Не удалось сохранить параметры времени выполнения",
       defaultLabel: "по умолчанию",
+      impactsTitle: "Снижение этого значения хранения затрагивает арендаторов",
+      impactItem:
+        "{tenant}: расписание отчёта {store} требует {range} дн., но {store} теперь хранится {bound} дн.",
       groups: {
         firmware: "Прошивка",
         distribution: "Распространение каталогов и GeoIP",
