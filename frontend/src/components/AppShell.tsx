@@ -13,6 +13,7 @@ import { TenantSwitcher } from "./TenantSwitcher";
 // Heavy inner pages are lazy-loaded to split the initial JS bundle.
 const OverviewPage = lazy(() => import("../pages/OverviewPage").then((m) => ({ default: m.OverviewPage })));
 const AlertsPage = lazy(() => import("../pages/AlertsPage").then((m) => ({ default: m.AlertsPage })));
+const PerimeterPage = lazy(() => import("../pages/PerimeterPage").then((m) => ({ default: m.PerimeterPage })));
 const DevicesPage = lazy(() => import("../pages/DevicesPage").then((m) => ({ default: m.DevicesPage })));
 const DeviceDetailPage = lazy(() => import("../pages/DeviceDetailPage").then((m) => ({ default: m.DeviceDetailPage })));
 const ReportsPage = lazy(() => import("../pages/ReportsPage").then((m) => ({ default: m.ReportsPage })));
@@ -36,6 +37,7 @@ const IconOverview = () => (<svg {...ic}><rect x="3" y="3" width="7" height="9" 
 const IconDevices = () => (<svg {...ic}><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="18" height="6" rx="1.5" /><path d="M7 7h.01M7 17h.01" /></svg>);
 const IconAlerts = () => (<svg {...ic}><path d="M10.3 3.6 1.8 18a1.5 1.5 0 0 0 1.3 2.2h17.8a1.5 1.5 0 0 0 1.3-2.2L13.7 3.6a1.5 1.5 0 0 0-2.6 0z" /><path d="M12 9v4M12 17h.01" /></svg>);
 const IconReports = () => (<svg {...ic}><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></svg>);
+const IconPerimeter = () => (<svg {...ic}><path d="M12 2 4 5v6c0 5 3.4 8.4 8 11 4.6-2.6 8-6 8-11V5z" /><path d="M9 12l2 2 4-4" /></svg>);
 const IconSettings = () => (<svg {...ic}><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2.4" /><circle cx="8" cy="17" r="2.4" /></svg>);
 const IconSessions = () => (<svg {...ic}><path d="M12 2 4 5v6c0 5 3.4 8.4 8 11 4.6-2.6 8-6 8-11V5z" /><circle cx="12" cy="10" r="2.2" /><path d="M12 12.2V15" /></svg>);
 const IconMfa = () => (<svg {...ic}><circle cx="8" cy="14" r="3.4" /><path d="M10.4 11.6 19 3M16 6l2.5 2.5M14 8l2.5 2.5" /></svg>);
@@ -67,6 +69,7 @@ function AppShellNav() {
       <NavItem to="/" label={t.nav.overview} icon={<IconOverview />} />
       <NavItem to="/devices" label={t.nav.devices} icon={<IconDevices />} />
       <NavItem to="/alerts" label={t.nav.alerts} icon={<IconAlerts />} />
+      <NavItem to="/perimeter" label={t.nav.perimeter} icon={<IconPerimeter />} />
       <NavItem to="/reports" label={t.nav.reports} icon={<IconReports />} />
       {isOperator && (
         <NavItem to="/logs" label={t.nav.logs} icon={<IconLogs />} />
@@ -161,6 +164,7 @@ export function AppShell() {
               <Route path="/devices" element={<DevicesPage />} />
               <Route path="/devices/:deviceId" element={<DeviceDetailPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
+              <Route path="/perimeter" element={<PerimeterPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/reports/settings" element={<ReportSettingsPage />} />
               <Route path="/reports/schedule" element={<ReportSchedulePage />} />

@@ -1776,6 +1776,126 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/perimeter/attackers": {
+      "get": {
+        "tags": [
+          "monitoring"
+        ],
+        "summary": "Perimeter Attackers",
+        "description": "Top attacker IPs for a perimeter `kind` ('login_failed' | 'firewall_block'), ranked by cumulative\ncount, active in the window (defaults to the last 7 days). Country is resolved offline via the\ncached mmdb (UNKNOWN if no mmdb). Serves both the Overview cards (small limit) and the /perimeter\npage (larger limit).",
+        "operationId": "perimeter_attackers_api_tenants__tenant_id__perimeter_attackers_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "frm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frm"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PerimeterAttackerOut"
+                  },
+                  "title": "Response Perimeter Attackers Api Tenants  Tenant Id  Perimeter Attackers Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/events": {
       "get": {
         "tags": [
@@ -7865,6 +7985,41 @@
           "password"
         ],
         "title": "PasswordIn"
+      },
+      "PerimeterAttackerOut": {
+        "properties": {
+          "src_ip": {
+            "type": "string",
+            "title": "Src Ip"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "src_ip",
+          "country",
+          "count",
+          "last_seen",
+          "label"
+        ],
+        "title": "PerimeterAttackerOut",
+        "description": "One attacker IP in the perimeter view (failed logins / firewall blocks).\n\n`country` is an ISO alpha-2 code or a PRIVATE/UNKNOWN sentinel (localized client-side, like the\nattacker-countries view). `count` is cumulative; `label` is the last attempted username\n(login_failed) or the most-targeted port (firewall_block)."
       },
       "PluginInfoOut": {
         "properties": {
