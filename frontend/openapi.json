@@ -4114,6 +4114,100 @@
         }
       }
     },
+    "/api/tenants/{tenant_id}/retention": {
+      "get": {
+        "tags": [
+          "retention"
+        ],
+        "summary": "Get Retention",
+        "operationId": "get_retention_api_tenants__tenant_id__retention_get",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "retention"
+        ],
+        "summary": "Put Retention",
+        "operationId": "put_retention_api_tenants__tenant_id__retention_put",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/templates": {
       "get": {
         "tags": [
@@ -8988,6 +9082,52 @@
           "from_email"
         ],
         "title": "ReportSettingsOut"
+      },
+      "RetentionOut": {
+        "properties": {
+          "overrides": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Overrides"
+          },
+          "defaults": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Defaults"
+          }
+        },
+        "type": "object",
+        "required": [
+          "overrides",
+          "defaults"
+        ],
+        "title": "RetentionOut"
+      },
+      "RetentionPatch": {
+        "properties": {
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 3650.0,
+                  "minimum": 1.0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Values"
+          }
+        },
+        "type": "object",
+        "title": "RetentionPatch"
       },
       "RevokeIn": {
         "properties": {

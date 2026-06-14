@@ -18,7 +18,7 @@ import { useRuntimeSettings, useUpdateRuntimeSettings } from "./systemHooks";
 import type { RuntimeSettingOut } from "./systemHooks";
 import { useT } from "../i18n";
 
-const GROUP_ORDER = ["firmware", "distribution", "maintenance", "security_login", "security_session"];
+const GROUP_ORDER = ["firmware", "distribution", "maintenance", "retention", "security_login", "security_session"];
 
 type Draft = Record<string, boolean | number>;
 
@@ -113,9 +113,11 @@ export function RuntimeSettingsSection() {
                         max={s.maximum ?? undefined}
                         step={s.kind === "float" ? 0.1 : 1}
                         allowDecimal={s.kind === "float"}
-                        onChange={(val) =>
-                          setValue(s.key, typeof val === "number" ? val : Number(val))
-                        }
+                        onChange={(val) => {
+                          // Ignore a cleared field (empty string): Number("") is 0, which would mark the
+                          // knob dirty and let the operator save 0 — out of bounds for every min>=1 setting.
+                          if (typeof val === "number") setValue(s.key, val);
+                        }}
                         data-testid={`rs-${s.key}`}
                         maw={260}
                       />

@@ -31,6 +31,7 @@ import {
   seedSectionState,
   sectionLabel,
 } from "../reports/sections";
+import { RetentionCard } from "../retention/RetentionCard";
 
 export function ReportSettingsPage() {
   const t = useT();
@@ -144,6 +145,7 @@ function ReportSettingsForm() {
 
   return (
     <Stack maw={480}>
+      <Stack>
       <Title order={3}>{t.reports.settings.pageTitle}</Title>
 
       <TextInput
@@ -243,6 +245,9 @@ function ReportSettingsForm() {
           </Button>
         )}
       </Group>
+      </Stack>
+
+      <RetentionCard />
     </Stack>
   );
 }
