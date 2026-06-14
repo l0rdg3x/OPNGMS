@@ -134,12 +134,19 @@ async def update_runtime_settings(
         ip=request.client.host if request.client else None,
         details={"keys": sorted(body.values)},
     )
+    # NB the audit write above intentionally precedes the tenant-context scan below: it runs under the
+    # neutral GUC (tenant_id=None for this org action). Keep it before `_retention_impacts`, which mutates
+    # the session's tenant context per tenant.
     # Only a LOWERED global retention default can newly bite a tenant that follows the global; compute the
-    # impacted-tenants feedback before committing (read-only scan, no writes of its own).
+    # impacted-tenants feedback before committing (read-only scan, no writes of its own). Use `.get()` so a
+    # future RETENTION_STORES entry without a matching runtime key (e.g. SP-2's log_lake) can't KeyError the
+    # whole PUT — it's just skipped until its key is wired.
     lowered = [
         store
         for store in RETENTION_STORES
-        if int(after[f"{store}_retention_days"]) < int(before[f"{store}_retention_days"])
+        if (a := after.get(f"{store}_retention_days")) is not None
+        and (b := before.get(f"{store}_retention_days")) is not None
+        and int(a) < int(b)
     ]
     impacts = await _retention_impacts(session, lowered) if lowered else []
     await session.commit()

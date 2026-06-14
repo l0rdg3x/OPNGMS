@@ -150,6 +150,25 @@ async def test_non_retention_setting_yields_no_impacts(api_client, db_engine):
     assert await _put_settings(api_client, {"login_max_attempts": 3}) == []
 
 
+# ── RLS: the cross-tenant scan runs correctly under the production opngms_app role ─────────────────
+
+async def test_impacts_scan_under_app_role_rls(app_role_api_client, db_engine):
+    """The PUT's cross-tenant scan runs as ``opngms_app`` (RLS ENFORCED) via per-tenant
+    ``set_tenant_context`` — not an owner/BYPASSRLS connection. Seed two tenants (one overridden) and assert
+    only the no-override one is reported, proving the GUC loop scopes each read to the right tenant under
+    production-equivalent RLS (the other tests use the owner-role ``api_client``, which is RLS-exempt)."""
+    await _superadmin(app_role_api_client)
+    plain = await _seed_tenant(db_engine, "rls-plain")
+    pinned = await _seed_tenant(db_engine, "rls-pinned")
+    for tid in (plain, pinned):
+        await _ensure_settings(db_engine, tid)
+        await _add_schedule(db_engine, tid, frequency="monthly")
+    await _set_override(db_engine, pinned, {"metrics": 90})
+
+    impacts = await _put_settings(app_role_api_client, {"metrics_retention_days": 14})
+    assert len(impacts) == 1 and impacts[0]["tenant_id"] == str(plain)
+
+
 # ── precision: a different store lowered does not pull in a metrics-only over-run ──────────────────
 
 async def test_lowering_other_store_does_not_impact_metrics_schedule(api_client, db_engine):

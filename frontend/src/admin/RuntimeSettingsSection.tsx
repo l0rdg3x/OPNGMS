@@ -54,6 +54,7 @@ export function RuntimeSettingsSection() {
   }
 
   async function handleSave() {
+    setImpacts([]);  // drop any prior impacts before the attempt — never show a stale list
     const values: Draft = Object.fromEntries(dirtyKeys.map((s) => [s.key, draft[s.key]]));
     try {
       const result = await update.mutateAsync(values);
