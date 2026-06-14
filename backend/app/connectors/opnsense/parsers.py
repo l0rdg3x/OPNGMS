@@ -286,7 +286,7 @@ def parse_firewall_blocks(data) -> list[dict]:
 # an unrecognized line is skipped (NEVER crashes ingest). Verify/extend against a really-attacked box.
 _AUTH_FAIL = re.compile(
     r"(?:authentication failed|could not authenticate|wrong (?:password|username)|login failed|denied)"
-    r".*?user '(?P<user>[^']*)'.*?from[: ]+(?P<ip>\d{1,3}(?:\.\d{1,3}){3})",
+    r".*?user '(?P<user>[^']+)'.*?from[: ]+(?P<ip>\d{1,3}(?:\.\d{1,3}){3})",
     re.IGNORECASE,
 )
 

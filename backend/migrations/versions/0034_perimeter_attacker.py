@@ -18,6 +18,9 @@ def upgrade() -> None:
         sa.Column("device_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("kind", sa.Text(), nullable=False),
         sa.Column("src_ip", sa.Text(), nullable=False),
+        # No FK on tenant_id (by design, like metrics/events): the device_id FK cascade already removes
+        # these rows when a device — or its tenant — is deleted, and tenant_id is always written as
+        # device.tenant_id by the worker (never client-supplied). RLS bounds reads.
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("count", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("first_seen", sa.DateTime(timezone=True), nullable=False),

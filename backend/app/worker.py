@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -25,6 +26,8 @@ from app.services.monitoring import collect_and_store
 from app.services.perimeter import ingest_perimeter, purge_perimeter
 from app.services.report_schedule import ON_DEMAND, report_window
 from app.services.report_schedule import next_run_at as _next_run_at
+
+logger = logging.getLogger(__name__)
 
 
 def _owner_url() -> str:
@@ -90,9 +93,15 @@ async def ingest_device_events(ctx: dict, device_id: str) -> int:
         )
         now = datetime.now(UTC)
         n = await ingest_events(session, device, client, now=now)
-        # Perimeter signals (failed logins + firewall blocks) reuse the same client + cron; best-effort
-        # (ingest_perimeter suppresses an unavailable source) and never blocks the events ingest.
-        await ingest_perimeter(session, device, client, now=now)
+        # Perimeter signals (failed logins + firewall blocks) reuse the same client + cron; best-effort.
+        # Run inside a SAVEPOINT + broad guard so a perimeter failure (even a DB error, not just an
+        # unavailable source) rolls back ONLY the perimeter writes — the already-completed events ingest
+        # still commits.
+        try:
+            async with session.begin_nested():
+                await ingest_perimeter(session, device, client, now=now)
+        except Exception:
+            logger.warning("perimeter ingest failed for device %s", device.id, exc_info=True)
         await session.commit()
         return n
 
