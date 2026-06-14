@@ -98,9 +98,14 @@ describe("AuditPage", () => {
       );
       renderWithProviders(<AuditPage />);
       await screen.findByText("admin@x.io");
+      // Apply a filter first, then export: proves downloadAuditCsv forwards the active filters.
+      await userEvent.type(screen.getByTestId("audit-filter-action"), "login.success");
+      await userEvent.click(screen.getByTestId("audit-apply"));
       await userEvent.click(screen.getByTestId("audit-export"));
       await waitFor(() => expect(cap.url).toBeTruthy());
-      expect(cap.url).toContain("/api/admin/audit/export.csv");
+      const u = new URL(cap.url!);
+      expect(u.pathname).toContain("/api/admin/audit/export.csv");
+      expect(u.searchParams.get("action")).toBe("login.success");
     } finally {
       URL.createObjectURL = origCreate;
       URL.revokeObjectURL = origRevoke;
