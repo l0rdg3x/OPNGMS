@@ -16,6 +16,15 @@ def test_boot_time_defaults_match_current_behavior():
     assert s.opnsense_http_timeout == 10.0
 
 
+def test_runtime_default_fields_match_firmware_constants():
+    # The two firmware-poll runtime defaults must mirror today's firmware_action.py module constants.
+    from app.services import firmware_action
+
+    s = _settings()
+    assert s.firmware_max_status_polls == firmware_action.MAX_STATUS_POLLS == 360
+    assert s.firmware_poll_interval_seconds == firmware_action.POLL_INTERVAL == 5.0
+
+
 def test_boot_time_overrides_from_env(monkeypatch):
     monkeypatch.setenv("WORKER_MAX_JOBS", "4")
     monkeypatch.setenv("DB_POOL_SIZE", "20")

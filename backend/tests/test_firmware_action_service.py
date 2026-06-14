@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.connectors.opnsense.client import ReachabilityError
 from app.models.firmware_action import FirmwareAction
 from app.services.firmware_action import run_firmware_action
+from app.services.runtime_settings import update_runtime_config
 
 
 class FakeClient:
@@ -120,6 +121,29 @@ async def test_firmware_upgrade_multistep_loop(db_engine, two_tenants, monkeypat
     st, act = await _run(db_engine, aid, client)
     assert st == "done"
     assert client.calls.count("update") + client.calls.count("upgrade") == 2  # two steps then converged
+
+
+async def test_firmware_poll_budget_honors_runtime_override(db_engine, two_tenants, monkeypatch):
+    import app.services.firmware_action as fa
+    monkeypatch.setattr(fa.asyncio, "sleep", lambda *a, **k: _noop())
+    ta, _ = two_tenants
+    # Shrink the poll budget at runtime; run_firmware_action must pass it into poll_until_done.
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await update_runtime_config(s, {"firmware_max_status_polls": 3})
+        await s.commit()
+
+    polls = {"n": 0}
+
+    class NeverDone(FakeClient):
+        async def firmware_upgrade_status(self):
+            polls["n"] += 1
+            return {"status": "running"}  # never completes -> budget is the only exit
+
+    aid = await _action(db_engine, ta, "firmware_update")
+    st, _act = await _run(db_engine, aid, NeverDone())
+    assert st == "failed"
+    assert polls["n"] == 3  # bailed at the runtime budget, not the default 360
 
 
 async def test_poll_until_done_waits_past_stale_done(monkeypatch):

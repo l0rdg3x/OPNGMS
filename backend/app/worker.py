@@ -514,7 +514,7 @@ async def detect_silent_tenants(ctx: dict) -> dict:
         names = [name.replace("\r", " ").replace("\n", " ") for _id, name in newly]
         body = (
             "These OPNGMS tenant(s) have enabled log forwarding but stopped shipping logs "
-            f"(silent > {settings.silent_alert_after_hours}h):\n\n  "
+            f"(silent > {summary['after_hours']}h):\n\n  "
             + "\n  ".join(names)
             + "\n\nOpen the Log fleet dashboard to investigate."
         )

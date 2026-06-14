@@ -15,6 +15,7 @@ from app.connectors.opnsense import parsers
 from app.connectors.opnsense.client import OpnsenseError, ReachabilityError
 from app.models.firmware_action import FirmwareAction
 from app.services.config_push import _advisory_key
+from app.services.runtime_settings import get_runtime_config
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +58,13 @@ async def _wait_until_reachable(client) -> None:
     raise OpnsenseError("device did not come back after reboot within budget")
 
 
-async def poll_until_done(client) -> dict:
+async def poll_until_done(
+    client, *, max_polls: int = MAX_STATUS_POLLS, interval: float = POLL_INTERVAL
+) -> dict:
     """Poll upgradestatus until the running op finishes; tolerate a reboot AND the start-race.
+
+    `max_polls`/`interval` default to the module constants; `run_firmware_action` overrides them from
+    the runtime config (System page) so the poll budget is tunable without a restart.
 
     OPNsense firmware actions are async + serialized: a freshly issued action may not have
     flipped upgradestatus to "running" yet, and a just-finished prior action (e.g. a mirror
@@ -67,7 +73,7 @@ async def poll_until_done(client) -> dict:
     genuinely instant / no-op action that never enters "running"."""
     seen_running = False
     idle_polls = 0
-    for _ in range(MAX_STATUS_POLLS):
+    for _ in range(max_polls):
         try:
             st = await client.firmware_upgrade_status()
         except ReachabilityError:
@@ -77,14 +83,14 @@ async def poll_until_done(client) -> dict:
         if str(st.get("status", "")).lower() == "running":
             seen_running = True
             idle_polls = 0
-            await asyncio.sleep(POLL_INTERVAL)
+            await asyncio.sleep(interval)
             continue
         if seen_running:
             return st
         idle_polls += 1
         if idle_polls >= STARTUP_GRACE_POLLS:
             return st
-        await asyncio.sleep(POLL_INTERVAL)
+        await asyncio.sleep(interval)
     raise OpnsenseError("firmware operation did not complete within budget")
 
 
@@ -103,28 +109,36 @@ async def run_firmware_action(session: AsyncSession, action: FirmwareAction, cli
         return action.status
     action.status = "running"
     await session.flush()
+    # Poll budget is runtime-tunable (System page); read it once for this action.
+    _runtime = await get_runtime_config(session)
+    _max_polls = _runtime["firmware_max_status_polls"]
+    _interval = _runtime["firmware_poll_interval_seconds"]
+
+    async def _poll() -> dict:
+        return await poll_until_done(client, max_polls=_max_polls, interval=_interval)
+
     try:
         if action.kind == "plugin_remove":
             await client.plugin_remove(action.target)
-            await poll_until_done(client)
+            await _poll()
         elif action.kind == "plugin_install":
             await client.firmware_check()
-            await poll_until_done(client)          # wait for the mirror check to finish (serialized)
+            await _poll()          # wait for the mirror check to finish (serialized)
             if updates_pending(await client.firmware_status_raw()):
                 action.status = "failed"
                 action.result = {"error": "device must be up to date before installing plugins"}
                 await session.flush()
                 return "failed"
             await client.plugin_install(action.target)
-            await poll_until_done(client)
+            await _poll()
         elif action.kind == "firmware_update":
             await client.firmware_update()
-            await poll_until_done(client)
+            await _poll()
         elif action.kind == "firmware_upgrade":
             steps = 0
             for _ in range(MAX_UPGRADE_STEPS):
                 await client.firmware_check()
-                await poll_until_done(client)      # wait for the mirror check to finish (serialized)
+                await _poll()      # wait for the mirror check to finish (serialized)
                 st = await client.firmware_status_raw()
                 if not updates_pending(st) and not major_offered(st):
                     break
@@ -132,7 +146,7 @@ async def run_firmware_action(session: AsyncSession, action: FirmwareAction, cli
                     await client.firmware_upgrade()
                 else:
                     await client.firmware_update()
-                await poll_until_done(client)
+                await _poll()
                 steps += 1
             else:
                 raise OpnsenseError("upgrade did not converge within MAX_UPGRADE_STEPS")

@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     db_pool_size: int = 5  # SQLAlchemy engine pool size, API + worker (>=1)
     db_max_overflow: int = 10  # SQLAlchemy pool overflow beyond pool_size (>=0)
     opnsense_http_timeout: float = 10.0  # default per-request connector timeout, seconds (>0)
+    # Runtime-default firmware-poll budget (initial value; editable live from the System page).
+    firmware_max_status_polls: int = 360  # max upgradestatus polls before giving up (>=1)
+    firmware_poll_interval_seconds: float = 5.0  # delay between upgradestatus polls, seconds (>0)
     poll_interval_seconds: int = 60
     cors_allow_origins: str = ""  # comma-separated; empty = CORS disabled (same-origin)
     login_max_attempts: int = 5
