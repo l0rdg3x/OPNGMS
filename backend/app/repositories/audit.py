@@ -30,6 +30,7 @@ class AuditRepository:
         stmt: Select,
         *,
         actor_user_id: uuid.UUID | None,
+        actor_email: str | None,
         tenant_id: uuid.UUID | None,
         action: str | None,
         frm: datetime | None,
@@ -37,6 +38,9 @@ class AuditRepository:
     ) -> Select:
         if actor_user_id is not None:
             stmt = stmt.where(AuditLog.actor_user_id == actor_user_id)
+        if actor_email is not None:
+            # Case-insensitive substring on the joined actor email (parameterized → injection-safe).
+            stmt = stmt.where(User.email.ilike(f"%{actor_email}%"))
         if tenant_id is not None:
             stmt = stmt.where(AuditLog.tenant_id == tenant_id)
         if action is not None:
@@ -60,6 +64,7 @@ class AuditRepository:
         self,
         *,
         actor_user_id: uuid.UUID | None = None,
+        actor_email: str | None = None,
         tenant_id: uuid.UUID | None = None,
         action: str | None = None,
         frm: datetime | None = None,
@@ -70,6 +75,7 @@ class AuditRepository:
         capped = max(1, min(limit, MAX_LIMIT))
         filters = {
             "actor_user_id": actor_user_id,
+            "actor_email": actor_email,
             "tenant_id": tenant_id,
             "action": action,
             "frm": frm,
@@ -79,7 +85,14 @@ class AuditRepository:
         page = page.order_by(AuditLog.ts.desc(), AuditLog.id.desc()).limit(capped).offset(max(0, offset))
         rows = (await self.session.execute(page)).all()
 
-        count_stmt = self._apply_filters(select(func.count()).select_from(AuditLog), **filters)
+        # Outer-join users so the actor_email filter resolves; the ilike clause discards NULL-email
+        # rows, so the count matches the (likewise outer-joined) page query.
+        count_base = (
+            select(func.count())
+            .select_from(AuditLog)
+            .outerjoin(User, AuditLog.actor_user_id == User.id)
+        )
+        count_stmt = self._apply_filters(count_base, **filters)
         total = (await self.session.execute(count_stmt)).scalar_one()
         return list(rows), int(total)
 
@@ -87,6 +100,7 @@ class AuditRepository:
         self,
         *,
         actor_user_id: uuid.UUID | None = None,
+        actor_email: str | None = None,
         tenant_id: uuid.UUID | None = None,
         action: str | None = None,
         frm: datetime | None = None,
@@ -96,6 +110,7 @@ class AuditRepository:
         stmt = self._apply_filters(
             self._enriched_select(),
             actor_user_id=actor_user_id,
+            actor_email=actor_email,
             tenant_id=tenant_id,
             action=action,
             frm=frm,
