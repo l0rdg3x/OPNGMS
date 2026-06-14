@@ -78,6 +78,7 @@ async def upsert_schedule(
 async def delete_schedule(
     tenant_id: uuid.UUID,
     schedule_id: uuid.UUID,
+    request: Request,
     ctx: TenantContext = Depends(require_tenant(Action.REPORT_CONFIG)),
     session: AsyncSession = Depends(get_session),
 ) -> None:
@@ -85,7 +86,8 @@ async def delete_schedule(
         raise HTTPException(status_code=404, detail="Schedule not found")
     await AuditService(session).record(
         actor_user_id=ctx.user.id, tenant_id=tenant_id, action="report.schedule.delete",
-        target_type="report_schedule", target_id=str(schedule_id), ip=None, details={},
+        target_type="report_schedule", target_id=str(schedule_id),
+        ip=request.client.host if request.client else None, details={},
     )
     await session.commit()
 

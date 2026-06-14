@@ -15,7 +15,7 @@ EXEMPT = {
     # ("POST", "/api/me/mfa/setup"),  # not exempt: persists a pending TOTP secret -> mfa.setup_start
 }
 # Routes that audit inside a service they call, not inline — explicit so it's a reviewed choice.
-AUDITED_INDIRECT: set = set()
+AUDITED_INDIRECT: set[tuple[str, str]] = set()
 
 
 def _audits_inline(endpoint) -> bool:
