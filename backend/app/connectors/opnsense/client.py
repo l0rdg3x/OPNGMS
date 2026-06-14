@@ -8,6 +8,7 @@ import httpx
 from app.connectors.opnsense.identity import DeviceIdentity, parse_identity
 from app.connectors.opnsense.resolver import CapabilityResolver
 from app.connectors.opnsense.url_safety import UnsafeUrlError, validate_base_url
+from app.core.config import get_settings
 
 
 class OpnsenseError(Exception):
@@ -95,7 +96,7 @@ class OpnsenseClient:
         *,
         verify_tls: bool = True,
         tls_fingerprint: str | None = None,
-        timeout: float = 10.0,
+        timeout: float | None = None,
         edition: str = "",
         version: str = "",
     ) -> None:
@@ -103,7 +104,8 @@ class OpnsenseClient:
         self._auth = (api_key, api_secret)
         self._verify = verify_tls
         self._fingerprint = tls_fingerprint
-        self._timeout = timeout
+        # Default per-request timeout comes from OPNSENSE_HTTP_TIMEOUT (.env); an explicit arg overrides.
+        self._timeout = timeout if timeout is not None else get_settings().opnsense_http_timeout
         self._resolver = CapabilityResolver(edition, version)
 
     async def _request(

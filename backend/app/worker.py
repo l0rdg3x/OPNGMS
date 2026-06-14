@@ -571,3 +571,4 @@ class WorkerSettings:
     on_startup = on_startup
     on_shutdown = on_shutdown
     redis_settings = RedisSettings.from_dsn(_settings.redis_url)
+    max_jobs = _settings.worker_max_jobs  # worker concurrency (.env: WORKER_MAX_JOBS)

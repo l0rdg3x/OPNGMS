@@ -13,7 +13,13 @@ from app.core.config import get_settings
 
 
 def make_engine(url: str) -> AsyncEngine:
-    return create_async_engine(url, pool_pre_ping=True)
+    s = get_settings()
+    return create_async_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=s.db_pool_size,
+        max_overflow=s.db_max_overflow,
+    )
 
 
 _engine: AsyncEngine | None = None

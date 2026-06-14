@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     mfa_pending_ttl_minutes: int = 5  # short-lived mfa_pending challenge window (password ok, awaiting TOTP)
     admin_database_url: str | None = None  # owner, for the worker (bypasses RLS)
     redis_url: str = "redis://localhost:6379"
+    # Boot-time deploy tuning (requires restart). See .env.example "Boot-time tuning".
+    worker_max_jobs: int = 10  # ARQ worker concurrency (>=1)
+    db_pool_size: int = 5  # SQLAlchemy engine pool size, API + worker (>=1)
+    db_max_overflow: int = 10  # SQLAlchemy pool overflow beyond pool_size (>=0)
+    opnsense_http_timeout: float = 10.0  # default per-request connector timeout, seconds (>0)
     poll_interval_seconds: int = 60
     cors_allow_origins: str = ""  # comma-separated; empty = CORS disabled (same-origin)
     login_max_attempts: int = 5
