@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.security import verify_password
 from app.models.session import Session
 from app.models.user import User
+from app.services.runtime_settings import get_runtime_config_or_defaults
 
 # Persist last_seen at most once per minute per session to bound write amplification
 # while still enforcing the idle timeout at ~60s granularity.
@@ -67,7 +68,9 @@ class AuthService:
     async def get_session_for_token(self, raw_token: str) -> Session | None:
         """Resolve+validate a session from its raw token (absolute + idle expiry)."""
         now = datetime.now(UTC)
-        idle = timedelta(minutes=get_settings().session_idle_minutes)
+        # session_idle_minutes is runtime-tunable; read it defensively (a config-store hiccup must not
+        # 500 every authenticated request — fall back to the env default).
+        idle = timedelta(minutes=(await get_runtime_config_or_defaults(self.session))["session_idle_minutes"])
         result = await self.session.execute(
             select(Session).where(Session.token_hash == _hash_token(raw_token))
         )
@@ -80,9 +83,10 @@ class AuthService:
             sess.last_seen_at = now
             # get_session() does not auto-commit, so persist the touch here. This relies on an
             # ordering invariant: get_current_session (which calls this) is the FIRST DB-touching
-            # dependency in the request, so committing now cannot clobber uncommitted writes or the
-            # transaction-local RLS context (set later by tenant_context via set_tenant_context).
-            # If a DB dependency is ever ordered before get_current_session, revisit this.
+            # dependency in the request. The two reads above (the runtime-config row, then the session
+            # row) are the request's first DB operations, so committing now cannot clobber uncommitted
+            # writes or the transaction-local RLS context (set later by tenant_context via
+            # set_tenant_context). If a DB dependency is ever ordered before get_current_session, revisit.
             await self.session.commit()
         return sess
 
@@ -106,7 +110,7 @@ class AuthService:
         return list(result.scalars().all())
 
     async def purge_expired(self, now: datetime) -> int:
-        idle = timedelta(minutes=get_settings().session_idle_minutes)
+        idle = timedelta(minutes=(await get_runtime_config_or_defaults(self.session))["session_idle_minutes"])
         result = await self.session.execute(
             delete(Session).where(
                 (Session.expires_at <= now) | (Session.last_seen_at < now - idle)

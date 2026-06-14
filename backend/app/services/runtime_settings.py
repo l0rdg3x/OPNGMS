@@ -8,6 +8,7 @@ the effective value at use-time, so a change applies without a restart.
 Defaults preserve current behavior — these settings only change the *source* of a value (DB-or-env),
 never the logic that uses it.
 """
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -16,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.models.app_setting import AppSetting
+
+logger = logging.getLogger(__name__)
 
 _RUNTIME_KEY = "runtime_config"
 
@@ -36,9 +39,7 @@ class RuntimeSetting:
 
 # The runtime-safe settings. `default` reads the matching Settings field (the env default); the bounds
 # guard an operator typo from wedging a consumer. Cadence/boot-time fields are intentionally absent
-# (they are read at import/startup and live in .env). The auth-path settings (session + login) are
-# registered but INACTIVE here: their consumers (session validation, the import-time brute-force
-# limiter) are wired in a dedicated follow-up PR; until then the env default stays authoritative.
+# (they are read at import/startup and live in .env).
 RUNTIME_SETTINGS: list[RuntimeSetting] = [
     RuntimeSetting("firmware_max_status_polls", int, lambda s: s.firmware_max_status_polls, 1, 100_000, "firmware"),
     RuntimeSetting("firmware_poll_interval_seconds", float, lambda s: s.firmware_poll_interval_seconds, 0.1, 600.0, "firmware"),
@@ -46,10 +47,10 @@ RUNTIME_SETTINGS: list[RuntimeSetting] = [
     RuntimeSetting("geoip_auto_fetch", bool, lambda s: s.geoip_auto_fetch, group="distribution"),
     RuntimeSetting("silent_alert_enabled", bool, lambda s: s.silent_alert_enabled, group="maintenance"),
     RuntimeSetting("silent_alert_after_hours", int, lambda s: s.silent_alert_after_hours, 1, 720, "maintenance"),
-    RuntimeSetting("login_max_attempts", int, lambda s: s.login_max_attempts, 1, 100, "security_login", active=False),
-    RuntimeSetting("login_lockout_window_seconds", int, lambda s: s.login_lockout_window_seconds, 1, 86_400, "security_login", active=False),
-    RuntimeSetting("session_ttl_hours", int, lambda s: s.session_ttl_hours, 1, 8760, "security_session", active=False),
-    RuntimeSetting("session_idle_minutes", int, lambda s: s.session_idle_minutes, 1, 525_600, "security_session", active=False),
+    RuntimeSetting("login_max_attempts", int, lambda s: s.login_max_attempts, 1, 50, "security_login"),
+    RuntimeSetting("login_lockout_window_seconds", int, lambda s: s.login_lockout_window_seconds, 1, 86_400, "security_login"),
+    RuntimeSetting("session_ttl_hours", int, lambda s: s.session_ttl_hours, 1, 8760, "security_session"),
+    RuntimeSetting("session_idle_minutes", int, lambda s: s.session_idle_minutes, 1, 525_600, "security_session"),
 ]
 
 _BY_KEY: dict[str, RuntimeSetting] = {r.key: r for r in RUNTIME_SETTINGS}
@@ -114,6 +115,19 @@ async def get_runtime_config(session: AsyncSession) -> dict:
         except ValueError:
             continue  # keep the default
     return cfg
+
+
+async def get_runtime_config_or_defaults(session: AsyncSession) -> dict:
+    """Like `get_runtime_config` but NEVER raises: on a config-store read failure (e.g. a transient DB
+    fault), fall back to the env/code defaults. Use on hot/auth paths where a hiccup reading the single
+    override row must not take the path offline — `runtime_defaults()` is pure in-memory and can't fail.
+    The only thing lost on fallback is the operator's DB override, which reverts to the env default.
+    """
+    try:
+        return await get_runtime_config(session)
+    except Exception:  # noqa: BLE001 — degrade gracefully; the defaults are always safe
+        logger.warning("runtime config read failed; using env/code defaults", exc_info=True)
+        return runtime_defaults()
 
 
 async def update_runtime_config(session: AsyncSession, patch: dict) -> dict:
