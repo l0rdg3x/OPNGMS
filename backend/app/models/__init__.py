@@ -17,6 +17,7 @@ from app.models.group import Group, GroupGrant, GroupMember  # noqa: F401
 from app.models.ingest_cursor import IngestCursor
 from app.models.membership import Membership
 from app.models.metric import Metric
+from app.models.perimeter_attacker import PerimeterAttacker  # noqa: F401
 from app.models.report_schedule import ReportSchedule  # noqa: F401
 from app.models.report_settings import ReportSettings
 from app.models.revoked_syslog_cert import RevokedSyslogCert  # noqa: F401
@@ -65,4 +66,5 @@ __all__ = [
     "RevokedSyslogCert",
     "SilentTenantAlert",
     "SyslogCa",
+    "PerimeterAttacker",
 ]
