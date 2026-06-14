@@ -38,17 +38,19 @@ def test_registry_covers_the_runtime_settings():
 
 
 def test_active_settings_exclude_unwired_consumers():
-    # An active setting has its consumer wired (exposed by the admin API). events/metrics retention
-    # purges land in PR2, so those two stay inactive until then; the rest are active.
+    # An active setting has its consumer wired (exposed by the admin API). PR2 wired the events/metrics
+    # retention purges (purge_timeseries_retention cron), so every registry setting is now active.
     inactive = {r.key for r in RUNTIME_SETTINGS if not r.active}
-    assert inactive == {"events_retention_days", "metrics_retention_days"}
-    assert {r.key for r in active_settings()} == {r.key for r in RUNTIME_SETTINGS} - inactive
+    assert inactive == set()
+    assert {r.key for r in active_settings()} == {r.key for r in RUNTIME_SETTINGS}
 
 
 def test_perimeter_retention_default_and_override(db_engine):
     assert runtime_defaults()["perimeter_retention_days"] == 30
     assert _BY_KEY["perimeter_retention_days"].active is True
-    assert _BY_KEY["events_retention_days"].active is False
+    # events/metrics retention consumers wired in PR2 -> active.
+    assert _BY_KEY["events_retention_days"].active is True
+    assert _BY_KEY["metrics_retention_days"].active is True
 
 
 def test_defaults_match_env_settings():
