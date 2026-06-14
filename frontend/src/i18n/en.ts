@@ -24,6 +24,7 @@ export const en = {
     logFleet: "Log fleet",
     system: "System",
     groups: "Groups",
+    audit: "Audit log",
   },
   login: {
     title: "OPNGMS",
@@ -554,6 +555,7 @@ export const en = {
     reportGenerate: "Failed to generate report",
     attackerCountriesLoad: "Failed to load attacker countries",
     perimeterLoad: "Failed to load perimeter data",
+    auditLoad: "Failed to load the audit log",
   },
   system: {
     title: "System",
@@ -638,6 +640,35 @@ export const en = {
     empty: "No activity in this window.",
     viewAll: "View all",
     loadError: "Failed to load perimeter data.",
+  },
+  audit: {
+    title: "Audit log",
+    subtitle: "Every mutating action across the platform, by actor and tenant.",
+    filters: {
+      actor: "Actor email",
+      tenant: "Tenant ID",
+      action: "Action",
+      from: "From",
+      to: "To",
+      apply: "Apply",
+      reset: "Reset",
+    },
+    columns: {
+      time: "Time",
+      actor: "Actor",
+      tenant: "Tenant",
+      action: "Action",
+      target: "Target",
+      ip: "IP",
+      details: "Details",
+    },
+    empty: "No audit entries match these filters.",
+    export: "Export CSV",
+    exportFailed: "Export failed.",
+    page: "Page {page}",
+    showingTotal: "{total} entries",
+    prev: "Previous",
+    next: "Next",
   },
 } as const;
 

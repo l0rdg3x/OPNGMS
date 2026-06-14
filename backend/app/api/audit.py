@@ -55,6 +55,7 @@ def _to_entry(row) -> AuditEntryOut:
 @router.get("", response_model=AuditListOut)
 async def list_audit(
     actor_user_id: uuid.UUID | None = None,
+    actor_email: str | None = Query(None, max_length=200),
     tenant_id: uuid.UUID | None = None,
     action: str | None = Query(None, max_length=100),
     frm: datetime | None = None,
@@ -66,6 +67,7 @@ async def list_audit(
 ) -> AuditListOut:
     rows, total = await AuditRepository(session).query(
         actor_user_id=actor_user_id,
+        actor_email=actor_email,
         tenant_id=tenant_id,
         action=action,
         frm=frm,
@@ -79,6 +81,7 @@ async def list_audit(
 @router.get("/export.csv")
 async def export_audit(
     actor_user_id: uuid.UUID | None = None,
+    actor_email: str | None = Query(None, max_length=200),
     tenant_id: uuid.UUID | None = None,
     action: str | None = Query(None, max_length=100),
     frm: datetime | None = None,
@@ -100,6 +103,7 @@ async def export_audit(
         yield _take()
         async for row in AuditRepository(session).stream(
             actor_user_id=actor_user_id,
+            actor_email=actor_email,
             tenant_id=tenant_id,
             action=action,
             frm=frm,

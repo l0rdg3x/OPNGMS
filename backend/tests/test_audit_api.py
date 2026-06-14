@@ -168,6 +168,50 @@ async def test_filter_by_action(api_client, session_factory):
     assert body["items"][0]["action"] == "device.write"
 
 
+async def test_filter_by_actor_email(api_client, session_factory):
+    """The actor filter is by email substring (case-insensitive), not by UUID."""
+    actor = await _seed_superadmin(session_factory, email="alice@corp.example")
+    other = await make_user_id(session_factory, email="bob@other.example")
+    tenant_a = await _make_tenant_id(session_factory, "alpha")
+    base = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+    async with session_factory() as s:
+        s.add(
+            AuditLog(
+                ts=base,
+                actor_user_id=actor,
+                tenant_id=tenant_a,
+                action="tenant.manage",
+                target_type="tenant",
+                target_id=str(tenant_a),
+                ip="10.0.0.1",
+                details={},
+            )
+        )
+        s.add(
+            AuditLog(
+                ts=base + timedelta(minutes=1),
+                actor_user_id=other,
+                tenant_id=tenant_a,
+                action="device.write",
+                target_type="device",
+                target_id="dev-b",
+                ip="10.0.0.2",
+                details={},
+            )
+        )
+        await s.commit()
+    await _login(api_client, email="alice@corp.example")  # adds an auth.login row for alice
+    # Substring "alice" matches only alice's rows (tenant.manage + the auth.login), not bob's.
+    r = await api_client.get("/api/admin/audit", params={"actor_email": "ALICE"})
+    assert r.status_code == 200
+    body = r.json()
+    emails = {i["actor_email"] for i in body["items"]}
+    assert emails == {"alice@corp.example"}
+    actions = {i["action"] for i in body["items"]}
+    assert "device.write" not in actions
+    assert {"tenant.manage", "auth.login"}.issubset(actions)
+
+
 async def test_filter_by_tenant(api_client, session_factory):
     actor = await _seed_superadmin(session_factory)
     tenant_a = await _make_tenant_id(session_factory, "alpha")
@@ -261,3 +305,10 @@ async def _make_tenant_id(session_factory, slug, *, name="Tenant"):
         t = await make_tenant(s, slug=slug, name=name)
         await s.commit()
         return t.id
+
+
+async def make_user_id(session_factory, *, email):
+    async with session_factory() as s:
+        u = await make_user(s, email=email, password="pw12345-secure")
+        await s.commit()
+        return u.id
