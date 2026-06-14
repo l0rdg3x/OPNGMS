@@ -1684,6 +1684,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit */
+        get: operations["list_audit_api_admin_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/audit/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Audit */
+        get: operations["export_audit_api_admin_audit_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1758,6 +1792,46 @@ export interface components {
             bindings: {
                 [key: string]: unknown;
             };
+        };
+        /** AuditEntryOut */
+        AuditEntryOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /** Actor Email */
+            actor_email: string | null;
+            /** Tenant Id */
+            tenant_id: string | null;
+            /** Tenant Name */
+            tenant_name: string | null;
+            /** Action */
+            action: string;
+            /** Target Type */
+            target_type: string | null;
+            /** Target Id */
+            target_id: string | null;
+            /** Ip */
+            ip: string | null;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            };
+        };
+        /** AuditListOut */
+        AuditListOut: {
+            /** Items */
+            items: components["schemas"]["AuditEntryOut"][];
+            /** Total */
+            total: number;
         };
         /** Body_upload_report_logo_api_tenants__tenant_id__reports_settings_logo_put */
         Body_upload_report_logo_api_tenants__tenant_id__reports_settings_logo_put: {
@@ -6820,6 +6894,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LivePushOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_audit_api_admin_audit_get: {
+        parameters: {
+            query?: {
+                actor_user_id?: string | null;
+                tenant_id?: string | null;
+                action?: string | null;
+                frm?: string | null;
+                to?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_audit_api_admin_audit_export_csv_get: {
+        parameters: {
+            query?: {
+                actor_user_id?: string | null;
+                tenant_id?: string | null;
+                action?: string | null;
+                frm?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
