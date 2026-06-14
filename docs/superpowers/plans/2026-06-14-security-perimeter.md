@@ -22,7 +22,11 @@ Reference spec: `docs/superpowers/specs/2026-06-14-security-perimeter-design.md`
 ## File structure (PR1 — backend ingest)
 
 - Create `backend/app/models/perimeter_attacker.py` — the rollup model.
-- Create `backend/alembic/versions/00XX_perimeter_attacker.py` — table + RLS migration.
+- Create `backend/migrations/versions/<rev>_perimeter_attacker.py` — table + RLS migration.
+- Modify `backend/app/core/rls.py` — add `"perimeter_attacker"` to `TENANT_TABLES` (the DRY RLS list
+  used by BOTH the migration's `enable_rls_statements(["perimeter_attacker"])` and the tests' conftest
+  schema build, so prod and test RLS can't diverge). The migration also grants `opngms_app` the table
+  privileges (mirror `grant_app_role_statements` in `app/db_roles.py`).
 - Modify `backend/app/connectors/opnsense/parsers.py` — add `parse_firewall_blocks`, `parse_auth_failures`.
 - Modify `backend/app/connectors/opnsense/profiles.py` — add `firewall_blocks`, `auth_failures` capabilities.
 - Modify `backend/app/connectors/opnsense/client.py` — add `get_firewall_blocks`, `get_auth_failures`.
@@ -38,7 +42,8 @@ Reference spec: `docs/superpowers/specs/2026-06-14-security-perimeter-design.md`
 
 **Files:**
 - Create: `backend/app/models/perimeter_attacker.py`
-- Create: `backend/alembic/versions/<rev>_perimeter_attacker.py`
+- Create: `backend/migrations/versions/<rev>_perimeter_attacker.py`
+- Modify: `backend/app/core/rls.py` (add `"perimeter_attacker"` to `TENANT_TABLES`)
 - Test: `backend/tests/test_perimeter_rls.py`
 
 - [ ] **Step 1: Write the model**
@@ -77,17 +82,18 @@ class PerimeterAttacker(Base):
     detail: Mapped[dict] = mapped_column(JSONB, default=dict)
 ```
 
-- [ ] **Step 2: Write the migration** — mirror an existing tenant-scoped table migration (e.g. the
-  `events`/`devices` RLS migration). The migration must: `create_table` with the columns above; add the
-  fail-closed RLS policy + `FORCE ROW LEVEL SECURITY` using the same helper SQL the other tenant tables
-  use (`enable_rls_statements()` pattern in `backend/app/db_roles.py` / migration 0003 idiom — read a
-  recent tenant-table migration like the `events` one and copy its policy block verbatim, swapping the
-  table name); grant the `opngms_app` role `SELECT, INSERT, UPDATE, DELETE`. Add an index on
+- [ ] **Step 2: Write the migration** — add `"perimeter_attacker"` to `TENANT_TABLES` in
+  `app/core/rls.py` first. Then the migration must: `create_table` with the columns above; apply RLS via
+  `from app.core.rls import enable_rls_statements` → `op.execute(stmt)` for each
+  `enable_rls_statements(["perimeter_attacker"])` (this emits `ENABLE`/`FORCE ROW LEVEL SECURITY` + the
+  fail-closed `tenant_isolation` policy, identical to every other tenant table); grant the `opngms_app`
+  role its privileges via the `grant_app_role_statements` helper in `app/db_roles.py` for the new table
+  (read that helper + a recent tenant-table migration to copy the grant idiom verbatim). Add an index on
   `(tenant_id, kind, last_seen DESC)` to back the ranked queries.
 
-  Generate the revision: `cd backend && alembic revision -m "perimeter_attacker"` then fill the
-  `upgrade()` body (forward-only; no real `downgrade`). Find the down_revision from
-  `alembic heads`.
+  Generate the revision: `cd backend && ALEMBIC_DATABASE_URL=$ADMIN_DATABASE_URL alembic revision -m "perimeter_attacker"`
+  then fill the `upgrade()` body (forward-only; no real `downgrade`). The `down_revision` is the current
+  head (`alembic heads`).
 
 - [ ] **Step 3: Write the failing RLS test** (`backend/tests/test_perimeter_rls.py`)
 
