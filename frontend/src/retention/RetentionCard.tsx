@@ -12,6 +12,7 @@ import { notifications } from "@mantine/notifications";
 
 import { useRetention, useUpdateRetention } from "./retentionHooks";
 import { useT } from "../i18n";
+import { useTenant } from "../tenant/useTenant";
 
 // The retention stores surfaced per-tenant; mirrors the backend RETENTION_STORES tuple.
 const STORES = ["perimeter", "events", "metrics"] as const;
@@ -25,15 +26,18 @@ const emptyDraft = (): Draft => ({ perimeter: "", events: "", metrics: "" });
 export function RetentionCard() {
   const t = useT();
   const rt = t.retention;
+  const { activeId } = useTenant();
   const query = useRetention();
   const update = useUpdateRetention();
 
-  // The form draft, seeded once from the loaded overrides (absent store → empty → inherit).
+  // The form draft, (re-)seeded from the loaded overrides whenever the active tenant changes — the card
+  // stays mounted across tenant switches, so the seed must follow the tenant, not just run once (absent
+  // store → empty → inherit). Keying the guard on the tenant id avoids showing tenant A's draft for B.
   const [draft, setDraft] = useState<Draft>(emptyDraft);
-  const initializedRef = useRef(false);
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
-    if (query.data && !initializedRef.current) {
-      initializedRef.current = true;
+    if (query.data && seededFor.current !== activeId) {
+      seededFor.current = activeId;
       const next = emptyDraft();
       for (const store of STORES) {
         const value = query.data.overrides[store];
@@ -41,7 +45,7 @@ export function RetentionCard() {
       }
       setDraft(next);
     }
-  }, [query.data]);
+  }, [query.data, activeId]);
 
   if (query.isLoading) return <Loader data-testid="retention-loading" />;
   if (query.error) return <Text c="red" data-testid="retention-error">{t.errors.retentionLoad}</Text>;

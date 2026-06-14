@@ -113,7 +113,8 @@ describe("RetentionCard — per-tenant", () => {
     await userEvent.click(screen.getByTestId("retention-save"));
 
     await waitFor(() => expect(putBody.values).toBeDefined());
-    expect(putBody.values).toMatchObject({ events: null });
+    // All three are empty (only events had an override; perimeter/metrics were never set) → all null.
+    expect(putBody.values).toEqual({ perimeter: null, events: null, metrics: null });
   });
 
   it("shows the load error when the GET fails", async () => {
