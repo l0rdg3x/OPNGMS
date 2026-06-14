@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +13,9 @@ from app.schemas.generated_report import GeneratedReportOut
 from app.schemas.report import ReportRequest
 from app.schemas.report_settings import ReportLanguageOut, ReportSettingsIn, ReportSettingsOut
 from app.services.audit import AuditService
+from app.services.report_retention import limiting_store_for_sections
 from app.services.reporting.i18n import REPORT_LOCALES, available_locales
+from app.services.reporting.sections import resolve_sections
 from app.services.reporting.service import (
     MAX_LOGO_BYTES,
     ReportRangeError,
@@ -44,6 +47,20 @@ async def generate_report(
     ctx: TenantContext = Depends(require_tenant(Action.REPORT_GENERATE)),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    # Report-side retention BLOCK (SP-1 PR4a): refuse a range wider than the tenant's effective retention
+    # for the stores its enabled sections read — else it would request already-purged data. Bound from the
+    # tenant's report-settings sections (the on-demand report uses those; no per-schedule override here).
+    settings = await ReportSettingsRepository(session, tenant_id).get_or_default()
+    enabled = resolve_sections(settings.sections, None)
+    limiting = await limiting_store_for_sections(session, tenant_id, enabled)
+    # Compare the full timedelta (not `.days`, which truncates sub-day overshoot) — consistent with
+    # ReportService._validate_range, so a range of `bound days + a few hours` doesn't slip through.
+    if limiting is not None and (payload.to - payload.from_) > timedelta(days=limiting[1]):
+        store, days = limiting
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"report range exceeds {store} retention ({days} days)",
+        )
     try:
         pdf = await ReportService(session, tenant_id).build_report(
             tenant_name=ctx.tenant.name,

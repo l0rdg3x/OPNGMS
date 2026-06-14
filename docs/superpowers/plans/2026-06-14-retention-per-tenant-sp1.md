@@ -411,6 +411,56 @@ Branch from updated `main`: `feat/retention-ui`.
 
 ---
 
+## PR4a — Report-side BLOCK (backend, structured outline)
+
+Branch from updated `main`: `feat/retention-report-guard`. Enforces: a report cannot be configured to cover
+more days than the tenant's effective retention for the stores its enabled sections use. See the spec's
+"Report ↔ retention consistency" section + [[report-retention-consistency-rule]].
+
+- **Section→store map + bound helper** — new `backend/app/services/report_retention.py`:
+  - `SECTION_STORES: dict[str, tuple[str, ...]]` per the spec table (failed_logins/firewall_blocks→perimeter;
+    attacks/attacker_countries/applications/web_filter→events; health/web/data/status→metrics;
+    summary→(events,metrics); alerts_wan→metrics; firmware_config→()). Verify each against the aggregator the
+    section calls.
+  - `async def report_range_bound(session, tenant_id, enabled_sections: dict[str,bool]) -> int | None`:
+    the stores used = union of `SECTION_STORES[s]` for enabled `s`; if empty → `None` (no bound). Else read
+    the tenant's effective retention per store (global from `get_runtime_config`, override from
+    `TenantRetentionRepository`, via the resolver) and return the **min** over the used stores.
+- **On-demand block** — in `backend/app/services/reporting/service.py` (`build_report`, near the
+  `MAX_RANGE_DAYS` check at line ~63) OR in `app/api/reports.py` `generate_report`: compute the bound from the
+  tenant's report-settings sections (`resolve_sections(settings.sections, None)`); if `(to-frm).days > bound`
+  raise `ReportRangeError`/400 with a clear message. (Reuse the existing `ReportRangeError` path.)
+- **Schedule block** — in `backend/app/api/report_schedules.py` `upsert_schedule` (PUT): compute the bound from
+  `resolve_sections(tenant_settings, body.sections)`; the schedule range = `report_window(body.frequency)`
+  days (weekly=7; monthly → treat as 31). If range > bound → 422 with a message naming the limiting store +
+  its retention. (`on_demand` frequency schedules have no fixed range → skip the check.)
+- **Tests** (`backend/tests/test_report_retention_guard.py`): bound helper (min over enabled sections' stores;
+  None when no bounded section); on-demand 400 when range > bound, OK when ≤; schedule 422 for monthly when
+  bound < 31, OK for weekly when bound ≥ 7; a perimeter-only report is NOT limited by a short metrics
+  retention (proves per-section precision). Full suite green; ruff clean.
+- Open PR "feat(retention): block reports exceeding tenant retention (SP-1 PR4a)". Merge.
+
+## PR4b — Retention-side WARN + UI (backend + frontend, structured outline)
+
+Branch from updated `main`: `feat/retention-warn`.
+
+- **Backend — compute-on-read warnings.** Extend `GET /api/tenants/{id}/retention` to also return
+  `warnings: [{schedule_id, name|frequency, range_days, bound, limiting_store}]` for that tenant's ENABLED
+  schedules whose `report_window` range > their bound (reuse the PR4a helper). Add a `RetentionWarning`
+  schema; extend `RetentionOut`.
+- **Backend — global impacted tenants.** In `backend/app/api/system.py` `update_runtime_settings` (PUT): when
+  the patch lowers a retention key, compute the impacted tenants (no override for that store + an enabled
+  schedule using that store whose range now exceeds the new global) and return them in the response (extend
+  `RuntimeSettingsOut` with an optional `retention_warnings` field, or a sibling field). Audit unchanged.
+- **Frontend.** `gen:api`. The tenant **Retention card** renders the `warnings` (an `Alert` listing the
+  offending schedules + the limiting retention). The **System runtime-settings** save flow surfaces the
+  returned impacted-tenants list (a notification/`Alert`). i18n across 12 locales.
+- **Tests:** backend (GET returns warnings when a schedule exceeds; global PUT returns impacted tenants);
+  frontend (card shows the warning Alert; settings page shows impacted list). Build gate.
+- Open PR "feat(retention): warn when reports exceed retention (SP-1 PR4b)". Merge.
+
+---
+
 ## Release
 
 - **Tag v0.11.0 + CHANGELOG** (SP-1): move `[Unreleased]` entries into `## [0.11.0]` + compare link. The release workflow derives the GitHub Release body from the section. (SP-2 — log lake per-tenant — will be a later minor.)

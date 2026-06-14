@@ -164,16 +164,65 @@ SP-1; noted in SP-2/follow-up if disk pressure appears.)
 - **Frontend:** the global group renders the three knobs; the per-tenant card shows inherit hints, saves an
   override, clears it. Build gate `npm run build` + `npm test` + `npm run lint`.
 
+## Report ↔ retention consistency (user 2026-06-14)
+
+A report must never be configured to cover more days than the data it needs is retained — otherwise it would
+request already-purged data. Reports draw from `events`/`metrics`/`perimeter` (NOT the log lake), so this is
+fully an SP-1 concern. See [[report-retention-consistency-rule]] (memory) for the authoritative rule.
+
+**The bound.** For a given report, the bound = the **minimum** effective retention across the stores its
+**enabled sections** use (`effective = override ?? global`, the SP-1 resolver). Section → store map (only the
+three retention-bounded stores; sections backed by alerts/config-changes contribute no bound):
+
+| sections | store |
+|----------|-------|
+| `failed_logins`, `firewall_blocks` | perimeter |
+| `attacks`, `attacker_countries`, `applications`, `web_filter` | events |
+| `health`, `web`, `data`, `status` | metrics |
+| `summary` | events + metrics |
+| `alerts_wan` | metrics |
+| `firmware_config` | (none) |
+
+(The implementer must verify each mapping against the aggregator each section calls.) Report range sources:
+on-demand `POST /reports` = explicit `from`/`to`; scheduled = `report_window(frequency)` — weekly/on-demand =
+prior 7 days, monthly = prior calendar month (treat as **31** for the check, the max month length).
+
+**Enforcement — ASYMMETRIC. NO CLAMP** (user: "non deve poter succedere il clamp nei report"):
+- **Report side = BLOCK.** Reject configuring a report whose range > current bound.
+  - `POST /reports` (on-demand): 400 if `(to-from).days` > bound (bound from the tenant's enabled report
+    settings sections). Sits alongside the existing `MAX_RANGE_DAYS=92` check in `reporting/service.py`.
+  - `PUT /report-schedules`: 422 if `report_window(frequency).days` > bound (bound from
+    `resolve_sections(tenant_settings, schedule.sections)`). E.g. can't pick `monthly` if the bound < 31.
+- **Retention side = WARN, do NOT block.** Lowering retention is allowed; the system surfaces the conflict:
+  - `GET /api/tenants/{id}/retention` returns a **`warnings`** list (each enabled schedule whose range now
+    exceeds its bound: `{schedule_id, frequency, range_days, bound}`) — **computed on read**, so the tenant's
+    Retention card always shows the current truth regardless of how the drift arose.
+  - the **global** `PUT /api/admin/settings` (superadmin), when a retention key is lowered, returns the
+    **list of impacted tenants** (no override for that store + an enabled schedule using that store whose
+    range now exceeds the new global) as immediate feedback.
+- **NO generation-time clamp.** A report keeps its configured range; purged days render as "no data in this
+  period" (existing empty-period handling). Consistency is held by the block + the warning, never by silently
+  shortening the window.
+
+**UI:** the tenant's Retention card / report settings surface shows the `warnings` (e.g. "Report X (monthly)
+needs 31 days but events are kept N days"). The global System settings page shows the impacted-tenants list
+returned by the PUT. i18n across 12 locales.
+
 ## Decomposition (PRs within SP-1)
 
 1. **PR1 — Foundation + perimeter.** Registry keys (3) + `Settings` fields + `tenant_retention`
    model/migration 0038 (table + RLS) + resolver + the per-tenant API (`RETENTION_CONFIG` action, GET/PUT,
-   audited) + tenant-aware `purge_perimeter`. Backend + tests.
+   audited) + tenant-aware `purge_perimeter`. Backend + tests. **(MERGED #157)**
 2. **PR2 — events + metrics.** Migration: `remove_retention_policy` for both. New `purge_events` /
-   `purge_metrics` tenant-aware jobs + worker cron wiring + tests. Backend.
+   `purge_metrics` tenant-aware jobs + worker cron wiring + tests. Backend. **(MERGED #158)**
 3. **PR3 — Frontend.** Global "retention" group (GROUP_ORDER + i18n) + per-tenant Retention card on the
-   tenant page + i18n (12 locales) + `gen:api` + tests.
-4. **Release** — tag **v0.11.0** + CHANGELOG (SP-1). (SP-2 will be a later minor.)
+   tenant page + i18n (12 locales) + `gen:api` + tests. **(MERGED #159)**
+4. **PR4a — Report-side BLOCK (backend).** Section→store map + the `report_range_bound(tenant, sections)`
+   helper (over the resolver) + the block on `POST /reports` + `PUT /report-schedules` + tests.
+5. **PR4b — Retention-side WARN (backend + frontend).** `GET /retention` `warnings` (compute-on-read) +
+   global settings PUT impacted-tenants list + surface both in the UI (tenant Retention card + System page) +
+   i18n + tests.
+6. **Release** — tag **v0.11.0** + CHANGELOG (SP-1). (SP-2 — log lake per-tenant — will be a later minor.)
 
 ## Risks / open items
 
