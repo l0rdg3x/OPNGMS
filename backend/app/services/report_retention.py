@@ -152,13 +152,29 @@ async def schedule_retention_warnings(
     if not schedules:
         return []
     settings = await ReportSettingsRepository(session, tenant_id).get_or_default()
+    # The effective retention inputs (global config + this tenant's override row) are invariant across the
+    # tenant's schedules — read them ONCE, then resolve each schedule's bound purely (no per-schedule DB).
+    cfg = await get_runtime_config(session)
+    overrides = await TenantRetentionRepository(session, tenant_id).get_overrides()
+
+    def _bound(enabled: dict[str, bool]) -> tuple[str, int] | None:
+        stores = stores_for_sections(enabled)
+        if not stores:
+            return None
+        by_store = {
+            store: effective_retention_days(
+                store, global_default=int(cfg[f"{store}_retention_days"]), tenant_override=overrides
+            )
+            for store in stores
+        }
+        return min(by_store.items(), key=lambda p: p[1])
+
     warnings: list[dict] = []
     for schedule in schedules:
         range_days = SCHEDULE_RANGE_DAYS.get(schedule.frequency)
         if range_days is None:  # unknown/forward-compat frequency — nothing to compare against
             continue
-        enabled = resolve_sections(settings.sections, schedule.sections)
-        limiting = await limiting_store_for_sections(session, tenant_id, enabled)
+        limiting = _bound(resolve_sections(settings.sections, schedule.sections))
         if limiting is not None and range_days > limiting[1]:
             store, bound = limiting
             warnings.append({

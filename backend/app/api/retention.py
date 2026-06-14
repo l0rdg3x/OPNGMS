@@ -47,7 +47,9 @@ async def put_retention(
         target_type="tenant_retention", target_id=str(tenant_id),
         ip=request.client.host if request.client else None, details={"patch": dict(body.values)},
     )
-    # Read the defaults before committing (the session's state after commit is intentionally not relied on).
+    # Read the defaults + recompute the warnings against the just-applied overrides before committing (the
+    # session's state after commit is intentionally not relied on), so the PUT response matches a fresh GET.
     defaults = await _defaults(session)
+    warnings = [RetentionWarning(**w) for w in await schedule_retention_warnings(session, tenant_id)]
     await session.commit()
-    return RetentionOut(overrides=merged, defaults=defaults)
+    return RetentionOut(overrides=merged, defaults=defaults, warnings=warnings)
