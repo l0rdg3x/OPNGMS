@@ -1,8 +1,9 @@
 name: Release
 
-# When a version tag (vX.Y.Z) is pushed, publish a GitHub Release whose body is the annotated tag's
-# message — i.e. that version's changelog. Runs alongside publish-images.yml (which builds the GHCR
-# images on the same tag). Keep the annotated tag message rich: `git tag -a vX.Y.Z -m "..."`.
+# When a version tag (vX.Y.Z) is pushed, publish a GitHub Release whose body is that version's section
+# from CHANGELOG.md (so the release notes always match the changelog, regardless of the tag message).
+# Falls back to the annotated tag's message if the section is missing. Runs alongside
+# publish-images.yml (which builds the GHCR images on the same tag).
 on:
   push:
     tags: ["v*.*.*"]
@@ -13,7 +14,7 @@ permissions:
 
 jobs:
   release:
-    name: Publish GitHub Release from the annotated tag
+    name: Publish GitHub Release from CHANGELOG.md
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -21,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0   # fetch tags so gh can read the annotated tag's message
+          fetch-depth: 0   # fetch tags so gh can read the annotated tag's message (fallback)
 
       - name: Create the GitHub Release (idempotent)
         run: |
@@ -30,5 +31,18 @@ jobs:
             echo "Release $TAG already exists — nothing to do."
             exit 0
           fi
-          # --notes-from-tag uses the annotated tag message (the changelog) as the release body.
-          gh release create "$TAG" --verify-tag --title "$TAG" --notes-from-tag
+          # Extract "## [X.Y.Z] ..." down to (but not including) the next "## [" heading.
+          VERSION="${TAG#v}"
+          NOTES_FILE="$(mktemp)"
+          awk -v hdr="## [$VERSION]" '
+            substr($0, 1, length(hdr)) == hdr { grab = 1; print; next }
+            grab && /^## \[/ { exit }
+            grab { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+          if [ -s "$NOTES_FILE" ]; then
+            echo "Using CHANGELOG.md section for $VERSION."
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$NOTES_FILE"
+          else
+            echo "No CHANGELOG.md section for $VERSION — falling back to the annotated tag message."
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-from-tag
+          fi
