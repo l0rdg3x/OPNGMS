@@ -10,9 +10,26 @@ from app.core.queue import get_enqueuer
 from app.core.rbac import Action
 from app.models.device import Device
 from app.repositories.report_schedule import ReportScheduleRepository
+from app.repositories.report_settings import ReportSettingsRepository
 from app.schemas.report_schedule import ReportScheduleIn, ReportScheduleOut
 from app.services.audit import AuditService
-from app.services.report_schedule import FREQUENCIES, WEEKLY, normalize_recipients
+from app.services.report_retention import limiting_store_for_sections
+from app.services.report_schedule import (
+    FREQUENCIES,
+    MONTHLY,
+    ON_DEMAND,
+    WEEKLY,
+    normalize_recipients,
+)
+from app.services.reporting.sections import resolve_sections
+
+# Fixed-window days a scheduled run covers, for the retention check. Weekly = the prior 7 days.
+# Monthly uses 30 (not the max month length of 31): the prior calendar month is 28-31 days, and the
+# default metrics retention is exactly 30 — treating monthly as 31 would block a monthly schedule under
+# the out-of-the-box defaults (surprising). 30 keeps the default config consistent; only a metrics
+# retention LOWERED below 30 blocks a monthly schedule. A 31-day month with metrics kept at 30 renders
+# its single oldest day as "no data" (the spec's accepted empty-period behavior — never a clamp).
+_SCHEDULE_RANGE_DAYS = {WEEKLY: 7, MONTHLY: 30}
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}/report-schedules", tags=["report-schedules"])
 
@@ -52,6 +69,23 @@ async def upsert_schedule(
         device = await session.get(Device, body.device_id)
         if device is None or device.tenant_id != tenant_id:
             raise HTTPException(status_code=404, detail="Device not found")
+    # Report-side retention BLOCK (SP-1 PR4a): a fixed-window schedule (weekly/monthly) may not cover more
+    # days than the tenant's effective retention for the stores its enabled sections read. on_demand has no
+    # fixed range -> skip. Bound from resolve_sections(tenant default, this schedule's override).
+    if body.frequency != ON_DEMAND:
+        settings = await ReportSettingsRepository(session, tenant_id).get_or_default()
+        enabled = resolve_sections(settings.sections, body.sections)
+        limiting = await limiting_store_for_sections(session, tenant_id, enabled)
+        range_days = _SCHEDULE_RANGE_DAYS[body.frequency]
+        if limiting is not None and range_days > limiting[1]:
+            store, days = limiting
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    f"{body.frequency} report needs {range_days} days but {store} "
+                    f"is retained {days} days"
+                ),
+            )
     try:
         recipients = normalize_recipients(body.recipients)
     except ValueError as exc:
