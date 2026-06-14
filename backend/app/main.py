@@ -10,6 +10,7 @@ import app.services.firewall_rule_kind  # noqa: F401  — registers firewall_rul
 import app.services.ids_kind  # noqa: F401  — registers suricata_ruleset kind at API-process startup
 import app.services.monit_kind  # noqa: F401  — registers monit_test kind at startup
 import app.services.setting_kind  # noqa: F401  — registers opnsense_setting kind at API-process startup
+from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.catalog import router as catalog_router
 from app.api.config import router as config_router
@@ -88,6 +89,7 @@ app.include_router(log_forwarding_router)
 app.include_router(logs_router)
 app.include_router(log_fleet_router)
 app.include_router(system_router)
+app.include_router(audit_router)
 
 
 @app.exception_handler(IntegrityError)
