@@ -566,6 +566,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tenants/{tenant_id}/perimeter/attackers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Perimeter Attackers
+         * @description Top attacker IPs for a perimeter `kind` ('login_failed' | 'firewall_block'), ranked by cumulative
+         *     count, active in the window (defaults to the last 7 days). Country is resolved offline via the
+         *     cached mmdb (UNKNOWN if no mmdb). Serves both the Overview cards (small limit) and the /perimeter
+         *     page (larger limit).
+         */
+        get: operations["perimeter_attackers_api_tenants__tenant_id__perimeter_attackers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/events": {
         parameters: {
             query?: never;
@@ -2583,6 +2606,29 @@ export interface components {
             /** Password */
             password: string;
         };
+        /**
+         * PerimeterAttackerOut
+         * @description One attacker IP in the perimeter view (failed logins / firewall blocks).
+         *
+         *     `country` is an ISO alpha-2 code or a PRIVATE/UNKNOWN sentinel (localized client-side, like the
+         *     attacker-countries view). `count` is cumulative; `label` is the last attempted username
+         *     (login_failed) or the most-targeted port (firewall_block).
+         */
+        PerimeterAttackerOut: {
+            /** Src Ip */
+            src_ip: string;
+            /** Country */
+            country: string;
+            /** Count */
+            count: number;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+            /** Label */
+            label: string;
+        };
         /** PluginInfoOut */
         PluginInfoOut: {
             /** Name */
@@ -4406,6 +4452,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CountryCountOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    perimeter_attackers_api_tenants__tenant_id__perimeter_attackers_get: {
+        parameters: {
+            query: {
+                kind: string;
+                frm?: string | null;
+                to?: string | null;
+                limit?: number;
+                device_id?: string | null;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerimeterAttackerOut"][];
                 };
             };
             /** @description Validation Error */

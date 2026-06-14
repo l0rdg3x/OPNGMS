@@ -1,9 +1,10 @@
-import { Alert, Badge, Loader, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Badge, Loader, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { useT } from "../i18n";
 import { useAlerts, useTenantHealth } from "../monitoring/hooks";
 import { HealthSummaryCards, type FleetHealth } from "../monitoring/HealthSummaryCards";
 import { AttackerCountriesCard } from "../overview/AttackerCountriesCard";
+import { PerimeterCard } from "../perimeter/PerimeterCard";
 
 export function OverviewPage() {
   const t = useT();
@@ -19,6 +20,12 @@ export function OverviewPage() {
 
       <Title order={4} mt="md">{t.overview.attackerCountries.title}</Title>
       <AttackerCountriesCard />
+
+      <Title order={4} mt="md">{t.perimeter.title}</Title>
+      <SimpleGrid cols={{ base: 1, md: 2 }}>
+        <PerimeterCard kind="login_failed" />
+        <PerimeterCard kind="firewall_block" />
+      </SimpleGrid>
 
       <Title order={4} mt="md">{t.overview.activeAlerts}</Title>
       {alerts.isLoading && <Loader />}
