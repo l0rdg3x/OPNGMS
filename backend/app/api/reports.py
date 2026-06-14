@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +53,9 @@ async def generate_report(
     settings = await ReportSettingsRepository(session, tenant_id).get_or_default()
     enabled = resolve_sections(settings.sections, None)
     limiting = await limiting_store_for_sections(session, tenant_id, enabled)
-    if limiting is not None and (payload.to - payload.from_).days > limiting[1]:
+    # Compare the full timedelta (not `.days`, which truncates sub-day overshoot) — consistent with
+    # ReportService._validate_range, so a range of `bound days + a few hours` doesn't slip through.
+    if limiting is not None and (payload.to - payload.from_) > timedelta(days=limiting[1]):
         store, days = limiting
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -148,8 +148,8 @@ async def _seed_admin(db_engine, slug):
     return tid
 
 
-async def _login(api_client, email=" adm@x.io"):
-    r = await api_client.post("/api/login", json={"email": email.strip(), "password": PW})
+async def _login(api_client, email="adm@x.io"):
+    r = await api_client.post("/api/login", json={"email": email, "password": PW})
     assert r.status_code == 200, r.text
 
 
@@ -161,9 +161,9 @@ def _schedule_body(frequency, weekday=0):
     }
 
 
-async def test_schedule_monthly_blocked_when_bound_below_31(api_client, db_engine):
+async def test_schedule_monthly_blocked_when_bound_below_30(api_client, db_engine):
     tid = await _seed_admin(db_engine, "sch-monthly")
-    await _set_override(db_engine, tid, {"metrics": 14})  # bound 14 < monthly window
+    await _set_override(db_engine, tid, {"metrics": 14})  # bound 14 < monthly window (30)
     await _login(api_client)
     r = await api_client.put(f"/api/tenants/{tid}/report-schedules",
                              headers=csrf_headers(api_client), json=_schedule_body("monthly"))
