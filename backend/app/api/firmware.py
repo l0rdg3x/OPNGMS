@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,7 @@ from app.core.rbac import Action
 from app.models.device import Device
 from app.models.firmware_action import FirmwareAction
 from app.schemas.firmware import FirmwareActionIn, FirmwareActionOut, FirmwareCheckOut
+from app.services.audit import AuditService
 from app.services.firmware_action import major_offered, to_int
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["firmware"])
@@ -58,6 +59,7 @@ async def firmware_check(
              status_code=status.HTTP_201_CREATED, dependencies=[Depends(enforce_csrf)])
 async def create_firmware_action(
     tenant_id: uuid.UUID, device_id: uuid.UUID, body: FirmwareActionIn,
+    request: Request,
     ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
     session: AsyncSession = Depends(get_session),
     enqueue=Depends(get_enqueuer),
@@ -79,6 +81,13 @@ async def create_firmware_action(
     session.add(action)
     await session.flush()
     await enqueue("run_firmware_action", str(action.id), defer_until=body.scheduled_at)
+    await AuditService(session).record(
+        actor_user_id=ctx.user.id, tenant_id=tenant_id, action="device.firmware.action",
+        target_type="device", target_id=str(device_id),
+        ip=request.client.host if request.client else None,
+        details={"kind": body.kind, "target": body.target,
+                 "scheduled_at": str(body.scheduled_at) if body.scheduled_at else None},
+    )
     await session.commit()
     await session.refresh(action)
     return FirmwareActionOut.model_validate(action)
