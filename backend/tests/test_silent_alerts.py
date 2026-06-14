@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.db import set_tenant_context
 from app.models.silent_tenant_alert import SilentTenantAlert
+from app.services.runtime_settings import update_runtime_config
 from app.services.silent_alerts import compute_silent_tenants, detect_and_alert
 
 _NOW = datetime(2026, 6, 12, 12, 0, tzinfo=UTC)
@@ -97,9 +98,6 @@ async def test_detect_creates_alerts_emails_once_and_recovers(db_engine, monkeyp
 
 
 async def test_detect_disabled_is_noop(db_engine, monkeypatch):
-    class _Off(_S):
-        silent_alert_enabled = False
-
     called = {"stats": False}
 
     async def fake_stats(settings, *, window_hours=24):
@@ -109,7 +107,11 @@ async def test_detect_disabled_is_noop(db_engine, monkeypatch):
     monkeypatch.setattr("app.services.silent_alerts.fleet_log_stats", fake_stats)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
 
+    # The master switch is now a runtime setting (DB override over the env default).
     async with factory() as s:
-        r = await detect_and_alert(s, _Off())
-    assert r == {"silent": 0, "new": 0, "recovered": 0, "newly_silent": []}
+        await update_runtime_config(s, {"silent_alert_enabled": False})
+        await s.commit()
+    async with factory() as s:
+        r = await detect_and_alert(s, _S())
+    assert r == {"silent": 0, "new": 0, "recovered": 0, "after_hours": 6, "newly_silent": []}
     assert called["stats"] is False  # short-circuits before any work

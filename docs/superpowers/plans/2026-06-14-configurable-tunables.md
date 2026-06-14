@@ -231,36 +231,51 @@ def test_env_example_documents_boot_time_keys():
 
 ---
 
-## PR2 — Part B backend: runtime registry + endpoint + consumer rewiring  (branch `feat/tunables-runtime-api`)
+## PR2 — Part B backend: runtime registry + endpoint + NON-auth consumers  (branch `feat/tunables-runtime-api`)
 
-> Expand each into bite-sized TDD tasks at execution time. Code shapes are fixed by the spec.
+> Split refinement: the auth-sensitive consumers (session + login) move to their own PR3 for a focused
+> security review; the System-page UI follows as PR4. PR2 covers everything else.
 
-- **Task A:** Add `Settings` fields `firmware_max_status_polls: int = 360`, `firmware_poll_interval_seconds: float = 5.0`; keep the `firmware_action.py` constants pointing at them (or read at use). Test defaults.
+- **Task A:** Add `Settings` fields `firmware_max_status_polls: int = 360`, `firmware_poll_interval_seconds: float = 5.0` (defaults = today's `firmware_action.py` module constants). Test defaults mirror the constants.
 - **Task B:** `app/services/runtime_settings.py` — the `RUNTIME_SETTINGS` registry (list of entries:
-  `key`, `kind`, `default: lambda s`, `min`, `max`), plus `get_runtime_config(session)` (merge DB
-  override row over registry defaults → typed dict) and `update_runtime_config(session, patch)`
-  (validate kind/bounds/unknown-key → write merged → return effective). Stored under one `app_setting`
-  key `"runtime_config"`. Unit-test: defaults when no row; override merge; reject unknown key / wrong
-  type / out-of-bounds (ValueError).
+  `key`, `kind`, `default: lambda s`, `min`, `max`, `group`), plus `runtime_defaults()`,
+  `get_runtime_config(session)` (merge DB override row over registry defaults → typed dict, ignore
+  corrupt/unknown stored values) and `update_runtime_config(session, patch)` (validate
+  kind/bounds/unknown-key → write merged → return effective). Stored under one `app_setting` key
+  `"runtime_config"`. Unit-test: defaults when no row; override merge; reject unknown key / wrong type
+  / out-of-bounds; ignore corrupt stored value.
 - **Task C:** `app/schemas/system.py` + `app/api/system.py` — `GET /api/admin/settings`
-  (effective + default + kind + min/max per key) and `PUT /api/admin/settings` (CSRF-guarded,
+  (effective + default + kind + min/max + group per key) and `PUT /api/admin/settings` (CSRF-guarded,
   `Action.SYSTEM_MANAGE`, audit `action="system.runtime_config"`). API tests: RBAC (non-superadmin
-  403), patch round-trips, audit row written, 422 on invalid.
-- **Task D (consumers — wire each to `get_runtime_config`):**
-  - Firmware polls → `firmware_action.run_firmware_action` reads + passes into `poll_until_done`.
-  - `silent_alert_enabled`/`after_hours` → `silent_alerts.detect_*` (has session).
-  - `catalog_auto_fetch`/`geoip_auto_fetch` → thread the runtime value into the catalog/geoip providers.
-  - `session_ttl_hours` → `app/api/auth.py` login handler; `session_idle_minutes` →
-    `app/services/auth.py` `AuthSessionService` (has `self.session`).
-  - `login_max_attempts`/`login_lockout_window_seconds` → extend `SlidingWindowLimiter.check(...)` with
-    optional `max_attempts`/`window_seconds` overrides (DO NOT recreate the singleton — preserve window
-    state); login handlers read runtime-config and pass them.
-  - Each consumer gets a test asserting an override row changes the observed behavior.
+  403), patch round-trips + persists, 422 on invalid, CSRF required.
+- **Task D (non-auth consumers — wire each to `get_runtime_config`):**
+  - Firmware polls → `run_firmware_action` reads once, passes `max_polls`/`interval` into
+    `poll_until_done` (signature gains the two kwargs, defaulting to the constants).
+  - `silent_alert_enabled`/`after_hours` → `silent_alerts.detect_and_alert` (has session); the worker
+    email body reads the threshold from the returned summary (`after_hours`).
+  - `catalog_auto_fetch`/`geoip_auto_fetch` → read from the session inside the catalog/geoip providers.
+  - Each consumer gets a test asserting an override changes the observed behavior; adapt the existing
+    tests that disabled these via a fake `settings` to use the runtime override / env default.
 - **Task E:** full suite + ruff; push, PR, green CI, squash-merge.
 
 ---
 
-## PR3 — Part B frontend: System page "Runtime settings" section  (branch `feat/tunables-system-page`)
+## PR3 — Part B backend: AUTH consumers (session + login)  (branch `feat/tunables-auth`)
+
+> Isolated for a dedicated security review (touches the session + brute-force paths).
+
+- `session_ttl_hours` → `app/api/auth.py` login handler (cookie max-age + token TTL).
+- `session_idle_minutes` → `app/services/auth.py` `AuthSessionService` (`get_session_for_token` +
+  `purge_expired`; has `self.session`).
+- `login_max_attempts`/`login_lockout_window_seconds` → extend `SlidingWindowLimiter.check(...)` with
+  optional `max_attempts`/`window_seconds` overrides (DO NOT recreate the module-level singleton —
+  preserve the in-process window state); the two login `check()` call sites read runtime-config and
+  pass them.
+- Tests: an override changes the observed TTL/idle/lockout behavior. Dispatch the security-reviewer.
+
+---
+
+## PR4 — Part B frontend: System page "Runtime settings" section  (branch `feat/tunables-system-page`)
 
 > Expand at execution time.
 

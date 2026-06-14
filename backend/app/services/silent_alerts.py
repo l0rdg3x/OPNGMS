@@ -18,6 +18,7 @@ from app.models.device_log_forwarding import DeviceLogForwarding
 from app.models.silent_tenant_alert import SilentTenantAlert
 from app.repositories.tenant import TenantRepository
 from app.services.log_fleet import _parse_iso, fleet_log_stats
+from app.services.runtime_settings import get_runtime_config
 
 
 async def enabled_forwarding_by_tenant(session: AsyncSession) -> dict[uuid.UUID, int]:
@@ -50,14 +51,17 @@ async def detect_and_alert(session: AsyncSession, settings) -> dict:
     `newly_silent` (the tenants that just entered the silent state). The CALLER must commit and THEN
     email `newly_silent`: committing before sending guarantees a post-email commit failure can't make
     the next run re-insert + re-email the same episode (dedup survives). Owner session."""
-    if not settings.silent_alert_enabled:
-        return {"silent": 0, "new": 0, "recovered": 0, "newly_silent": []}
+    # The master switch + silence threshold are runtime-tunable from the System page.
+    runtime = await get_runtime_config(session)
+    after_hours = runtime["silent_alert_after_hours"]
+    if not runtime["silent_alert_enabled"]:
+        return {"silent": 0, "new": 0, "recovered": 0, "after_hours": after_hours, "newly_silent": []}
     enabled = await enabled_forwarding_by_tenant(session)
     names = {t.id: t.name for t in await TenantRepository(session).list()}
-    stats = await fleet_log_stats(settings, window_hours=settings.silent_alert_after_hours)
+    stats = await fleet_log_stats(settings, window_hours=after_hours)
     now = datetime.now(UTC)
     silent = compute_silent_tenants(enabled, names, stats, now=now,
-                                    threshold_hours=settings.silent_alert_after_hours)
+                                    threshold_hours=after_hours)
     existing = {row.tenant_id: row for row in
                 (await session.execute(select(SilentTenantAlert))).scalars().all()}
     recovered = [row for tid, row in existing.items() if tid not in silent]
@@ -76,4 +80,5 @@ async def detect_and_alert(session: AsyncSession, settings) -> dict:
         await session.delete(row)
     await session.flush()
     return {"silent": len(silent), "new": len(inserted), "recovered": len(recovered),
+            "after_hours": after_hours,
             "newly_silent": [(tid, silent[tid]["tenant_name"]) for tid in inserted]}

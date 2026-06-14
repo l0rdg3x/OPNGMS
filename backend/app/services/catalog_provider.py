@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.catalog_cache import CatalogCache
+from app.services.runtime_settings import get_runtime_config
 
 _NUM = re.compile(r"\d+")
 
@@ -135,7 +136,7 @@ async def get_catalog(
     """
     settings = get_settings()
     base = (base_url if base_url is not None else settings.catalog_release_base_url).rstrip("/")
-    fetch = settings.catalog_auto_fetch if auto_fetch is None else auto_fetch
+    fetch = (await get_runtime_config(session))["catalog_auto_fetch"] if auto_fetch is None else auto_fetch
     edition = (edition or "community").lower()
 
     target: tuple[str, str] | None = None
@@ -204,7 +205,7 @@ async def get_plugins_catalog(
     mismatch, or no published version <= the device's)."""
     settings = get_settings()
     base = (base_url if base_url is not None else settings.catalog_release_base_url).rstrip("/")
-    fetch = settings.catalog_auto_fetch if auto_fetch is None else auto_fetch
+    fetch = (await get_runtime_config(session))["catalog_auto_fetch"] if auto_fetch is None else auto_fetch
     edition = (edition or "community").lower()
 
     res_ver: str | None = None

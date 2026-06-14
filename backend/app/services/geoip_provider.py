@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.models.geoip_cache import GeoipCache
 from app.services.geoip import GeoIp
+from app.services.runtime_settings import get_runtime_config
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ async def get_geoip(session: AsyncSession) -> GeoIp | None:
     settings = get_settings()
 
     row = await _cache_row(session)
-    if row is None and settings.geoip_auto_fetch:
+    if row is None and (await get_runtime_config(session))["geoip_auto_fetch"]:
         base = settings.geoip_release_base_url.rstrip("/")
         row = await _fetch_and_store(session, base)
     if row is None:
