@@ -12,6 +12,18 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-14
+### Added
+- **Security / Perimeter.** Two new perimeter threat signals, surfaced per tenant: **failed logins** to
+  the box (attacker IP + attempted username, parsed from the OPNsense audit log) and **firewall blocks**
+  (attacker IP + targeted port, from the structured firewall log). Both resolve the attacker IP to a
+  country via the existing GeoIP layer. They appear as summary cards on the Overview and on a dedicated
+  **Perimeter** page (ranked per-IP, with a 24h/7d/30d window), and as two PDF report sections that are
+  **toggled per device** (on the device detail page). A bounded `perimeter_attacker` rollup (per
+  device/kind/source-IP) keeps storage small regardless of traffic volume, fed by a per-device ingest
+  that reuses the existing connector + cursor machinery; a daily retention sweep prunes stale rows.
+  Tenant-isolated via RLS; the ingest + the new endpoint were security-reviewed. (#145, #146, #147, #148)
+
 ## [0.8.0] - 2026-06-14
 ### Added
 - **Configurable deployment tunables.** Operational knobs are now configurable without forking. Four
@@ -106,7 +118,8 @@ annotated tag when a version is cut.
   monitoring + alerting, PDF reporting, the version-aware config catalog editor (generator + dynamic
   distribution + apply engine + editor UI), the syslog log lake, and the Docker deployment stack.
 
-[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.5.0...v0.6.0
