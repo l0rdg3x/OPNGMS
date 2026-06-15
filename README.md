@@ -67,8 +67,9 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Device actions** — firmware update / major upgrade and plugin install/remove (now or scheduled), run
   by a reboot-tolerant worker, plus a WebGUI deep-link.
 - **Configuration templates** — reusable, value-controlled templates in a shared MSP library with
-  per-customer overrides and a redacted preview. Five kinds (firewall aliases, any introspectable
-  setting, Suricata/IDS rulesets, firewall rules, Monit tests) plus **profiles** (ordered bundles).
+  per-customer overrides and a redacted preview. Six kinds (firewall aliases, any introspectable
+  setting, Suricata/IDS rulesets, **IDS policies**, firewall rules, Monit tests) plus **profiles**
+  (ordered bundles).
 - **Version-aware config editor** (flagship) — edit **every API-modifiable OPNsense setting** from an
   **OPNsense-like editor** matched to each device's firmware version, driven by a versioned, SHA-256-
   verified **catalog**; live-value forms, scalars + grids, pushed through the safe config pipeline.
@@ -222,7 +223,7 @@ version tag).
 | **Config management** — encrypted backup, drift detection, targeted revert, firewall-aware UI, default-OFF live push | ✅ Done |
 | **OPNsense connector** — telemetry verified on real 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step upgrade + plugin install/remove (now or scheduled), WebGUI deep-link | ✅ Done |
-| **Configuration templates** — MSP **library** + per-tenant overrides + typed apply + **profiles**; five kinds (alias, generic setting, IDS rulesets, firewall rules, Monit tests) | ✅ Done |
+| **Configuration templates** — MSP **library** + per-tenant overrides + typed apply + **profiles**; six kinds (alias, generic setting, IDS rulesets, **IDS policies**, firewall rules, Monit tests) | ✅ Done |
 | **Version-aware config editor** (flagship) — catalog **generator** + **distribution** (6-hourly publish, SHA-256-verified, DB-cached) + generic apply + **OPNsense-like editor** (menu tree + search, live-value forms, scalars + grids), **cross-version diff badges**, and a read-only live **`config.xml` map** cross-referenced to the catalog. 3a/3b/3c merged; remaining: sub-project 4 (Business proprietary deltas) | ✅ Done |
 | **Login MFA (TOTP)** — second factor + recovery codes, enforcement policy (off/all/privileged), two-step login, break-glass CLI | ✅ Done |
 | **Localization** — **12-language** UI (en/it/es/fr/de/pt/nl/ru/ar/zh/zh-TW/ja) incl. full **RTL** (Arabic) | ✅ Done |

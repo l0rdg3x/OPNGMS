@@ -12,6 +12,20 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-15
+### Added
+- **IDS policy templates.** A new curated MSP template kind — `ids_policy` — lets you define a Suricata/IDS
+  **policy** (rule-action tuning) once in the template library and apply it across the fleet, alongside the
+  existing alias / setting / ruleset / firewall-rule / Monit-test kinds. A policy matches rules by
+  {ruleset, current action, rule-metadata filters} and sets them to **alert / drop / disable** with a
+  priority — the standard way to turn a noisy ruleset into a useful one (e.g. "drop the ET-malware
+  category, alert-only on info severity"). Authored from a new template-library form (rulesets picked from
+  a reference device, plus an advanced metadata-filter editor); the connector upserts the policy by
+  description and resolves ruleset filenames to the device's **enabled** rulesets at apply time (a
+  disabled/absent ruleset is refused, never partially applied). Add/set/**delete** are all supported, so a
+  policy revert is a clean follow-up. Behind the `LIVE_PUSH_ENABLED` master switch like every push; UI
+  translated across all 12 locales. (#171, #172)
+
 ## [0.12.0] - 2026-06-15
 ### Added
 - **Log-forwarding hard revocation (CRL).** Revoking a device's log forwarding is now **enforced at the
