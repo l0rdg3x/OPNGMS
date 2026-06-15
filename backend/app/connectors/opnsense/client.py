@@ -581,6 +581,11 @@ class OpnsenseClient:
         """Failed-login attempts (attacker IP + user) from the audit log. `since` filtered downstream."""
         return await self._capability("auth_failures")
 
+    async def get_service_events(self, since: datetime | None = None) -> list[dict]:
+        """Reliability events (reboot / service crash-restart / disk-FS) classified out of the system
+        log. `since` filtered downstream."""
+        return await self._capability("service_events")
+
     async def get_plugin_info(self) -> dict:
         return await self._capability("plugin_info")
 

@@ -37,6 +37,17 @@ def test_ids_request_is_post_with_body():
     assert req.method == "POST" and req.body["searchPhrase"] == ""
 
 
+def test_service_events_capability_has_unconstrained_default_last():
+    last = CAPABILITIES["service_events"][-1]
+    assert last.edition == "any" and last.min_version is None and last.max_version is None
+
+
+def test_service_events_request_is_post_to_system_log():
+    req = CapabilityResolver("community", "26.1.9").resolve("service_events").requests[0]
+    assert req.path == "diagnostics/log/core/system"
+    assert req.method == "POST" and req.body["searchPhrase"] == ""
+
+
 def test_config_backup_is_text():
     req = CapabilityResolver("community", "26.1.9").resolve("config_backup").requests[0]
     assert req.kind == "text"

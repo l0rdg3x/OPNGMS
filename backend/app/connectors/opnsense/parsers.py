@@ -313,3 +313,61 @@ def parse_auth_failures(data) -> list[dict]:
             "attributes": {"username": user, "severity": r.get("severity", "")},
         })
     return out
+
+
+# Curated, ORDERED classifier for reliability events out of the system log
+# (diagnostics/log/core/system). Each rule is (category, name, base_severity, process_predicate,
+# line_regex). process_predicate None matches any process. First matching rule wins; an unrecognized
+# line is SKIPPED (we store only classified reliability events, NOT the whole system log — that is the
+# log-lake's job). These line patterns are a RUNTIME-VERIFY starter set: the exact reboot/crash/disk
+# wording is sparse on an idle box and is tuned against real events in follow-ups.
+_SERVICE_RULES = [
+    ("reboot", "reboot", "high", {"shutdown"}, re.compile(r"\breboot\b", re.I)),
+    ("reboot", "boot", "medium", {"syslogd"}, re.compile(r"kernel boot file", re.I)),
+    ("service", "service_crashed", "high", None,
+        re.compile(r"\bexited on signal\b|\bcore dumped\b|\bterminated abnormally\b", re.I)),
+    ("service", "service_restarted", "medium", {"configd.py", "configd"},
+        re.compile(r"\brestart(ing|ed)?\b", re.I)),
+    ("disk", "filesystem_full", "high", None,
+        re.compile(r"no space left on device|filesystem full|out of (?:disk )?space", re.I)),
+    ("disk", "disk_error", "high", {"smartd"}, re.compile(r"\b(?:error|fail|offline)\b", re.I)),
+    ("disk", "pool_degraded", "high", None,
+        re.compile(r"\bDEGRADED\b|\bFAULTED\b|pool .* unavailable", re.I)),
+]
+# Log severities that escalate a rule's base severity to "high".
+_HIGH_LOG_SEV = {"emerg", "alert", "crit", "err", "error"}
+
+
+def parse_service_events(data) -> list[dict]:
+    """system-log rows -> classified reliability events (reboot / service crash-restart / disk-FS).
+
+    Fail-safe: an unrecognized line is skipped (we store only classified reliability events). Severity
+    is the rule's base, escalated to "high" when the row's log severity is emerg/alert/crit/err.
+    The rule set is RUNTIME-VERIFY (curated starter, tuned against real events on the box)."""
+    out: list[dict] = []
+    for r in _rows(data, "rows"):
+        if not isinstance(r, dict):
+            continue
+        proc = str(r.get("process_name", ""))
+        # Cap the device-supplied line before the regexes + digest run on it: a real syslog line is well
+        # under 8 KiB, so 2000 chars is ample and it bounds per-row CPU even on a hostile/compromised box.
+        line = str(r.get("line", ""))[:2000]
+        log_sev = str(r.get("severity", "")).lower()
+        for category, name, base_sev, procs, rx in _SERVICE_RULES:
+            if procs is not None and proc not in procs:
+                continue
+            if not rx.search(line):
+                continue
+            ts = parse_ts(r.get("timestamp"))
+            severity = "high" if log_sev in _HIGH_LOG_SEV else base_sev
+            digest = hashlib.sha1(f"{name}|{line}".encode()).hexdigest()[:16]
+            out.append({
+                "time": ts,
+                "category": category,
+                "name": name,
+                "severity": severity,
+                "event_key": event_key(ts, name, digest),
+                "attributes": {"process": proc, "message": line[:500], "log_severity": log_sev},
+            })
+            break  # first matching rule wins; one event per row
+    return out

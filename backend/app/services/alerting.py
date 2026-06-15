@@ -44,3 +44,27 @@ async def evaluate_alerts(session: AsyncSession, device: Device, state: PollStat
                 alert.resolved_at = now
 
     await session.flush()
+
+
+async def raise_service_alerts(session: AsyncSession, device: Device, new_rows: list[dict]) -> int:
+    """Open a deduped Alert for each NEW high-severity service event (a reboot / service crash /
+    disk-full). Unlike `evaluate_alerts`, these are NOT auto-resolved (a reboot is a point-in-time
+    fact, not a recoverable state); the dedup on the open (type, label) prevents duplicate alerts when
+    the same event is re-seen. Returns the number of alerts opened."""
+    high = [r for r in new_rows if r.get("severity") == "high"]
+    if not high:
+        return 0
+    open_alerts = await _open_alerts(session, device)
+    opened = 0
+    seen: set[str] = set()
+    for r in high:
+        label = f"{r.get('name', '')}: {device.name}"
+        key = ("service_event", label)
+        if key in open_alerts or label in seen:
+            continue
+        session.add(_open(device, "service_event", label))
+        seen.add(label)
+        opened += 1
+    if opened:
+        await session.flush()
+    return opened

@@ -102,3 +102,17 @@ async def test_get_auth_failures_parses_audit_log_post():
     out = await OpnsenseClient(BASE, "k", "s").get_auth_failures()
     assert route.called  # the audit log is queried via POST, not GET
     assert len(out) == 1 and out[0]["src_ip"] == "203.0.113.7" and out[0]["name"] == "admin"
+
+
+@respx.mock
+async def test_get_service_events_parses_system_log_post():
+    url = f"{BASE}/api/diagnostics/log/core/system"
+    route = respx.post(url).mock(return_value=httpx.Response(200, json={"rows": [
+        {"timestamp": "2026-06-14T10:00:00", "process_name": "shutdown",
+         "severity": "notice", "line": "reboot by root"},
+        {"timestamp": "2026-06-14T10:00:01", "process_name": "dhcp6c",
+         "severity": "info", "line": "advertise contains NoAddrsAvail status"},
+    ]}))
+    out = await OpnsenseClient(BASE, "k", "s").get_service_events()
+    assert route.called  # the system log is queried via POST, not GET
+    assert len(out) == 1 and out[0]["category"] == "reboot" and out[0]["name"] == "reboot"

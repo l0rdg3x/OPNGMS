@@ -10,9 +10,10 @@ from app.services.ingest import ingest_events
 
 
 class FakeClient:
-    def __init__(self, alerts=None, dns=None, fail_ids=False, fail_dns=False):
+    def __init__(self, alerts=None, dns=None, service=None, fail_ids=False, fail_dns=False):
         self._alerts = alerts or []
         self._dns = dns or []
+        self._service = service or []
         self._fail_ids = fail_ids
         self._fail_dns = fail_dns
 
@@ -25,6 +26,9 @@ class FakeClient:
         if self._fail_dns:
             raise ReachabilityError("boom")
         return self._dns
+
+    async def get_service_events(self, since=None):
+        return self._service
 
 
 def _alert(ts, key, src="10.0.0.5", name="ET SCAN"):
