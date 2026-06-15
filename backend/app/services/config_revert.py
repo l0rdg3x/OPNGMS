@@ -108,6 +108,60 @@ def _invert_opnsense_setting(change: ConfigChange, snapshot_xml: str | None) -> 
 register_inverse_builder("opnsense_setting", _invert_opnsense_setting)
 
 
+def record_from_config_xml(xml: str, path: str, match: dict) -> dict | None:
+    """Find the element under `path` whose child tags equal every (tag, value) in `match`;
+    return its children as a flat {tag: text} dict, or None. (Generalizes alias_from_config_xml.)
+
+    `path` must be a trusted module-level constant — it is embedded in the ElementTree query, not
+    sanitized; never pass a value derived from a change payload or other untrusted input."""
+    root = DET.fromstring(xml)
+    for el in root.iterfind(f".//{path}"):
+        if all((el.findtext(tag) or "") == val for tag, val in match.items()):
+            return {child.tag: (child.text or "") for child in el}
+    return None
+
+
+_FW_RULE_PATH = "OPNsense/Firewall/Filter/rules/rule"
+
+
+def _invert_firewall_rule(change: ConfigChange, snapshot_xml: str | None) -> tuple[str, str, dict]:
+    payload = change.payload or {}
+    description = change.target or payload.get("description", "")
+    interface = str(payload.get("interface", ""))
+    if change.operation == "add":
+        # The inverse of a creation is a delete by identity — no snapshot needed (mirrors _invert_alias).
+        return "delete", description, {"description": description, "interface": interface}
+    if not snapshot_xml:
+        raise NoInverseError("no pre-apply snapshot to reconstruct the firewall rule from")
+    prior = record_from_config_xml(snapshot_xml, _FW_RULE_PATH,
+                                   {"description": description, "interface": interface})
+    if prior is None:
+        return "delete", description, {"description": description, "interface": interface}
+    return "set", description, prior
+
+
+register_inverse_builder("firewall_rule", _invert_firewall_rule)
+
+
+_MONIT_TEST_PATH = "OPNsense/monit/test"
+
+
+def _invert_monit_test(change: ConfigChange, snapshot_xml: str | None) -> tuple[str, str, dict]:
+    name = change.target or (change.payload or {}).get("name", "")
+    if change.operation == "add":
+        # The inverse of a creation is a delete by identity — no snapshot needed (mirrors _invert_alias).
+        return "delete", name, {"name": name}
+    if not snapshot_xml:
+        raise NoInverseError("no pre-apply snapshot to reconstruct the monit test from")
+    prior = record_from_config_xml(snapshot_xml, _MONIT_TEST_PATH, {"name": name})
+    if prior is None:
+        return "delete", name, {"name": name}
+    return "set", name, prior
+
+
+register_inverse_builder("monit_test", _invert_monit_test)
+
+
 # --- revert flow ---
 
 
