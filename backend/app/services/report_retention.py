@@ -72,6 +72,12 @@ SECTION_STORES: dict[str, tuple[str, ...]] = {
     "firmware_config": (),
 }
 
+# The stores that can actually BOUND a report (i.e. the distinct keys present in SECTION_STORES). Lowering
+# a global default for one of these can make an existing schedule over-long → drives the impacted-tenants
+# scan in ``update_runtime_settings``. The log lake (SP-2) is deliberately NOT here: no report section reads
+# it, so lowering ``log_lake_retention_days`` can never bound a report and must not enumerate tenants.
+REPORT_BOUNDING_STORES: tuple[str, ...] = ("perimeter", "events", "metrics")
+
 
 def stores_for_sections(enabled_sections: dict[str, bool]) -> set[str]:
     """Union of the retention-bounded stores the enabled (True) sections read."""

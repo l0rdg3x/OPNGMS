@@ -169,6 +169,18 @@ async def test_impacts_scan_under_app_role_rls(app_role_api_client, db_engine):
     assert len(impacts) == 1 and impacts[0]["tenant_id"] == str(plain)
 
 
+# ── SP-2: lowering log_lake never enumerates tenants (it is NOT a report-bounding store) ───────────
+
+async def test_lowering_log_lake_yields_no_impacts(api_client, db_engine):
+    await _superadmin(api_client)
+    tid = await _seed_tenant(db_engine, "imp-loglake")
+    await _ensure_settings(db_engine, tid)
+    await _add_schedule(db_engine, tid, frequency="monthly")
+    # log_lake is NOT a report-bounding store (it stays out of SECTION_STORES) → lowering it to a value
+    # that would over-run the monthly schedule still produces no impact and triggers no tenant scan.
+    assert await _put_settings(api_client, {"log_lake_retention_days": 1}) == []
+
+
 # ── precision: a different store lowered does not pull in a metrics-only over-run ──────────────────
 
 async def test_lowering_other_store_does_not_impact_metrics_schedule(api_client, db_engine):
