@@ -319,11 +319,14 @@ def parse_auth_failures(data) -> list[dict]:
 # (diagnostics/log/core/system). Each rule is (category, name, base_severity, process_predicate,
 # line_regex). process_predicate None matches any process. First matching rule wins; an unrecognized
 # line is SKIPPED (we store only classified reliability events, NOT the whole system log — that is the
-# log-lake's job). These line patterns are a RUNTIME-VERIFY starter set: the exact reboot/crash/disk
-# wording is sparse on an idle box and is tuned against real events in follow-ups.
+# log-lake's job). These line patterns are a RUNTIME-VERIFY starter set, tuned against real events in
+# follow-ups. The kernel-banner boot rule was live-verified on a real OPNsense 26.1.9 box (syslog-ng):
+# that box has no `syslogd: kernel boot file` line, but the FreeBSD kernel prints its Copyright banner
+# exactly once per boot — the reliable cross-version once-per-boot marker.
 _SERVICE_RULES = [
     ("reboot", "reboot", "high", {"shutdown"}, re.compile(r"\breboot\b", re.I)),
     ("reboot", "boot", "medium", {"syslogd"}, re.compile(r"kernel boot file", re.I)),
+    ("reboot", "boot", "medium", {"kernel"}, re.compile(r"Copyright .*FreeBSD", re.I)),
     ("service", "service_crashed", "high", None,
         re.compile(r"\bexited on signal\b|\bcore dumped\b|\bterminated abnormally\b", re.I)),
     ("service", "service_restarted", "medium", {"configd.py", "configd"},

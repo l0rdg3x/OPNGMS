@@ -14,6 +14,14 @@ def test_classifies_reboot():
     assert len(out) == 1 and out[0]["category"] == "reboot" and out[0]["name"] == "reboot"
 
 
+def test_classifies_kernel_boot_banner():
+    # Live-verified on a real OPNsense 26.1.9 (syslog-ng) box: the FreeBSD kernel Copyright banner is
+    # the reliable once-per-boot marker (that box has no `syslogd: kernel boot file` line).
+    out = parse_service_events(_data([
+        _row("kernel", "Copyright (c) 1992-2023 The FreeBSD Project.", "notice")]))
+    assert len(out) == 1 and out[0]["category"] == "reboot" and out[0]["name"] == "boot"
+
+
 def test_classifies_service_crash():
     out = parse_service_events(_data([_row(
         "kernel", "pid 42 (suricata), jid 0, uid 0: exited on signal 11 (core dumped)", "crit")]))
