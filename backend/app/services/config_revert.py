@@ -7,7 +7,6 @@ inverse-generation is new. v1 registers the firewall_alias kind; other kinds rai
 from __future__ import annotations
 
 import gzip
-import json
 import uuid
 from collections.abc import Callable, Iterable
 
@@ -204,11 +203,13 @@ def _invert_ids_policy(change: ConfigChange, snapshot_xml: str | None) -> tuple[
             # policy with fewer rulesets than the original.
             raise NoInverseError(f"ids policy ruleset file {u!r} is not in the snapshot files table")
         rulesets.append(name)
-    raw_content = prior.get("content") or ""
-    try:
-        content = json.loads(raw_content) if raw_content else {}
-    except json.JSONDecodeError as exc:
-        raise NoInverseError("ids policy snapshot content is not valid JSON") from exc
+    # content is stored as comma-joined "<metadata_key>.<value>" OptionField tokens (NOT JSON) — invert
+    # the connector's _serialize_policy flattening back into the portable {metadata_key: [values]} dict.
+    content: dict[str, list[str]] = {}
+    for tok in (prior.get("content", "") or "").split(","):
+        key, sep, value = tok.partition(".")
+        if sep:
+            content.setdefault(key, []).append(value)
     body = {
         "description": description,
         "enabled": prior.get("enabled", "1"),

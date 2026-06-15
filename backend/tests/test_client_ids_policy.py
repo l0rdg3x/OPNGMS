@@ -66,8 +66,33 @@ async def test_set_adds_when_absent():
     assert policy["action"] == "alert,drop"                  # comma-joined
     assert policy["rulesets"] == "uuid-et"                   # filename resolved to uuid
     assert policy["new_action"] == "drop"
-    assert json.loads(policy["content"]) == {"severity": ["1"]}
+    assert policy["content"] == "severity.1"   # {key:[values]} -> comma-joined "key.value" OptionField tokens
     assert res["operation"] == "add" and res["dry_run"] is False
+
+
+@respx.mock
+async def test_failed_validation_raises():
+    # OPNsense returns HTTP 200 {"result":"failed",...} on a REJECTED policy — the connector must raise,
+    # not silently report success (live-verified: a bad content filter returned failed but was reported OK).
+    _mock_search([])
+    _mock_get_policy({"uuid-et": {"value": "et.rules", "selected": 1}})
+    respx.post(url__regex=r".*/api/ids/settings/addPolicy.*").mock(return_value=httpx.Response(
+        200, json={"result": "failed", "validations": {"policy.content": "Policy rule not found."}}))
+    reconf = respx.post(url__regex=r".*/api/ids/service/reconfigure.*")
+    with pytest.raises(ApiError):
+        await _c().apply_ids_policy("set", _BODY, dry_run=False)
+    assert not reconf.called   # never reconfigure after a rejected apply
+
+
+@respx.mock
+async def test_validations_without_result_raises():
+    # Some OPNsense controllers populate `validations` without setting result="failed" — still a rejection.
+    _mock_search([])
+    _mock_get_policy({"uuid-et": {"value": "et.rules", "selected": 1}})
+    respx.post(url__regex=r".*/api/ids/settings/addPolicy.*").mock(return_value=httpx.Response(
+        200, json={"validations": {"policy.description": "A description is required."}}))
+    with pytest.raises(ApiError):
+        await _c().apply_ids_policy("set", _BODY, dry_run=False)
 
 
 @respx.mock
@@ -83,7 +108,7 @@ async def test_set_updates_when_present():
     policy = next(b for p, b in posted if p == "ids/settings/setPolicy/p1")["policy"]
     assert policy["action"] == "alert,drop"                  # body shape verified on the update path too
     assert policy["rulesets"] == "uuid-et"
-    assert json.loads(policy["content"]) == {"severity": ["1"]}
+    assert policy["content"] == "severity.1"   # {key:[values]} -> comma-joined "key.value" OptionField tokens
     assert res["operation"] == "set"
 
 
