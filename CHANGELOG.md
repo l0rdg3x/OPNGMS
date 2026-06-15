@@ -12,6 +12,28 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-15
+### Added
+- **Log-forwarding hard revocation (CRL).** Revoking a device's log forwarding is now **enforced at the
+  syslog-ng receiver**, not just on the box: the worker rebuilds a CA-signed **CRL** from the
+  `revoked_syslog_certs` ledger (across all tenants) and writes it onto the shared cert volume; the
+  syslog-ng container enforces it via `crl-dir()` with a small reload-watcher (it caches the CRL at
+  startup, so the watcher runs `syslog-ng-ctl reload` when the CRL changes). A revoked device cert is then
+  rejected at the TLS handshake — so a **stolen device key can no longer ship forged logs** by connecting
+  directly to the receiver after revocation. A daily cron keeps the CRL fresh; revoke enqueues an
+  immediate refresh. Defense-in-depth on top of short certs + auto-renew. Verified end-to-end against
+  syslog-ng 4.5.0. (#169)
+### Changed
+- **Least-privilege syslog CA key.** The internal CA's encrypted **private key** moved out of `syslog_ca`
+  into an owner-only `syslog_ca_key` table that the non-superuser API role (`opngms_app`) **cannot read**;
+  the cert-signing path reaches it only through a single `SECURITY DEFINER` accessor function. This removes
+  the key from the blanket `SELECT` grant so a read primitive can't exfiltrate it. CA **creation** is now
+  owner-only (bootstrap/worker); the API returns HTTP 503 if log forwarding is enabled before the CA is
+  bootstrapped. Security-reviewed. (#168)
+- Verified at a staging bring-up (not CI): the syslog-ng → OpenSearch **document field shape** (per-tenant
+  index naming from the cert `O=`/`CN=`, and the field types the Logs search relies on) and **multi-node
+  HA** (one node lost → the index stays available with no data loss, replicas re-allocate to the survivors).
+
 ## [0.11.0] - 2026-06-15
 ### Added
 - **Configurable data retention — global default + per-tenant override.** How long the data behind the
