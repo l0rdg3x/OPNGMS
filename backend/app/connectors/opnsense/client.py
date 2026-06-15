@@ -60,14 +60,18 @@ def _safe_uuid(value: str) -> str:
     return value
 
 
-def _raise_on_failed(res, what: str):
-    """OPNsense MVC add/set endpoints return HTTP 200 with ``{"result": "failed", "validations": {...}}``
-    when a mutation is REJECTED (e.g. an invalid field, a content filter matching no rule). Surface it as
-    an ApiError so the apply pipeline records the change as ``failed`` instead of silently ``applied``.
-    (Verified on a real box: an addPolicy with a bad content filter returned failed yet was reported OK.)"""
-    if isinstance(res, dict) and res.get("result") == "failed":
+def _raise_on_failed(res, what: str) -> None:
+    """Raise when an OPNsense MVC mutation was REJECTED. add/set return HTTP 200 with a failure body —
+    usually ``{"result": "failed", "validations": {...}}``, but some controllers populate ``validations``
+    without setting ``result`` to ``failed`` — so any non-empty ``validations`` on a non-``saved`` result
+    is a rejection. A clean save returns ``{"result": "saved"}``; a delete returns ``{"result": "deleted"}``
+    (both pass). Surfacing the rejection as an ApiError makes the apply pipeline record the change as
+    ``failed`` instead of silently ``applied``. (Verified on a real box: an addPolicy with a bad content
+    filter returned a failure body yet was reported OK.)"""
+    if not isinstance(res, dict):
+        return
+    if res.get("result") == "failed" or (res.get("validations") and res.get("result") != "saved"):
         raise ApiError(0, f"{what} rejected by OPNsense: {res.get('validations') or res}")
-    return res
 
 
 def _safe_endpoint(path: str) -> str:

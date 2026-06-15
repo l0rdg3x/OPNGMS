@@ -85,6 +85,17 @@ async def test_failed_validation_raises():
 
 
 @respx.mock
+async def test_validations_without_result_raises():
+    # Some OPNsense controllers populate `validations` without setting result="failed" — still a rejection.
+    _mock_search([])
+    _mock_get_policy({"uuid-et": {"value": "et.rules", "selected": 1}})
+    respx.post(url__regex=r".*/api/ids/settings/addPolicy.*").mock(return_value=httpx.Response(
+        200, json={"validations": {"policy.description": "A description is required."}}))
+    with pytest.raises(ApiError):
+        await _c().apply_ids_policy("set", _BODY, dry_run=False)
+
+
+@respx.mock
 async def test_set_updates_when_present():
     posted = []
     _mock_get_policy({"uuid-et": {"value": "et.rules", "selected": 1}})
