@@ -12,6 +12,22 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-06-15
+### Added
+- **Operator Revert now covers every live-applied config kind.** The targeted-inverse **Revert** (undo a
+  config push by generating its inverse through the normal apply pipeline) previously worked only for
+  firewall aliases and generic settings. It now also reverts **firewall rules**, **Monit tests**, **IDS
+  policies**, and the version-aware editor's **catalog settings** — so the Revert button is enabled across
+  the board. Each inverse is reconstructed purely from the encrypted pre-apply snapshot: an *update* is
+  restored to its prior record, a *creation* is deleted, and a catalog change's scalar + grid edits are
+  individually inverted (a deleted grid row re-added, a modified row restored, an added row deleted by its
+  box-assigned id). Reverting an unrecoverable snapshot fails closed with a clear reason rather than a
+  partial undo. Behind the `LIVE_PUSH_ENABLED` master switch like every push. `ids_rulesets` stays out of
+  scope (its apply is additive). (#174, #175, #176)
+### Changed
+- The connector gained `delete` operations for firewall rules and Monit tests (used by the revert path);
+  box-sourced UUIDs are now charset-validated before being embedded in any request path. (#174)
+
 ## [0.13.0] - 2026-06-15
 ### Added
 - **IDS policy templates.** A new curated MSP template kind — `ids_policy` — lets you define a Suricata/IDS

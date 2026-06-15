@@ -62,8 +62,9 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   with **scheduled email delivery** (per-tenant **and** per-device, weekly/monthly/on-demand) via a
   superadmin SMTP relay, white-label sender, "send now", and send-retry.
   **[See sample reports →](docs/demo-reports/)**
-- **Config management** — versioned, encrypted backup with drift detection, targeted **revert**, and a
-  firewall-aware editing UI; optional **live config push** behind a default-OFF master switch.
+- **Config management** — versioned, encrypted backup with drift detection, targeted **revert** (for every
+  live-applied config kind), and a firewall-aware editing UI; optional **live config push** behind a
+  default-OFF master switch.
 - **Device actions** — firmware update / major upgrade and plugin install/remove (now or scheduled), run
   by a reboot-tolerant worker, plus a WebGUI deep-link.
 - **Configuration templates** — reusable, value-controlled templates in a shared MSP library with
