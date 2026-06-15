@@ -719,6 +719,32 @@ export const en = {
     prev: "Previous",
     next: "Next",
   },
+  reliability: {
+    tab: "Reliability",
+    title: "Service events (24h)",
+    subtitle: "Reboots, service crashes/restarts and disk warnings from the device system log.",
+    time: "Time",
+    category: "Category",
+    name: "Event",
+    severity: "Severity",
+    process: "Process",
+    message: "Message",
+    categories: {
+      reboot: "Reboot",
+      service: "Service",
+      disk: "Disk",
+    },
+    severities: {
+      high: "High",
+      medium: "Medium",
+      low: "Low",
+    },
+    loadMore: "Load more",
+    empty: "No service events in this window.",
+    loading: "Loading service events…",
+    loadError: "Failed to load service events.",
+    last24h: "Last 24 hours",
+  },
 } as const;
 
 // Widen the string leaves to `string` while preserving the exact key structure, so sibling
