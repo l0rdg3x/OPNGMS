@@ -316,3 +316,69 @@ describe("TemplateFormModal — monit_test", () => {
     expect(capture).not.toHaveBeenCalled();
   });
 });
+
+describe("TemplateFormModal — ids_policy", () => {
+  it("creates an ids_policy template with the policy body", async () => {
+    const capture = vi.fn();
+    server.use(
+      http.get("/api/tenants/t1/devices", () => HttpResponse.json(DEVICES)),
+      http.post("/api/templates", async ({ request }) => {
+        capture(await request.json());
+        return HttpResponse.json(
+          { id: "x", kind: "ids_policy", name: "Drop ET malware", version: 1 },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderModal();
+
+    // Name.
+    await userEvent.type(screen.getByTestId("tpl-name"), "Drop ET malware");
+
+    // Switch the kind to Suricata/IDS policy (Mantine Select: click input, then option).
+    await userEvent.click(screen.getByTestId("tpl-kind"));
+    await userEvent.click(await screen.findByText("Suricata/IDS policy"));
+
+    // The policy form is now shown: set the description (the identity) + the new action.
+    // "default" is unique to the new_action Select (not in the action MultiSelect), so it disambiguates.
+    await userEvent.type(await screen.findByTestId("idspolicy-description"), "Drop ET malware");
+    await userEvent.click(screen.getByTestId("idspolicy-newaction"));
+    await userEvent.click(await screen.findByText("default"));
+
+    // Save and assert the captured POST body.
+    await userEvent.click(screen.getByTestId("tpl-save"));
+
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "ids_policy",
+          name: "Drop ET malware",
+          description: "",
+          body: expect.objectContaining({ description: "Drop ET malware", new_action: "default" }),
+        }),
+      )
+    );
+  });
+
+  it("refuses to save an ids_policy with an empty description (it is the policy identity)", async () => {
+    const capture = vi.fn();
+    server.use(
+      http.get("/api/tenants/t1/devices", () => HttpResponse.json(DEVICES)),
+      http.post("/api/templates", async ({ request }) => {
+        capture(await request.json());
+        return HttpResponse.json({ id: "x", kind: "ids_policy", name: "n", version: 1 }, { status: 201 });
+      }),
+    );
+
+    renderModal();
+    await userEvent.type(screen.getByTestId("tpl-name"), "No description");
+    await userEvent.click(screen.getByTestId("tpl-kind"));
+    await userEvent.click(await screen.findByText("Suricata/IDS policy"));
+    // description left empty -> save is blocked client-side, no POST is made.
+    await screen.findByTestId("idspolicy-description");
+    await userEvent.click(screen.getByTestId("tpl-save"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(capture).not.toHaveBeenCalled();
+  });
+});

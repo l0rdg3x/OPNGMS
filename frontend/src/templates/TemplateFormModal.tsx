@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useT } from "../i18n";
 import { type Template, useCreateTemplate, useUpdateTemplate } from "./hooks";
 import { IdsRulesetForm } from "./IdsRulesetForm";
+import { IdsPolicyForm, type PolicyBody } from "./IdsPolicyForm";
 import { OpnsenseSettingForm } from "./OpnsenseSettingForm";
 import { FirewallRuleForm } from "./FirewallRuleForm";
 import { MonitTestForm } from "./MonitTestForm";
@@ -23,6 +24,10 @@ const EMPTY_RULE: RuleBody = { payload: {} };
 type MonitBody = { payload: Record<string, string> };
 const EMPTY_MONIT: MonitBody = { payload: {} };
 
+const EMPTY_POLICY: PolicyBody = {
+  description: "", enabled: "1", prio: "0", action: [], rulesets: [], content: {}, new_action: "alert",
+};
+
 export function TemplateFormModal(
   { opened, onClose, editing }: { opened: boolean; onClose: () => void; editing: Template | null },
 ) {
@@ -34,6 +39,7 @@ export function TemplateFormModal(
   const [idsBody, setIdsBody] = useState<IdsBody>(EMPTY_IDS);
   const [ruleBody, setRuleBody] = useState<RuleBody>(EMPTY_RULE);
   const [monitBody, setMonitBody] = useState<MonitBody>(EMPTY_MONIT);
+  const [policyBody, setPolicyBody] = useState<PolicyBody>(EMPTY_POLICY);
   const form = useForm({
     initialValues: { name: "", type: "host", content: "", description: "" },
   });
@@ -54,6 +60,9 @@ export function TemplateFormModal(
       setMonitBody(editing?.kind === "monit_test"
         ? { payload: (editing.body as Record<string, string> | undefined) ?? {} }
         : EMPTY_MONIT);
+      setPolicyBody(editing?.kind === "ids_policy"
+        ? ((editing.body as PolicyBody | undefined) ?? EMPTY_POLICY)
+        : EMPTY_POLICY);
       form.setValues(editing && editing.kind !== "opnsense_setting"
         ? { name: editing.name, type: String(editing.body?.type ?? "host"),
             content: (Array.isArray(editing.body?.content) ? editing.body.content : []).join("\n"),
@@ -115,6 +124,20 @@ export function TemplateFormModal(
             description: v.description, body: monitBody.payload });
           notifications.show({ message: t.templates.created });
         }
+      } else if (kind === "ids_policy") {
+        if (!policyBody.description.trim()) {
+          notifications.show({ color: "red", message: t.templates.idsPolicy.descriptionRequired });
+          return;
+        }
+        if (editing) {
+          await update.mutateAsync({ id: editing.id,
+            body: { name: v.name, description: v.description, body: policyBody } });
+          notifications.show({ message: t.templates.updated });
+        } else {
+          await create.mutateAsync({ kind: "ids_policy", name: v.name,
+            description: v.description, body: policyBody });
+          notifications.show({ message: t.templates.created });
+        }
       } else {
         const content = v.content.split("\n").map((s) => s.trim()).filter(Boolean);
         const body = { name: v.name, type: v.type, content, description: v.description };
@@ -148,6 +171,7 @@ export function TemplateFormModal(
               { value: "suricata_ruleset", label: t.templates.kindIdsRulesets },
               { value: "firewall_rule", label: t.templates.kindFirewallRule },
               { value: "monit_test", label: t.templates.kindMonitTest },
+              { value: "ids_policy", label: t.templates.kindIdsPolicy },
             ]}
             value={kind}
             onChange={(k) => setKind(k ?? "firewall_alias")}
@@ -161,6 +185,8 @@ export function TemplateFormModal(
             ? <FirewallRuleForm value={ruleBody} onChange={setRuleBody} />
             : kind === "monit_test"
             ? <MonitTestForm value={monitBody} onChange={setMonitBody} />
+            : kind === "ids_policy"
+            ? <IdsPolicyForm value={policyBody} onChange={setPolicyBody} />
             : (
               <>
                 <Select label={t.templates.type} data={ALIAS_TYPES} data-testid="tpl-type"
