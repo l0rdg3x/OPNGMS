@@ -124,6 +124,35 @@ class PerimeterBlock:
 
 
 @dataclass
+class ReliabilityCategoryRow:
+    """One row of the reliability category breakdown: localized category label, count, share %."""
+    label: str
+    count: int
+    pct: float
+
+
+@dataclass
+class ReliabilityEventRow:
+    """One notable reliability event in the report: formatted time, localized category, name,
+    localized severity (+ controlled-enum severity class for styling), and the device name."""
+    time: str
+    category: str
+    name: str
+    severity: str
+    severity_label: str
+    device: str
+
+
+@dataclass
+class ReliabilityBlock:
+    """The reliability report section: per-category counts plus a recent notable-events list.
+    Tenant-wide (built once, like the perimeter sections), over the toggle-enabled device set."""
+    categories: list[ReliabilityCategoryRow]
+    events: list[ReliabilityEventRow]
+    total: int
+
+
+@dataclass
 class HealthBlock:
     cpu_avg: float | None
     cpu_peak: float | None
@@ -208,6 +237,7 @@ class ReportContext:
     attacker_countries: AttackerCountriesBlock | None = None
     failed_logins: PerimeterBlock | None = None
     firewall_blocks: PerimeterBlock | None = None
+    reliability: ReliabilityBlock | None = None
     logo_data_uri: str | None = None
     t: ReportText | None = None
     locale: str = "en"
@@ -295,6 +325,40 @@ async def _perimeter_block(aggregator, kind, frm, to, gi, t, locale):
         )
         for r in rows
     ])
+
+
+def _reliability_category_label(category: str, t) -> str:
+    """Localized label for a reliability category; falls back to the raw key for unknown categories."""
+    return {
+        "reboot": t.rel_cat_reboot,
+        "service": t.rel_cat_service,
+        "disk": t.rel_cat_disk,
+    }.get(category, category or t.rel_cat_other)
+
+
+async def _reliability_block(aggregator, frm, to, t, timezone_name, sev_fn):
+    """Build the reliability report section (tenant-wide service-event rollup); None when no events."""
+    rollup = await aggregator.reliability_rollup(frm=frm, to=to)
+    if rollup.total == 0:
+        return None
+    categories = [
+        ReliabilityCategoryRow(
+            label=_reliability_category_label(c.category, t), count=c.count, pct=c.pct,
+        )
+        for c in rollup.by_category
+    ]
+    events = []
+    for e in rollup.notable:
+        sev_cls, sev_lbl = sev_fn(e.severity)
+        events.append(ReliabilityEventRow(
+            time=_fmt_dt(e.time, timezone_name),
+            category=_reliability_category_label(e.category, t),
+            name=e.name,
+            severity=sev_cls,
+            severity_label=sev_lbl,
+            device=e.device,
+        ))
+    return ReliabilityBlock(categories=categories, events=events, total=rollup.total)
 
 
 async def build_context(
@@ -388,6 +452,12 @@ async def build_context(
             failed_logins = await _perimeter_block(aggregator, "login_failed", frm, to, _gi, t, locale)
         if enabled["firewall_blocks"]:
             firewall_blocks = await _perimeter_block(aggregator, "firewall_block", frm, to, _gi, t, locale)
+
+    # Reliability section: tenant-wide rollup of service events (reboots / crashes / disk warnings).
+    # Toggled like every other section; None when there are no events in the range.
+    reliability = None
+    if enabled["reliability"]:
+        reliability = await _reliability_block(aggregator, frm, to, t, timezone_name, _sev)
 
     for dev in devices:
         # --- Device health (CPU/mem/disk avg+peak + cpu sparkline) ---
@@ -518,6 +588,7 @@ async def build_context(
         attacker_countries=attacker_countries,
         failed_logins=failed_logins,
         firewall_blocks=firewall_blocks,
+        reliability=reliability,
         logo_data_uri=logo_data_uri,
         t=t,
         locale=locale,

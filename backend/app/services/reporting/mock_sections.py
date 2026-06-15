@@ -12,6 +12,9 @@ from app.services.reporting.charts import line_chart
 from app.services.reporting.context import (
     ApplicationsBlock,
     RankedTable,
+    ReliabilityBlock,
+    ReliabilityCategoryRow,
+    ReliabilityEventRow,
     ThreatRankedTable,
     ThreatRow,
     WebFilterBlock,
@@ -77,6 +80,32 @@ def applications_block(device_name: str, t: ReportText) -> ApplicationsBlock:
         top_categories=_threat_table(t.t_top_categories, (t.col_category, t.col_sessions), _CATEGORIES, seed, 5),
         top_initiators=_plain_table(t.t_top_initiators, (t.col_initiator, t.col_sessions), _INITIATORS, seed, 4),
     )
+
+
+def reliability_block(t: ReportText) -> ReliabilityBlock:
+    """Deterministic sample reliability section for the demo/sample report. Report-level (tenant-wide),
+    so it takes no device name. In production, build_context uses the real reliability aggregator; this
+    mock lets a sample report render the section without seeded service events."""
+    categories = [
+        ReliabilityCategoryRow(label=t.rel_cat_service, count=4, pct=50.0),
+        ReliabilityCategoryRow(label=t.rel_cat_disk, count=3, pct=37.5),
+        ReliabilityCategoryRow(label=t.rel_cat_reboot, count=1, pct=12.5),
+    ]
+    events = [
+        ReliabilityEventRow(
+            time="2026-06-08 03:14", category=t.rel_cat_reboot, name="reboot",
+            severity="critical", severity_label=t.sev_critical, device="fw-edge",
+        ),
+        ReliabilityEventRow(
+            time="2026-06-07 21:02", category=t.rel_cat_service, name="service_crashed",
+            severity="critical", severity_label=t.sev_critical, device="fw-edge",
+        ),
+        ReliabilityEventRow(
+            time="2026-06-06 11:48", category=t.rel_cat_disk, name="filesystem_full",
+            severity="warning", severity_label=t.sev_warning, device="fw-branch",
+        ),
+    ]
+    return ReliabilityBlock(categories=categories, events=events, total=8)
 
 
 def web_filter_block(device_name: str, t: ReportText) -> WebFilterBlock:

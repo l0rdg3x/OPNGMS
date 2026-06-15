@@ -76,6 +76,29 @@
   </section>
   {% endif %}
 
+  {% if ctx.reliability %}
+  <section class="reliability">
+    <h2>{{ ctx.t.reliability_title }}</h2>
+    <p class="explain">{{ ctx.t.reliability_explain }}</p>
+    <table class="ranked">
+      <caption>{{ ctx.t.reliability_by_category }}</caption>
+      <thead><tr><th>{{ ctx.t.col_category }}</th><th>{{ ctx.t.col_count }}</th><th>{{ ctx.t.col_share }}</th></tr></thead>
+      <tbody>
+        {% for row in ctx.reliability.categories %}<tr><td>{{ row.label }}</td><td>{{ row.count }}</td><td>{{ row.pct }}%</td></tr>{% endfor %}
+        {% if not ctx.reliability.categories %}<tr><td colspan="3">{{ ctx.t.no_data }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+    <table class="ranked">
+      <caption>{{ ctx.t.reliability_notable }}</caption>
+      <thead><tr><th>{{ ctx.t.col_when }}</th><th>{{ ctx.t.col_category }}</th><th>{{ ctx.t.col_event }}</th><th>{{ ctx.t.col_severity }}</th><th>{{ ctx.t.col_device }}</th></tr></thead>
+      <tbody>
+        {% for row in ctx.reliability.events %}<tr><td>{{ row.time }}</td><td>{{ row.category }}</td><td>{{ row.name }}</td><td><span class="sev sev-{{ row.severity }}">{{ row.severity_label }}</span></td><td>{{ row.device }}</td></tr>{% endfor %}
+        {% if not ctx.reliability.events %}<tr><td colspan="5">{{ ctx.t.no_data }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
   {% for section in ctx.sections %}
   <section class="device-section">
     <h2>{{ section.device_name }}</h2>

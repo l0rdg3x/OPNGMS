@@ -43,6 +43,9 @@ table.ranked th { background: #f0f0f0; }
 .attacker-countries { page-break-before: always; }
 .attacker-countries h2 { border-bottom: 2px solid #333; padding-bottom: 4px; }
 .attribution { font-size: 7pt; color: #888; }
+/* Reliability (report-level, tenant-wide service events) */
+.reliability { page-break-before: always; }
+.reliability h2 { border-bottom: 2px solid #333; padding-bottom: 4px; }
 /* Alert severity badges (controlled enum classes) */
 .sev { display: inline-block; padding: 1px 6px; border-radius: 3px; color: #fff; font-size: 8pt; }
 .sev-info { background: #1971c2; }
