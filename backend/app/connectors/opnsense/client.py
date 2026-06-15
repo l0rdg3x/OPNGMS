@@ -1,3 +1,4 @@
+import json as _json
 import re
 import ssl
 from datetime import datetime
@@ -388,6 +389,97 @@ class OpnsenseClient:
             await self._post(f"ids/settings/toggleRuleset/{name}/1", {})
         await self._post("ids/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "enabled": rulesets}
+
+    async def apply_ids_policy(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
+        """Upsert an IDS policy by `description` (or delete it), then reload Suricata.
+
+        Identity = description (1 match -> setPolicy; none -> addPolicy; many -> refuse). `rulesets`
+        filenames are resolved to the device's ENABLED ruleset-file uuids; an absent/disabled ruleset
+        raises ApiError (never a partial apply). dry_run performs NO mutation. RUNTIME VERIFICATION
+        REQUIRED for the rulesets/content serialization (no policies/rules on the box to confirm against)."""
+        if operation not in ("set", "add", "delete"):
+            raise ApiError(0, f"unknown ids policy operation: {operation!r}")
+        description = str(payload.get("description", ""))
+        if dry_run:
+            return {"dry_run": True, "operation": operation, "description": description}
+        if operation == "delete":
+            uuid_ = await self._resolve_policy_uuid(description)
+            if uuid_ is None:
+                return {"dry_run": False, "operation": "delete", "result": "absent"}
+            res = await self._post(f"ids/settings/delPolicy/{uuid_}", {})
+            await self._post("ids/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+            return {"dry_run": False, "operation": "delete", "result": res}
+        # Resolve the identity FIRST (fail fast on ambiguity) before building the body — mirrors
+        # apply_firewall_rule / apply_monit_test and avoids a redundant getPolicy on a doomed apply.
+        uuid_ = await self._resolve_policy_uuid(description)
+        policy = await self._serialize_policy(payload)
+        if uuid_ is None:
+            res = await self._post("ids/settings/addPolicy", {"policy": policy})
+            op = "add"
+        else:
+            res = await self._post(f"ids/settings/setPolicy/{uuid_}", {"policy": policy})
+            op = "set"
+        await self._post("ids/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+        return {"dry_run": False, "operation": op, "result": res}
+
+    async def _resolve_policy_uuid(self, description: str) -> str | None:
+        """Resolve an IDS policy by EXACT description. None if absent; ApiError if many (never mutate on doubt)."""
+        if not description:
+            raise ApiError(0, "ids policy description required (it is the policy identity)")
+        data = await self._post(
+            "ids/settings/searchPolicy", {"current": 1, "rowCount": 1000, "searchPhrase": description})
+        matches = [r for r in data.get("rows", []) if r.get("description") == description]
+        if len(matches) > 1:
+            raise ApiError(0, f"ids policy '{description}' not uniquely resolvable ({len(matches)} matches)")
+        if not matches:
+            return None
+        uuid_ = str(matches[0].get("uuid", ""))
+        # Box-sourced, but guard before it is embedded in a URL path (catchable ApiError, not a bare
+        # ValueError that would strand the change in 'applying').
+        if not _OPN_UUID_RE.match(uuid_):
+            raise ApiError(0, f"ids policy '{description}' resolved to an unsafe uuid")
+        return uuid_
+
+    async def _resolve_ruleset_file_uuids(self, filenames: list[str]) -> list[str]:
+        """Map each ruleset FILENAME to its ENABLED file-uuid via the policy model's relation option map.
+
+        GET ids/settings/getPolicy returns policy.rulesets as {file_uuid: {"value": filename, "selected": …}}
+        for every enabled ruleset. A filename absent from that map is not enabled -> ApiError."""
+        if not filenames:
+            return []
+        options = (await self._get("ids/settings/getPolicy")).get("policy", {}).get("rulesets", {})
+        by_name: dict[str, str] = {}
+        if isinstance(options, dict):
+            for fuuid, meta in options.items():
+                name = meta.get("value") if isinstance(meta, dict) else None
+                # Guard the box-sourced uuid before it is comma-joined into the policy body (a stray
+                # comma/control char would silently split the field); an unsafe uuid just won't resolve.
+                if name and _OPN_UUID_RE.match(str(fuuid)):
+                    by_name[name] = str(fuuid)
+        out = []
+        for name in filenames:
+            self._ruleset_name(name)                       # charset guard
+            uuid_ = by_name.get(name)
+            if uuid_ is None:
+                raise ApiError(0, f"ruleset '{name}' must be enabled before a policy can reference it")
+            out.append(uuid_)
+        return out
+
+    async def _serialize_policy(self, payload: dict) -> dict:
+        """Build the OPNsense addPolicy/setPolicy body from a portable policy. Multi-fields are
+        comma-joined; rulesets filenames are resolved to enabled file-uuids."""
+        actions = payload.get("action", []) or []
+        rulesets = await self._resolve_ruleset_file_uuids(payload.get("rulesets", []) or [])
+        content = payload.get("content", {}) or {}
+        return {
+            "enabled": str(payload.get("enabled", "1")),
+            "prio": str(payload.get("prio", "0")),
+            "action": ",".join(actions),
+            "rulesets": ",".join(rulesets),
+            "content": _json.dumps(content) if content else "",
+            "new_action": str(payload.get("new_action", "alert")),
+            "description": str(payload.get("description", "")),
+        }
 
     @staticmethod
     def _ruleset_name(name: str) -> str:
