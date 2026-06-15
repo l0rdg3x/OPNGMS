@@ -246,12 +246,11 @@ def _invert_catalog_setting(change: ConfigChange, snapshot_xml: str | None) -> t
 
     Scalars restore the snapshot's prior values; each forward grid op is inverted (del<->add by uuid,
     set restores the prior row). The forward ops are walked in payload order and each is replaced by
-    its inverse, so an `add` (we created a row) is undone by a `del` of the box-assigned uuid and a
-    `del` (we removed a row) is undone by an `add` of its prior fields — i.e. our destructive undos
-    (the dels) precede the re-creating undos (the adds), which is the safe ordering. add->del needs
-    only `change.result` (the box-assigned uuid), so a pure-add change inverts with no snapshot; any
-    scalar or del/set op needs the snapshot to reconstruct prior state, so its absence is a
-    NoInverseError."""
+    its inverse. Every grid op targets a distinct uuid (forward set/del require distinct existing
+    uuids; an add creates a fresh row), so the inverses are mutually independent and the applied
+    order does not affect the restored state. add->del needs only `change.result` (the box-assigned
+    uuid), so a pure-add change inverts with no snapshot; any scalar or del/set op needs the snapshot
+    (and the model's xml_path) to reconstruct prior state, so their absence is a NoInverseError."""
     payload = change.payload or {}
     model_id = change.target or payload.get("model_id", "")
     xml_path = payload.get("xml_path", "")
@@ -262,6 +261,10 @@ def _invert_catalog_setting(change: ConfigChange, snapshot_xml: str | None) -> t
     needs_snapshot = bool(scalars) or any(g.get("op") in ("del", "set") for g in fwd_grids)
     if needs_snapshot and not snapshot_xml:
         raise NoInverseError("no pre-apply snapshot to reconstruct the catalog setting from")
+    if needs_snapshot and not xml_path:
+        # An older catalog change with no recorded xml_path can't be located in the snapshot; an empty
+        # path would make ElementTree read from the document root (wrong subtree) — fail closed instead.
+        raise NoInverseError("catalog change has no xml_path — cannot reconstruct prior state")
 
     inv_scalars = (
         setting_from_config_xml(snapshot_xml, xml_path, scalars.keys())
@@ -270,18 +273,19 @@ def _invert_catalog_setting(change: ConfigChange, snapshot_xml: str | None) -> t
 
     inv_grids: list[dict] = []
     # Walk forward ops in payload order, replacing each by its inverse. The applier appends result
-    # entries in payload order, so result_grids is index-aligned with fwd_grids.
+    # entries in payload order, so result_grids is index-aligned with fwd_grids. (The early guard
+    # above guarantees snapshot_xml is present whenever a del/set op is reached.)
     for i, fwd in enumerate(fwd_grids):
         op = fwd.get("op")
         base = {"endpoints": fwd.get("endpoints", {}), "row": fwd.get("row", "")}
         if op == "del":
-            prior = _grid_row_by_uuid(snapshot_xml, xml_path, fwd.get("uuid")) if snapshot_xml else None
+            prior = _grid_row_by_uuid(snapshot_xml, xml_path, fwd.get("uuid"))
             if prior is None:
                 raise NoInverseError(
                     f"deleted grid row {fwd.get('uuid')!r} not found in the pre-apply snapshot")
             inv_grids.append({"op": "add", **base, "uuid": None, "item": prior})
         elif op == "set":
-            prior = _grid_row_by_uuid(snapshot_xml, xml_path, fwd.get("uuid")) if snapshot_xml else None
+            prior = _grid_row_by_uuid(snapshot_xml, xml_path, fwd.get("uuid"))
             if prior is None:
                 raise NoInverseError(
                     f"modified grid row {fwd.get('uuid')!r} not found in the pre-apply snapshot")

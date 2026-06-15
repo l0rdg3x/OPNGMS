@@ -68,7 +68,7 @@ def test_has_inverse_catalog_setting():
     assert has_inverse("catalog_setting") is True
 
 
-def test_inverse_restores_scalars_and_inverts_grids_in_reverse_order():
+def test_inverse_restores_scalars_and_inverts_grids_in_payload_order():
     ch = _catalog_change(_full_payload(), _full_result())
     op, target, payload = build_inverse(ch, _SNAPSHOT)
     assert op == "set"
@@ -80,8 +80,8 @@ def test_inverse_restores_scalars_and_inverts_grids_in_reverse_order():
     assert payload["xml_path"] == "OPNsense/Unbound"
     # scalars restored to the snapshot's prior value
     assert payload["scalars"] == {"general.x": "old"}
-    # each forward op (add, set, del) -> its inverse (del, set, add): the destructive del-of-add
-    # comes first and the re-creating add-of-del comes last (the safe ordering).
+    # each forward op (add, set, del) -> its inverse (del, set, add), in payload order; the ops target
+    # distinct uuids so the order is immaterial to the applied result.
     grids = payload["grids"]
     assert [g["op"] for g in grids] == ["del", "set", "add"]
     # forward add -> inverse del of the NEW uuid (from change.result)
@@ -126,7 +126,7 @@ def test_pure_add_needs_no_snapshot():
                    "item": {"hostname": "a"}}],
     }
     result = {"dry_run": False, "scalars": None,
-              "grids": [{"dry_run": False, "op": "add", "result": {"uuid": "uX"}}]}
+              "grids": [{"dry_run": False, "op": "add", "result": {"result": "saved", "uuid": "uX"}}]}
     op, target, inv = build_inverse(_catalog_change(payload, result), None)
     assert op == "set"
     assert inv["scalars"] == {}
@@ -156,3 +156,16 @@ def test_no_snapshot_with_del_grid_raises():
               "grids": [{"dry_run": False, "op": "del", "result": {"result": "deleted"}}]}
     with pytest.raises(NoInverseError):
         build_inverse(_catalog_change(payload, result), None)
+
+
+def test_empty_xml_path_with_scalars_raises():
+    # An older catalog change with no recorded xml_path can't locate prior state -> fail closed
+    # (an empty path would otherwise read from the document root).
+    payload = {
+        "model_id": "unbound", "set_path": "unbound/settings/set",
+        "reconfigure_path": "unbound/service/reconfigure", "model_root": "unbound",
+        "xml_path": "", "scalars": {"general.x": "new"}, "grids": [],
+    }
+    result = {"dry_run": False, "scalars": {"result": "set"}, "grids": []}
+    with pytest.raises(NoInverseError):
+        build_inverse(_catalog_change(payload, result), _SNAPSHOT)
