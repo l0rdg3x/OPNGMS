@@ -99,6 +99,30 @@
   </section>
   {% endif %}
 
+  {% if ctx.config_changes %}
+  <section class="config-changes">
+    <h2>{{ ctx.t.config_changes_title }}</h2>
+    <p class="explain">{{ ctx.t.config_changes_explain }}</p>
+    <p class="summary"><span class="config-direct-badge">{{ ctx.config_changes.direct }}</span> {{ ctx.t.config_changes_direct }}</p>
+    <table class="ranked">
+      <caption>{{ ctx.t.config_changes_by_channel }}</caption>
+      <thead><tr><th>{{ ctx.t.col_channel }}</th><th>{{ ctx.t.col_count }}</th><th>{{ ctx.t.col_share }}</th></tr></thead>
+      <tbody>
+        {% for row in ctx.config_changes.channels %}<tr{% if row.direct %} class="config-direct"{% endif %}><td>{{ row.label }}</td><td>{{ row.count }}</td><td>{{ row.pct }}%</td></tr>{% endfor %}
+        {% if not ctx.config_changes.channels %}<tr><td colspan="3">{{ ctx.t.no_data }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+    <table class="ranked">
+      <caption>{{ ctx.t.config_changes_notable }}</caption>
+      <thead><tr><th>{{ ctx.t.col_when }}</th><th>{{ ctx.t.col_actor }}</th><th>{{ ctx.t.col_area }}</th><th>{{ ctx.t.col_channel }}</th><th>{{ ctx.t.col_device }}</th></tr></thead>
+      <tbody>
+        {% for row in ctx.config_changes.changes %}<tr{% if row.direct %} class="config-direct"{% endif %}><td>{{ row.time }}</td><td>{{ row.actor }}</td><td>{{ row.area }}</td><td>{{ row.channel_label }}</td><td>{{ row.device }}</td></tr>{% endfor %}
+        {% if not ctx.config_changes.changes %}<tr><td colspan="5">{{ ctx.t.no_data }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
   {% for section in ctx.sections %}
   <section class="device-section">
     <h2>{{ section.device_name }}</h2>

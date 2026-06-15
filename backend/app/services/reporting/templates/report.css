@@ -46,6 +46,13 @@ table.ranked th { background: #f0f0f0; }
 /* Reliability (report-level, tenant-wide service events) */
 .reliability { page-break-before: always; }
 .reliability h2 { border-bottom: 2px solid #333; padding-bottom: 4px; }
+/* Config changes (report-level, tenant-wide box config-change audit) */
+.config-changes { page-break-before: always; }
+.config-changes h2 { border-bottom: 2px solid #333; padding-bottom: 4px; }
+/* Direct/drift rows (on-box changes made outside the management API) are emphasized. */
+.config-changes table.ranked tr.config-direct td { background: #fff4e6; font-weight: bold; }
+.config-direct-badge { display: inline-block; min-width: 1.6em; padding: 1px 6px; border-radius: 3px;
+  background: #e8590c; color: #fff; font-weight: bold; text-align: center; }
 /* Alert severity badges (controlled enum classes) */
 .sev { display: inline-block; padding: 1px 6px; border-radius: 3px; color: #fff; font-size: 8pt; }
 .sev-info { background: #1971c2; }
