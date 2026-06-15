@@ -374,3 +374,86 @@ def parse_service_events(data) -> list[dict]:
             })
             break  # first matching rule wins; one event per row
     return out
+
+
+# Config-change audit lines (process_name="audit") record who changed the config and via which request
+# path. Grammar (live-verified, real box 192.168.1.82):
+#   user (<user>) changed configuration to <backup> in <path> ...      (local/script change, no IP)
+#   user <user>@<ip> changed configuration to <backup> in <path> ...   (remote change, carries source IP)
+# Fail-safe: a line that doesn't match is skipped (NEVER raises). The channel rules are a RUNTIME-VERIFY
+# starter set (grounded on real api + system samples; the gui form is structurally identical with a .php
+# page path) — tuned against the box, same posture as the reliability classifier.
+_CONFIG_CHANGE = re.compile(
+    r"user\s+(?:\((?P<luser>[^)]+)\)|(?P<ruser>[^@\s]+)@(?P<ip>\d{1,3}(?:\.\d{1,3}){3}))"
+    r"\s+changed configuration to\s+(?P<backup>\S+)\s+in\s+(?P<path>\S+)",
+    re.IGNORECASE,
+)
+# A trailing /<uuid> on the request path (e.g. .../delTest/<uuid>) -> stripped for a stable change_ref.
+_UUID_TAIL = re.compile(r"/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+
+def _classify_channel(path: str) -> str:
+    """Map the request path that wrote the config to a change CHANNEL (best-effort drift attribution).
+
+    /api/...                                -> "api"    (programmatic: OPNGMS, a WebGUI MVC page, or another API client)
+    a script under /usr/local/opnsense/...  -> "system" (console / cron / firmware tooling)
+    another .php page (legacy WebGUI form)   -> "gui"    (a human in the WebGUI)
+    anything else                            -> "system" (best-effort default for local/script writes)
+    """
+    if path.startswith("/api/"):
+        return "api"
+    if "/usr/local/opnsense/" in path or "/usr/local/etc/" in path:
+        return "system"
+    if path.endswith(".php"):
+        return "gui"
+    return "system"
+
+
+def _change_area(path: str) -> str:
+    """Coarse config area from the request path. /api/firewall/filter/addRule -> 'firewall';
+    /firewall_rules.php -> 'firewall'; a script path -> the script stem. 'system' as a last resort."""
+    seg = [s for s in path.strip("/").split("/") if s]
+    if seg and seg[0] == "api":
+        return seg[1] if len(seg) > 1 else "system"
+    base = seg[-1] if seg else ""
+    base = base.rsplit(".", 1)[0]          # drop the .php extension
+    return base.split("_", 1)[0] or "system"
+
+
+def parse_config_changes(data) -> list[dict]:
+    """audit-log rows -> config-change events with best-effort drift attribution.
+
+    Keeps only process_name="audit" lines matching the "changed configuration" grammar; every other line
+    (configd.py noise, failed-login lines, garbage) is skipped (fail-safe, never raises). A DIRECT on-box
+    change (channel gui/system) is severity "medium" (drift); an API change is "info"."""
+    out: list[dict] = []
+    for r in _rows(data, "rows"):
+        if not isinstance(r, dict) or r.get("process_name") != "audit":
+            continue
+        m = _CONFIG_CHANGE.search(str(r.get("line", "")))
+        if not m:
+            continue
+        ts = parse_ts(r.get("timestamp"))
+        actor = m.group("luser") or m.group("ruser") or ""
+        actor_ip = m.group("ip") or ""
+        path = m.group("path") or ""
+        channel = _classify_channel(path)
+        area = _change_area(path)
+        change_ref = _UUID_TAIL.sub("", path)
+        backup_file = (m.group("backup") or "").rsplit("/", 1)[-1]
+        drift = channel in ("gui", "system")
+        out.append({
+            "time": ts,
+            "category": area,
+            "src_ip": actor_ip,
+            "name": actor,
+            "severity": "medium" if drift else "info",
+            "action": channel,
+            "event_key": event_key(ts, backup_file),
+            "attributes": {
+                "actor": actor, "actor_ip": actor_ip, "channel": channel, "area": area,
+                "change_ref": change_ref, "backup_file": backup_file,
+                "message": str(r.get("line", ""))[:500],
+            },
+        })
+    return out
