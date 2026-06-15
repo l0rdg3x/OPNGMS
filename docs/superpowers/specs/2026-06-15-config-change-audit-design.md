@@ -160,7 +160,7 @@ report-section registry; ingest-time deduped `Alert`s (same trigger as the v0.15
 ## Data model
 
 No schema change, no migration: `source="config_audit"` rows in the existing `events` hypertable; alerts in the
-existing `alert` table (new `type="config_drift"`); report toggle in the existing section model.
+existing `alert` table (new `type="config_audit"`); report toggle in the existing section model.
 
 ## Error handling
 

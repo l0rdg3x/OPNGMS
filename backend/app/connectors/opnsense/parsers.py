@@ -378,16 +378,20 @@ def parse_service_events(data) -> list[dict]:
 
 # Config-change audit lines (process_name="audit") record who changed the config and via which request
 # path. Grammar (live-verified, real box 192.168.1.82):
-#   user (<user>) changed configuration to <backup> in <path> ...      (local/script change, no IP)
-#   user <user>@<ip> changed configuration to <backup> in <path> ...   (remote change, carries source IP)
+#   user (<user>) changed configuration to <backup> in <path> ...        (local/script change, no host)
+#   user <user>@<host> changed configuration to <backup> in <path> ...   (remote change; host is IPv4 or IPv6)
 # Fail-safe: a line that doesn't match is skipped (NEVER raises). The channel rules are a RUNTIME-VERIFY
 # starter set (grounded on real api + system samples; the gui form is structurally identical with a .php
-# page path) — tuned against the box, same posture as the reliability classifier.
+# page path) — tuned against the box, same posture as the reliability classifier. `host` is captured
+# loosely (\S+) so an IPv6 source address is kept, not dropped.
 _CONFIG_CHANGE = re.compile(
-    r"user\s+(?:\((?P<luser>[^)]+)\)|(?P<ruser>[^@\s]+)@(?P<ip>\d{1,3}(?:\.\d{1,3}){3}))"
+    r"user\s+(?:\((?P<luser>[^)]+)\)|(?P<ruser>[^@\s]+)@(?P<host>\S+))"
     r"\s+changed configuration to\s+(?P<backup>\S+)\s+in\s+(?P<path>\S+)",
     re.IGNORECASE,
 )
+# Device-supplied audit lines are capped before the regex runs (a real syslog line is well under 8 KiB;
+# 2000 chars is ample and bounds per-row CPU + the size of anything we store, even on a hostile box).
+_MAX_AUDIT_LINE = 2000
 # A trailing /<uuid> on the request path (e.g. .../delTest/<uuid>) -> stripped for a stable change_ref.
 _UUID_TAIL = re.compile(r"/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
@@ -395,10 +399,11 @@ _UUID_TAIL = re.compile(r"/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA
 def _classify_channel(path: str) -> str:
     """Map the request path that wrote the config to a change CHANNEL (best-effort drift attribution).
 
-    /api/...                                -> "api"    (programmatic: OPNGMS, a WebGUI MVC page, or another API client)
-    a script under /usr/local/opnsense/...  -> "system" (console / cron / firmware tooling)
-    another .php page (legacy WebGUI form)   -> "gui"    (a human in the WebGUI)
-    anything else                            -> "system" (best-effort default for local/script writes)
+    Channels:
+      /api/...                                -> api     (OPNGMS / a WebGUI MVC page / another API client)
+      script under /usr/local/opnsense/...    -> system  (console / cron / firmware tooling)
+      other .php page (legacy WebGUI form)    -> gui     (a human in the WebGUI)
+      anything else                           -> system  (best-effort default for local/script writes)
     """
     if path.startswith("/api/"):
         return "api"
@@ -411,10 +416,11 @@ def _classify_channel(path: str) -> str:
 
 def _change_area(path: str) -> str:
     """Coarse config area from the request path. /api/firewall/filter/addRule -> 'firewall';
-    /firewall_rules.php -> 'firewall'; a script path -> the script stem. 'system' as a last resort."""
+    /firewall_rules.php -> 'firewall'; a script path -> the script stem. For an API path the area is the
+    module segment; a bare '/api/' (no module) falls back to 'api'; everything else to 'system'."""
     seg = [s for s in path.strip("/").split("/") if s]
     if seg and seg[0] == "api":
-        return seg[1] if len(seg) > 1 else "system"
+        return seg[1] if len(seg) > 1 else "api"
     base = seg[-1] if seg else ""
     base = base.rsplit(".", 1)[0]          # drop the .php extension
     return base.split("_", 1)[0] or "system"
@@ -430,17 +436,20 @@ def parse_config_changes(data) -> list[dict]:
     for r in _rows(data, "rows"):
         if not isinstance(r, dict) or r.get("process_name") != "audit":
             continue
-        m = _CONFIG_CHANGE.search(str(r.get("line", "")))
+        line = str(r.get("line", ""))[:_MAX_AUDIT_LINE]   # bound device-supplied input before the regex
+        m = _CONFIG_CHANGE.search(line)
         if not m:
             continue
         ts = parse_ts(r.get("timestamp"))
-        actor = m.group("luser") or m.group("ruser") or ""
-        actor_ip = m.group("ip") or ""
-        path = m.group("path") or ""
+        # Truncate every device-supplied field we keep: these flow into events, JSONB attributes and the
+        # alert label (which is indexed), so a hostile box must not be able to bloat or break a write.
+        actor = (m.group("luser") or m.group("ruser") or "")[:200]
+        actor_ip = (m.group("host") or "")[:200]
+        path = (m.group("path") or "")[:500]
         channel = _classify_channel(path)
         area = _change_area(path)
-        change_ref = _UUID_TAIL.sub("", path)
-        backup_file = (m.group("backup") or "").rsplit("/", 1)[-1]
+        change_ref = _UUID_TAIL.sub("", path)              # already bounded by the path cap
+        backup_file = ((m.group("backup") or "").rsplit("/", 1)[-1])[:200]
         drift = channel in ("gui", "system")
         out.append({
             "time": ts,
@@ -449,11 +458,13 @@ def parse_config_changes(data) -> list[dict]:
             "name": actor,
             "severity": "medium" if drift else "info",
             "action": channel,
-            "event_key": event_key(ts, backup_file),
+            # Include change_ref + actor so two distinct changes that share a backup-file epoch in the
+            # same second don't collide on the (time, device, source, event_key) dedup PK.
+            "event_key": event_key(ts, backup_file, change_ref, actor),
             "attributes": {
                 "actor": actor, "actor_ip": actor_ip, "channel": channel, "area": area,
                 "change_ref": change_ref, "backup_file": backup_file,
-                "message": str(r.get("line", ""))[:500],
+                "message": line[:500],
             },
         })
     return out

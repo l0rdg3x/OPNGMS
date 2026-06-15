@@ -1,4 +1,8 @@
-from app.connectors.opnsense.parsers import parse_config_changes
+from app.connectors.opnsense.parsers import (
+    _change_area,
+    _classify_channel,
+    parse_config_changes,
+)
 
 
 def _row(line, process="audit", severity="Notice", ts="2026-06-15T19:26:27"):
@@ -69,6 +73,57 @@ def test_event_key_stable_and_dedups_on_backup_file():
     other = _API.replace("config-1781551587.0626.xml", "config-1781551999.9.xml")
     c = parse_config_changes(_data([_row(other)]))
     assert c[0]["event_key"] != a[0]["event_key"]
+
+
+def test_event_key_distinguishes_same_backup_different_path():
+    # Two distinct changes that share a backup-file epoch in the same second must NOT collide on the
+    # (time, device, source, event_key) dedup PK — the path discriminates them.
+    base = " user root@10.0.0.1 changed configuration to /conf/backup/config-1.xml in {p} {p} made changes"
+    a = parse_config_changes(_data([_row(base.format(p="/api/firewall/filter/addRule"))]))
+    b = parse_config_changes(_data([_row(base.format(p="/api/firewall/alias/addItem"))]))
+    assert a[0]["event_key"] != b[0]["event_key"]
+
+
+def test_ipv6_remote_host_is_kept_not_dropped():
+    # A remote change from an IPv6 source address must be parsed (not silently dropped).
+    line = (" user admin@fe80::1 changed configuration to /conf/backup/config-1.xml in "
+            "/firewall_rules.php /firewall_rules.php made changes")
+    out = parse_config_changes(_data([_row(line)]))
+    assert len(out) == 1
+    assert out[0]["name"] == "admin" and out[0]["src_ip"] == "fe80::1" and out[0]["action"] == "gui"
+
+
+def test_long_actor_within_valid_line_is_truncated():
+    # A valid grammar line with an oversized actor: the stored actor is capped (it lands in events +
+    # the indexed alert label), so a hostile box cannot bloat or break the write.
+    actor = "u" * 400
+    line = (f" user {actor}@10.0.0.1 changed configuration to /conf/backup/config-1.xml in "
+            "/firewall_rules.php /firewall_rules.php made changes")
+    out = parse_config_changes(_data([_row(line)]))
+    assert len(out) == 1 and len(out[0]["name"]) == 200
+
+
+def test_hostile_multimb_line_is_bounded_not_crashing():
+    # A multi-MB line is capped at 2000 chars before the regex -> no crash, nothing unbounded stored.
+    huge = "A" * 500_000
+    line = (f" user ({huge}) changed configuration to /conf/backup/{huge}.xml in "
+            f"/usr/local/opnsense/scripts/{huge}.php made changes")
+    out = parse_config_changes(_data([_row(line)]))
+    assert out == [] or (len(out[0]["name"]) <= 200 and len(out[0]["attributes"]["message"]) <= 500)
+
+
+def test_classify_channel_helper():
+    assert _classify_channel("/api/firewall/filter/addRule") == "api"
+    assert _classify_channel("/usr/local/opnsense/scripts/firmware/register.php") == "system"
+    assert _classify_channel("/firewall_rules.php") == "gui"
+    assert _classify_channel("/something/else") == "system"
+
+
+def test_change_area_helper():
+    assert _change_area("/api/firewall/filter/addRule") == "firewall"
+    assert _change_area("/firewall_rules.php") == "firewall"
+    assert _change_area("/api/") == "api"      # bare /api -> 'api', not the contradictory 'system'
+    assert _change_area("/api") == "api"
 
 
 def test_fail_safe_on_malformed():

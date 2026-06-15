@@ -8,22 +8,15 @@ from app.connectors.opnsense.client import OpnsenseError
 from app.models.device import Device
 from app.models.event import Event
 from app.models.ingest_cursor import IngestCursor
-
-# Bound into this module's namespace so `_ALERTERS` can resolve a raiser by name at call time
-# (`globals()[...]`) — which also lets tests monkeypatch a raiser by name. ruff can't see the dynamic
-# lookup, hence the noqa.
-from app.services.alerting import (  # noqa: F401
-    raise_config_audit_alerts,
-    raise_service_alerts,
-)
+from app.services.alerting import raise_config_audit_alerts, raise_service_alerts
 
 logger = logging.getLogger(__name__)
 
 # Active sources.
 SOURCES = ["ids", "dns", "service", "config_audit"]
-# Sources whose newly-inserted rows feed ingest-time alerting, mapped to their alert-raiser name.
-# Resolved through the module namespace at call time so tests can monkeypatch a raiser by name.
-_ALERTERS = {"service": "raise_service_alerts", "config_audit": "raise_config_audit_alerts"}
+# Sources whose newly-inserted rows feed ingest-time alerting. The raiser for each is dispatched
+# explicitly in ingest_events (a module-level name lookup that tests can still monkeypatch).
+_ALERTING_SOURCES = ("service", "config_audit")
 
 
 async def ingest_events(session: AsyncSession, device: Device, client, now: datetime) -> int:
@@ -36,18 +29,22 @@ async def ingest_events(session: AsyncSession, device: Device, client, now: date
     raise a deduped Alert. Best-effort — an alert failure is logged and never aborts the ingest.
     """
     total = 0
-    new_rows: dict[str, list[dict]] = {src: [] for src in _ALERTERS}
+    new_rows: dict[str, list[dict]] = {src: [] for src in _ALERTING_SOURCES}
     for source in SOURCES:
         try:
             total += await _ingest_source(session, device, client, source, new_rows.get(source))
         except OpnsenseError:
             continue  # an unavailable source does not block the others
     for source, rows in new_rows.items():
-        if rows:
-            try:
-                await globals()[_ALERTERS[source]](session, device, rows)
-            except Exception:
-                logger.warning("%s alerting failed for device %s", source, device.id, exc_info=True)
+        if not rows:
+            continue
+        try:
+            if source == "service":
+                await raise_service_alerts(session, device, rows)
+            elif source == "config_audit":
+                await raise_config_audit_alerts(session, device, rows)
+        except Exception:
+            logger.warning("%s alerting failed for device %s", source, device.id, exc_info=True)
     return total
 
 
