@@ -601,6 +601,7 @@ export const es: Dict = {
         perimeter_retention_days: { label: "Retención de perímetro (días)", help: "Valor predeterminado global del tiempo que se conservan los datos de atacantes del perímetro." },
         events_retention_days: { label: "Retención de eventos (días)", help: "Valor predeterminado global del tiempo que se conservan los datos de eventos." },
         metrics_retention_days: { label: "Retención de métricas (días)", help: "Valor predeterminado global del tiempo que se conservan los datos de métricas." },
+        log_lake_retention_days: { label: "Retención del lago de registros (días)", help: "Valor predeterminado global del tiempo que se conservan los datos del lago de registros." },
         login_max_attempts: { label: "Máx. intentos de inicio de sesión", help: "Intentos de inicio de sesión fallidos permitidos antes del bloqueo." },
         login_lockout_window_seconds: { label: "Ventana de bloqueo (s)", help: "Ventana deslizante para el recuento de inicios de sesión fallidos." },
         session_ttl_hours: { label: "Duración de la sesión (horas)", help: "Duración absoluta de la sesión." },
@@ -661,6 +662,7 @@ export const es: Dict = {
       perimeter: "Perímetro (días)",
       events: "Eventos (días)",
       metrics: "Métricas (días)",
+      log_lake: "Lago de registros (días)",
     },
     warningTitle: "Las programaciones de informes superan la retención",
     warningItem:

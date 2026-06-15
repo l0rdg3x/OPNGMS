@@ -601,6 +601,7 @@ export const de: Dict = {
         perimeter_retention_days: { label: "Perimeter-Aufbewahrung (Tage)", help: "Globaler Standard für die Aufbewahrungsdauer von Perimeter-Angreiferdaten." },
         events_retention_days: { label: "Ereignis-Aufbewahrung (Tage)", help: "Globaler Standard für die Aufbewahrungsdauer von Ereignisdaten." },
         metrics_retention_days: { label: "Metrik-Aufbewahrung (Tage)", help: "Globaler Standard für die Aufbewahrungsdauer von Metrikdaten." },
+        log_lake_retention_days: { label: "Log-Lake-Aufbewahrung (Tage)", help: "Globaler Standard für die Aufbewahrungsdauer von Log-Lake-Daten." },
         login_max_attempts: { label: "Max. Anmeldeversuche", help: "Erlaubte fehlgeschlagene Anmeldeversuche vor der Sperrung." },
         login_lockout_window_seconds: { label: "Sperrfenster (s)", help: "Gleitendes Fenster für die Zählung fehlgeschlagener Anmeldungen." },
         session_ttl_hours: { label: "Sitzungsdauer (Stunden)", help: "Absolute Sitzungsdauer." },
@@ -661,6 +662,7 @@ export const de: Dict = {
       perimeter: "Perimeter (Tage)",
       events: "Ereignisse (Tage)",
       metrics: "Metriken (Tage)",
+      log_lake: "Log-Lake (Tage)",
     },
     warningTitle: "Berichtszeitpläne überschreiten die Aufbewahrung",
     warningItem:

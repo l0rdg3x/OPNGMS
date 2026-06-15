@@ -600,6 +600,7 @@ export const en = {
         perimeter_retention_days: { label: "Perimeter retention (days)", help: "Global default for how long perimeter attacker data is kept." },
         events_retention_days: { label: "Events retention (days)", help: "Global default for how long event data is kept." },
         metrics_retention_days: { label: "Metrics retention (days)", help: "Global default for how long metric data is kept." },
+        log_lake_retention_days: { label: "Log lake retention (days)", help: "Global default for how long log lake data is kept." },
         login_max_attempts: { label: "Max login attempts", help: "Failed login attempts allowed before lockout." },
         login_lockout_window_seconds: { label: "Lockout window (s)", help: "Sliding window for the failed-login count." },
         session_ttl_hours: { label: "Session lifetime (hours)", help: "Absolute session lifetime." },
@@ -660,6 +661,7 @@ export const en = {
       perimeter: "Perimeter (days)",
       events: "Events (days)",
       metrics: "Metrics (days)",
+      log_lake: "Log lake (days)",
     },
     warningTitle: "Report schedules exceed retention",
     warningItem:

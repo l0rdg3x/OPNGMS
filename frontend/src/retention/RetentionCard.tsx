@@ -17,13 +17,13 @@ import { useT } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
 
 // The retention stores surfaced per-tenant; mirrors the backend RETENTION_STORES tuple.
-const STORES = ["perimeter", "events", "metrics"] as const;
+const STORES = ["perimeter", "events", "metrics", "log_lake"] as const;
 type Store = (typeof STORES)[number];
 
 // An empty input clears the override (inherit the global default).
 type Draft = Record<Store, number | "">;
 
-const emptyDraft = (): Draft => ({ perimeter: "", events: "", metrics: "" });
+const emptyDraft = (): Draft => ({ perimeter: "", events: "", metrics: "", log_lake: "" });
 
 export function RetentionCard() {
   const t = useT();

@@ -32,7 +32,7 @@ const RETENTION_URL = "http://localhost:3000/api/tenants/t1/retention";
 
 const defaultsOnly = {
   overrides: {},
-  defaults: { perimeter: 30, events: 90, metrics: 365 },
+  defaults: { perimeter: 30, events: 90, metrics: 365, log_lake: 180 },
 };
 
 describe("RetentionCard — per-tenant", () => {
@@ -41,15 +41,17 @@ describe("RetentionCard — per-tenant", () => {
 
     renderWithProviders(withTenant(<RetentionCard />));
 
-    // The three NumberInputs render; with no overrides they show the inherit hint.
+    // The four NumberInputs render; with no overrides they show the inherit hint.
     expect(await screen.findByTestId("retention-perimeter")).toBeInTheDocument();
     expect(screen.getByTestId("retention-events")).toBeInTheDocument();
     expect(screen.getByTestId("retention-metrics")).toBeInTheDocument();
+    expect(screen.getByTestId("retention-log_lake")).toBeInTheDocument();
 
     // Each field surfaces the inherited global default as the hint text.
     expect(screen.getByText("Inherit global: 30")).toBeInTheDocument();
     expect(screen.getByText("Inherit global: 90")).toBeInTheDocument();
     expect(screen.getByText("Inherit global: 365")).toBeInTheDocument();
+    expect(screen.getByText("Inherit global: 180")).toBeInTheDocument();
   });
 
   it("seeds the inputs from existing overrides", async () => {
@@ -88,7 +90,7 @@ describe("RetentionCard — per-tenant", () => {
 
     await waitFor(() => expect(putBody.values).toBeDefined());
     // The edited store carries the override; untouched stores clear to inherit (null).
-    expect(putBody.values).toMatchObject({ perimeter: 7, events: null, metrics: null });
+    expect(putBody.values).toMatchObject({ perimeter: 7, events: null, metrics: null, log_lake: null });
   });
 
   it("clearing an override sends null for that store", async () => {
@@ -113,8 +115,58 @@ describe("RetentionCard — per-tenant", () => {
     await userEvent.click(screen.getByTestId("retention-save"));
 
     await waitFor(() => expect(putBody.values).toBeDefined());
-    // All three are empty (only events had an override; perimeter/metrics were never set) → all null.
-    expect(putBody.values).toEqual({ perimeter: null, events: null, metrics: null });
+    // All four are empty (only events had an override; the rest were never set) → all null.
+    expect(putBody.values).toEqual({ perimeter: null, events: null, metrics: null, log_lake: null });
+  });
+
+  it("saving a log_lake override sends a PUT with the value", async () => {
+    let putBody: { values?: Record<string, unknown> } = {};
+    server.use(
+      http.get(RETENTION_URL, () => HttpResponse.json(defaultsOnly)),
+      http.put(RETENTION_URL, async ({ request }) => {
+        putBody = (await request.json()) as { values?: Record<string, unknown> };
+        return HttpResponse.json({
+          overrides: { log_lake: 60 },
+          defaults: defaultsOnly.defaults,
+        });
+      }),
+    );
+
+    renderWithProviders(withTenant(<RetentionCard />));
+
+    const logLake = await screen.findByTestId("retention-log_lake");
+    await userEvent.type(logLake, "60");
+    await userEvent.click(screen.getByTestId("retention-save"));
+
+    await waitFor(() => expect(putBody.values).toBeDefined());
+    // The edited store carries the override; untouched stores clear to inherit (null).
+    expect(putBody.values).toMatchObject({ perimeter: null, events: null, metrics: null, log_lake: 60 });
+  });
+
+  it("clearing a log_lake override sends null for that store", async () => {
+    let putBody: { values?: Record<string, unknown> } = {};
+    server.use(
+      http.get(RETENTION_URL, () =>
+        HttpResponse.json({ overrides: { log_lake: 200 }, defaults: defaultsOnly.defaults }),
+      ),
+      http.put(RETENTION_URL, async ({ request }) => {
+        putBody = (await request.json()) as { values?: Record<string, unknown> };
+        return HttpResponse.json({ overrides: {}, defaults: defaultsOnly.defaults });
+      }),
+    );
+
+    renderWithProviders(withTenant(<RetentionCard />));
+
+    // The input seeds from the existing log_lake override.
+    const logLake = await screen.findByTestId("retention-log_lake");
+    expect(logLake).toHaveValue("200");
+
+    // Empty the field, then save — that store should be sent as null (back to inherit).
+    await userEvent.clear(logLake);
+    await userEvent.click(screen.getByTestId("retention-save"));
+
+    await waitFor(() => expect(putBody.values).toBeDefined());
+    expect(putBody.values).toEqual({ perimeter: null, events: null, metrics: null, log_lake: null });
   });
 
   it("shows the load error when the GET fails", async () => {
