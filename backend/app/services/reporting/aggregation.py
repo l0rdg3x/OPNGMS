@@ -584,7 +584,7 @@ class ReportAggregator:
         total = sum(int(r.n) for r in cat_rows)
         by_category = [
             ReliabilityCount(
-                category=str(r.c), count=int(r.n),
+                category="" if r.c is None else str(r.c), count=int(r.n),
                 pct=round(int(r.n) / total * 100, 1) if total else 0.0,
             )
             for r in cat_rows
@@ -603,8 +603,8 @@ class ReportAggregator:
         )).all()
         notable = [
             ReliabilityEvent(
-                time=r.ts, category=str(r.c), name=str(r.n),
-                severity=str(r.sev) or "medium", device=str(r.device),
+                time=r.ts, category="" if r.c is None else str(r.c), name=str(r.n),
+                severity=str(r.sev) or "medium", device=str(r.device),  # "medium" = raw tier, sev_fn maps it
             )
             for r in notable_rows
         ]

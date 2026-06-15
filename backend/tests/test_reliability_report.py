@@ -4,12 +4,16 @@ the standard section-toggle precedence — mirrors the perimeter / attacker-coun
 Seeds `source="service"` events (reboot / service / disk categories) and asserts the per-category
 counts, the notable-events list, that the section renders when enabled (and is absent when toggled off
 or when there are no events), and that `reliability` is a registered, default-on section."""
+import os
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.db import make_engine, set_tenant_context
+from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
 from app.services.reporting.aggregation import ReportAggregator
 from app.services.reporting.context import build_context
 from app.services.reporting.sections import (
@@ -106,6 +110,42 @@ async def test_reliability_rollup_counts_by_category(db_engine):
     assert rollup.notable[0].name == "reboot"        # minute=15 is newest
     assert rollup.notable[0].device == "fw-edge"
     assert rollup.notable[-1].name == "service_crashed"
+
+
+async def test_reliability_rollup_is_tenant_isolated_under_rls(db_engine):
+    """Under the real opngms_app role (RLS on `events`), tenant A's rollup must exclude tenant B's
+    service events — Invariant #1, mirroring the sibling aggregator RLS tests."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    ta, tb = uuid.uuid4(), uuid.uuid4()
+    da, db_ = uuid.uuid4(), uuid.uuid4()
+    async with factory() as s:  # seed as owner (RLS-exempt)
+        for tid, slug in [(ta, "rel-a"), (tb, "rel-b")]:
+            await s.execute(
+                text("INSERT INTO tenants (id, name, slug, status) VALUES (:id, :slug, :slug, 'active')"),
+                {"id": tid, "slug": slug})
+        for tid, did, dn in [(ta, da, "fw-a"), (tb, db_, "fw-b")]:
+            await s.execute(
+                text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, "
+                     "verify_tls, status, tags) "
+                     "VALUES (:id, :t, :n, 'https://x', ''::bytea, ''::bytea, true, 'reachable', '{}')"),
+                {"id": did, "t": tid, "n": dn})
+        await _service_event(s, ta, da, category="reboot", name="A-REBOOT", severity="high", key="ka")
+        await _service_event(s, tb, db_, category="reboot", name="B-REBOOT", severity="high", key="kb")
+        await s.commit()
+
+    # Connect as the REAL opngms_app role (RLS active), context on tenant A.
+    app_url = make_url(os.environ["TEST_DATABASE_URL"]).set(username=APP_ROLE, password=APP_ROLE_PASSWORD)
+    engine = make_engine(app_url.render_as_string(hide_password=False))
+    try:
+        f2 = async_sessionmaker(engine, expire_on_commit=False)
+        async with f2() as s:
+            await set_tenant_context(s, ta)
+            rollup = await ReportAggregator(s, ta).reliability_rollup(frm=FRM, to=TO)
+        names = {e.name for e in rollup.notable}
+        assert "A-REBOOT" in names and "B-REBOOT" not in names
+        assert rollup.total == 1
+    finally:
+        await engine.dispose()
 
 
 async def test_reliability_rollup_empty_range_is_empty(db_engine):
