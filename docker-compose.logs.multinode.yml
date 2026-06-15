@@ -1,6 +1,10 @@
 # Opt-in log lake — MULTI-NODE OpenSearch (3 nodes, HA). Use INSTEAD of docker-compose.logs.yml:
 #   docker compose -f docker-compose.prod.yml -f docker-compose.logs.multinode.yml up -d
 # Verify HA at a staging bring-up (node loss -> index stays green). Internal-only, no published port.
+#
+# Retention: per-tenant daily indices (opngms-logs-<tenant_id>-DATE); the OPNGMS worker's daily
+# purge_log_lake job owns retention at each tenant's effective age. No global ISM policy
+# (syslog-bootstrap removes any legacy one) — only the index template is applied to OpenSearch.
 
 x-os-common: &os-common
   image: opensearchproject/opensearch:2.17.1
