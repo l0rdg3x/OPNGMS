@@ -27,6 +27,9 @@ class FakeClient:
             raise ReachabilityError("boom")
         return self._service
 
+    async def get_config_changes(self, since=None):
+        return []
+
 
 def _svc(ts, key, name="reboot", category="reboot", severity="high"):
     return {

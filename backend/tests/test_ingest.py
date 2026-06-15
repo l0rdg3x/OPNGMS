@@ -30,6 +30,9 @@ class FakeClient:
     async def get_service_events(self, since=None):
         return self._service
 
+    async def get_config_changes(self, since=None):
+        return []
+
 
 def _alert(ts, key, src="10.0.0.5", name="ET SCAN"):
     return {
