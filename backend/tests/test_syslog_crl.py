@@ -73,9 +73,10 @@ async def _insert_revoked(db_engine, tenant_id: uuid.UUID, device_id: uuid.UUID,
     """Insert a tenants/devices/revoked_syslog_certs chain owner-side (RLS-exempt)."""
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
+        # Slug derives from the (unique) tenant_id, not the serial, so two rows can share a serial.
         await s.execute(
             text("INSERT INTO tenants (id,name,slug,status) VALUES (:i,:n,:sl,'active')"),
-            {"i": tenant_id, "n": f"T-{serial_hex}", "sl": f"t-{serial_hex}"},
+            {"i": tenant_id, "n": f"T-{tenant_id.hex[:8]}", "sl": f"t-{tenant_id.hex[:12]}"},
         )
         await s.execute(
             text("INSERT INTO devices (id,tenant_id,name,base_url,api_key_enc,api_secret_enc,"
@@ -123,6 +124,36 @@ async def test_refresh_writes_hash_named_crl_revoking_all_tenants(db_engine, tmp
         capture_output=True, text=True, check=True,
     )
     assert files[0].name == f"{out.stdout.strip()}.r0"
+
+
+async def test_refresh_dedupes_duplicate_serials(db_engine, tmp_path):
+    # Same serial revoked twice (re-revocation / racing double-revoke). RFC 5280 forbids a duplicate
+    # CRL entry — refresh must dedupe so OpenSSL/syslog-ng accept the CRL.
+    await seed_syslog_ca(db_engine)
+    await _insert_revoked(db_engine, uuid.uuid4(), uuid.uuid4(), "abcd")
+    await _insert_revoked(db_engine, uuid.uuid4(), uuid.uuid4(), "abcd")
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as session:
+        n = await refresh_syslog_crl(session, str(tmp_path))
+    assert n == 1
+    files = list((tmp_path / "crl").glob("*.r0"))
+    crl = x509.load_pem_x509_crl(files[0].read_bytes())
+    assert [e.serial_number for e in crl] == [0xABCD]
+
+
+async def test_refresh_skips_malformed_serial(db_engine, tmp_path):
+    # A non-hex serial row must be skipped (logged), not abort the whole refresh — otherwise the OLD
+    # CRL stays stale and a revoked cert keeps being accepted.
+    await seed_syslog_ca(db_engine)
+    await _insert_revoked(db_engine, uuid.uuid4(), uuid.uuid4(), "zzzz")  # not hex
+    await _insert_revoked(db_engine, uuid.uuid4(), uuid.uuid4(), "00ff")  # valid
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as session:
+        n = await refresh_syslog_crl(session, str(tmp_path))
+    assert n == 1  # only the valid serial
+    files = list((tmp_path / "crl").glob("*.r0"))
+    crl = x509.load_pem_x509_crl(files[0].read_bytes())
+    assert {e.serial_number for e in crl} == {0x00ff}
 
 
 async def test_refresh_empty_ledger_writes_empty_crl(db_engine, tmp_path):

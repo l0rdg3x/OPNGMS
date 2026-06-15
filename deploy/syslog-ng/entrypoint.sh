@@ -8,7 +8,9 @@
 #
 # POSIX sh (the balabit image ships /bin/sh, sha256sum, syslog-ng-ctl). SIGTERM/INT are forwarded so
 # `docker stop` shuts syslog-ng down cleanly.
-set -eu
+# No `set -e`: the watcher's `sleep` is killed on shutdown and `wait` returns 143 on SIGTERM — neither is
+# an error, and `set -e` would only turn them into spurious non-zero exits / log noise.
+set -u
 
 CRL_GLOB="/certs/crl/*.r0"
 
@@ -35,8 +37,14 @@ trap 'syslog-ng-ctl stop 2>/dev/null || true; kill "$SNG" 2>/dev/null || true' T
         cur="$(crl_sum)"
         if [ "$cur" != "$last" ]; then
             echo "[entrypoint] CRL changed; reloading syslog-ng"
-            syslog-ng-ctl reload 2>/dev/null || echo "[entrypoint] syslog-ng-ctl reload failed"
-            last="$cur"
+            # Only mark this CRL as applied if the reload actually succeeded; otherwise leave `last`
+            # unchanged so the next poll retries (a failed reload must not silently leave a revoked
+            # cert still accepted).
+            if syslog-ng-ctl reload; then
+                last="$cur"
+            else
+                echo "[entrypoint] WARNING: syslog-ng-ctl reload failed; will retry next poll" >&2
+            fi
         fi
     done
 ) &

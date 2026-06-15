@@ -59,14 +59,16 @@ async def test_read_only_denied(api_client, db_engine):
     assert r.status_code == 403
 
 
-def _override_enqueuer():
-    """Install a recording enqueuer override (wins over the conftest no-op set in api_client)."""
+def _override_enqueuer(monkeypatch):
+    """Install a recording enqueuer override (wins over the conftest no-op set in api_client).
+
+    Uses monkeypatch.setitem so the override is restored after the test, not left dangling."""
     calls: list = []
 
     async def _fake_enqueue(name, *args, defer_until=None):
         calls.append((name, args, defer_until))
 
-    app.dependency_overrides[get_enqueuer] = lambda: _fake_enqueue
+    monkeypatch.setitem(app.dependency_overrides, get_enqueuer, lambda: _fake_enqueue)
     return calls
 
 
@@ -79,7 +81,7 @@ async def test_revoke_enqueues_crl_refresh(api_client, db_engine, monkeypatch):
     e = await api_client.post(f"/api/tenants/{tid}/devices/{did}/log-forwarding/enable",
                               headers=csrf_headers(api_client))
     assert e.status_code == 200, e.text
-    calls = _override_enqueuer()
+    calls = _override_enqueuer(monkeypatch)
     r = await api_client.post(f"/api/tenants/{tid}/devices/{did}/log-forwarding/revoke",
                               json={"reason": "stolen key"}, headers=csrf_headers(api_client))
     assert r.status_code == 200, r.text
@@ -91,7 +93,7 @@ async def test_revoke_not_forwarding_does_not_enqueue(api_client, db_engine, mon
     monkeypatch.setattr(mod, "_client", lambda device: FakeClient())
     tid, did = await _seed(db_engine)  # device never enabled -> revoke 409s
     await _login(api_client, "admin@x.io")
-    calls = _override_enqueuer()
+    calls = _override_enqueuer(monkeypatch)
     r = await api_client.post(f"/api/tenants/{tid}/devices/{did}/log-forwarding/revoke",
                               json={"reason": "x"}, headers=csrf_headers(api_client))
     assert r.status_code == 409

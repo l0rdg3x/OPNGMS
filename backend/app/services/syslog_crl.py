@@ -39,6 +39,7 @@ def _crl_hash_name(crl_pem: bytes) -> str:
     with tempfile.NamedTemporaryFile(suffix=".pem") as tmp:
         tmp.write(crl_pem)
         tmp.flush()
+        os.fsync(tmp.fileno())  # ensure the full CRL is on disk before openssl reads the path
         out = subprocess.run(
             ["openssl", "crl", "-hash", "-noout", "-in", tmp.name],
             capture_output=True, text=True, check=True,
@@ -72,9 +73,24 @@ async def refresh_syslog_crl(session: AsyncSession, cert_dir: str | None) -> int
     rows = (await session.execute(
         text("SELECT serial, revoked_at FROM revoked_syslog_certs")
     )).all()
-    revoked: list[tuple[int, datetime]] = []
+    # Dedupe by serial (RFC 5280 §5.1: a CRL MUST NOT list a serial twice — a re-revocation or a
+    # racing double-revoke could otherwise produce a CRL that strict OpenSSL/syslog-ng rejects), keeping
+    # the earliest revocation date. A malformed serial is skipped (logged) rather than aborting the whole
+    # refresh, which would leave the OLD CRL stale and a revoked cert still accepted.
+    by_serial: dict[int, datetime] = {}
+    skipped = 0
     for serial_hex, revoked_at in rows:
-        revoked.append((int(serial_hex, 16), revoked_at or datetime.now(UTC)))
+        try:
+            serial_int = int(serial_hex, 16)
+        except (ValueError, TypeError):
+            skipped += 1
+            continue
+        when = revoked_at or datetime.now(UTC)
+        if serial_int not in by_serial or when < by_serial[serial_int]:
+            by_serial[serial_int] = when
+    if skipped:
+        logger.warning("CRL refresh skipped %d malformed revoked-cert serial(s)", skipped)
+    revoked: list[tuple[int, datetime]] = sorted(by_serial.items())
 
     crl_pem = build_crl(ca.cert_pem.encode(), key_pem, revoked)
     hash_name = _crl_hash_name(crl_pem)
