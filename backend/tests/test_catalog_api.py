@@ -279,6 +279,42 @@ async def test_create_catalog_change_no_reconfigure_endpoint_422(api_client, db_
     assert r.status_code == 422
 
 
+def test_build_payload_carries_xml_path():
+    # The change payload must carry the model's xml_path so the revert builder can read prior
+    # values/grid rows from the pre-apply snapshot subtree.
+    from app.api.catalog import _build_payload
+    from app.schemas.catalog import CatalogChangeIn
+    model = {
+        "id": "unbound", "model_root": "unbound", "xml_path": "OPNsense/Unbound",
+        "endpoints": {"set": "unbound/settings/set", "reconfigure": "unbound/service/reconfigure"},
+        "fields": [{"path": "general.enabled", "type": "bool"}],
+        "grids": [{"path": "hosts", "endpoints": {"add": "unbound/settings/addHosts"},
+                   "fields": [{"path": "hostname", "type": "string"}]}],
+    }
+    body = CatalogChangeIn(model_id="unbound", scalars={"general.enabled": "1"},
+                           grids=[{"op": "add", "grid": "hosts", "item": {"hostname": "h"}}])
+    payload = _build_payload(model, body)
+    assert payload["xml_path"] == "OPNsense/Unbound"
+    assert payload["set_path"] == "unbound/settings/set"
+    assert payload["reconfigure_path"] == "unbound/service/reconfigure"
+    assert payload["model_root"] == "unbound"
+    assert payload["scalars"] == {"general.enabled": "1"}
+    assert payload["grids"][0]["op"] == "add"
+
+
+def test_build_payload_xml_path_defaults_empty():
+    # A model without xml_path (older catalog) still builds a payload, with xml_path == "".
+    from app.api.catalog import _build_payload
+    from app.schemas.catalog import CatalogChangeIn
+    model = {
+        "id": "weird", "model_root": "weird",
+        "endpoints": {"set": "weird/settings/set", "reconfigure": "weird/service/reconfigure"},
+        "fields": [{"path": "general.x", "type": "string"}], "grids": [],
+    }
+    payload = _build_payload(model, CatalogChangeIn(model_id="weird", scalars={"general.x": "1"}))
+    assert payload["xml_path"] == ""
+
+
 @respx.mock
 async def test_read_model_returns_live_options(api_client, db_engine, monkeypatch):
     monkeypatch.setattr(catalog_provider, "get_catalog", _fake_get_catalog)
