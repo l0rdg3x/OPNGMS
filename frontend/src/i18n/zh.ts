@@ -618,7 +618,7 @@ export const zh: Dict = {
     silentBadge: "静默",
     silentAlertsTitle: "静默租户告警",
     silentAlertsBody: "已启用转发但近期无日志。",
-    volume: "流量",
+    volume: "日志量",
     devicesTitle: "设备",
     devicesLoadError: "加载设备失败。",
     noDevices: "暂无设备。",
