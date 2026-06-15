@@ -745,6 +745,29 @@ export const en = {
     loadError: "Failed to load service events.",
     last24h: "Last 24 hours",
   },
+  configAudit: {
+    tab: "Config changes",
+    title: "Direct config changes (24h)",
+    subtitle: "Who changed the box config and how — direct on-box (GUI/console) changes are flagged as drift.",
+    time: "Time",
+    area: "Area",
+    actor: "Actor",
+    ip: "IP",
+    channel: "Channel",
+    change: "Change",
+    direct: "Direct",
+    channels: {
+      api: "API",
+      gui: "WebGUI",
+      system: "Console/script",
+      unknown: "Unknown",
+    },
+    loadMore: "Load more",
+    empty: "No config changes in this window.",
+    loading: "Loading config changes…",
+    loadError: "Failed to load config changes.",
+    last24h: "Last 24 hours",
+  },
 } as const;
 
 // Widen the string leaves to `string` while preserving the exact key structure, so sibling
