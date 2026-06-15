@@ -94,6 +94,8 @@ async def ingest_device_events(ctx: dict, device_id: str) -> int:
             tls_fingerprint=device.tls_fingerprint,
         )
         now = datetime.now(UTC)
+        # ingest_events also raises deduped alerts for new high-severity service events (best-effort,
+        # never aborts the cycle); both the events and the alerts commit together below.
         n = await ingest_events(session, device, client, now=now)
         # Perimeter signals (failed logins + firewall blocks) reuse the same client + cron; best-effort.
         # Run inside a SAVEPOINT + broad guard so a perimeter failure (even a DB error, not just an
