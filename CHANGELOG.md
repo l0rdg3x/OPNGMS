@@ -12,6 +12,23 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-15
+### Added
+- **Configurable data retention — global default + per-tenant override.** How long the data behind the
+  dashboards and reports is kept is now operator-configurable: a global default per data store (superadmin,
+  **System → Runtime settings**) plus an optional **per-tenant override** (from each tenant's settings page,
+  so every MSP client controls its own retention). Covers all four stores — the perimeter rollup (failed
+  logins + firewall blocks), the IDS/DNS event history, device-health metrics, and the OpenSearch **log
+  lake**. The three Postgres stores are swept by tenant-aware purge jobs that replace the previous fixed
+  global TimescaleDB policies; the log lake now writes **per-tenant daily indices**
+  (`opngms-logs-<tenant>-DATE`) pruned by a worker job that replaces the global ISM policy. Defaults preserve
+  prior behavior (perimeter/metrics/log-lake 30 days, events 90). (#157, #158, #159, #163, #164)
+- **Report ↔ retention consistency.** A report can no longer be configured to cover more days than the
+  tenant's effective retention for the data its enabled sections use: on-demand and scheduled reports are
+  **blocked** when over-long, and lowering retention surfaces a **warning** on the affected tenant's page —
+  plus, for a global lowering, the **list of impacted tenants** to the superadmin. No silent clamping.
+  (#160, #161, #162)
+
 ## [0.10.0] - 2026-06-14
 ### Added
 - **Audit viewer (superadmin).** A new superadmin-only **Audit** page (`/admin/audit`) over the existing
@@ -139,7 +156,8 @@ annotated tag when a version is cut.
   monitoring + alerting, PDF reporting, the version-aware config catalog editor (generator + dynamic
   distribution + apply engine + editor UI), the syslog log lake, and the Docker deployment stack.
 
-[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/l0rdg3x/OPNGMS/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/l0rdg3x/OPNGMS/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/l0rdg3x/OPNGMS/compare/v0.8.0...v0.9.0
