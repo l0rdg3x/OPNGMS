@@ -609,6 +609,11 @@ class OpnsenseClient:
         log. `since` filtered downstream."""
         return await self._capability("service_events")
 
+    async def get_config_changes(self, since: datetime | None = None) -> list[dict]:
+        """Config-change audit events (who/what/when, channel-attributed) from the box audit log.
+        `since` is accepted for caller convenience; filtering/dedup happen downstream."""
+        return await self._capability("config_changes")
+
     async def get_plugin_info(self) -> dict:
         return await self._capability("plugin_info")
 
