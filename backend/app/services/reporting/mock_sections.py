@@ -11,6 +11,9 @@ import hashlib
 from app.services.reporting.charts import line_chart
 from app.services.reporting.context import (
     ApplicationsBlock,
+    ConfigAuditChangeRow,
+    ConfigChangesBlock,
+    ConfigChannelRow,
     RankedTable,
     ReliabilityBlock,
     ReliabilityCategoryRow,
@@ -106,6 +109,35 @@ def reliability_block(t: ReportText) -> ReliabilityBlock:
         ),
     ]
     return ReliabilityBlock(categories=categories, events=events, total=8)
+
+
+def config_audit_block(t: ReportText) -> ConfigChangesBlock:
+    """Deterministic sample config-changes section for the demo/sample report. Report-level
+    (tenant-wide), so it takes no device name. In production, build_context uses the real config_audit
+    aggregator; this mock lets a sample report render the section without seeded config_audit events.
+
+    The direct/drift channels (gui/system) are emphasized — they are the on-box changes made outside
+    the management API."""
+    channels = [
+        ConfigChannelRow(label=t.config_channel_api, count=4, pct=50.0, direct=False),
+        ConfigChannelRow(label=t.config_channel_gui, count=3, pct=37.5, direct=True),
+        ConfigChannelRow(label=t.config_channel_system, count=1, pct=12.5, direct=True),
+    ]
+    changes = [
+        ConfigAuditChangeRow(
+            time="2026-06-08 09:42", actor="admin@10.0.0.5", area="firewall",
+            channel_label=t.config_channel_gui, direct=True, device="fw-edge",
+        ),
+        ConfigAuditChangeRow(
+            time="2026-06-08 03:14", actor="root", area="firmware",
+            channel_label=t.config_channel_system, direct=True, device="fw-edge",
+        ),
+        ConfigAuditChangeRow(
+            time="2026-06-07 18:20", actor="root@192.168.6.100", area="monit",
+            channel_label=t.config_channel_api, direct=False, device="fw-branch",
+        ),
+    ]
+    return ConfigChangesBlock(channels=channels, changes=changes, total=8, direct=4)
 
 
 def web_filter_block(device_name: str, t: ReportText) -> WebFilterBlock:

@@ -153,6 +153,39 @@ class ReliabilityBlock:
 
 
 @dataclass
+class ConfigChannelRow:
+    """One row of the config-change by-channel breakdown: localized channel label, count, share %,
+    and whether the channel is a direct/drift channel (gui/system), for emphasis in the template."""
+    label: str
+    count: int
+    pct: float
+    direct: bool
+
+
+@dataclass
+class ConfigAuditChangeRow:
+    """One notable config change in the report: formatted time, actor, localized area, localized
+    channel label, whether it is a direct/drift change (for row emphasis), and the device name."""
+    time: str
+    actor: str
+    area: str
+    channel_label: str
+    direct: bool
+    device: str
+
+
+@dataclass
+class ConfigChangesBlock:
+    """The config-changes report section: per-channel counts (direct/drift highlighted) plus a recent
+    notable-changes list. Tenant-wide (built once, like the perimeter/reliability sections), over the
+    toggle-enabled device set."""
+    channels: list[ConfigChannelRow]
+    changes: list[ConfigAuditChangeRow]
+    total: int
+    direct: int
+
+
+@dataclass
 class HealthBlock:
     cpu_avg: float | None
     cpu_peak: float | None
@@ -238,6 +271,7 @@ class ReportContext:
     failed_logins: PerimeterBlock | None = None
     firewall_blocks: PerimeterBlock | None = None
     reliability: ReliabilityBlock | None = None
+    config_changes: ConfigChangesBlock | None = None
     logo_data_uri: str | None = None
     t: ReportText | None = None
     locale: str = "en"
@@ -268,7 +302,11 @@ class ReportContext:
 from datetime import UTC  # noqa: E402
 
 from app.services.geoip import PRIVATE, UNKNOWN, GeoIp, localized_country_name  # noqa: E402
-from app.services.reporting.aggregation import ReportAggregator, pick_bucket  # noqa: E402
+from app.services.reporting.aggregation import (  # noqa: E402
+    _CONFIG_DRIFT_CHANNELS,
+    ReportAggregator,
+    pick_bucket,
+)
 from app.services.reporting.charts import line_chart  # noqa: E402
 from app.services.reporting.choropleth import choropleth_svg  # noqa: E402
 from app.services.reporting.i18n import ReportText, report_text  # noqa: E402
@@ -359,6 +397,44 @@ async def _reliability_block(aggregator, frm, to, t, timezone_name, sev_fn):
             device=e.device,
         ))
     return ReliabilityBlock(categories=categories, events=events, total=rollup.total)
+
+
+def _config_channel_label(channel: str, t) -> str:
+    """Localized label for a config-change channel; falls back to the localized 'unknown' for an
+    unrecognized channel (or an empty string)."""
+    return {
+        "api": t.config_channel_api,
+        "gui": t.config_channel_gui,
+        "system": t.config_channel_system,
+    }.get(channel, t.config_channel_unknown)
+
+
+async def _config_changes_block(aggregator, frm, to, t, timezone_name):
+    """Build the config-changes report section (tenant-wide config_audit rollup); None when no changes."""
+    rollup = await aggregator.config_audit_rollup(frm=frm, to=to)
+    if rollup.total == 0:
+        return None
+    channels = [
+        ConfigChannelRow(
+            label=_config_channel_label(c.channel, t), count=c.count, pct=c.pct,
+            direct=c.channel in _CONFIG_DRIFT_CHANNELS,
+        )
+        for c in rollup.by_channel
+    ]
+    changes = [
+        ConfigAuditChangeRow(
+            time=_fmt_dt(c.time, timezone_name),
+            actor=c.actor,
+            area=c.area,
+            channel_label=_config_channel_label(c.channel, t),
+            direct=c.direct,
+            device=c.device,
+        )
+        for c in rollup.notable
+    ]
+    return ConfigChangesBlock(
+        channels=channels, changes=changes, total=rollup.total, direct=rollup.direct,
+    )
 
 
 async def build_context(
@@ -458,6 +534,13 @@ async def build_context(
     reliability = None
     if enabled["reliability"]:
         reliability = await _reliability_block(aggregator, frm, to, t, timezone_name, _sev)
+
+    # Config-changes section: tenant-wide rollup of box config-change audit events (who/what/when, with
+    # the direct/drift on-box changes highlighted). Toggled like every other section; None when there
+    # are no changes in the range.
+    config_changes = None
+    if enabled["config_changes"]:
+        config_changes = await _config_changes_block(aggregator, frm, to, t, timezone_name)
 
     for dev in devices:
         # --- Device health (CPU/mem/disk avg+peak + cpu sparkline) ---
@@ -589,6 +672,7 @@ async def build_context(
         failed_logins=failed_logins,
         firewall_blocks=firewall_blocks,
         reliability=reliability,
+        config_changes=config_changes,
         logo_data_uri=logo_data_uri,
         t=t,
         locale=locale,
