@@ -47,6 +47,7 @@ import tempfile
 import time
 
 import httpx
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core import crypto
@@ -89,7 +90,10 @@ async def _load_ca() -> tuple[bytes, bytes]:
         async with factory() as session, session.begin():
             ca_row = await SyslogCaService(session).ensure_ca()
             ca_cert_pem: bytes = ca_row.cert_pem.encode()
-            ca_key_pem: bytes = crypto.decrypt_bytes(bytes(ca_row.key_enc))
+            # The CA key now lives in the owner-only `syslog_ca_key` table; read it via the accessor
+            # (works for both the owner and app roles) instead of the dropped `syslog_ca.key_enc`.
+            key_enc = (await session.execute(text("SELECT opngms_syslog_ca_key()"))).scalar_one()
+            ca_key_pem: bytes = crypto.decrypt_bytes(bytes(key_enc))
     finally:
         await engine.dispose()
     return ca_cert_pem, ca_key_pem

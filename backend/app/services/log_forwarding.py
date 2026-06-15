@@ -19,6 +19,12 @@ from app.services.syslog_ca import (
 )
 
 
+class SyslogCaNotInitializedError(Exception):
+    """The syslog CA row is absent — the owner-side bootstrap (``syslog-bootstrap``) has not run yet.
+
+    An operational precondition, not a programmer error: the API maps it to HTTP 503."""
+
+
 class SyslogCaService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -31,7 +37,7 @@ class SyslogCaService:
         ``ensure_ca``); the app role cannot create it because it cannot write ``syslog_ca_key``."""
         row = await self.get()
         if row is None:
-            raise RuntimeError("syslog CA not initialized — run syslog-bootstrap")
+            raise SyslogCaNotInitializedError("syslog CA not initialized — run syslog-bootstrap")
         return row
 
     async def ensure_ca(self) -> SyslogCa:
@@ -55,7 +61,8 @@ class SyslogCaService:
 
     async def device_cert(self, ca: SyslogCa, *, tenant_id: uuid.UUID,
                           device_id: uuid.UUID) -> tuple[bytes, bytes]:
-        return issue_device_cert(ca.cert_pem.encode(), crypto.decrypt_bytes(bytes(await self._ca_key_enc())),
+        key_pem = crypto.decrypt_bytes(bytes(await self._ca_key_enc()))
+        return issue_device_cert(ca.cert_pem.encode(), key_pem,
                                  tenant_id=str(tenant_id), device_id=str(device_id),
                                  days=get_settings().device_cert_days)
 

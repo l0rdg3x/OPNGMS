@@ -56,9 +56,10 @@ def syslog_ca_key_least_priv_statements() -> list[str]:
     """
     return [
         f"REVOKE ALL ON syslog_ca_key FROM {APP_ROLE}",
-        # Hardened search_path; STABLE + SECURITY DEFINER so the app role reads the key only by name.
+        # Hardened search_path; SECURITY DEFINER so the app role reads the key only by name. VOLATILE
+        # (not STABLE): the key table can be re-keyed (rekey_secrets), so never cache the result.
         "CREATE OR REPLACE FUNCTION opngms_syslog_ca_key() RETURNS bytea "
-        "LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS "
+        "LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public AS "
         "$$ SELECT key_enc FROM public.syslog_ca_key ORDER BY id LIMIT 1 $$",
         "REVOKE ALL ON FUNCTION opngms_syslog_ca_key() FROM PUBLIC",
         f"GRANT EXECUTE ON FUNCTION opngms_syslog_ca_key() TO {APP_ROLE}",

@@ -83,9 +83,10 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
         svc = SyslogCaService(session)
         ca = await svc.ensure_ca()
         await session.commit()
-        # Read the (encrypted) CA private key owner-side from the split-out key table to sign the
-        # receiver server cert. Bootstrap runs as the DB owner (ADMIN_DATABASE_URL), so the key
-        # access is the SECURITY DEFINER accessor; a plain SELECT on syslog_ca_key would also work.
+        # Read the (encrypted) CA private key to sign the receiver server cert via the same SECURITY
+        # DEFINER accessor the app role uses, to keep one read path. (Bootstrap runs as the DB owner
+        # via ADMIN_DATABASE_URL, which *could* SELECT syslog_ca_key directly — but only because it is
+        # owner-context code; never read the key table directly from an app-role path.)
         key_enc = (await session.execute(text("SELECT opngms_syslog_ca_key()"))).scalar_one()
 
     if engine is None:

@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core import crypto
 from app.core.db import make_engine
 from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
-from app.services.log_forwarding import SyslogCaService
+from app.services.log_forwarding import SyslogCaNotInitializedError, SyslogCaService
 
 
 def _app_role_engine():
@@ -78,8 +78,26 @@ async def test_provision_signs_via_function(db_engine):
         await engine.dispose()
 
 
+async def test_app_role_can_read_ca_cert(db_engine):
+    """The REVOKE is table-specific: the app role keeps SELECT on the public `syslog_ca` cert."""
+    await _seed_ca_as_owner(db_engine)
+    engine = _app_role_engine()
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            cert = (await s.execute(text("SELECT cert_pem FROM syslog_ca"))).scalar_one()
+        assert "BEGIN CERTIFICATE" in cert
+    finally:
+        await engine.dispose()
+
+
 async def test_require_ca_raises_when_absent(db_engine):
-    factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as s:
-        with pytest.raises(RuntimeError, match="syslog CA not initialized"):
-            await SyslogCaService(s).require_ca()
+    # Run under the real app role — that is the role that calls require_ca in production.
+    engine = _app_role_engine()
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            with pytest.raises(SyslogCaNotInitializedError, match="syslog CA not initialized"):
+                await SyslogCaService(s).require_ca()
+    finally:
+        await engine.dispose()
