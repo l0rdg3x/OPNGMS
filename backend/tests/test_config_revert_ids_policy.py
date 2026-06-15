@@ -58,11 +58,24 @@ def test_ids_policy_set_restore():
     assert body["content"] == {"severity": ["1"]}
 
 
-def test_ids_policy_created_is_deleted():
+def test_ids_policy_set_not_found_in_snapshot_falls_back_to_delete():
+    # A `set` whose policy is absent from the snapshot was a creation -> revert by deleting it.
     ch = _change("ids_policy", "ghost", {"description": "ghost"})
     op, target, payload = build_inverse(ch, _XML)
     assert op == "delete" and target == "ghost"
     assert payload == {"description": "ghost"}
+
+
+def test_ids_policy_malformed_content_raises():
+    bad_xml = _XML.replace('{"severity":["1"]}', "NOT_JSON")
+    with pytest.raises(NoInverseError, match="not valid JSON"):
+        build_inverse(_change("ids_policy", "p1", {"description": "p1"}), bad_xml)
+
+
+def test_ids_policy_unresolved_ruleset_raises():
+    bad_xml = _XML.replace("<rulesets>fA</rulesets>", "<rulesets>fGONE</rulesets>")
+    with pytest.raises(NoInverseError, match="files table"):
+        build_inverse(_change("ids_policy", "p1", {"description": "p1"}), bad_xml)
 
 
 def test_ids_policy_add_inverts_to_delete_without_snapshot():

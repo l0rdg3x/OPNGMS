@@ -171,7 +171,7 @@ def _ids_files_map(xml: str) -> dict:
     """Build {file_uuid: filename} from the IDS files table in the snapshot.
 
     The policy stores its rulesets as file-uuids; the portable body refers to them by filename, so
-    the inverse maps each uuid back through this table (a uuid with no filename match is dropped)."""
+    the inverse maps each uuid back through this table (the caller fails closed on an unresolved uuid)."""
     root = DET.fromstring(xml)
     out: dict = {}
     for f in root.iterfind(f".//{_IDS_FILES_PATH}"):
@@ -193,14 +193,30 @@ def _invert_ids_policy(change: ConfigChange, snapshot_xml: str | None) -> tuple[
     if prior is None:
         return "delete", description, {"description": description}
     files = _ids_files_map(snapshot_xml)
+    rulesets = []
+    for u in (prior.get("rulesets", "") or "").split(","):
+        if not u:
+            continue
+        name = files.get(u)
+        if name is None:
+            # Fail closed: a valid snapshot lists every policy-referenced file in its own files table,
+            # and the connector refuses an unresolvable ruleset at apply time — don't silently rebuild a
+            # policy with fewer rulesets than the original.
+            raise NoInverseError(f"ids policy ruleset file {u!r} is not in the snapshot files table")
+        rulesets.append(name)
+    raw_content = prior.get("content") or ""
+    try:
+        content = json.loads(raw_content) if raw_content else {}
+    except json.JSONDecodeError as exc:
+        raise NoInverseError("ids policy snapshot content is not valid JSON") from exc
     body = {
         "description": description,
         "enabled": prior.get("enabled", "1"),
         "prio": prior.get("prio", "0"),
         "new_action": prior.get("new_action", "alert"),
         "action": [a for a in (prior.get("action", "") or "").split(",") if a],
-        "rulesets": [files[u] for u in (prior.get("rulesets", "") or "").split(",") if u in files],
-        "content": json.loads(prior["content"]) if prior.get("content") else {},
+        "rulesets": rulesets,
+        "content": content,
     }
     return "set", description, body
 
