@@ -109,6 +109,32 @@ class PerimeterRow:
     label: str
 
 
+@dataclass
+class ReliabilityCount:
+    """One row of the reliability category breakdown: category (reboot/service/disk), count, share %."""
+    category: str
+    count: int
+    pct: float
+
+
+@dataclass
+class ReliabilityEvent:
+    """A notable reliability event for the timeline list: when, what, how bad, and on which device."""
+    time: datetime
+    category: str
+    name: str
+    severity: str
+    device: str
+
+
+@dataclass
+class ReliabilityRollup:
+    """Reliability rollup over the range: per-category counts (+ share %) and a recent-events list."""
+    by_category: list[ReliabilityCount]
+    notable: list[ReliabilityEvent]
+    total: int
+
+
 def _perimeter_label(kind: str, detail: dict) -> str:
     """Display label for a perimeter attacker row from its rollup detail."""
     if kind == "firewall_block":
@@ -524,3 +550,62 @@ class ReportAggregator:
                 label=_perimeter_label(kind, detail),
             ))
         return out
+
+    async def reliability_rollup(
+        self, *, frm: datetime, to: datetime, device_id: uuid.UUID | None = None,
+        notable_limit: int = 15,
+    ) -> ReliabilityRollup:
+        """Roll up `source="service"` (reliability) events in [frm, to] for the tenant/device set:
+        counts by category (reboot/service/disk) with share %, plus a recent-events list (newest
+        first). Tenant-scoped like the sibling event aggregators; empty range -> empty rollup."""
+        # Per-table clause builder so both queries share identical, explicitly-prefixed predicates
+        # (the notable-events query joins `devices`, so every column must be qualified to avoid an
+        # ambiguous reference). `prefix` is a source-code constant — never request-derived.
+        params: dict = {"tid": self.tenant_id, "frm": frm, "to": to}
+        if device_id is not None:
+            params["did"] = device_id
+
+        def _where(prefix: str) -> str:
+            cl = [
+                f"{prefix}tenant_id = :tid", f"{prefix}source = 'service'",
+                f"{prefix}time >= :frm", f"{prefix}time < :to",
+            ]
+            if device_id is not None:
+                cl.append(f"{prefix}device_id = :did")
+            return " AND ".join(cl)
+
+        cat_rows = (await self.session.execute(
+            text(
+                f"SELECT category AS c, count(*) AS n FROM events WHERE {_where('')} "
+                "GROUP BY category ORDER BY n DESC, category"
+            ),
+            params,
+        )).all()
+        total = sum(int(r.n) for r in cat_rows)
+        by_category = [
+            ReliabilityCount(
+                category="" if r.c is None else str(r.c), count=int(r.n),
+                pct=round(int(r.n) / total * 100, 1) if total else 0.0,
+            )
+            for r in cat_rows
+        ]
+
+        # Recent notable events, joined to the device name (newest first). The tenant filter + RLS
+        # keep it scoped; the join is just for the display name.
+        notable_rows = (await self.session.execute(
+            text(
+                "SELECT e.time AS ts, e.category AS c, e.name AS n, e.severity AS sev, "
+                "COALESCE(d.name, '') AS device "
+                f"FROM events e LEFT JOIN devices d ON d.id = e.device_id WHERE {_where('e.')} "
+                "ORDER BY e.time DESC LIMIT :lim"
+            ),
+            {**params, "lim": min(notable_limit, 200)},
+        )).all()
+        notable = [
+            ReliabilityEvent(
+                time=r.ts, category="" if r.c is None else str(r.c), name=str(r.n),
+                severity=str(r.sev) or "medium", device=str(r.device),  # "medium" = raw tier, sev_fn maps it
+            )
+            for r in notable_rows
+        ]
+        return ReliabilityRollup(by_category=by_category, notable=notable, total=total)
