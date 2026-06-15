@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.device_log_forwarding import DeviceLogForwarding
 from app.models.syslog_ca import SyslogCa
+from app.models.syslog_ca_key import SyslogCaKey
 from app.services.log_forwarding import SyslogCaService, provision_device
+from tests.factories import seed_syslog_ca
 
 
 class FakeClient:
@@ -30,9 +32,12 @@ async def test_ensure_ca_is_idempotent(db_engine):
         b = await svc.ensure_ca(); await s.commit()
         assert a.cert_pem == b.cert_pem
         assert len((await s.execute(select(SyslogCa))).scalars().all()) == 1
+        # ensure_ca writes BOTH the cert row and the owner-only key row (one each).
+        assert len((await s.execute(select(SyslogCaKey))).scalars().all()) == 1
 
 
 async def test_provision_device_issues_imports_and_configures(db_engine):
+    await seed_syslog_ca(db_engine)  # CA must exist owner-side; provisioning no longer creates it
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     tid, did = uuid.uuid4(), uuid.uuid4()
     async with factory() as s:

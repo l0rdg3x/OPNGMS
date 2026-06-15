@@ -8,6 +8,7 @@ from app.core.db import set_tenant_context
 from app.models.device_log_forwarding import DeviceLogForwarding
 from app.models.revoked_syslog_cert import RevokedSyslogCert
 from app.services.log_forwarding import revoke_device, rotate_device_cert
+from tests.factories import seed_syslog_ca
 
 
 class StubClient:
@@ -29,6 +30,7 @@ class StubClient:
 
 
 async def _seed_enabled(db_engine):
+    await seed_syslog_ca(db_engine)  # rotate_device_cert requires the CA to exist owner-side
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     tid, did = uuid.uuid4(), uuid.uuid4()
     async with factory() as s:

@@ -98,7 +98,7 @@ def test_rekey_covers_all_encrypted_columns():
         "config_snapshots": {"content_enc"},
         "user_mfa": {"totp_secret_enc"},
         "smtp_settings": {"password_enc"},
-        "syslog_ca": {"key_enc"},
+        "syslog_ca_key": {"key_enc"},
     }
     assert found == expected, (
         "Encrypted-column set changed — update rekey_secrets.rekey_all AND this expected set. "
@@ -127,8 +127,10 @@ async def test_rekey_reencrypts_mfa_smtp_syslog(factory, restore_env_rekey):
             {"i": uid, "v": enc_totp})
         await s.execute(
             text("INSERT INTO smtp_settings (id,password_enc) VALUES (1,:v)"), {"v": enc_pw})
+        # The key lives in the owner-only syslog_ca_key table (FK->syslog_ca.id); insert the cert first.
+        await s.execute(text("INSERT INTO syslog_ca (id,cert_pem) VALUES (1,'PEM')"))
         await s.execute(
-            text("INSERT INTO syslog_ca (id,cert_pem,key_enc) VALUES (1,'PEM',:v)"), {"v": enc_cakey})
+            text("INSERT INTO syslog_ca_key (id,key_enc) VALUES (1,:v)"), {"v": enc_cakey})
         await s.commit()
     os.environ["MASTER_KEY"] = new
     os.environ["MASTER_KEY_OLD_KEYS"] = old
@@ -141,7 +143,7 @@ async def test_rekey_reencrypts_mfa_smtp_syslog(factory, restore_env_rekey):
     async with factory() as s:
         totp = (await s.execute(text("SELECT totp_secret_enc FROM user_mfa WHERE user_id=:i"), {"i": uid})).scalar_one()
         pw = (await s.execute(text("SELECT password_enc FROM smtp_settings WHERE id=1"))).scalar_one()
-        cakey = (await s.execute(text("SELECT key_enc FROM syslog_ca WHERE id=1"))).scalar_one()
+        cakey = (await s.execute(text("SELECT key_enc FROM syslog_ca_key WHERE id=1"))).scalar_one()
     assert crypto.decrypt(totp) == "TOTPSECRET"
     assert crypto.decrypt(pw) == "smtp-pw"
     assert crypto.decrypt_bytes(cakey) == b"-----BEGIN KEY-----"

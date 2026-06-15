@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 import httpx
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core import crypto
@@ -83,12 +83,16 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
         svc = SyslogCaService(session)
         ca = await svc.ensure_ca()
         await session.commit()
+        # Read the (encrypted) CA private key owner-side from the split-out key table to sign the
+        # receiver server cert. Bootstrap runs as the DB owner (ADMIN_DATABASE_URL), so the key
+        # access is the SECURITY DEFINER accessor; a plain SELECT on syslog_ca_key would also work.
+        key_enc = (await session.execute(text("SELECT opngms_syslog_ca_key()"))).scalar_one()
 
     if engine is None:
         await eng.dispose()
 
     # --- 2. Issue the receiver server cert. ---
-    key_pem = crypto.decrypt_bytes(bytes(ca.key_enc))
+    key_pem = crypto.decrypt_bytes(bytes(key_enc))
     server_cert_pem, server_key_pem = issue_server_cert(
         ca.cert_pem.encode(), key_pem, hostname=settings.syslog_receiver_host
     )

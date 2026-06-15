@@ -59,11 +59,11 @@ async def rekey_all(factory) -> int:
                 {"i": r.id, "v": crypto.rotate(r.password_enc)},
             )
             rotated += 1
-        # Internal syslog CA private key
-        cas = (await session.execute(text("SELECT id, key_enc FROM syslog_ca"))).all()
+        # Internal syslog CA private key (owner-only table syslog_ca_key; rekey runs as owner)
+        cas = (await session.execute(text("SELECT id, key_enc FROM syslog_ca_key"))).all()
         for r in cas:
             await session.execute(
-                text("UPDATE syslog_ca SET key_enc=:v WHERE id=:i"),
+                text("UPDATE syslog_ca_key SET key_enc=:v WHERE id=:i"),
                 {"i": r.id, "v": crypto.rotate(r.key_enc)},
             )
             rotated += 1

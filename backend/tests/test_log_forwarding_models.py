@@ -5,15 +5,20 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.device_log_forwarding import DeviceLogForwarding
 from app.models.syslog_ca import SINGLETON_ID, SyslogCa
+from app.models.syslog_ca_key import SyslogCaKey
 
 
 async def test_syslog_ca_roundtrip(db_engine):
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        s.add(SyslogCa(id=SINGLETON_ID, cert_pem="-----CA-----", key_enc=b"enc"))
+        # The cert lives in syslog_ca; the encrypted key in the owner-only syslog_ca_key (same id).
+        s.add(SyslogCa(id=SINGLETON_ID, cert_pem="-----CA-----"))
+        s.add(SyslogCaKey(id=SINGLETON_ID, key_enc=b"enc"))
         await s.commit()
         row = (await s.execute(select(SyslogCa))).scalar_one()
-        assert row.id == SINGLETON_ID and row.key_enc == b"enc"
+        assert row.id == SINGLETON_ID
+        key = (await s.execute(select(SyslogCaKey))).scalar_one()
+        assert key.id == SINGLETON_ID and key.key_enc == b"enc"
 
 
 async def test_device_log_forwarding_roundtrip(db_engine):

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.db import set_tenant_context
 from tests.conftest import csrf_headers
-from tests.factories import make_membership, make_user
+from tests.factories import make_membership, make_user, seed_syslog_ca
 
 
 class FakeClient:
@@ -17,6 +17,7 @@ class FakeClient:
 
 
 async def _seed(db_engine):
+    await seed_syslog_ca(db_engine)  # provisioning needs the CA pre-created owner-side
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     tid, did = uuid.uuid4(), uuid.uuid4()
     async with factory() as s:
