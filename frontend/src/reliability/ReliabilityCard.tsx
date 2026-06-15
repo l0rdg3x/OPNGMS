@@ -19,7 +19,7 @@ export function ReliabilityCard() {
         <Text size="xs" c="dimmed">{tr.last24h}</Text>
       </Group>
       <Stack gap="xs" mt="md">
-        {isLoading && <Loader size="sm" />}
+        {isLoading && <Loader size="sm" aria-label={tr.loading} />}
         {error && <Alert color="red">{tr.loadError}</Alert>}
         {data && data.length === 0 && <Text size="sm" c="dimmed">{tr.empty}</Text>}
         {data?.map((row) => (

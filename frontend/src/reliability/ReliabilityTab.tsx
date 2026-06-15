@@ -3,11 +3,11 @@ import { Alert, Badge, Button, Group, Loader, Stack, Table, Text } from "@mantin
 import { useT, type Dict } from "../i18n";
 import { type EventOut, useReliabilityEvents } from "./reliabilityHooks";
 
-/** Map an event severity to a Mantine badge color: high=red, medium=yellow, else gray. */
+/** Map an event severity to a Mantine badge color: high=red, medium=yellow, low/other=gray. */
 function severityColor(severity: string): string {
   if (severity === "high") return "red";
   if (severity === "medium") return "yellow";
-  return "gray";
+  return "gray"; // low + any unknown severity
 }
 
 /** Localized label for a severity, falling back to the raw value for unknown severities. */
@@ -43,7 +43,7 @@ export function ReliabilityTab({ deviceId }: { deviceId: string }) {
   return (
     <Stack gap="md" data-testid="reliability-tab">
       <Text c="dimmed" size="sm">{tr.subtitle}</Text>
-      {isLoading && <Loader size="sm" />}
+      {isLoading && <Loader size="sm" aria-label={tr.loading} />}
       {error && <Alert color="red">{tr.loadError}</Alert>}
       {data && rows.length === 0 && <Text size="sm" c="dimmed">{tr.empty}</Text>}
       {rows.length > 0 && (
@@ -59,8 +59,10 @@ export function ReliabilityTab({ deviceId }: { deviceId: string }) {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {rows.map((e) => (
-              <Table.Tr key={`${e.time}-${e.name}-${attr(e, "message")}`}>
+            {rows.map((e, i) => (
+              // Append-only keyset list (pages only append): the flat index is a stable, collision-free
+              // key. EventOut exposes no single id; device_id+time make it human-traceable.
+              <Table.Tr key={`${e.device_id}-${e.time}-${i}`}>
                 <Table.Td>{new Date(e.time).toLocaleString()}</Table.Td>
                 <Table.Td>{categoryLabel(e.category, tr)}</Table.Td>
                 <Table.Td>{e.name}</Table.Td>
