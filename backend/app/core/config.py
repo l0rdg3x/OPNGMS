@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     max_reenqueue_attempts: int = 5  # give up an orphan after this many device-free re-enqueues
     syslog_receiver_host: str = "logs.opngms.local"  # public name/IP devices ship logs to
     syslog_tls_port: int = 6514
+    syslog_cert_dir: str = "/certs"  # shared cert volume; the worker writes the CRL under <dir>/crl/
     device_cert_days: int = 90  # device forwarding-cert lifetime (short -> bounds a stolen-key window)
     cert_renewal_window_days: int = 30  # renew a forwarding cert when not_after < now + this window
     cert_renewal_hour: int = 3  # daily UTC hour the cert-renewal cron runs

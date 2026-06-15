@@ -607,6 +607,19 @@ async def purge_log_lake_job(ctx: dict) -> int | str:
         )
 
 
+async def refresh_syslog_crl_job(ctx: dict) -> int | str:
+    """Cron + on-revoke: rebuild the syslog CRL from the revoked-cert ledger onto the cert volume.
+
+    Owner session (RLS-exempt — reads every tenant's revoked serials into one global CRL). No-ops
+    gracefully ("skipped") when the cert volume isn't mounted (core-only deploy) or the CA isn't
+    bootstrapped — same opt-in-degrades pattern as purge_log_lake_job."""
+    from app.services.syslog_crl import refresh_syslog_crl
+
+    factory = ctx["session_factory"]
+    async with factory() as session:
+        return await refresh_syslog_crl(session, get_settings().syslog_cert_dir)
+
+
 async def on_startup(ctx: dict) -> None:
     engine = create_async_engine(_owner_url(), pool_pre_ping=True)
     ctx["engine"] = engine
@@ -626,7 +639,7 @@ RETRY_INTERVAL = 600            # seconds between send retries
 
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job, purge_perimeter_attackers, purge_timeseries_retention, purge_log_lake_job]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job, purge_perimeter_attackers, purge_timeseries_retention, purge_log_lake_job, refresh_syslog_crl_job]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, _ingest_step))),  # events, every N minutes
@@ -639,6 +652,9 @@ class WorkerSettings:
         cron(purge_perimeter_attackers, hour={4}, minute={30}),  # daily: perimeter rollup retention sweep
         cron(purge_timeseries_retention, hour={4}, minute={45}),  # daily: events/metrics per-tenant retention sweep
         cron(purge_log_lake_job, hour={5}, minute={0}),  # daily: log-lake (OpenSearch) per-tenant retention sweep
+        # Daily: keep the CRL fresh for its next_update window + pick up any revocation the on-demand
+        # enqueue (from the revoke API) missed (e.g. worker outage at revoke time).
+        cron(refresh_syslog_crl_job, hour={5}, minute={15}),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
