@@ -23,6 +23,11 @@ async def test_get_config_changes_posts_audit_and_parses():
         ]}))
     out = await _c().get_config_changes()
     assert route.called
+    # The box filters server-side: we must search the "changed configuration" phrase so the rare
+    # config-change lines aren't buried under configd.py noise outside the rowCount window.
+    import json as _json
+    body = _json.loads(route.calls.last.request.content)
+    assert body["searchPhrase"] == "changed configuration"
     assert len(out) == 1                        # the configd.py noise row is dropped
     assert out[0]["action"] == "api" and out[0]["category"] == "firewall"
 

@@ -50,6 +50,12 @@ report-section registry; ingest-time deduped `Alert`s (same trigger as the v0.15
 
 1. **Source = the audit log** (`diagnostics/log/core/audit`), pulled like `auth_failures` — same endpoint,
    a **different `process_name == "audit"` line family** (config changes, not failed logins).
+   **Live-verify finding (26.1.10):** the audit log is dominated by `configd.py` "action allowed" rows
+   (one per API call), so with an empty `searchPhrase` the rare config-change lines fall outside the
+   `rowCount=500` window (returns 0). The box filters server-side, so the capability searches the
+   `"changed configuration"` phrase every config-change line carries — returning them across the whole
+   buffer. (The sibling `auth_failures` capability has the same potential burial on a noisy box; tracked
+   as a separate follow-up.)
 2. **Selective + fail-safe parsing.** Only lines matching the "changed configuration" grammar are stored;
    any other line (incl. `configd.py` noise, unrecognized audit lines) is **skipped** (we do NOT mirror the
    whole audit log — the log-lake's job). Fail-safe: an unparseable line never raises.
