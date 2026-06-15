@@ -201,7 +201,7 @@ export const pt: Dict = {
       noDevice: "Não há nenhum dispositivo disponível no inquilino ativo para ler os campos.",
       loadFailed: "Não foi possível ler a definição a partir do dispositivo.",
       noFields: "Sem campos configuráveis.",
-      hardwareNote: "Os campos específicos de hardware/dispositivo não são intencionalmente passíveis de modelo.",
+      hardwareNote: "Os campos específicos de hardware/dispositivo são deliberadamente excluídos dos modelos.",
     },
     kindFirewallRule: "Regra de firewall (Rules [novo])",
     fw: {
@@ -306,7 +306,7 @@ export const pt: Dict = {
     searchAll: "Procurar definições…",
     grid: { add: "Adicionar linha", save: "Guardar", edit: "Editar", delete: "Eliminar", empty: "Sem linhas." },
     diff: { baseline: "Comparar com", noBaseline: "Sem versão anterior", newSince: "Novo desde {v}", changedSince: "Alterado desde {v}", changes: "alterações" },
-    map: { tabMenu: "Menu", tabMap: "Mapa de config", editInCatalog: "Editar no catálogo", readOnly: "somente leitura (sem API)", staleBanner: "Desatualizado — dispositivo inacessível; mostrando o último backup de {when}" },
+    map: { tabMenu: "Menu", tabMap: "Mapa de config", editInCatalog: "Editar no catálogo", readOnly: "apenas leitura (sem API)", staleBanner: "Desatualizado — dispositivo inacessível; a mostrar a última cópia de segurança de {when}" },
   },
   config: {
     tabInfo: "Informações",
@@ -573,13 +573,13 @@ export const pt: Dict = {
     },
     runtime: {
       title: "Definições de runtime",
-      subtitle: "Ajustáveis sem reiniciar; o valor aqui substitui o padrão de implementação do .env.",
+      subtitle: "Ajustáveis sem reiniciar; o valor aqui substitui a predefinição de implementação do .env.",
       loadError: "Falha ao carregar as definições de runtime.",
       save: "Guardar",
       discard: "Descartar alterações",
       saved: "Definições de runtime guardadas",
       saveError: "Falha ao guardar as definições de runtime",
-      defaultLabel: "padrão",
+      defaultLabel: "predefinição",
       impactsTitle: "Reduzir este valor de retenção afeta inquilinos",
       impactItem:
         "{tenant}: um agendamento de relatório {store} precisa de {range} dias mas {store} agora é mantido {bound} dias.",
