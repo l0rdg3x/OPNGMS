@@ -53,8 +53,12 @@ report-section registry; ingest-time deduped `Alert`s (same trigger as the v0.15
 2. **Selective + fail-safe parsing.** Only lines matching the "changed configuration" grammar are stored;
    any other line (incl. `configd.py` noise, unrecognized audit lines) is **skipped** (we do NOT mirror the
    whole audit log — the log-lake's job). Fail-safe: an unparseable line never raises.
-3. **Storage = the existing `events` hypertable**, `source = "config"`. No schema change, no migration.
-   Reuses the per-`(device, "config")` cursor, the `ON CONFLICT` dedup, and the `events` retention store.
+3. **Storage = the existing `events` hypertable**, `source = "config_audit"`. No schema change, no
+   migration. Reuses the per-`(device, "config_audit")` cursor, the `ON CONFLICT` dedup, and the `events`
+   retention store. **Naming note:** the source is `config_audit` (not bare `config`) to avoid confusion
+   with the existing, unrelated **`config_drift`** service (template↔live field-level drift, from the
+   config editor) and the **`config_change`** model (OPNGMS's own applied-changes ledger). The drift
+   alert type is **`config_audit`** for the same reason.
 4. **v1 scope = timeline + Overview card + report section + drift alerts** (the full package).
 5. **Best-effort drift attribution (the core).** Each change is classified by **channel** from `<SRC_PATH>`:
    - `api` — `/api/…` (programmatic: OPNGMS, *or* a WebGUI MVC page, *or* another API client).
@@ -78,16 +82,16 @@ report-section registry; ingest-time deduped `Alert`s (same trigger as the v0.15
 ## Architecture
 
 ```
- worker per-device cycle ──▶ ingest_events(... "config") ──▶ client.get_config_changes(since)
+ worker per-device cycle ──▶ ingest_events(... "config_audit") ──▶ client.get_config_changes(since)
                                        │                        POST diagnostics/log/core/audit
                                        ▼                        (matrix-resolved, paged)
    parse_config_changes(rows): match "changed configuration" -> attribute channel/area/actor
                                        │  (other lines dropped, fail-safe)
                                        ▼
-   events hypertable (source="config")  ──┬──▶  GET /events?source=config&device_id=  (Config-changes tab)
-                                          ├──▶  Overview card aggregate ("Direct config changes 24h")
-                                          ├──▶  report "config_changes" section (period rollup)
-                                          └──▶  raise Alert on a new DRIFT (gui/system) change
+   events (source="config_audit")  ──┬──▶  GET /events?source=config_audit&device_id=  (Config-changes tab)
+                                     ├──▶  Overview card aggregate ("Direct config changes 24h")
+                                     ├──▶  report "config_changes" section (period rollup)
+                                     └──▶  raise Alert on a new DRIFT (gui/system) change
 ```
 
 ## Component 1 — Connector capability + parser (backend)
@@ -121,25 +125,25 @@ report-section registry; ingest-time deduped `Alert`s (same trigger as the v0.15
 
 ## Component 2 — Ingest + drift alerts (backend)
 
-- **`app/services/ingest.py`** — add `"config"` to `SOURCES`; a `_fetch` branch
+- **`app/services/ingest.py`** — add `"config_audit"` to `SOURCES`; a `_fetch` branch
   `client.get_config_changes(since)`. `_normalize` already carries the generic fields. Collect the newly
   inserted **drift** rows (via the existing `RETURNING`-only-inserted path) and pass them to alerting —
-  generalize the current service-only `collect` to also gather config-drift rows (e.g. collect when
-  `source in {"service","config"}`, then route by source).
-- **`app/services/alerting.py`** — `raise_drift_alerts(session, device, new_drift_rows)`: for each NEW
-  drift change raise a deduped `Alert(type="config_drift", label=f"Direct config change on {device.name} by
-  {actor}")`. Best-effort; an alert failure never aborts ingest (mirror `raise_service_alerts`). Only
-  `severity=="medium"` (drift) rows are passed in — `api` changes never alert.
+  generalize the current service-only `collect` to also gather config-audit drift rows (e.g. collect when
+  `source in {"service","config_audit"}`, then route by source).
+- **`app/services/alerting.py`** — `raise_config_audit_alerts(session, device, new_rows)`: for each NEW
+  drift change (`severity=="medium"`) raise a deduped `Alert(type="config_audit", label=f"Direct config
+  change on {device.name} by {actor}")`. Best-effort; an alert failure never aborts ingest (mirror
+  `raise_service_alerts`). `api` changes (`severity=="info"`) never alert.
 
 ## Component 3 — Frontend (device tab + Overview card)
 
 - **Device page** — a new **"Config changes"** tab: a paginated timeline calling the existing
-  `GET /events?source=config&device_id=<id>` (keyset `after`, from/to). Columns: **time · area · actor ·
+  `GET /events?source=config_audit&device_id=<id>` (keyset `after`, from/to). Columns: **time · area · actor ·
   IP · channel · change** (`change_ref`), with a **"Direct"** badge on drift (gui/system) rows. Mirror the
   Reliability tab component (`frontend/src/reliability/`).
 - **Overview** — a fleet **summary card "Direct config changes (24h)"**: count of drift events in the last
   24h (and/or devices with a recent direct change). Reuse the reliability/perimeter Overview-card pattern
-  (`GET /events/top` or a small aggregate filtered to `source=config` + drift).
+  (`GET /events/top` or a small aggregate filtered to `source=config_audit` + drift).
 - **i18n** — all new strings added to `en.ts` first, then mirrored across the 12 sibling locales
   (`it es fr de pt nl ru ar zh zhTW ja`), compiler-enforced parity. `npm run build` is the gate.
 
@@ -155,7 +159,7 @@ report-section registry; ingest-time deduped `Alert`s (same trigger as the v0.15
 
 ## Data model
 
-No schema change, no migration: `source="config"` rows in the existing `events` hypertable; alerts in the
+No schema change, no migration: `source="config_audit"` rows in the existing `events` hypertable; alerts in the
 existing `alert` table (new `type="config_drift"`); report toggle in the existing section model.
 
 ## Error handling
@@ -185,12 +189,12 @@ existing `alert` table (new `type="config_drift"`); report toggle in the existin
   `system` local (`(root)`, script `.php` → system/medium/drift), `gui` (`root@ip`, `/firewall_rules.php`
   → firewall/gui/medium/drift); noise rows (configd.py, failed-login, garbage) → dropped; uuid stripping;
   `event_key` stability/dedup on `backup_file`.
-- **Ingest:** `"config"` source wired; cursor advances; `ON CONFLICT` dedup across two polls; a failing
+- **Ingest:** `"config_audit"` source wired; cursor advances; `ON CONFLICT` dedup across two polls; a failing
   source doesn't block others; only drift rows are collected for alerting.
 - **Alerts:** a new drift change raises one deduped alert; an `api` change raises none; a repeat doesn't;
   an alert failure doesn't abort ingest.
 - **Connector:** `get_config_changes` posts the audit endpoint, parser applied (`respx.mock`).
-- **API reuse:** `GET /events?source=config&device_id=` returns the timeline, keyset-paginated.
+- **API reuse:** `GET /events?source=config_audit&device_id=` returns the timeline, keyset-paginated.
 - **Report:** the `config_changes` section renders with changes and degrades to empty; toggle precedence.
 - **Frontend:** the Config-changes tab renders the timeline + Direct badge (mock the events API); the
   Overview card renders; `npm run build` green (i18n parity).
