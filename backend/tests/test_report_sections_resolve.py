@@ -21,6 +21,7 @@ def test_defaults_match_spec():
         "attacker_countries": True,
         "failed_logins": True,
         "firewall_blocks": True,
+        "reliability": True,
         "web": True,
         "data": True,
         "status": True,

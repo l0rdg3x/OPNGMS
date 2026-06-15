@@ -1,5 +1,9 @@
 from app.services.reporting.i18n import report_text
-from app.services.reporting.mock_sections import applications_block, web_filter_block
+from app.services.reporting.mock_sections import (
+    applications_block,
+    reliability_block,
+    web_filter_block,
+)
 
 LEVELS = {"low", "guarded", "high"}
 
@@ -28,6 +32,20 @@ def test_web_filter_block_deterministic_and_levels():
     assert w1.sample is True
     assert all(r.level in LEVELS for r in w1.top_categories.rows)
     assert w1.top_sites.rows and w1.top_initiators.rows
+
+
+def test_reliability_block_populated_and_uses_i18n_labels():
+    t = report_text("en")
+    b = reliability_block(t)
+    assert b.total == 8
+    # Categories use localized labels; counts present.
+    cat_labels = [c.label for c in b.categories]
+    assert "Services" in cat_labels and "Disk / filesystem" in cat_labels and "Reboots" in cat_labels
+    assert all(c.count >= 1 for c in b.categories)
+    # Notable events carry a localized severity label + a controlled-enum severity class.
+    assert b.events
+    assert all(e.severity in {"info", "warning", "critical"} for e in b.events)
+    assert b.events[0].severity_label == "Critical"
 
 
 def test_applications_block_uses_i18n_labels():
