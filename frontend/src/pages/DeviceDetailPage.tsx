@@ -10,6 +10,7 @@ import { useT } from "../i18n";
 import { DeviceHealthSection } from "../monitoring/DeviceHealthSection";
 import { PluginsTab } from "../plugins/PluginsTab";
 import { ReliabilityTab } from "../reliability/ReliabilityTab";
+import { ConfigAuditTab } from "../configaudit/ConfigAuditTab";
 import { ApplyProfileSection } from "../profiles/ApplyProfileSection";
 import { ApplyTemplateTab } from "../templates/ApplyTemplateTab";
 import { CatalogEditorTab } from "../catalog/CatalogEditorTab";
@@ -40,6 +41,7 @@ export function DeviceDetailPage() {
           <Tabs.Tab value="info">{t.config.tabInfo}</Tabs.Tab>
           <Tabs.Tab value="health">{t.config.tabHealth}</Tabs.Tab>
           <Tabs.Tab value="reliability">{t.reliability.tab}</Tabs.Tab>
+          <Tabs.Tab value="config-audit">{t.configAudit.tab}</Tabs.Tab>
           <Tabs.Tab value="config">{t.config.tabConfig}</Tabs.Tab>
           <Tabs.Tab value="firmware">{t.firmware.tab}</Tabs.Tab>
           <Tabs.Tab value="forwarding">{t.logForwarding.tab}</Tabs.Tab>
@@ -62,6 +64,9 @@ export function DeviceDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="reliability" pt="md">
           {deviceId && <ReliabilityTab deviceId={deviceId} />}
+        </Tabs.Panel>
+        <Tabs.Panel value="config-audit" pt="md">
+          {deviceId && <ConfigAuditTab deviceId={deviceId} />}
         </Tabs.Panel>
         <Tabs.Panel value="config" pt="md">
           {deviceId && <ConfigTab deviceId={deviceId} />}

@@ -6,6 +6,7 @@ import { HealthSummaryCards, type FleetHealth } from "../monitoring/HealthSummar
 import { AttackerCountriesCard } from "../overview/AttackerCountriesCard";
 import { PerimeterCard } from "../perimeter/PerimeterCard";
 import { ReliabilityCard } from "../reliability/ReliabilityCard";
+import { ConfigAuditCard } from "../configaudit/ConfigAuditCard";
 
 export function OverviewPage() {
   const t = useT();
@@ -30,6 +31,9 @@ export function OverviewPage() {
 
       <Title order={4} mt="md">{t.reliability.title}</Title>
       <ReliabilityCard />
+
+      <Title order={4} mt="md">{t.configAudit.title}</Title>
+      <ConfigAuditCard />
 
       <Title order={4} mt="md">{t.overview.activeAlerts}</Title>
       {alerts.isLoading && <Loader />}
