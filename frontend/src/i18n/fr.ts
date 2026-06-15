@@ -601,6 +601,7 @@ export const fr: Dict = {
         perimeter_retention_days: { label: "Rétention du périmètre (jours)", help: "Valeur par défaut globale de la durée de conservation des données d'attaquants du périmètre." },
         events_retention_days: { label: "Rétention des événements (jours)", help: "Valeur par défaut globale de la durée de conservation des données d'événements." },
         metrics_retention_days: { label: "Rétention des métriques (jours)", help: "Valeur par défaut globale de la durée de conservation des données de métriques." },
+        log_lake_retention_days: { label: "Rétention du lac de journaux (jours)", help: "Valeur par défaut globale de la durée de conservation des données du lac de journaux." },
         login_max_attempts: { label: "Tentatives de connexion max", help: "Tentatives de connexion échouées autorisées avant verrouillage." },
         login_lockout_window_seconds: { label: "Fenêtre de verrouillage (s)", help: "Fenêtre glissante pour le décompte des connexions échouées." },
         session_ttl_hours: { label: "Durée de session (heures)", help: "Durée de vie absolue de la session." },
@@ -661,6 +662,7 @@ export const fr: Dict = {
       perimeter: "Périmètre (jours)",
       events: "Événements (jours)",
       metrics: "Métriques (jours)",
+      log_lake: "Lac de journaux (jours)",
     },
     warningTitle: "Des planifications de rapports dépassent la rétention",
     warningItem:

@@ -601,6 +601,7 @@ export const pt: Dict = {
         perimeter_retention_days: { label: "Retenção do perímetro (dias)", help: "Predefinição global para quanto tempo os dados de atacantes do perímetro são mantidos." },
         events_retention_days: { label: "Retenção de eventos (dias)", help: "Predefinição global para quanto tempo os dados de eventos são mantidos." },
         metrics_retention_days: { label: "Retenção de métricas (dias)", help: "Predefinição global para quanto tempo os dados de métricas são mantidos." },
+        log_lake_retention_days: { label: "Retenção do lago de logs (dias)", help: "Predefinição global para quanto tempo os dados do lago de logs são mantidos." },
         login_max_attempts: { label: "Máx. de tentativas de início de sessão", help: "Tentativas de início de sessão falhadas permitidas antes do bloqueio." },
         login_lockout_window_seconds: { label: "Janela de bloqueio (s)", help: "Janela deslizante para a contagem de inícios de sessão falhados." },
         session_ttl_hours: { label: "Duração da sessão (horas)", help: "Duração absoluta da sessão." },
@@ -661,6 +662,7 @@ export const pt: Dict = {
       perimeter: "Perímetro (dias)",
       events: "Eventos (dias)",
       metrics: "Métricas (dias)",
+      log_lake: "Lago de logs (dias)",
     },
     warningTitle: "Os agendamentos de relatórios excedem a retenção",
     warningItem:

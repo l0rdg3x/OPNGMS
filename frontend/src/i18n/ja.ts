@@ -601,6 +601,7 @@ export const ja: Dict = {
         perimeter_retention_days: { label: "境界保持期間（日）", help: "境界の攻撃者データを保持する期間のグローバル既定値。" },
         events_retention_days: { label: "イベント保持期間（日）", help: "イベントデータを保持する期間のグローバル既定値。" },
         metrics_retention_days: { label: "メトリクス保持期間（日）", help: "メトリクスデータを保持する期間のグローバル既定値。" },
+        log_lake_retention_days: { label: "ログレイク保持期間（日）", help: "ログレイクデータを保持する期間のグローバル既定値。" },
         login_max_attempts: { label: "最大ログイン試行回数", help: "ロックアウトまでに許容される失敗したログイン試行回数。" },
         login_lockout_window_seconds: { label: "ロックアウト期間（秒）", help: "失敗したログイン回数のスライディングウィンドウ。" },
         session_ttl_hours: { label: "セッション有効期間（時間）", help: "セッションの絶対的な有効期間。" },
@@ -661,6 +662,7 @@ export const ja: Dict = {
       perimeter: "境界（日）",
       events: "イベント（日）",
       metrics: "メトリクス（日）",
+      log_lake: "ログレイク（日）",
     },
     warningTitle: "レポートのスケジュールが保持期間を超えています",
     warningItem:

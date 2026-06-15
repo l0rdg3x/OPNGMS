@@ -601,6 +601,7 @@ export const it: Dict = {
         perimeter_retention_days: { label: "Conservazione perimetro (giorni)", help: "Default globale per quanto a lungo vengono conservati i dati degli aggressori al perimetro." },
         events_retention_days: { label: "Conservazione eventi (giorni)", help: "Default globale per quanto a lungo vengono conservati i dati degli eventi." },
         metrics_retention_days: { label: "Conservazione metriche (giorni)", help: "Default globale per quanto a lungo vengono conservati i dati delle metriche." },
+        log_lake_retention_days: { label: "Conservazione log lake (giorni)", help: "Default globale per quanto a lungo vengono conservati i dati del log lake." },
         login_max_attempts: { label: "Max tentativi di accesso", help: "Tentativi di accesso falliti consentiti prima del blocco." },
         login_lockout_window_seconds: { label: "Finestra di blocco (s)", help: "Finestra mobile per il conteggio degli accessi falliti." },
         session_ttl_hours: { label: "Durata sessione (ore)", help: "Durata assoluta della sessione." },
@@ -661,6 +662,7 @@ export const it: Dict = {
       perimeter: "Perimetro (giorni)",
       events: "Eventi (giorni)",
       metrics: "Metriche (giorni)",
+      log_lake: "Log lake (giorni)",
     },
     warningTitle: "Le pianificazioni dei report superano la conservazione",
     warningItem:

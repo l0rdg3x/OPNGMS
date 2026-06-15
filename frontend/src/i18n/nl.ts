@@ -601,6 +601,7 @@ export const nl: Dict = {
         perimeter_retention_days: { label: "Perimeterbewaring (dagen)", help: "Globale standaard voor hoe lang perimeter-aanvallergegevens worden bewaard." },
         events_retention_days: { label: "Gebeurtenisbewaring (dagen)", help: "Globale standaard voor hoe lang gebeurtenisgegevens worden bewaard." },
         metrics_retention_days: { label: "Metriekbewaring (dagen)", help: "Globale standaard voor hoe lang metriekgegevens worden bewaard." },
+        log_lake_retention_days: { label: "Log lake-bewaring (dagen)", help: "Globale standaard voor hoe lang log lake-gegevens worden bewaard." },
         login_max_attempts: { label: "Max. aanmeldpogingen", help: "Toegestane mislukte aanmeldpogingen vóór blokkering." },
         login_lockout_window_seconds: { label: "Blokkeervenster (s)", help: "Schuivend venster voor de telling van mislukte aanmeldingen." },
         session_ttl_hours: { label: "Sessieduur (uren)", help: "Absolute sessieduur." },
@@ -661,6 +662,7 @@ export const nl: Dict = {
       perimeter: "Perimeter (dagen)",
       events: "Gebeurtenissen (dagen)",
       metrics: "Metrieken (dagen)",
+      log_lake: "Log lake (dagen)",
     },
     warningTitle: "Rapportschema's overschrijden de bewaartermijn",
     warningItem:
