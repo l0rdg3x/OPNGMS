@@ -1,6 +1,7 @@
 from app.services.reporting.i18n import report_text
 from app.services.reporting.mock_sections import (
     applications_block,
+    config_audit_block,
     reliability_block,
     web_filter_block,
 )
@@ -46,6 +47,21 @@ def test_reliability_block_populated_and_uses_i18n_labels():
     assert b.events
     assert all(e.severity in {"info", "warning", "critical"} for e in b.events)
     assert b.events[0].severity_label == "Critical"
+
+
+def test_config_audit_block_populated_and_uses_i18n_labels():
+    t = report_text("en")
+    b = config_audit_block(t)
+    assert b.total == 8
+    assert b.direct == 4
+    # Channels use localized labels; counts present.
+    chan_labels = [c.label for c in b.channels]
+    assert "API" in chan_labels and "WebGUI" in chan_labels and "System / console" in chan_labels
+    assert all(c.count >= 1 for c in b.channels)
+    # Notable changes carry a localized channel label + a direct flag for drift rows.
+    assert b.changes
+    assert any(c.direct for c in b.changes)
+    assert b.changes[0].channel_label in {"API", "WebGUI", "System / console"}
 
 
 def test_applications_block_uses_i18n_labels():

@@ -22,6 +22,7 @@ def test_defaults_match_spec():
         "failed_logins": True,
         "firewall_blocks": True,
         "reliability": True,
+        "config_changes": True,
         "web": True,
         "data": True,
         "status": True,

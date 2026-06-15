@@ -135,6 +135,42 @@ class ReliabilityRollup:
     total: int
 
 
+# Direct (drift) channels — a config change made ON the box outside the management API. These are the
+# `severity='medium'` rows; the `api` channel is `severity='info'`. Kept aligned with the parser's
+# `_classify_channel` drift rule (`channel in ("gui", "system")`).
+_CONFIG_DRIFT_CHANNELS = ("gui", "system")
+
+
+@dataclass
+class ConfigChannelCount:
+    """One row of the config-change by-channel breakdown: channel (api/gui/system), count, share %."""
+    channel: str
+    count: int
+    pct: float
+
+
+@dataclass
+class ConfigChangeEvent:
+    """A notable config change for the timeline list: when, who (actor), where (area), via which
+    channel, whether it is a direct/drift change, and on which device."""
+    time: datetime
+    actor: str
+    area: str
+    channel: str
+    direct: bool
+    device: str
+
+
+@dataclass
+class ConfigAuditRollup:
+    """Config-change rollup over the range: per-channel counts (+ share %), the direct/drift total, and
+    a recent-changes list."""
+    by_channel: list[ConfigChannelCount]
+    notable: list[ConfigChangeEvent]
+    total: int
+    direct: int
+
+
 def _perimeter_label(kind: str, detail: dict) -> str:
     """Display label for a perimeter attacker row from its rollup detail."""
     if kind == "firewall_block":
@@ -609,3 +645,68 @@ class ReportAggregator:
             for r in notable_rows
         ]
         return ReliabilityRollup(by_category=by_category, notable=notable, total=total)
+
+    async def config_audit_rollup(
+        self, *, frm: datetime, to: datetime, device_id: uuid.UUID | None = None,
+        notable_limit: int = 15,
+    ) -> ConfigAuditRollup:
+        """Roll up `source="config_audit"` (box config-change) events in [frm, to] for the tenant/device
+        set: counts by channel (api/gui/system, from the `action` column) with share %, the direct/drift
+        total (channels gui/system, i.e. `severity='medium'`), plus a recent-changes list (newest first).
+        Tenant-scoped like the sibling event aggregators; empty range -> empty rollup."""
+        # Per-table clause builder so both queries share identical, explicitly-prefixed predicates
+        # (the notable-changes query joins `devices`, so every column must be qualified to avoid an
+        # ambiguous reference). `prefix` is a source-code constant — never request-derived.
+        params: dict = {"tid": self.tenant_id, "frm": frm, "to": to}
+        if device_id is not None:
+            params["did"] = device_id
+
+        def _where(prefix: str) -> str:
+            cl = [
+                f"{prefix}tenant_id = :tid", f"{prefix}source = 'config_audit'",
+                f"{prefix}time >= :frm", f"{prefix}time < :to",
+            ]
+            if device_id is not None:
+                cl.append(f"{prefix}device_id = :did")
+            return " AND ".join(cl)
+
+        chan_rows = (await self.session.execute(
+            text(
+                f"SELECT action AS a, count(*) AS n FROM events WHERE {_where('')} "
+                "GROUP BY action ORDER BY n DESC, action"
+            ),
+            params,
+        )).all()
+        total = sum(int(r.n) for r in chan_rows)
+        by_channel = [
+            ConfigChannelCount(
+                channel="" if r.a is None else str(r.a), count=int(r.n),
+                pct=round(int(r.n) / total * 100, 1) if total else 0.0,
+            )
+            for r in chan_rows
+        ]
+        # Direct/drift count = the gui/system channels (the on-box, non-API changes).
+        direct = sum(c.count for c in by_channel if c.channel in _CONFIG_DRIFT_CHANNELS)
+
+        # Recent notable changes, joined to the device name (newest first). The tenant filter + RLS
+        # keep it scoped; the join is just for the display name.
+        notable_rows = (await self.session.execute(
+            text(
+                "SELECT e.time AS ts, e.name AS actor, e.category AS area, e.action AS chan, "
+                "COALESCE(d.name, '') AS device "
+                f"FROM events e LEFT JOIN devices d ON d.id = e.device_id WHERE {_where('e.')} "
+                "ORDER BY e.time DESC LIMIT :lim"
+            ),
+            {**params, "lim": min(notable_limit, 200)},
+        )).all()
+        notable = [
+            ConfigChangeEvent(
+                time=r.ts, actor=str(r.actor), area="" if r.area is None else str(r.area),
+                channel="" if r.chan is None else str(r.chan),
+                direct=(r.chan in _CONFIG_DRIFT_CHANNELS), device=str(r.device),
+            )
+            for r in notable_rows
+        ]
+        return ConfigAuditRollup(
+            by_channel=by_channel, notable=notable, total=total, direct=direct,
+        )
