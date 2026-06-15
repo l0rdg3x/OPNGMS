@@ -63,7 +63,9 @@ services:
 
   syslog-ng:
     image: balabit/syslog-ng:4.5.0
-    command: ["--no-caps", "-F"]
+    # entrypoint.sh runs syslog-ng + a CRL reload-watcher (syslog-ng caches the CRL at init, so an
+    # updated /certs/crl/<hash>.r0 needs a `syslog-ng-ctl reload` to take effect).
+    command: ["/entrypoint.sh"]
     environment:
       OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch-n1:9200}
       TZ: ${TZ:-UTC}
@@ -71,12 +73,19 @@ services:
       - "${SYSLOG_TLS_PORT:-6514}:6514"
     volumes:
       - ./deploy/syslog-ng/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro
+      - ./deploy/syslog-ng/entrypoint.sh:/entrypoint.sh:ro
       - opngms_syslog_certs:/certs:ro
       - opngms_syslog_buffer:/var/lib/syslog-ng
     depends_on:
       syslog-bootstrap:
         condition: service_completed_successfully
     restart: unless-stopped
+
+  # Merge onto the base prod worker: give it the cert volume so the daily/on-revoke CRL refresh cron
+  # can write /certs/crl/<hash>.r0 (the worker reads the revoked-cert ledger owner-side).
+  worker:
+    volumes:
+      - opngms_syslog_certs:/certs
 
 volumes:
   opngms_os_n1:
