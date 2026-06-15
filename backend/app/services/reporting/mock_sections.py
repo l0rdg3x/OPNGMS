@@ -11,7 +11,7 @@ import hashlib
 from app.services.reporting.charts import line_chart
 from app.services.reporting.context import (
     ApplicationsBlock,
-    ConfigChangeRow2,
+    ConfigAuditChangeRow,
     ConfigChangesBlock,
     ConfigChannelRow,
     RankedTable,
@@ -124,15 +124,15 @@ def config_audit_block(t: ReportText) -> ConfigChangesBlock:
         ConfigChannelRow(label=t.config_channel_system, count=1, pct=12.5, direct=True),
     ]
     changes = [
-        ConfigChangeRow2(
+        ConfigAuditChangeRow(
             time="2026-06-08 09:42", actor="admin@10.0.0.5", area="firewall",
             channel_label=t.config_channel_gui, direct=True, device="fw-edge",
         ),
-        ConfigChangeRow2(
+        ConfigAuditChangeRow(
             time="2026-06-08 03:14", actor="root", area="firmware",
             channel_label=t.config_channel_system, direct=True, device="fw-edge",
         ),
-        ConfigChangeRow2(
+        ConfigAuditChangeRow(
             time="2026-06-07 18:20", actor="root@192.168.6.100", area="monit",
             channel_label=t.config_channel_api, direct=False, device="fw-branch",
         ),

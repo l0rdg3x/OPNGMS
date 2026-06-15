@@ -699,14 +699,13 @@ class ReportAggregator:
             ),
             {**params, "lim": min(notable_limit, 200)},
         )).all()
-        notable = [
-            ConfigChangeEvent(
+        notable = []
+        for r in notable_rows:
+            chan = "" if r.chan is None else str(r.chan)
+            notable.append(ConfigChangeEvent(
                 time=r.ts, actor=str(r.actor), area="" if r.area is None else str(r.area),
-                channel="" if r.chan is None else str(r.chan),
-                direct=(r.chan in _CONFIG_DRIFT_CHANNELS), device=str(r.device),
-            )
-            for r in notable_rows
-        ]
+                channel=chan, direct=(chan in _CONFIG_DRIFT_CHANNELS), device=str(r.device),
+            ))
         return ConfigAuditRollup(
             by_channel=by_channel, notable=notable, total=total, direct=direct,
         )

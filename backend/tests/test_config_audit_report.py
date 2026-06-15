@@ -174,6 +174,31 @@ async def test_config_audit_rollup_empty_range_is_empty(db_engine):
     assert rollup.notable == []
 
 
+async def test_config_audit_rollup_is_device_scoped(db_engine):
+    """The optional device_id filter restricts the rollup to one device (independently of RLS): a second
+    device's config_audit events in the same tenant+range must be excluded when device_id is passed."""
+    tid, da = await _tenant_and_device(db_engine, name="fw-a")
+    db_ = uuid.uuid4()
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(
+            text("INSERT INTO devices (id, tenant_id, name, base_url, api_key_enc, api_secret_enc, "
+                 "verify_tls, status, tags) "
+                 "VALUES (:id, :t, 'fw-b', 'https://x', ''::bytea, ''::bytea, true, 'reachable', '{}')"),
+            {"id": db_, "t": tid})
+        await _config_event(s, tid, da, channel="gui", area="firewall", actor="A-ADMIN",
+                            severity="medium", key="da1", minute=0)
+        await _config_event(s, tid, db_, channel="api", area="monit", actor="B-ROOT",
+                            severity="info", key="db1", minute=5)
+        await s.commit()
+    async with factory() as s:
+        rollup = await ReportAggregator(s, tid).config_audit_rollup(frm=FRM, to=TO, device_id=da)
+    assert rollup.total == 1                                   # only device A's event
+    assert rollup.direct == 1
+    assert {c.channel for c in rollup.by_channel} == {"gui"}
+    assert {e.actor for e in rollup.notable} == {"A-ADMIN"}    # B-ROOT excluded
+
+
 async def test_config_audit_rollup_ignores_non_config_sources(db_engine):
     tid, did = await _tenant_and_device(db_engine)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)

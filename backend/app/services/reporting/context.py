@@ -163,7 +163,7 @@ class ConfigChannelRow:
 
 
 @dataclass
-class ConfigChangeRow2:
+class ConfigAuditChangeRow:
     """One notable config change in the report: formatted time, actor, localized area, localized
     channel label, whether it is a direct/drift change (for row emphasis), and the device name."""
     time: str
@@ -180,7 +180,7 @@ class ConfigChangesBlock:
     notable-changes list. Tenant-wide (built once, like the perimeter/reliability sections), over the
     toggle-enabled device set."""
     channels: list[ConfigChannelRow]
-    changes: list[ConfigChangeRow2]
+    changes: list[ConfigAuditChangeRow]
     total: int
     direct: int
 
@@ -302,7 +302,11 @@ class ReportContext:
 from datetime import UTC  # noqa: E402
 
 from app.services.geoip import PRIVATE, UNKNOWN, GeoIp, localized_country_name  # noqa: E402
-from app.services.reporting.aggregation import ReportAggregator, pick_bucket  # noqa: E402
+from app.services.reporting.aggregation import (  # noqa: E402
+    _CONFIG_DRIFT_CHANNELS,
+    ReportAggregator,
+    pick_bucket,
+)
 from app.services.reporting.charts import line_chart  # noqa: E402
 from app.services.reporting.choropleth import choropleth_svg  # noqa: E402
 from app.services.reporting.i18n import ReportText, report_text  # noqa: E402
@@ -395,11 +399,6 @@ async def _reliability_block(aggregator, frm, to, t, timezone_name, sev_fn):
     return ReliabilityBlock(categories=categories, events=events, total=rollup.total)
 
 
-# Direct (drift) channels — a change made ON the box outside the management API. Kept aligned with the
-# aggregation rollup's `_CONFIG_DRIFT_CHANNELS` and the parser's drift rule.
-_CONFIG_DRIFT_CHANNELS = ("gui", "system")
-
-
 def _config_channel_label(channel: str, t) -> str:
     """Localized label for a config-change channel; falls back to the localized 'unknown' for an
     unrecognized channel (or an empty string)."""
@@ -423,7 +422,7 @@ async def _config_changes_block(aggregator, frm, to, t, timezone_name):
         for c in rollup.by_channel
     ]
     changes = [
-        ConfigChangeRow2(
+        ConfigAuditChangeRow(
             time=_fmt_dt(c.time, timezone_name),
             actor=c.actor,
             area=c.area,
