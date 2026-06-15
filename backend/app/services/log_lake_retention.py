@@ -17,7 +17,13 @@ import re
 import uuid
 from datetime import date
 
+import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.tenant_retention import TenantRetention
 from app.services.retention import effective_retention_days
+from app.services.runtime_settings import get_runtime_config
 
 logger = logging.getLogger(__name__)
 
@@ -74,3 +80,60 @@ def indices_to_delete(
         if (today - idx_date).days > days:
             out.append(name)
     return out
+
+
+async def purge_log_lake(
+    session: AsyncSession, today: date, *, opensearch_url: str | None
+) -> int | str:
+    """Delete per-tenant log-lake indices past each tenant's effective retention. Returns the number
+    of indices deleted, or a short status string for the degraded paths.
+
+    Owner session (RLS-exempt — sees every ``tenant_retention`` row). Best-effort and graceful:
+    - ``opensearch_url`` falsy → ``"skipped"`` (the log lake isn't deployed); no HTTP.
+    - OpenSearch unreachable on the listing → ``"unreachable"`` (logged); no raise.
+    Each DELETE is independent — one failing index (logged) doesn't abort the sweep.
+    """
+    if not opensearch_url:
+        return "skipped"
+
+    cfg = await get_runtime_config(session)
+    global_default = int(cfg["log_lake_retention_days"])
+    # All tenants' overrides in one owner-side read (no RLS) → {tenant_id: overrides}.
+    overrides_by_tenant = {
+        str(tid): dict(ov or {})
+        for tid, ov in (
+            await session.execute(
+                select(TenantRetention.tenant_id, TenantRetention.overrides)
+            )
+        ).all()
+    }
+
+    # List the lake's indices (same httpx client style as services/log_fleet.py). Best-effort.
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"{opensearch_url}/_cat/indices/opngms-logs-*",
+                params={"format": "json", "h": "index"},
+            )
+            resp.raise_for_status()
+            rows = resp.json()
+    except (httpx.HTTPError, ValueError):
+        logger.warning("log-lake retention: OpenSearch unreachable; skipping this run", exc_info=True)
+        return "unreachable"
+
+    names = [r["index"] for r in rows if isinstance(r, dict) and r.get("index")]
+    victims = indices_to_delete(
+        names, today, global_default=global_default, overrides_by_tenant=overrides_by_tenant
+    )
+
+    deleted = 0
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for name in victims:
+            try:
+                resp = await client.delete(f"{opensearch_url}/{name}")
+                resp.raise_for_status()
+                deleted += 1
+            except httpx.HTTPError:
+                # One bad delete must not abort the sweep; log and continue.
+                logger.warning("log-lake retention: failed to delete index %s", name, exc_info=True)
+    return deleted

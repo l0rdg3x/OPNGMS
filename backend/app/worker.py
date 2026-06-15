@@ -594,6 +594,19 @@ async def purge_timeseries_retention(ctx: dict) -> dict:
     return summary
 
 
+async def purge_log_lake_job(ctx: dict) -> int | str:
+    """Cron: delete each tenant's over-age OpenSearch log-lake indices at its effective retention
+    (global default, DB-overridable, then per-tenant override). Owner session — RLS-exempt, never
+    user-facing. No-ops gracefully when the log lake isn't deployed/reachable; read-only on the DB."""
+    from app.services.log_lake_retention import purge_log_lake
+
+    factory = ctx["session_factory"]
+    async with factory() as session:
+        return await purge_log_lake(
+            session, datetime.now(UTC).date(), opensearch_url=get_settings().opensearch_url
+        )
+
+
 async def on_startup(ctx: dict) -> None:
     engine = create_async_engine(_owner_url(), pool_pre_ping=True)
     ctx["engine"] = engine
@@ -613,7 +626,7 @@ RETRY_INTERVAL = 600            # seconds between send retries
 
 
 class WorkerSettings:
-    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job, purge_perimeter_attackers, purge_timeseries_retention]
+    functions = [poll_device, ingest_device_events, backup_device_config, apply_config_change, apply_profile_changes, run_firmware_action, deliver_scheduled_report, send_report_email_job, purge_perimeter_attackers, purge_timeseries_retention, purge_log_lake_job]
     cron_jobs = [
         cron(enqueue_device_polls, second={0}),  # metrics, every minute at second 0
         cron(enqueue_event_ingests, minute=set(range(0, 60, _ingest_step))),  # events, every N minutes
@@ -625,6 +638,7 @@ class WorkerSettings:
         cron(detect_silent_tenants, minute={_settings.silent_alert_cron_minute}),  # hourly: silent-tenant alerts
         cron(purge_perimeter_attackers, hour={4}, minute={30}),  # daily: perimeter rollup retention sweep
         cron(purge_timeseries_retention, hour={4}, minute={45}),  # daily: events/metrics per-tenant retention sweep
+        cron(purge_log_lake_job, hour={5}, minute={0}),  # daily: log-lake (OpenSearch) per-tenant retention sweep
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown
