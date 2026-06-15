@@ -21,6 +21,7 @@ from app.core.db import get_session, make_engine, set_tenant_context
 from app.core.db_roles import (
     create_app_role_statements,
     grant_app_role_statements,
+    syslog_ca_key_least_priv_statements,
 )
 from app.core.queue import get_enqueuer
 from app.core.rls import enable_rls_statements
@@ -87,6 +88,11 @@ async def db_engine():
         for stmt in create_app_role_statements():
             await conn.execute(text(stmt))
         for stmt in grant_app_role_statements():
+            await conn.execute(text(stmt))
+        # Reproduce migration 0040's least-privilege on the syslog CA private key (the ORM create_all
+        # builds the table, but the REVOKE + SECURITY DEFINER accessor live only in the migration / this
+        # shared helper) so the test schema matches production.
+        for stmt in syslog_ca_key_least_priv_statements():
             await conn.execute(text(stmt))
     yield engine
     await engine.dispose()
