@@ -29,7 +29,8 @@ def test_has_inverse():
     assert has_inverse("opnsense_setting") is True
     assert has_inverse("firewall_rule") is True
     assert has_inverse("monit_test") is True
-    assert has_inverse("ids_policy") is False
+    assert has_inverse("ids_policy") is True
+    assert has_inverse("catalog_setting") is False
 
 
 def test_add_inverts_to_delete_without_snapshot():
