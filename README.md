@@ -81,6 +81,15 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   pool, connector timeout) or **runtime-editable** from a superadmin **System** page (firmware poll
   budget, catalog/GeoIP auto-fetch, silent-tenant detector, login brute-force limits, session TTL/idle),
   with the env value as the default and a live DB override — no restart, no fork.
+- **Configurable data retention** — how long the data behind the dashboards and reports is kept is
+  operator-controlled: a **global default** per store (superadmin System page) plus a **per-tenant override**
+  (each MSP client picks its own), across all four stores — the perimeter rollup, the IDS/DNS event history,
+  device-health metrics, and the OpenSearch **log lake** (per-tenant daily indices). Tenant-aware purge jobs
+  own deletion. A consistency guard blocks reports that would span more days than the data is retained and
+  warns when lowering retention affects an existing schedule.
+- **Audit log** — every state-changing action across OPNGMS is recorded (who, what, target, IP, details),
+  with a CI guard that keeps coverage complete; a superadmin **Audit** page browses it with filters
+  (actor / tenant / action / date) and **CSV export**.
 - **Localized, multi-tenant UI** — fleet overview + per-device charts; **fully translated 12-language**
   SPA with full RTL (every page, including the System and Log-fleet admin screens).
 
@@ -204,6 +213,8 @@ version tag).
 | **Event ingest** — Suricata IDS + DNS into the `events` hypertable, keyset-paginated query API | ✅ Done |
 | **Security / Perimeter** — failed logins + firewall blocks per attacker IP (GeoIP country), bounded rollup + retention; Overview cards, a **Perimeter** page, and two PDF report sections (toggled alongside the other report sections) | ✅ Done |
 | **Configurable tunables** — boot-time `.env` knobs (worker concurrency, DB pool, connector timeout) + a runtime-settings registry on the superadmin **System** page (env default + live DB override) | ✅ Done |
+| **Audit log viewer** — every mutating action recorded (actor + IP + target + details); superadmin **Audit** page with filters (actor/tenant/action/date) + **CSV export**; a CI guard fails the build if a mutating route ships without an audit record | ✅ Done |
+| **Per-tenant data retention** — global default **+ per-tenant override** for every dashboard/report store (perimeter rollup, IDS/DNS events, device metrics, OpenSearch **log lake** via per-tenant daily indices); tenant-aware purge jobs replace the fixed TimescaleDB/ISM policies; a **report ↔ retention** guard blocks over-long reports and warns on lowering | ✅ Done |
 | **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 12-language localization | ✅ Done |
 | **Report email delivery** — per-tenant **and per-device** schedules; one superadmin SMTP relay (test-send); white-label sender; "send now"; hourly cron + send-retry | ✅ Done |
 | **Config management** — encrypted backup, drift detection, targeted revert, firewall-aware UI, default-OFF live push | ✅ Done |
