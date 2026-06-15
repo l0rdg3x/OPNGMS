@@ -35,8 +35,9 @@ async def test_get_returns_empty_overrides_and_global_defaults(api_client, db_en
     assert r.status_code == 200
     body = r.json()
     assert body["overrides"] == {}
-    # defaults reflect the runtime registry (env/code defaults for the three stores)
-    assert body["defaults"] == {"perimeter": 30, "events": 90, "metrics": 30}
+    # defaults reflect the runtime registry (env/code defaults for the four stores; log_lake bridges
+    # LOG_RETENTION_DAYS=30)
+    assert body["defaults"] == {"perimeter": 30, "events": 90, "metrics": 30, "log_lake": 30}
 
 
 async def test_tenant_admin_can_put_and_get_overrides(api_client, db_engine):
@@ -68,8 +69,20 @@ async def test_unknown_store_key_is_422(api_client, db_engine):
     tid = await _seed(db_engine)
     await _login(api_client, "ta@x.io")
     r = await api_client.put(f"/api/tenants/{tid}/retention",
-                             json={"values": {"log_lake": 10}}, headers=_csrf(api_client))
+                             json={"values": {"not_a_store": 10}}, headers=_csrf(api_client))
     assert r.status_code == 422
+
+
+async def test_log_lake_override_round_trips(api_client, db_engine):
+    """SP-2: log_lake is now a valid per-tenant override key (the 4th RETENTION_STORES entry)."""
+    tid = await _seed(db_engine)
+    await _login(api_client, "ta@x.io")
+    r = await api_client.put(f"/api/tenants/{tid}/retention",
+                             json={"values": {"log_lake": 10}}, headers=_csrf(api_client))
+    assert r.status_code == 200
+    assert r.json()["overrides"] == {"log_lake": 10}
+    r = await api_client.get(f"/api/tenants/{tid}/retention")
+    assert r.json()["overrides"] == {"log_lake": 10}
 
 
 async def test_out_of_range_value_is_422(api_client, db_engine):

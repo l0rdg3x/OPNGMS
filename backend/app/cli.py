@@ -2,8 +2,9 @@
 
 Commands:
   mfa-reset       Clear a user's MFA + recovery codes (recovery path for locked-out superadmin).
-  syslog-bootstrap Ensure the syslog CA, write receiver cert files, and apply OpenSearch index
-                  template + ISM retention policy.
+  syslog-bootstrap Ensure the syslog CA, write receiver cert files, and apply the OpenSearch index
+                  template. Log retention is now owned by the OPNGMS worker (per-tenant), so this
+                  command also removes any pre-existing global ISM retention policy.
 
 Connects via ADMIN_DATABASE_URL (owner role) for privileged DB operations."""
 import argparse
@@ -110,12 +111,13 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
                 dest.chmod(0o600)
             print(f"  [write] {dest}")
 
-    # --- 4. Apply OpenSearch index template + ISM retention policy (plain HTTP, no auth). ---
+    # --- 4. Apply the OpenSearch index template; REMOVE the global ISM retention policy. ---
+    # Retention is now per-tenant and owned by the worker's purge_log_lake cron (it deletes each tenant's
+    # over-age indices at the tenant's effective age). A global ISM policy would keep deleting whole
+    # opngms-logs-* indices at the GLOBAL age, violating any longer per-tenant override — so we detach it
+    # from existing indices and delete the policy. Both removals are best-effort (the lake is optional /
+    # may be a fresh cluster with no policy). The index template (mappings) is still applied.
     index_template = json.loads((_DEPLOY_OPENSEARCH / "index-template.json").read_text())
-    ism_raw = (_DEPLOY_OPENSEARCH / "ism-policy.json").read_text().replace(
-        "{{RETENTION_DAYS}}", str(settings.log_retention_days)
-    )
-    ism_policy = json.loads(ism_raw)
 
     with httpx.Client() as client:
         url_tpl = f"{settings.opensearch_url}/_index_template/opngms-logs"
@@ -123,12 +125,27 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
         resp.raise_for_status()
         print(f"  [opensearch] index template applied: {resp.status_code}")
 
+        # Detach the policy from any indices it is currently managing (ignore errors — none may exist).
+        url_remove = f"{settings.opensearch_url}/_plugins/_ism/remove/opngms-logs-*"
+        try:
+            resp = client.post(url_remove)
+            resp.raise_for_status()  # don't print success on a 5xx — surface it as skipped instead
+            print(f"  [opensearch] ISM detach from opngms-logs-*: {resp.status_code}")
+        except httpx.HTTPError as exc:
+            print(f"  [opensearch] ISM detach skipped ({exc.__class__.__name__})")
+
+        # Delete the global retention policy itself (404 = already absent).
         url_ism = f"{settings.opensearch_url}/_plugins/_ism/policies/opngms-logs-retention"
-        resp = client.put(url_ism, json=ism_policy)
-        # A pre-existing policy returns 409 (PUT without seq_no/primary_term); treat as already-applied.
-        if resp.status_code != 409:
-            resp.raise_for_status()
-        print(f"  [opensearch] ISM policy applied: {resp.status_code} (retention={settings.log_retention_days}d)")
+        try:
+            resp = client.delete(url_ism)
+            if resp.status_code == 404:
+                print("  [opensearch] ISM policy opngms-logs-retention: already absent")
+            else:
+                resp.raise_for_status()
+                print(f"  [opensearch] ISM policy opngms-logs-retention removed: {resp.status_code}")
+        except httpx.HTTPError as exc:
+            print(f"  [opensearch] ISM policy removal skipped ({exc.__class__.__name__})")
+        print("  [opensearch] log retention is now owned by the OPNGMS worker (per-tenant purge_log_lake)")
 
 
 def main() -> None:
@@ -140,7 +157,8 @@ def main() -> None:
 
     b = sub.add_parser(
         "syslog-bootstrap",
-        help="Ensure syslog CA, write receiver cert files, and apply OpenSearch index template + ISM policy.",
+        help="Ensure syslog CA, write receiver cert files, apply the OpenSearch index template, and "
+        "remove the legacy global ISM retention policy (the worker now owns per-tenant retention).",
     )
     b.add_argument("--cert-dir", default="/certs", help="Directory to write CA.pem, server.pem, server.key.")
     b.add_argument("--force", action="store_true", help="Overwrite existing cert files.")

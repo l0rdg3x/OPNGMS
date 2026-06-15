@@ -3,8 +3,7 @@
   "template": {
     "settings": {
       "number_of_shards": 2,
-      "number_of_replicas": 1,
-      "plugins.index_state_management.policy_id": "opngms-logs-retention"
+      "number_of_replicas": 1
     },
     "mappings": {
       "properties": {

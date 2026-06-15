@@ -19,8 +19,7 @@ from app.schemas.system import (
 )
 from app.services.app_settings import get_live_push, set_live_push
 from app.services.audit import AuditService
-from app.services.report_retention import schedule_retention_warnings
-from app.services.retention import RETENTION_STORES
+from app.services.report_retention import REPORT_BOUNDING_STORES, schedule_retention_warnings
 from app.services.runtime_settings import (
     active_settings,
     get_runtime_config,
@@ -137,13 +136,14 @@ async def update_runtime_settings(
     # NB the audit write above intentionally precedes the tenant-context scan below: it runs under the
     # neutral GUC (tenant_id=None for this org action). Keep it before `_retention_impacts`, which mutates
     # the session's tenant context per tenant.
-    # Only a LOWERED global retention default can newly bite a tenant that follows the global; compute the
-    # impacted-tenants feedback before committing (read-only scan, no writes of its own). Use `.get()` so a
-    # future RETENTION_STORES entry without a matching runtime key (e.g. SP-2's log_lake) can't KeyError the
-    # whole PUT — it's just skipped until its key is wired.
+    # Only a LOWERED global retention default for a REPORT-BOUNDING store can newly bite a tenant that
+    # follows the global; compute the impacted-tenants feedback before committing (read-only scan, no writes
+    # of its own). Scoping to REPORT_BOUNDING_STORES (not every RETENTION_STORES entry) means lowering a
+    # non-report store — e.g. SP-2's log_lake — never pointlessly enumerates tenants (it can't bound a
+    # report). `.get()` stays defensive so a missing runtime key can't KeyError the whole PUT.
     lowered = [
         store
-        for store in RETENTION_STORES
+        for store in REPORT_BOUNDING_STORES
         if (a := after.get(f"{store}_retention_days")) is not None
         and (b := before.get(f"{store}_retention_days")) is not None
         and int(a) < int(b)

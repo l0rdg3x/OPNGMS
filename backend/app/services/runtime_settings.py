@@ -55,6 +55,10 @@ RUNTIME_SETTINGS: list[RuntimeSetting] = [
     # events/metrics consumers (the purge_timeseries_retention cron) are wired in PR2 — now active.
     RuntimeSetting("events_retention_days", int, lambda s: s.events_retention_days, 1, 3650, "retention"),
     RuntimeSetting("metrics_retention_days", int, lambda s: s.metrics_retention_days, 1, 3650, "retention"),
+    # SP-2: the log lake (OpenSearch). The default bridges the existing LOG_RETENTION_DAYS env
+    # (`Settings.log_retention_days`) so behaviour + back-compat are preserved (no Settings field rename).
+    # Active: its consumer — the purge_log_lake worker cron — is wired in this same change.
+    RuntimeSetting("log_lake_retention_days", int, lambda s: s.log_retention_days, 1, 3650, "retention"),
 ]
 
 _BY_KEY: dict[str, RuntimeSetting] = {r.key: r for r in RUNTIME_SETTINGS}

@@ -2,6 +2,11 @@
 #   docker compose -f docker-compose.prod.yml -f docker-compose.logs.yml up -d
 # OpenSearch runs plain-HTTP, security disabled, internal-network only (NOT published).
 # The trust boundary is the mTLS device->syslog-ng hop (port 6514). No search UI yet (Phase 2).
+#
+# Retention: syslog-ng writes per-tenant daily indices (opngms-logs-<tenant_id>-DATE) and the OPNGMS
+# worker's daily purge_log_lake job owns retention — it deletes each tenant's over-age indices at that
+# tenant's effective retention (global default + per-tenant override). There is no global ISM policy
+# (syslog-bootstrap removes any legacy one); the only OpenSearch config applied is the index template.
 
 services:
   opensearch:

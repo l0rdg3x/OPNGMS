@@ -34,6 +34,7 @@ def test_registry_covers_the_runtime_settings():
         "perimeter_retention_days",
         "events_retention_days",
         "metrics_retention_days",
+        "log_lake_retention_days",
     }
 
 
@@ -51,6 +52,16 @@ def test_perimeter_retention_default_and_override(db_engine):
     # events/metrics retention consumers wired in PR2 -> active.
     assert _BY_KEY["events_retention_days"].active is True
     assert _BY_KEY["metrics_retention_days"].active is True
+
+
+def test_log_lake_retention_knob():
+    from app.services.retention import RETENTION_STORES
+
+    # SP-2: log_lake is the 4th retention store; its knob bridges the existing LOG_RETENTION_DAYS env
+    # default (30) and is active (its consumer — the purge_log_lake worker job — is wired).
+    assert "log_lake" in RETENTION_STORES
+    assert runtime_defaults()["log_lake_retention_days"] == 30
+    assert _BY_KEY["log_lake_retention_days"].active is True
 
 
 def test_defaults_match_env_settings():
