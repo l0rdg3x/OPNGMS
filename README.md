@@ -50,6 +50,8 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
   uptime, firmware), network (interfaces, gateways, VPN), and up/down status.
 - **Alerting** — threshold-based alerts evaluated on every poll, with an active/historical view.
 - **Event ingest** — incremental, deduplicated pull of Suricata IDS/IPS alerts and DNS queries.
+- **Reliability events** — reboots, service crashes/restarts, and disk/FS warnings classified from the
+  system log into a per-device reliability timeline + an Overview card + a report section + alerts.
 - **Security / Perimeter** — surfaces the attackers hitting each box: **failed logins** (source IP +
   attempted username, from the OPNsense audit log) and **firewall blocks** (source IP + targeted port,
   from the structured firewall log), each resolved to a **country** via the offline GeoIP layer. Shown
@@ -215,6 +217,7 @@ version tag).
 | **Foundation & inventory** — auth/RBAC, org admin, device onboarding, encrypted secrets, SPA shell | ✅ Done |
 | **Monitoring** — poller, health + network metrics, alerting, dashboard | ✅ Done |
 | **Event ingest** — Suricata IDS + DNS into the `events` hypertable, keyset-paginated query API | ✅ Done |
+| **Reliability events** — reboots / service crashes-restarts / disk-FS warnings classified from the system log (`service` source); device timeline tab + Overview card + report section + deduped alerts | ✅ Done |
 | **Security / Perimeter** — failed logins + firewall blocks per attacker IP (GeoIP country), bounded rollup + retention; Overview cards, a **Perimeter** page, and two PDF report sections (toggled alongside the other report sections) | ✅ Done |
 | **Configurable tunables** — boot-time `.env` knobs (worker concurrency, DB pool, connector timeout) + a runtime-settings registry on the superadmin **System** page (env default + live DB override) | ✅ Done |
 | **Audit log viewer** — every mutating action recorded (actor + IP + target + details); superadmin **Audit** page with filters (actor/tenant/action/date) + **CSV export**; a CI guard fails the build if a mutating route ships without an audit record | ✅ Done |

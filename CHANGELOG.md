@@ -12,6 +12,20 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-06-15
+### Added
+- **Service / reliability events.** OPNGMS now surfaces a device's **reliability** from the OPNsense
+  system log: it classifies **reboots, service crashes/restarts, and disk/FS warnings** (a curated,
+  fail-safe rule set — only recognized events are stored, not the whole log) into the events store as a new
+  `service` source, reusing the existing per-source cursor, dedup, and retention. Each device gains a
+  **Reliability** tab with a paginated timeline (time · category · name · severity · process/message), the
+  Overview gains a fleet **service-events (24h)** card, the per-client PDF gains a **Reliability** section
+  (default on, standard toggle model), and a new high-severity event (a reboot / crash / disk-full) raises
+  a **deduped alert**. First of the two diagnostic-log milestones. (#178, #179, #180)
+
+  > The classifier's reboot/crash/disk line patterns are a curated starter set (an idle box shows none of
+  > these), tuned against real events on the box as a runtime-verified follow-up.
+
 ## [0.14.0] - 2026-06-15
 ### Added
 - **Operator Revert now covers every live-applied config kind.** The targeted-inverse **Revert** (undo a
