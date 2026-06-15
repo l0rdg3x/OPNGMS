@@ -1,4 +1,3 @@
-import json as _json
 import re
 import ssl
 from datetime import datetime
@@ -59,6 +58,16 @@ def _safe_uuid(value: str) -> str:
     if not value or not _OPN_UUID_RE.match(value):
         raise ValueError(f"unsafe OPNsense uuid: {value!r}")
     return value
+
+
+def _raise_on_failed(res, what: str):
+    """OPNsense MVC add/set endpoints return HTTP 200 with ``{"result": "failed", "validations": {...}}``
+    when a mutation is REJECTED (e.g. an invalid field, a content filter matching no rule). Surface it as
+    an ApiError so the apply pipeline records the change as ``failed`` instead of silently ``applied``.
+    (Verified on a real box: an addPolicy with a bad content filter returned failed yet was reported OK.)"""
+    if isinstance(res, dict) and res.get("result") == "failed":
+        raise ApiError(0, f"{what} rejected by OPNsense: {res.get('validations') or res}")
+    return res
 
 
 def _safe_endpoint(path: str) -> str:
@@ -216,6 +225,7 @@ class OpnsenseClient:
                 res = await self._post(f"firewall/alias/delItem/{alias_uuid}", {})
         else:
             raise ApiError(0, f"unknown alias operation: {operation}")
+        _raise_on_failed(res, "firewall alias")
         await self._post("firewall/alias/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "result": res}
 
@@ -240,6 +250,7 @@ class OpnsenseClient:
             _safe_endpoint(reconfigure_path)
         nested = _unflatten(payload)
         res = await self._post(set_path, {model_root: nested})
+        _raise_on_failed(res, "setting")
         if reconfigure:
             await self._post(reconfigure_path, {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "result": res}
@@ -273,6 +284,7 @@ class OpnsenseClient:
             res = await self._post(f"{path}/{uuid}", body)
         else:
             raise ApiError(0, f"unknown grid op: {op!r}")
+        _raise_on_failed(res, f"grid {op}")
         return {"dry_run": False, "op": op, "result": res}
 
     async def get_firewall_rule_model(self) -> dict:
@@ -309,6 +321,7 @@ class OpnsenseClient:
         else:
             res = await self._post(f"firewall/filter/setRule/{uuid_}", {"rule": payload})
             op = "set"
+        _raise_on_failed(res, "firewall rule")
         await self._post("firewall/filter/apply", {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "operation": op, "result": res}
 
@@ -367,6 +380,7 @@ class OpnsenseClient:
         else:
             res = await self._post(f"monit/settings/setTest/{uuid_}", {"test": payload})
             test_uuid, op = uuid_, "set"
+        _raise_on_failed(res, "monit test")
         if attach and test_uuid:
             await self._attach_test_to_system(test_uuid)
         await self._post("monit/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
@@ -460,6 +474,7 @@ class OpnsenseClient:
         else:
             res = await self._post(f"ids/settings/setPolicy/{uuid_}", {"policy": policy})
             op = "set"
+        _raise_on_failed(res, "ids policy")
         await self._post("ids/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
         return {"dry_run": False, "operation": op, "result": res}
 
@@ -511,13 +526,17 @@ class OpnsenseClient:
         comma-joined; rulesets filenames are resolved to enabled file-uuids."""
         actions = payload.get("action", []) or []
         rulesets = await self._resolve_ruleset_file_uuids(payload.get("rulesets", []) or [])
+        # OPNsense's PolicyContentField is an OptionField keyed by "<metadata_key>.<value>" tokens
+        # (verified on a real 26.1.9 box via getPolicy.content); the selected tokens are comma-joined.
+        # The portable body carries content as {metadata_key: [values]}; flatten it to those tokens.
         content = payload.get("content", {}) or {}
+        content_tokens = [f"{key}.{value}" for key, values in content.items() for value in (values or [])]
         return {
             "enabled": str(payload.get("enabled", "1")),
             "prio": str(payload.get("prio", "0")),
             "action": ",".join(actions),
             "rulesets": ",".join(rulesets),
-            "content": _json.dumps(content) if content else "",
+            "content": ",".join(content_tokens),
             "new_action": str(payload.get("new_action", "alert")),
             "description": str(payload.get("description", "")),
         }
