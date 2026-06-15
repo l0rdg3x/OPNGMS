@@ -14,6 +14,7 @@ from app.repositories.device_log_forwarding import DeviceLogForwardingRepository
 from app.schemas.log_forwarding import LogForwardingOut, RevokeIn
 from app.services.audit import AuditService
 from app.services.log_forwarding import (
+    SyslogCaNotInitializedError,
     deprovision_device,
     provision_device,
     revoke_device,
@@ -73,6 +74,8 @@ async def enable_log_forwarding(
         row = await provision_device(session, tenant_id=tenant_id, device_id=device_id,
                                      client=_client(device), receiver_host=s.syslog_receiver_host,
                                      receiver_port=s.syslog_tls_port)
+    except SyslogCaNotInitializedError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except OpnsenseError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=type(exc).__name__) from exc
     await AuditService(session).record(
@@ -116,6 +119,8 @@ async def rotate_log_forwarding(
         row = await rotate_device_cert(session, tenant_id=tenant_id, device_id=device_id,
                                        client=_client(device), receiver_host=s.syslog_receiver_host,
                                        receiver_port=s.syslog_tls_port)
+    except SyslogCaNotInitializedError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except OpnsenseError as exc:

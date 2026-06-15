@@ -25,6 +25,7 @@ from app.models.session import Session
 from app.models.silent_tenant_alert import SilentTenantAlert  # noqa: F401
 from app.models.smtp_settings import SmtpSettings  # noqa: F401
 from app.models.syslog_ca import SyslogCa  # noqa: F401
+from app.models.syslog_ca_key import SyslogCaKey  # noqa: F401
 from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.tenant import Tenant
 from app.models.tenant_retention import TenantRetention  # noqa: F401
@@ -67,6 +68,7 @@ __all__ = [
     "RevokedSyslogCert",
     "SilentTenantAlert",
     "SyslogCa",
+    "SyslogCaKey",
     "PerimeterAttacker",
     "TenantRetention",
 ]

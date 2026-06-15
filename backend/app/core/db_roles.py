@@ -41,6 +41,31 @@ def grant_app_role_statements() -> list[str]:
     ]
 
 
+def syslog_ca_key_least_priv_statements() -> list[str]:
+    """Least-privilege for the syslog CA private key (migration 0040).
+
+    The encrypted CA private key lives in its own owner-only table `syslog_ca_key`. The app role must
+    NOT be able to SELECT it via the blanket table grant, yet the synchronous device-cert signing path
+    (provision/rotate) still needs the key in-process. We therefore:
+      * REVOKE ALL on the table from the app role (undoes the default-privilege grant the table received
+        at CREATE), and
+      * expose the key ONLY through a single-purpose SECURITY DEFINER function the app role may EXECUTE.
+
+    Single source used by both migration 0040 and the tests' conftest (which builds the schema via the
+    ORM, not Alembic), so test and production cannot diverge.
+    """
+    return [
+        f"REVOKE ALL ON syslog_ca_key FROM {APP_ROLE}",
+        # Hardened search_path; SECURITY DEFINER so the app role reads the key only by name. VOLATILE
+        # (not STABLE): the key table can be re-keyed (rekey_secrets), so never cache the result.
+        "CREATE OR REPLACE FUNCTION opngms_syslog_ca_key() RETURNS bytea "
+        "LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public AS "
+        "$$ SELECT key_enc FROM public.syslog_ca_key ORDER BY id LIMIT 1 $$",
+        "REVOKE ALL ON FUNCTION opngms_syslog_ca_key() FROM PUBLIC",
+        f"GRANT EXECUTE ON FUNCTION opngms_syslog_ca_key() TO {APP_ROLE}",
+    ]
+
+
 def drop_app_role_statements() -> list[str]:
     # The role is cluster-wide but the privileges are per-database: we revoke
     # and DROP OWNED only in the current DB. DROP ROLE is cluster-wide and

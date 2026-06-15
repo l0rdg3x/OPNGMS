@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.db import set_tenant_context
 from app.services.cert_renewal import due_for_renewal, renew_expiring_device_certs
+from tests.factories import seed_syslog_ca
 
 
 class _S:
@@ -38,6 +39,7 @@ class _StubClient:
 
 
 async def _seed(db_engine, *, cert_not_after, enabled=True):
+    await seed_syslog_ca(db_engine)  # rotate_device_cert requires the CA to exist
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     tid, did = uuid.uuid4(), uuid.uuid4()
     slug = tid.hex[:12]  # unique per seeded tenant (tenants.slug is UNIQUE)

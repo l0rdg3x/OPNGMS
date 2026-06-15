@@ -2,7 +2,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import crypto
@@ -10,12 +10,19 @@ from app.core.config import get_settings
 from app.models.device_log_forwarding import DeviceLogForwarding
 from app.models.revoked_syslog_cert import RevokedSyslogCert
 from app.models.syslog_ca import SINGLETON_ID, SyslogCa
+from app.models.syslog_ca_key import SyslogCaKey
 from app.services.syslog_ca import (
     build_ca,
     cert_not_after,
     cert_serial_and_fingerprint,
     issue_device_cert,
 )
+
+
+class SyslogCaNotInitializedError(Exception):
+    """The syslog CA row is absent — the owner-side bootstrap (``syslog-bootstrap``) has not run yet.
+
+    An operational precondition, not a programmer error: the API maps it to HTTP 503."""
 
 
 class SyslogCaService:
@@ -25,18 +32,37 @@ class SyslogCaService:
     async def get(self) -> SyslogCa | None:
         return (await self.session.execute(select(SyslogCa))).scalar_one_or_none()
 
+    async def require_ca(self) -> SyslogCa:
+        """Return the existing CA or fail. The CA is created owner-side (bootstrap/worker via
+        ``ensure_ca``); the app role cannot create it because it cannot write ``syslog_ca_key``."""
+        row = await self.get()
+        if row is None:
+            raise SyslogCaNotInitializedError("syslog CA not initialized — run syslog-bootstrap")
+        return row
+
     async def ensure_ca(self) -> SyslogCa:
+        """Owner-only create path: build the CA and insert BOTH the cert row (``syslog_ca``) and the
+        encrypted-key row (``syslog_ca_key``). Idempotent. Not callable by the app role (no INSERT on
+        ``syslog_ca_key``) — that is intentional; the API uses ``require_ca``."""
         row = await self.get()
         if row is not None:
             return row
         cert_pem, key_pem = build_ca()
-        row = SyslogCa(id=SINGLETON_ID, cert_pem=cert_pem.decode(), key_enc=crypto.encrypt_bytes(key_pem))
+        row = SyslogCa(id=SINGLETON_ID, cert_pem=cert_pem.decode())
         self.session.add(row)
+        self.session.add(SyslogCaKey(id=SINGLETON_ID, key_enc=crypto.encrypt_bytes(key_pem)))
         await self.session.flush()
         return row
 
-    def device_cert(self, ca: SyslogCa, *, tenant_id: uuid.UUID, device_id: uuid.UUID) -> tuple[bytes, bytes]:
-        return issue_device_cert(ca.cert_pem.encode(), crypto.decrypt_bytes(bytes(ca.key_enc)),
+    async def _ca_key_enc(self) -> bytes:
+        """The encrypted CA private key, read via the SECURITY DEFINER accessor so the app role can
+        sign without SELECT on the owner-only key table. Works for the owner role too."""
+        return (await self.session.execute(text("SELECT opngms_syslog_ca_key()"))).scalar_one()
+
+    async def device_cert(self, ca: SyslogCa, *, tenant_id: uuid.UUID,
+                          device_id: uuid.UUID) -> tuple[bytes, bytes]:
+        key_pem = crypto.decrypt_bytes(bytes(await self._ca_key_enc()))
+        return issue_device_cert(ca.cert_pem.encode(), key_pem,
                                  tenant_id=str(tenant_id), device_id=str(device_id),
                                  days=get_settings().device_cert_days)
 
@@ -46,8 +72,8 @@ async def provision_device(session: AsyncSession, *, tenant_id: uuid.UUID, devic
     """Issue a device cert, import the CA + cert into the box, configure the mTLS syslog destination,
     and record state. `client` is an OpnsenseClient (or a stub with the same methods)."""
     svc = SyslogCaService(session)
-    ca = await svc.ensure_ca()
-    cert_pem, key_pem = svc.device_cert(ca, tenant_id=tenant_id, device_id=device_id)
+    ca = await svc.require_ca()
+    cert_pem, key_pem = await svc.device_cert(ca, tenant_id=tenant_id, device_id=device_id)
     serial, fp = cert_serial_and_fingerprint(cert_pem)
     not_after = cert_not_after(cert_pem)
     # Load the existing row first so we can reuse an already-imported CA (re-provisioning a device
@@ -98,8 +124,8 @@ async def rotate_device_cert(session: AsyncSession, *, tenant_id: uuid.UUID, dev
     if row is None or not row.enabled:
         raise ValueError("device is not currently forwarding")
     svc = SyslogCaService(session)
-    ca = await svc.ensure_ca()
-    cert_pem, key_pem = svc.device_cert(ca, tenant_id=tenant_id, device_id=device_id)
+    ca = await svc.require_ca()
+    cert_pem, key_pem = await svc.device_cert(ca, tenant_id=tenant_id, device_id=device_id)
     serial, fp = cert_serial_and_fingerprint(cert_pem)
     not_after = cert_not_after(cert_pem)
     old_cert_uuid, old_dest_uuid = row.opnsense_cert_uuid, row.opnsense_dest_uuid
