@@ -129,6 +129,7 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
         url_remove = f"{settings.opensearch_url}/_plugins/_ism/remove/opngms-logs-*"
         try:
             resp = client.post(url_remove)
+            resp.raise_for_status()  # don't print success on a 5xx — surface it as skipped instead
             print(f"  [opensearch] ISM detach from opngms-logs-*: {resp.status_code}")
         except httpx.HTTPError as exc:
             print(f"  [opensearch] ISM detach skipped ({exc.__class__.__name__})")

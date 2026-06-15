@@ -118,7 +118,10 @@ async def purge_log_lake(
             resp.raise_for_status()
             rows = resp.json()
     except (httpx.HTTPError, ValueError):
-        logger.warning("log-lake retention: OpenSearch unreachable; skipping this run", exc_info=True)
+        # Expected in a core-only deployment (no log lake): OPENSEARCH_URL has a non-empty default but
+        # nothing listens. Log at INFO so this isn't daily WARNING noise; an operator running the lake
+        # sees its health on the Log fleet dashboard. Set OPENSEARCH_URL= (empty) to skip entirely.
+        logger.info("log-lake retention: OpenSearch unreachable; skipping this run")
         return "unreachable"
 
     names = [r["index"] for r in rows if isinstance(r, dict) and r.get("index")]
