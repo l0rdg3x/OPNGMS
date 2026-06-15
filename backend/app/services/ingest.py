@@ -8,12 +8,15 @@ from app.connectors.opnsense.client import OpnsenseError
 from app.models.device import Device
 from app.models.event import Event
 from app.models.ingest_cursor import IngestCursor
-from app.services.alerting import raise_service_alerts
+from app.services.alerting import raise_config_audit_alerts, raise_service_alerts
 
 logger = logging.getLogger(__name__)
 
 # Active sources.
-SOURCES = ["ids", "dns", "service"]
+SOURCES = ["ids", "dns", "service", "config_audit"]
+# Sources whose newly-inserted rows feed ingest-time alerting. The raiser for each is dispatched
+# explicitly in ingest_events (a module-level name lookup that tests can still monkeypatch).
+_ALERTING_SOURCES = ("service", "config_audit")
 
 
 async def ingest_events(session: AsyncSession, device: Device, client, now: datetime) -> int:
@@ -22,22 +25,26 @@ async def ingest_events(session: AsyncSession, device: Device, client, now: date
     Resilient: an error in one source neither blocks the others nor raises. Idempotent:
     cursor per (device, source) + ON CONFLICT DO NOTHING insert on the dedup PK.
 
-    Side effect: a NEW high-severity service event raises a deduped Alert. Best-effort — an
-    alert failure is logged and never aborts the ingest (the events are already persisted).
+    Side effect: NEW alert-bearing events (a high-severity service event, a direct/drift config change)
+    raise a deduped Alert. Best-effort — an alert failure is logged and never aborts the ingest.
     """
     total = 0
-    new_service_rows: list[dict] = []
+    new_rows: dict[str, list[dict]] = {src: [] for src in _ALERTING_SOURCES}
     for source in SOURCES:
         try:
-            collect = new_service_rows if source == "service" else None
-            total += await _ingest_source(session, device, client, source, collect)
+            total += await _ingest_source(session, device, client, source, new_rows.get(source))
         except OpnsenseError:
             continue  # an unavailable source does not block the others
-    if new_service_rows:
+    for source, rows in new_rows.items():
+        if not rows:
+            continue
         try:
-            await raise_service_alerts(session, device, new_service_rows)
+            if source == "service":
+                await raise_service_alerts(session, device, rows)
+            elif source == "config_audit":
+                await raise_config_audit_alerts(session, device, rows)
         except Exception:
-            logger.warning("service-event alerting failed for device %s", device.id, exc_info=True)
+            logger.warning("%s alerting failed for device %s", source, device.id, exc_info=True)
     return total
 
 
@@ -72,6 +79,8 @@ async def _fetch(client, source: str, since):
         return await client.get_dns_events(since)
     if source == "service":
         return await client.get_service_events(since)
+    if source == "config_audit":
+        return await client.get_config_changes(since)
     raise ValueError(f"unknown source: {source}")
 
 

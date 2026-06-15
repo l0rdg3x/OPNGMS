@@ -105,4 +105,10 @@ CAPABILITIES: dict[str, list[ProfileRule]] = {
         _POST("diagnostics/log/core/system",
               {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""}),
         combine=lambda r: parsers.parse_service_events(r[0])))],
+    # Config-change audit (who/what/when changed the box config, channel-attributed). Same audit-log
+    # endpoint as `auth_failures`; the parser keeps the "changed configuration" line family.
+    "config_changes": [_default(_spec(
+        _POST("diagnostics/log/core/audit",
+              {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""}),
+        combine=lambda r: parsers.parse_config_changes(r[0])))],
 }

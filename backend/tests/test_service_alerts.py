@@ -21,6 +21,9 @@ class FakeClient:
     async def get_service_events(self, since=None):
         return self._service
 
+    async def get_config_changes(self, since=None):
+        return []
+
 
 def _svc(ts, key, name="service_crashed", category="service", severity="high"):
     return {

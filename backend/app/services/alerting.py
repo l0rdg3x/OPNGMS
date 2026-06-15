@@ -68,3 +68,28 @@ async def raise_service_alerts(session: AsyncSession, device: Device, new_rows: 
     if opened:
         await session.flush()
     return opened
+
+
+async def raise_config_audit_alerts(session: AsyncSession, device: Device, new_rows: list[dict]) -> int:
+    """Open a deduped Alert for each NEW direct (drift) config change — a change made on the box OUTSIDE
+    the management API (severity "medium"). Like `raise_service_alerts`, these are point-in-time facts,
+    NOT auto-resolved; the dedup on the open (type, label) prevents duplicates when the same change is
+    re-seen. `api`-channel changes (severity "info") are never opened. Returns the number of alerts opened."""
+    drift = [r for r in new_rows if r.get("severity") == "medium"]
+    if not drift:
+        return 0
+    open_alerts = await _open_alerts(session, device)
+    opened = 0
+    seen: set[str] = set()
+    for r in drift:
+        actor = r.get("name", "") or "unknown"
+        label = f"Direct config change on {device.name} by {actor}"
+        key = ("config_audit", label)
+        if key in open_alerts or label in seen:
+            continue
+        session.add(_open(device, "config_audit", label))
+        seen.add(label)
+        opened += 1
+    if opened:
+        await session.flush()
+    return opened
