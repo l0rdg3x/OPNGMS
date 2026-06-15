@@ -1,18 +1,7 @@
 import { Alert, Badge, Card, Group, Loader, Stack, Text } from "@mantine/core";
 
-import { useT, type Dict } from "../i18n";
-import { useConfigAuditSummary } from "./configAuditHooks";
-
-/** True for a DIRECT on-box change channel (a drift cause): console/script (`system`) or WebGUI (`gui`). */
-function isDirect(channel: string): boolean {
-  return channel === "gui" || channel === "system";
-}
-
-/** Localized label for a change channel, falling back to the raw value for unknown channels. */
-function channelLabel(channel: string, tr: Dict["configAudit"]): string {
-  const labels: Record<string, string> = tr.channels;
-  return labels[channel] ?? channel;
-}
+import { useT } from "../i18n";
+import { channelLabel, isDirectChannel, useConfigAuditSummary } from "./configAuditHooks";
 
 /**
  * Compact Overview summary card: fleet config-change counts over the last 24h, ranked by change
@@ -38,7 +27,7 @@ export function ConfigAuditCard() {
           <Group key={row.value} justify="space-between" gap="sm" wrap="nowrap">
             <Group gap="xs" wrap="nowrap">
               <Text size="sm">{channelLabel(row.value, tr)}</Text>
-              {isDirect(row.value) && <Badge color="yellow">{tr.direct}</Badge>}
+              {isDirectChannel(row.value) && <Badge color="yellow">{tr.direct}</Badge>}
             </Group>
             <Text size="sm" c="dimmed">{row.count}</Text>
           </Group>

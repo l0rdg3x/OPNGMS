@@ -1,18 +1,12 @@
 import { Alert, Badge, Button, Group, Loader, Stack, Table, Text } from "@mantine/core";
 
-import { useT, type Dict } from "../i18n";
-import { type EventOut, useConfigAuditEvents } from "./configAuditHooks";
-
-/** True for a DIRECT on-box change (a drift cause): a console/script (`system`) or WebGUI (`gui`) write. */
-function isDirect(action: string): boolean {
-  return action === "gui" || action === "system";
-}
-
-/** Localized label for a change channel, falling back to the raw value for unknown channels. */
-function channelLabel(action: string, tr: Dict["configAudit"]): string {
-  const labels: Record<string, string> = tr.channels;
-  return labels[action] ?? action;
-}
+import { useT } from "../i18n";
+import {
+  channelLabel,
+  type EventOut,
+  isDirectChannel,
+  useConfigAuditEvents,
+} from "./configAuditHooks";
 
 /** Pull a string field out of the event's free-form `attributes` map (empty string if absent). */
 function attr(event: EventOut, key: string): string {
@@ -63,7 +57,7 @@ export function ConfigAuditTab({ deviceId }: { deviceId: string }) {
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
                     <Text size="sm">{channelLabel(e.action, tr)}</Text>
-                    {isDirect(e.action) && <Badge color="yellow">{tr.direct}</Badge>}
+                    {isDirectChannel(e.action) && <Badge color="yellow">{tr.direct}</Badge>}
                   </Group>
                 </Table.Td>
                 <Table.Td>

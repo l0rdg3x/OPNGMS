@@ -759,7 +759,6 @@ export const zh: Dict = {
       api: "API",
       gui: "WebGUI",
       system: "控制台/脚本",
-      unknown: "未知",
     },
     loadMore: "加载更多",
     empty: "此时间窗口内无配置变更。",

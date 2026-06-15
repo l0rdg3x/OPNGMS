@@ -761,7 +761,6 @@ export const ja: Dict = {
       api: "API",
       gui: "WebGUI",
       system: "コンソール/スクリプト",
-      unknown: "不明",
     },
     loadMore: "さらに読み込む",
     empty: "この期間に設定変更はありません。",

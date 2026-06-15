@@ -762,7 +762,6 @@ export const fr: Dict = {
       api: "API",
       gui: "Interface web",
       system: "Console/script",
-      unknown: "Inconnu",
     },
     loadMore: "Charger plus",
     empty: "Aucune modification de configuration sur cette période.",

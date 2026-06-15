@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import type { components } from "../api/schema";
 import { en } from "../i18n/en";
+import type { Dict } from "../i18n";
 import { useTenant } from "../tenant/useTenant";
 
 export type EventOut = components["schemas"]["EventOut"];
@@ -10,6 +11,18 @@ export type EventTopRow = components["schemas"]["EventTopRow"];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 50;
+
+/** True for a DIRECT on-box change channel (a drift cause): console/script (`system`) or WebGUI (`gui`).
+ * OPNGMS only ever writes via the `api` channel, so gui/system means a change made outside OPNGMS. */
+export function isDirectChannel(action: string): boolean {
+  return action === "gui" || action === "system";
+}
+
+/** Localized label for a change channel, falling back to the raw value for an unmapped channel. */
+export function channelLabel(action: string, tr: Dict["configAudit"]): string {
+  const labels: Record<string, string> = tr.channels;
+  return labels[action] ?? action;
+}
 
 interface EventPage {
   items: EventOut[];

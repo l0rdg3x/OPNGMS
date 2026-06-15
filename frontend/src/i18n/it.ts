@@ -761,7 +761,6 @@ export const it: Dict = {
       api: "API",
       gui: "WebGUI",
       system: "Console/script",
-      unknown: "Sconosciuto",
     },
     loadMore: "Carica altri",
     empty: "Nessuna modifica alla configurazione in questo periodo.",
