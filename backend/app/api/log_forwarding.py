@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -8,6 +9,7 @@ from app.core import crypto
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
+from app.core.queue import get_enqueuer
 from app.core.rbac import Action
 from app.models.device import Device
 from app.repositories.device_log_forwarding import DeviceLogForwardingRepository
@@ -21,6 +23,8 @@ from app.services.log_forwarding import (
     rotate_device_cert,
 )
 from app.services.log_search import latest_log_at
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding",
                    tags=["log-forwarding"])
@@ -139,6 +143,7 @@ async def revoke_log_forwarding(
     tenant_id: uuid.UUID, device_id: uuid.UUID, request: Request, body: RevokeIn,
     ctx: TenantContext = Depends(require_tenant(Action.CONFIG_PUSH)),
     session: AsyncSession = Depends(get_session),
+    enqueue=Depends(get_enqueuer),
 ) -> LogForwardingOut:
     device = await _device(session, tenant_id, device_id)
     try:
@@ -155,4 +160,11 @@ async def revoke_log_forwarding(
         details={"serial": row.cert_serial, "reason": body.reason})
     out = _out(row, device_id=device_id)
     await session.commit()
+    # The ledger row is committed; ask the worker to rebuild the CRL so the revocation reaches the
+    # syslog-ng receiver within seconds (the daily cron is the backstop). Best-effort — a Redis hiccup
+    # must not fail the revoke, and the cron will catch up.
+    try:
+        await enqueue("refresh_syslog_crl_job")
+    except Exception:  # noqa: BLE001 — enqueue failure is non-fatal; the daily cron refreshes anyway
+        logger.warning("failed to enqueue refresh_syslog_crl_job after revoke", exc_info=True)
     return out

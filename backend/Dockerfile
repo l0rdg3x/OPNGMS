@@ -21,6 +21,7 @@ RUN apt-get update \
         fonts-noto-core \
         fonts-noto-cjk \
         tzdata \
+        openssl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

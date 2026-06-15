@@ -57,6 +57,34 @@ def build_ca() -> tuple[bytes, bytes]:
     return _cert_pem(cert), _key_pem(key)
 
 
+def build_crl(ca_cert_pem: bytes, ca_key_pem: bytes,
+              revoked: list[tuple[int, datetime]], *, next_update_days: int = 30) -> bytes:
+    """Build a CA-signed CRL revoking ``revoked`` = list of ``(serial_int, revocation_date)``.
+
+    Returns PEM bytes. ``last_update`` is set 5 min in the past (clock-skew tolerance) and
+    ``next_update`` ``next_update_days`` in the future — OpenSSL rejects a CRL whose ``next_update``
+    has passed, so the receiver would fail every verify; the daily worker cron keeps it fresh. An
+    empty ``revoked`` yields a valid empty CRL (the steady state when nothing is revoked)."""
+    ca_cert, ca_key = _load(ca_cert_pem, ca_key_pem)
+    now = datetime.now(UTC)
+    builder = (
+        x509.CertificateRevocationListBuilder()
+        .issuer_name(ca_cert.subject)
+        .last_update(now - timedelta(minutes=5))
+        .next_update(now + timedelta(days=next_update_days))
+    )
+    for serial, revocation_date in revoked:
+        entry = (
+            x509.RevokedCertificateBuilder()
+            .serial_number(serial)
+            .revocation_date(revocation_date)
+            .build()
+        )
+        builder = builder.add_revoked_certificate(entry)
+    crl = builder.sign(ca_key, hashes.SHA256())
+    return crl.public_bytes(serialization.Encoding.PEM)
+
+
 def _load(ca_cert_pem: bytes, ca_key_pem: bytes):
     return (x509.load_pem_x509_certificate(ca_cert_pem),
             serialization.load_pem_private_key(ca_key_pem, password=None))

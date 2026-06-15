@@ -25,6 +25,7 @@ from app.models.user_mfa import UserMfa
 from app.models.user_recovery_code import UserRecoveryCode
 from app.services.log_forwarding import SyslogCaService
 from app.services.syslog_ca import issue_server_cert
+from app.services.syslog_crl import refresh_syslog_crl
 
 # Path to deploy/opensearch/ relative to this file: backend/app/cli.py -> repo root is parents[2].
 _DEPLOY_OPENSEARCH = Path(__file__).resolve().parents[2] / "deploy" / "opensearch"
@@ -89,9 +90,6 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
         # owner-context code; never read the key table directly from an app-role path.)
         key_enc = (await session.execute(text("SELECT opngms_syslog_ca_key()"))).scalar_one()
 
-    if engine is None:
-        await eng.dispose()
-
     # --- 2. Issue the receiver server cert. ---
     key_pem = crypto.decrypt_bytes(bytes(key_enc))
     server_cert_pem, server_key_pem = issue_server_cert(
@@ -115,6 +113,15 @@ async def run_syslog_bootstrap(cert_dir: Path, *, force: bool, engine: AsyncEngi
             if dest.name.endswith(".key"):
                 dest.chmod(0o600)
             print(f"  [write] {dest}")
+
+    # --- 3b. Write the initial CRL (possibly empty) so crl-dir() has a valid hash-named file at first
+    # start — syslog-ng's crl-dir() must not point at an empty dir. Owner session (same engine). ---
+    async with factory() as session:
+        n = await refresh_syslog_crl(session, str(cert_dir))
+    print(f"  [write] initial syslog CRL ({n} revoked entries)")
+
+    if engine is None:
+        await eng.dispose()
 
     # --- 4. Apply the OpenSearch index template; REMOVE the global ISM retention policy. ---
     # Retention is now per-tenant and owned by the worker's purge_log_lake cron (it deletes each tenant's
