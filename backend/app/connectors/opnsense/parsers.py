@@ -349,7 +349,9 @@ def parse_service_events(data) -> list[dict]:
         if not isinstance(r, dict):
             continue
         proc = str(r.get("process_name", ""))
-        line = str(r.get("line", ""))
+        # Cap the device-supplied line before the regexes + digest run on it: a real syslog line is well
+        # under 8 KiB, so 2000 chars is ample and it bounds per-row CPU even on a hostile/compromised box.
+        line = str(r.get("line", ""))[:2000]
         log_sev = str(r.get("severity", "")).lower()
         for category, name, base_sev, procs, rx in _SERVICE_RULES:
             if procs is not None and proc not in procs:

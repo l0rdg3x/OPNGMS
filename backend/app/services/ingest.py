@@ -52,11 +52,16 @@ async def _ingest_source(
         rows = [r for r in rows if r["time"] > since]  # best-effort client-side
     if not rows:
         return 0
-    await session.execute(pg_insert(Event).values(rows).on_conflict_do_nothing())
+    insert = pg_insert(Event).values(rows).on_conflict_do_nothing()
+    if collect is not None:
+        # RETURNING yields only the rows actually inserted (not the ones ON CONFLICT skipped), so
+        # alerting sees genuinely-new events — never a duplicate that was already stored/alerted.
+        result = await session.execute(insert.returning(Event.name, Event.severity))
+        collect.extend({"name": name, "severity": severity} for name, severity in result)
+    else:
+        await session.execute(insert)
     new_max = max(r["time"] for r in rows)
     await _advance_cursor(session, device.id, source, new_max)
-    if collect is not None:
-        collect.extend(rows)  # the NEW (post-cursor) rows of this source, for alerting
     return len(rows)
 
 
