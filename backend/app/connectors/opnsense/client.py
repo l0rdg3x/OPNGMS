@@ -280,13 +280,26 @@ class OpnsenseClient:
         return (await self._get("firewall/filter/getRule")).get("rule", {})
 
     async def apply_firewall_rule(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
-        """Upsert a Rules[new] filter rule by (description, interface), then apply.
+        """Upsert (or delete) a Rules[new] filter rule by (description, interface), then apply.
 
         Verified against OPNsense 26.1.9: firewall/filter addRule/setRule/{uuid}/apply. Identity is
         (description, interface): exactly one match -> setRule; none -> addRule; many -> refuse
-        (never mutate on doubt). dry_run performs NO mutation."""
+        (never mutate on doubt). `operation == "delete"` resolves the same identity and POSTs
+        firewall/filter/delRule/{uuid} (for the revert path); an absent rule is a clean no-op.
+        dry_run performs NO mutation."""
         description = str(payload.get("description", ""))
         interface = str(payload.get("interface", ""))
+        if operation == "delete":
+            if dry_run:
+                return {"dry_run": True, "operation": "delete", "description": description}
+            uuid_ = await self._resolve_rule_uuid(description, interface)
+            if uuid_ is None:
+                return {"dry_run": False, "operation": "delete", "result": "absent"}
+            # uuid_ is box-sourced from searchRule (charset is RFC4122); embed it directly as the
+            # existing setRule path does.
+            res = await self._post(f"firewall/filter/delRule/{uuid_}", {})
+            await self._post("firewall/filter/apply", {}, timeout=RECONFIGURE_TIMEOUT)
+            return {"dry_run": False, "operation": "delete", "result": res}
         if dry_run:
             return {"dry_run": True, "description": description, "interface": interface}
         uuid_ = await self._resolve_rule_uuid(description, interface)
@@ -316,10 +329,26 @@ class OpnsenseClient:
         return (await self._get("monit/settings/getTest")).get("test", {})
 
     async def apply_monit_test(self, operation: str, payload: dict, *, dry_run: bool = True) -> dict:
-        """Upsert a Monit test by `name`; optionally attach it to the system service; then reconfigure.
+        """Upsert (or delete) a Monit test by `name`; optionally attach it to the system service;
+        then reconfigure.
 
         `attach_to_system` ("1") is a directive, stripped from the test payload before it is sent.
-        Identity is `name` (1 match -> setTest; none -> addTest; many -> refuse). dry_run mutates nothing."""
+        Identity is `name` (1 match -> setTest; none -> addTest; many -> refuse). `operation ==
+        "delete"` resolves the same identity and POSTs monit/settings/delTest/{uuid} (for the revert
+        path); an absent test is a clean no-op. Limitation: delete does NOT detach the test from a
+        Monit service first (rare; the subsequent reconfigure tolerates a dangling reference).
+        dry_run mutates nothing."""
+        if operation == "delete":
+            # Short-circuit before the attach_to_system pop: delete reads `name` from the raw payload.
+            name = str(payload.get("name", ""))
+            if dry_run:
+                return {"dry_run": True, "operation": "delete", "name": name}
+            uuid_ = await self._resolve_monit_test_uuid(name)
+            if uuid_ is None:
+                return {"dry_run": False, "operation": "delete", "result": "absent"}
+            res = await self._post(f"monit/settings/delTest/{uuid_}", {})
+            await self._post("monit/service/reconfigure", {}, timeout=RECONFIGURE_TIMEOUT)
+            return {"dry_run": False, "operation": "delete", "result": res}
         payload = dict(payload)
         attach = str(payload.pop("attach_to_system", "0")) in ("1", "true", "True")
         name = str(payload.get("name", ""))
