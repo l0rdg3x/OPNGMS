@@ -75,8 +75,10 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Two-factor auth** — optional/enforceable **TOTP** login with recovery codes, an enforcement policy,
   and superadmin / break-glass recovery.
 - **Log lake** (optional) — managed firewalls ship syslog over **mTLS** into **OpenSearch**;
-  enable/rotate/revoke forwarding per device, investigate from a tenant-scoped **Logs** page, and watch
-  the estate from a superadmin **Log fleet** dashboard.
+  enable/rotate/revoke forwarding per device — a revoked device cert is **hard-rejected at the receiver**
+  (a CA-signed CRL the syslog-ng receiver enforces, so a stolen device key can't keep shipping logs after
+  revocation) — investigate from a tenant-scoped **Logs** page, and watch the estate from a superadmin
+  **Log fleet** dashboard.
 - **Configurable tunables** — operational knobs are either deploy-time (`.env`: worker concurrency, DB
   pool, connector timeout) or **runtime-editable** from a superadmin **System** page (firmware poll
   budget, catalog/GeoIP auto-fetch, silent-tenant detector, login brute-force limits, session TTL/idle),
@@ -226,7 +228,7 @@ version tag).
 | **Localization** — **12-language** UI (en/it/es/fr/de/pt/nl/ru/ar/zh/zh-TW/ja) incl. full **RTL** (Arabic) | ✅ Done |
 | **Deployment** — multi-arch **GHCR** images (semver-tagged), TLS overlays (proxy / cert / Caddy / Traefik), one-shot auto-migrate, configurable timezone | ✅ Done |
 | **Hardening** — web headers, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, protected `main` | ✅ Done |
-| **Log lake** — opt-in mTLS syslog-ng → OpenSearch; tenant-scoped **Logs** page; per-device cert lifecycle (rotate/revoke); deep paging + multi-node HA; cross-tenant **Log fleet** dashboard | ✅ Done |
+| **Log lake** — opt-in mTLS syslog-ng → OpenSearch; tenant-scoped **Logs** page; per-device cert lifecycle (rotate/revoke) with **receiver-enforced CRL hard-revocation**; owner-only (least-privilege) CA key; deep paging + multi-node HA; cross-tenant **Log fleet** dashboard | ✅ Done |
 
 Detailed per-milestone design specs + implementation plans live in
 [`docs/superpowers/`](docs/superpowers/); feature documentation is in the
@@ -271,6 +273,9 @@ npm run lint        # ESLint
   per transaction (cross-tenant isolation covered by SQL-level and real-API tests).
 - **Secrets at rest** — every secret (device API credentials, config snapshots, MFA TOTP secrets, the SMTP
   password, the syslog CA key) is Fernet-encrypted with `MASTER_KEY`, never returned by any API or logged.
+  The syslog **CA private key** is held least-privilege: it lives in an owner-only table the `opngms_app`
+  role cannot read at all (reachable only through a single SECURITY DEFINER accessor used by the cert
+  signing path), so a read primitive can't exfiltrate it via the blanket table grant.
   `MASTER_KEY` rotation is **zero-downtime**: the crypto layer (`MultiFernet`) encrypts with the new primary
   key but decrypts with the new key **or** any retired key in `MASTER_KEY_OLD_KEYS`, so you add the new key,
   run the bundled re-key script (`python -m app.scripts.rekey_secrets`, which re-encrypts every column), and
