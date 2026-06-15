@@ -72,7 +72,7 @@ def test_delete_without_snapshot_raises():
 
 def test_unknown_kind_raises():
     c = _change("add", "x", {})
-    c.kind = "firewall_rule"
+    c.kind = "no_such_kind"            # a kind with no registered inverse builder
     with pytest.raises(NoInverseError):
         build_inverse(c, None)
 

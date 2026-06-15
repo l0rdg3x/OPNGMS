@@ -322,7 +322,13 @@ class OpnsenseClient:
                    if r.get("description") == description and str(r.get("interface", "")) == interface]
         if len(matches) > 1:
             raise ApiError(0, f"rule '{description}' on '{interface}' not uniquely resolvable ({len(matches)})")
-        return matches[0]["uuid"] if matches else None
+        if not matches:
+            return None
+        uuid_ = str(matches[0].get("uuid", ""))
+        # Box-sourced, but guard before it is embedded in a setRule/delRule URL path (catchable ApiError).
+        if not _OPN_UUID_RE.match(uuid_):
+            raise ApiError(0, f"rule '{description}' resolved to an unsafe uuid")
+        return uuid_
 
     async def get_monit_test_model(self) -> dict:
         """Blank Monit test model (option-objects/strings) for the introspection form."""
@@ -394,7 +400,13 @@ class OpnsenseClient:
         matches = [r for r in data.get("rows", []) if r.get("name") == name]
         if len(matches) > 1:
             raise ApiError(0, f"monit test '{name}' not uniquely resolvable ({len(matches)} matches)")
-        return matches[0]["uuid"] if matches else None
+        if not matches:
+            return None
+        uuid_ = str(matches[0].get("uuid", ""))
+        # Box-sourced, but guard before it is embedded in a setTest/delTest URL path (catchable ApiError).
+        if not _OPN_UUID_RE.match(uuid_):
+            raise ApiError(0, f"monit test '{name}' resolved to an unsafe uuid")
+        return uuid_
 
     async def list_ids_rulesets(self) -> list[dict]:
         """Catalog of installed Suricata/IDS rulesets: [{filename, description, enabled, ...}]."""

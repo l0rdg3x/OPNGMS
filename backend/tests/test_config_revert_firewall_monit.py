@@ -58,10 +58,23 @@ def test_monit_test_created_is_deleted():
     assert op == "delete" and payload == {"name": "ghost"}
 
 
+def test_firewall_rule_add_inverts_to_delete_without_snapshot():
+    ch = _change("firewall_rule", "new-rule", {"description": "new-rule", "interface": "lan"}, op="add")
+    op, target, payload = build_inverse(ch, None)
+    assert op == "delete" and payload == {"description": "new-rule", "interface": "lan"}
+
+
+def test_monit_test_add_inverts_to_delete_without_snapshot():
+    ch = _change("monit_test", "new-test", {"name": "new-test"}, op="add")
+    op, target, payload = build_inverse(ch, None)
+    assert op == "delete" and payload == {"name": "new-test"}
+
+
 @pytest.mark.parametrize("kind,target,payload", [
     ("firewall_rule", "tpl-rule", {"description": "tpl-rule", "interface": "lan"}),
     ("monit_test", "tpl-test", {"name": "tpl-test"}),
 ])
 def test_no_snapshot_raises(kind, target, payload):
+    # op defaults to "set" -> a set-restore genuinely needs the snapshot.
     with pytest.raises(NoInverseError):
         build_inverse(_change(kind, target, payload), None)
