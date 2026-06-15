@@ -5,6 +5,7 @@ import { useAlerts, useTenantHealth } from "../monitoring/hooks";
 import { HealthSummaryCards, type FleetHealth } from "../monitoring/HealthSummaryCards";
 import { AttackerCountriesCard } from "../overview/AttackerCountriesCard";
 import { PerimeterCard } from "../perimeter/PerimeterCard";
+import { ReliabilityCard } from "../reliability/ReliabilityCard";
 
 export function OverviewPage() {
   const t = useT();
@@ -26,6 +27,9 @@ export function OverviewPage() {
         <PerimeterCard kind="login_failed" />
         <PerimeterCard kind="firewall_block" />
       </SimpleGrid>
+
+      <Title order={4} mt="md">{t.reliability.title}</Title>
+      <ReliabilityCard />
 
       <Title order={4} mt="md">{t.overview.activeAlerts}</Title>
       {alerts.isLoading && <Loader />}
