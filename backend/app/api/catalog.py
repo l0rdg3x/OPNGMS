@@ -75,6 +75,7 @@ def _build_payload(model: dict, body: CatalogChangeIn) -> dict:
     return {
         "model_id": model["id"], "set_path": eps.get("set", ""),
         "reconfigure_path": eps["reconfigure"], "model_root": model.get("model_root", ""),
+        "xml_path": model.get("xml_path", ""),  # the model's config.xml subtree (for revert reconstruction)
         "scalars": dict(body.scalars), "grids": grids_payload,
     }
 
