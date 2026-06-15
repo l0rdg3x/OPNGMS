@@ -27,7 +27,9 @@ def _setting_change(target, payload):
 def test_has_inverse():
     assert has_inverse("alias") is True
     assert has_inverse("opnsense_setting") is True
-    assert has_inverse("firewall_rule") is False
+    assert has_inverse("firewall_rule") is True
+    assert has_inverse("monit_test") is True
+    assert has_inverse("ids_policy") is False
 
 
 def test_add_inverts_to_delete_without_snapshot():
