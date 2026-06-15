@@ -7,6 +7,7 @@ inverse-generation is new. v1 registers the firewall_alias kind; other kinds rai
 from __future__ import annotations
 
 import gzip
+import json
 import uuid
 from collections.abc import Callable, Iterable
 
@@ -160,6 +161,51 @@ def _invert_monit_test(change: ConfigChange, snapshot_xml: str | None) -> tuple[
 
 
 register_inverse_builder("monit_test", _invert_monit_test)
+
+
+_IDS_POLICY_PATH = "OPNsense/IDS/policies/policy"
+_IDS_FILES_PATH = "OPNsense/IDS/files/file"
+
+
+def _ids_files_map(xml: str) -> dict:
+    """Build {file_uuid: filename} from the IDS files table in the snapshot.
+
+    The policy stores its rulesets as file-uuids; the portable body refers to them by filename, so
+    the inverse maps each uuid back through this table (a uuid with no filename match is dropped)."""
+    root = DET.fromstring(xml)
+    out: dict = {}
+    for f in root.iterfind(f".//{_IDS_FILES_PATH}"):
+        file_uuid = f.get("uuid")
+        name = f.findtext("filename")
+        if file_uuid and name:
+            out[file_uuid] = name
+    return out
+
+
+def _invert_ids_policy(change: ConfigChange, snapshot_xml: str | None) -> tuple[str, str, dict]:
+    description = change.target or (change.payload or {}).get("description", "")
+    if change.operation == "add":
+        # The inverse of a creation is a delete by identity — no snapshot needed (mirrors _invert_alias).
+        return "delete", description, {"description": description}
+    if not snapshot_xml:
+        raise NoInverseError("no pre-apply snapshot to reconstruct the ids policy from")
+    prior = record_from_config_xml(snapshot_xml, _IDS_POLICY_PATH, {"description": description})
+    if prior is None:
+        return "delete", description, {"description": description}
+    files = _ids_files_map(snapshot_xml)
+    body = {
+        "description": description,
+        "enabled": prior.get("enabled", "1"),
+        "prio": prior.get("prio", "0"),
+        "new_action": prior.get("new_action", "alert"),
+        "action": [a for a in (prior.get("action", "") or "").split(",") if a],
+        "rulesets": [files[u] for u in (prior.get("rulesets", "") or "").split(",") if u in files],
+        "content": json.loads(prior["content"]) if prior.get("content") else {},
+    }
+    return "set", description, body
+
+
+register_inverse_builder("ids_policy", _invert_ids_policy)
 
 
 # --- revert flow ---
