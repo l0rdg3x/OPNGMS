@@ -9,7 +9,7 @@ from app.models.event import Event
 from app.models.ingest_cursor import IngestCursor
 
 # Active sources.
-SOURCES = ["ids", "dns"]
+SOURCES = ["ids", "dns", "service"]
 
 
 async def ingest_events(session: AsyncSession, device: Device, client, now: datetime) -> int:
@@ -47,6 +47,8 @@ async def _fetch(client, source: str, since):
         return await client.get_ids_alerts(since)
     if source == "dns":
         return await client.get_dns_events(since)
+    if source == "service":
+        return await client.get_service_events(since)
     raise ValueError(f"unknown source: {source}")
 
 

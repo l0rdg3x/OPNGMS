@@ -99,4 +99,10 @@ CAPABILITIES: dict[str, list[ProfileRule]] = {
         _POST("diagnostics/log/core/audit",
               {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""}),
         combine=lambda r: parsers.parse_auth_failures(r[0])))],
+    # Reliability signals (reboot / service crash-restart / disk-FS) classified out of the system log.
+    # Same POST/paged shape as the audit log; the classifier stores only recognized lines.
+    "service_events": [_default(_spec(
+        _POST("diagnostics/log/core/system",
+              {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""}),
+        combine=lambda r: parsers.parse_service_events(r[0])))],
 }
