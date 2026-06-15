@@ -254,6 +254,7 @@ export const en = {
       content: "Metadata filters (advanced — most policies need none)",
       contentKey: "Key",
       contentValues: "Values (comma-separated)",
+      contentKeyInvalid: "Invalid key — use letters, digits, dots, dashes or underscores.",
       addContent: "Add filter",
       descriptionRequired: "A description is required (it is the policy identity).",
       note: "Referenced rulesets must already be enabled on the device. The rulesets/content "

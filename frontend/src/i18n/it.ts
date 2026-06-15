@@ -255,6 +255,7 @@ export const it: Dict = {
       content: "Filtri sui metadati (avanzato — la maggior parte dei criteri non ne ha bisogno)",
       contentKey: "Chiave",
       contentValues: "Valori (separati da virgola)",
+      contentKeyInvalid: "Chiave non valida — usa lettere, cifre, punti, trattini o underscore.",
       addContent: "Aggiungi filtro",
       descriptionRequired: "È richiesta una descrizione (è l'identità del criterio).",
       note: "I ruleset referenziati devono essere già abilitati sul dispositivo. La mappatura "

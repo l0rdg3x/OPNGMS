@@ -256,6 +256,7 @@ export const nl: Dict = {
       content: "Metadatafilters (geavanceerd — de meeste beleidsregels hebben er geen nodig)",
       contentKey: "Sleutel",
       contentValues: "Waarden (door komma's gescheiden)",
+      contentKeyInvalid: "Ongeldige sleutel — gebruik letters, cijfers, punten, streepjes of underscores.",
       addContent: "Filter toevoegen",
       descriptionRequired: "Een beschrijving is verplicht (het is de identiteit van het beleid).",
       note: "Verwezen rulesets moeten al op het apparaat zijn ingeschakeld. De toewijzing van "

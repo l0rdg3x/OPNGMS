@@ -255,6 +255,7 @@ export const zhTW: Dict = {
       content: "中繼資料篩選器（進階 — 大多數原則不需要）",
       contentKey: "鍵",
       contentValues: "值（以逗號分隔）",
+      contentKeyInvalid: "鍵無效——請使用字母、數字、點、連字號或底線。",
       addContent: "新增篩選器",
       descriptionRequired: "必須填寫說明（它是原則的識別依據）。",
       note: "所參照的規則集必須已在裝置上啟用。規則集/內容的對應會在套用時於執行階段進行驗證。",

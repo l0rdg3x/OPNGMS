@@ -256,6 +256,7 @@ export const de: Dict = {
       content: "Metadatenfilter (erweitert — die meisten Richtlinien benötigen keine)",
       contentKey: "Schlüssel",
       contentValues: "Werte (durch Komma getrennt)",
+      contentKeyInvalid: "Ungültiger Schlüssel – nur Buchstaben, Ziffern, Punkte, Bindestriche oder Unterstriche.",
       addContent: "Filter hinzufügen",
       descriptionRequired: "Eine Beschreibung ist erforderlich (sie bildet die Identität der Richtlinie).",
       note: "Referenzierte Regelsätze müssen auf dem Gerät bereits aktiviert sein. Die Zuordnung "

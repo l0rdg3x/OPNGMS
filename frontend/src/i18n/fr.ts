@@ -256,6 +256,7 @@ export const fr: Dict = {
       content: "Filtres de métadonnées (avancé — la plupart des politiques n'en ont pas besoin)",
       contentKey: "Clé",
       contentValues: "Valeurs (séparées par des virgules)",
+      contentKeyInvalid: "Clé invalide — utilisez des lettres, chiffres, points, tirets ou underscores.",
       addContent: "Ajouter un filtre",
       descriptionRequired: "Une description est requise (elle constitue l'identité de la politique).",
       note: "Les jeux de règles référencés doivent déjà être activés sur l'appareil. La "

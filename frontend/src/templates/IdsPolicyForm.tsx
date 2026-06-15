@@ -1,7 +1,7 @@
 import {
-  ActionIcon,
   Button,
   Checkbox,
+  CloseButton,
   Group,
   MultiSelect,
   NumberInput,
@@ -27,6 +27,8 @@ export type PolicyBody = {
 
 const ACTIONS = ["disable", "alert", "drop"];
 const NEW_ACTIONS = ["default", "alert", "drop", "disable"];
+// Mirror the backend _CONTENT_KEY_RE so a bad metadata key is caught before submit (clear message).
+const CONTENT_KEY_RE = /^[A-Za-z0-9._-]+$/;
 
 export function IdsPolicyForm(
   { value, onChange }: { value: PolicyBody; onChange: (v: PolicyBody) => void },
@@ -43,9 +45,19 @@ export function IdsPolicyForm(
   const [contentValues, setContentValues] = useState("");
 
   const deviceData = (devices ?? []).map((d) => ({ value: d.id, label: d.name }));
-  const rulesetData = rows
-    .filter((r) => r.enabled === "1")
-    .map((r) => ({ value: r.filename, label: r.description || r.filename }));
+  // Offer enabled rulesets to pick (a policy can only reference enabled ones), but always keep any
+  // already-selected ruleset in the option set so editing never silently drops it (Mantine MultiSelect
+  // discards values that have no matching option). The apply-time check still refuses a disabled ruleset.
+  const rulesetData = (() => {
+    const opts = rows
+      .filter((r) => r.enabled === "1")
+      .map((r) => ({ value: r.filename, label: r.description || r.filename }));
+    const present = new Set(opts.map((o) => o.value));
+    for (const name of value.rulesets) {
+      if (!present.has(name)) opts.push({ value: name, label: name });
+    }
+    return opts;
+  })();
 
   async function loadRulesets() {
     try {
@@ -62,6 +74,10 @@ export function IdsPolicyForm(
   function addContent() {
     const key = contentKey.trim();
     if (!key) return;
+    if (!CONTENT_KEY_RE.test(key)) {
+      notifications.show({ color: "red", message: t.templates.idsPolicy.contentKeyInvalid });
+      return;
+    }
     const values = contentValues.split(",").map((s) => s.trim()).filter(Boolean);
     onChange({ ...value, content: { ...value.content, [key]: values } });
     setContentKey("");
@@ -171,14 +187,7 @@ export function IdsPolicyForm(
         {Object.entries(value.content).map(([k, vals]) => (
           <Group key={k} gap="xs" wrap="nowrap">
             <Text size="sm" style={{ flex: 1 }}>{`${k}: ${vals.join(", ")}`}</Text>
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              aria-label={`remove ${k}`}
-              onClick={() => removeContent(k)}
-            >
-              ×
-            </ActionIcon>
+            <CloseButton aria-label={`remove ${k}`} onClick={() => removeContent(k)} />
           </Group>
         ))}
         <Group align="flex-end" gap="xs">

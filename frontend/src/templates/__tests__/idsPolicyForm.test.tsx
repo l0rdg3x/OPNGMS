@@ -71,4 +71,29 @@ describe("IdsPolicyForm", () => {
       expect.objectContaining({ description: "D" }),
     );
   });
+
+  it("adds a metadata filter with a comma-split value list", async () => {
+    server.use(http.get("/api/tenants/t1/devices", () => HttpResponse.json([])));
+    const onChange = vi.fn();
+    render(<IdsPolicyForm value={EMPTY} onChange={onChange} />, { wrapper: makeWrapper() });
+
+    await userEvent.type(await screen.findByTestId("idspolicy-content-key"), "severity");
+    await userEvent.type(screen.getByTestId("idspolicy-content-values"), "1, 2");
+    await userEvent.click(screen.getByTestId("idspolicy-content-add"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ content: { severity: ["1", "2"] } }),
+    );
+  });
+
+  it("rejects a content key with an invalid charset (no onChange)", async () => {
+    server.use(http.get("/api/tenants/t1/devices", () => HttpResponse.json([])));
+    const onChange = vi.fn();
+    render(<IdsPolicyForm value={EMPTY} onChange={onChange} />, { wrapper: makeWrapper() });
+
+    await userEvent.type(await screen.findByTestId("idspolicy-content-key"), "bad key!");
+    await userEvent.click(screen.getByTestId("idspolicy-content-add"));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

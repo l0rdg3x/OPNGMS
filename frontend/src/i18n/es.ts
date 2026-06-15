@@ -256,6 +256,7 @@ export const es: Dict = {
       content: "Filtros de metadatos (avanzado — la mayoría de las directivas no necesitan ninguno)",
       contentKey: "Clave",
       contentValues: "Valores (separados por comas)",
+      contentKeyInvalid: "Clave no válida — usa letras, dígitos, puntos, guiones o guiones bajos.",
       addContent: "Añadir filtro",
       descriptionRequired: "Se requiere una descripción (es la identidad de la directiva).",
       note: "Los conjuntos de reglas referenciados ya deben estar activados en el dispositivo. La "

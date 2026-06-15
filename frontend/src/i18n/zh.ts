@@ -255,6 +255,7 @@ export const zh: Dict = {
       content: "元数据过滤器（高级 — 大多数策略无需设置）",
       contentKey: "键",
       contentValues: "值（以逗号分隔）",
+      contentKeyInvalid: "键无效——请使用字母、数字、点、连字符或下划线。",
       addContent: "添加过滤器",
       descriptionRequired: "必须填写描述（它是策略的标识）。",
       note: "引用的规则集必须已在设备上启用。规则集/内容的映射会在应用时于运行时进行验证。",

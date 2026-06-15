@@ -256,6 +256,7 @@ export const pt: Dict = {
       content: "Filtros de metadados (avançado — a maioria das políticas não precisa de nenhum)",
       contentKey: "Chave",
       contentValues: "Valores (separados por vírgula)",
+      contentKeyInvalid: "Chave inválida — use letras, dígitos, pontos, hífens ou sublinhados.",
       addContent: "Adicionar filtro",
       descriptionRequired: "É necessária uma descrição (é a identidade da política).",
       note: "Os conjuntos de regras referenciados já devem estar ativados no dispositivo. O "

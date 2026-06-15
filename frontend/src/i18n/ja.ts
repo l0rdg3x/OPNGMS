@@ -255,6 +255,7 @@ export const ja: Dict = {
       content: "メタデータフィルター（詳細設定 — ほとんどのポリシーでは不要です）",
       contentKey: "キー",
       contentValues: "値（カンマ区切り）",
+      contentKeyInvalid: "キーが無効です — 英数字、ピリオド、ハイフン、アンダースコアを使用してください。",
       addContent: "フィルターを追加",
       descriptionRequired: "説明は必須です（ポリシーの識別子になります）。",
       note: "参照するルールセットは、デバイス上で事前に有効になっている必要があります。"
