@@ -8,16 +8,20 @@ import re
 from app.services.config_apply import register_change_applier
 from app.services.templates import InvalidTemplateError, TemplateKind, register_template_kind
 
-_ACTIONS = {"disable", "alert", "drop"}                       # current-action match set
-_NEW_ACTIONS = {"default", "alert", "drop", "disable"}
+_ACTIONS = {"disable", "alert", "drop"}                       # current-action FILTER: rules a policy matches
+_NEW_ACTIONS = {"default", "alert", "drop", "disable"}        # OUTCOME: what the matched rules become
 _RULESET_NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")         # mirror the connector's charset guard
+_CONTENT_KEY_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")          # metadata-filter keys (defence in depth)
 _INT_RE = re.compile(r"\A-?\d+\Z")
 
 
 def _validate(body: dict) -> None:
     body = body or {}
-    if not str(body.get("description", "")).strip():
+    description = str(body.get("description", ""))
+    if not description.strip():
         raise InvalidTemplateError("ids policy 'description' is required (it is the policy identity)")
+    if description != description.strip():
+        raise InvalidTemplateError("ids policy 'description' must not have leading/trailing whitespace")
     if str(body.get("enabled", "1")) not in ("0", "1"):
         raise InvalidTemplateError("ids policy 'enabled' must be '0' or '1'")
     if not _INT_RE.match(str(body.get("prio", "0"))):
@@ -34,7 +38,8 @@ def _validate(body: dict) -> None:
         raise InvalidTemplateError("ids policy 'rulesets' must be a list of ruleset filenames")
     content = body.get("content", {})
     if not isinstance(content, dict) or any(
-        not isinstance(k, str) or not isinstance(v, list) or any(not isinstance(x, str) for x in v)
+        not isinstance(k, str) or not _CONTENT_KEY_RE.match(k)
+        or not isinstance(v, list) or any(not isinstance(x, str) for x in v)
         for k, v in content.items()
     ):
         raise InvalidTemplateError("ids policy 'content' must be an object of metadata-key -> [values]")

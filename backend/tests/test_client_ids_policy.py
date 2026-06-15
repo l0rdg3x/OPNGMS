@@ -55,7 +55,6 @@ async def test_set_adds_when_absent():
     posted = []
     _mock_search([])                                          # no existing policy -> addPolicy
     _mock_get_policy({"uuid-et": {"value": "et.rules", "selected": 1}})
-    respx.post(url__regex=r".*/api/ids/settings/searchPolicy.*").mock(side_effect=_capture(posted))
     respx.post(url__regex=r".*/api/ids/settings/addPolicy.*").mock(side_effect=_capture(posted))
     respx.post(url__regex=r".*/api/ids/service/reconfigure.*").mock(side_effect=_capture(posted))
     res = await _c().apply_ids_policy("set", _BODY, dry_run=False)
@@ -81,7 +80,26 @@ async def test_set_updates_when_present():
     respx.post(url__regex=r".*/api/ids/service/reconfigure.*").mock(side_effect=_capture(posted))
     res = await _c().apply_ids_policy("set", _BODY, dry_run=False)
     assert any(p == "ids/settings/setPolicy/p1" for p, _ in posted)
+    policy = next(b for p, b in posted if p == "ids/settings/setPolicy/p1")["policy"]
+    assert policy["action"] == "alert,drop"                  # body shape verified on the update path too
+    assert policy["rulesets"] == "uuid-et"
+    assert json.loads(policy["content"]) == {"severity": ["1"]}
     assert res["operation"] == "set"
+
+
+@respx.mock
+async def test_set_with_no_rulesets():
+    # A policy with no ruleset filter takes the empty-list fast-path: getPolicy is NOT consulted.
+    posted = []
+    _mock_search([])
+    get_policy = respx.get(url__regex=r".*/api/ids/settings/getPolicy.*")
+    respx.post(url__regex=r".*/api/ids/settings/addPolicy.*").mock(side_effect=_capture(posted))
+    respx.post(url__regex=r".*/api/ids/service/reconfigure.*").mock(side_effect=_capture(posted))
+    res = await _c().apply_ids_policy("set", {**_BODY, "rulesets": []}, dry_run=False)
+    policy = next(b for p, b in posted if p == "ids/settings/addPolicy")["policy"]
+    assert policy["rulesets"] == ""                          # empty -> no relation resolution
+    assert not get_policy.called                             # fast-path skipped the model read
+    assert res["operation"] == "add"
 
 
 @respx.mock

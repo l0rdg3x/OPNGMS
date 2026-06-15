@@ -37,6 +37,8 @@ def test_validate_accepts_minimal():
     {"rulesets": ["../etc/passwd"]},     # bad ruleset filename
     {"content": {"severity": "1"}},      # content value not a list
     {"content": [1, 2]},                 # content not a dict
+    {"content": {"bad key!": ["1"]}},    # content key bad charset
+    {"description": "  Drop ET  "},      # leading/trailing whitespace in the identity
 ])
 def test_validate_rejects_bad(patch):
     with pytest.raises(tpl.InvalidTemplateError):
