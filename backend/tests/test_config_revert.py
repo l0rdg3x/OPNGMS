@@ -30,7 +30,9 @@ def test_has_inverse():
     assert has_inverse("firewall_rule") is True
     assert has_inverse("monit_test") is True
     assert has_inverse("ids_policy") is True
-    assert has_inverse("catalog_setting") is False
+    assert has_inverse("catalog_setting") is True
+    # ids_rulesets is intentionally out of scope (additive enable, no clean inverse) -> button stays off.
+    assert has_inverse("ids_rulesets") is False
 
 
 def test_add_inverts_to_delete_without_snapshot():

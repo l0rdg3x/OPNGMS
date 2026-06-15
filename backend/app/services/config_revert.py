@@ -224,6 +224,91 @@ def _invert_ids_policy(change: ConfigChange, snapshot_xml: str | None) -> tuple[
 register_inverse_builder("ids_policy", _invert_ids_policy)
 
 
+def _grid_row_by_uuid(xml: str, xml_path: str, row_uuid: str) -> dict | None:
+    """Find the element with `uuid == row_uuid` in the snapshot subtree under `xml_path`;
+    return its child tags as a flat {tag: text} dict, or None if absent.
+
+    `xml_path` must be a trusted value carried in the change payload (set server-side from the
+    catalog model), never raw client input — it is embedded in the ElementTree query, not sanitized.
+    The uuid is compared by equality only, so it is never embedded in the query path."""
+    root = DET.fromstring(xml)
+    subtree = root.find(xml_path)
+    if subtree is None:
+        return None
+    for el in subtree.iter():
+        if el.get("uuid") == row_uuid:
+            return {child.tag: (child.text or "") for child in el}
+    return None
+
+
+def _invert_catalog_setting(change: ConfigChange, snapshot_xml: str | None) -> tuple[str, str, dict]:
+    """Invert a generic catalog_setting change into a single catalog_setting `set`.
+
+    Scalars restore the snapshot's prior values; each forward grid op is inverted (del<->add by uuid,
+    set restores the prior row). The forward ops are walked in payload order and each is replaced by
+    its inverse, so an `add` (we created a row) is undone by a `del` of the box-assigned uuid and a
+    `del` (we removed a row) is undone by an `add` of its prior fields — i.e. our destructive undos
+    (the dels) precede the re-creating undos (the adds), which is the safe ordering. add->del needs
+    only `change.result` (the box-assigned uuid), so a pure-add change inverts with no snapshot; any
+    scalar or del/set op needs the snapshot to reconstruct prior state, so its absence is a
+    NoInverseError."""
+    payload = change.payload or {}
+    model_id = change.target or payload.get("model_id", "")
+    xml_path = payload.get("xml_path", "")
+    scalars = payload.get("scalars") or {}
+    fwd_grids = payload.get("grids") or []
+    result_grids = ((change.result or {}).get("grids")) or []
+
+    needs_snapshot = bool(scalars) or any(g.get("op") in ("del", "set") for g in fwd_grids)
+    if needs_snapshot and not snapshot_xml:
+        raise NoInverseError("no pre-apply snapshot to reconstruct the catalog setting from")
+
+    inv_scalars = (
+        setting_from_config_xml(snapshot_xml, xml_path, scalars.keys())
+        if scalars and snapshot_xml else {}
+    )
+
+    inv_grids: list[dict] = []
+    # Walk forward ops in payload order, replacing each by its inverse. The applier appends result
+    # entries in payload order, so result_grids is index-aligned with fwd_grids.
+    for i, fwd in enumerate(fwd_grids):
+        op = fwd.get("op")
+        base = {"endpoints": fwd.get("endpoints", {}), "row": fwd.get("row", "")}
+        if op == "del":
+            prior = _grid_row_by_uuid(snapshot_xml, xml_path, fwd.get("uuid")) if snapshot_xml else None
+            if prior is None:
+                raise NoInverseError(
+                    f"deleted grid row {fwd.get('uuid')!r} not found in the pre-apply snapshot")
+            inv_grids.append({"op": "add", **base, "uuid": None, "item": prior})
+        elif op == "set":
+            prior = _grid_row_by_uuid(snapshot_xml, xml_path, fwd.get("uuid")) if snapshot_xml else None
+            if prior is None:
+                raise NoInverseError(
+                    f"modified grid row {fwd.get('uuid')!r} not found in the pre-apply snapshot")
+            inv_grids.append({"op": "set", **base, "uuid": fwd.get("uuid"), "item": prior})
+        elif op == "add":
+            # The inverse of an add is a del of the NEWLY assigned uuid, read from the live result.
+            # If the op never really applied (dry-run / missing / no uuid), nothing was added -> skip.
+            res = result_grids[i] if i < len(result_grids) else None
+            new_uuid = ((res or {}).get("result") or {}).get("uuid") if res and not res.get("dry_run") else None
+            if new_uuid:
+                inv_grids.append({"op": "del", **base, "uuid": new_uuid, "item": None})
+
+    inverse_payload = {
+        "model_id": model_id,
+        "set_path": payload.get("set_path", ""),
+        "reconfigure_path": payload.get("reconfigure_path", ""),
+        "model_root": payload.get("model_root", ""),
+        "xml_path": xml_path,
+        "scalars": inv_scalars,
+        "grids": inv_grids,
+    }
+    return "set", model_id, inverse_payload
+
+
+register_inverse_builder("catalog_setting", _invert_catalog_setting)
+
+
 # --- revert flow ---
 
 
