@@ -11,7 +11,7 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-RETENTION_STORES = ("perimeter", "events", "metrics")  # SP-2 will add "log_lake"
+RETENTION_STORES = ("perimeter", "events", "metrics", "log_lake")
 _MIN, _MAX = 1, 3650
 
 
