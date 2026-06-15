@@ -65,7 +65,9 @@ services:
     image: balabit/syslog-ng:4.5.0
     # entrypoint.sh runs syslog-ng + a CRL reload-watcher (syslog-ng caches the CRL at init, so an
     # updated /certs/crl/<hash>.r0 needs a `syslog-ng-ctl reload` to take effect).
-    command: ["/entrypoint.sh"]
+    # NB: override `entrypoint` (not just `command`) — the base image's ENTRYPOINT is
+    # `/usr/sbin/syslog-ng -F`, so a bare `command:` would be appended to it, not replace it.
+    entrypoint: ["/entrypoint.sh"]
     environment:
       OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch-n1:9200}
       TZ: ${TZ:-UTC}
