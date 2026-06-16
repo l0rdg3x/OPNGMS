@@ -12,6 +12,23 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-06-16
+### Added
+- **Management-IP attribution for config-change audit.** OPNGMS now **auto-learns the source IP it
+  manages each box from** and uses it to disambiguate the previously-opaque `api` channel: it correlates
+  the box's API config-changes with OPNGMS's own apply ledger (an applied change within a few minutes of
+  the logged API change) and, when the correlated changes agree on a single IP, learns that IP as the
+  device's management IP. An `api` change is then split into **`opngms`** (OPNGMS's own change, from the
+  learned IP — expected/benign) versus **`api_external`** (an API change from any other IP — a change made
+  outside OPNGMS, so **drift**, raised at higher severity and alerted alongside WebGUI/console edits). The
+  learning is conservative (a single unambiguous IP) and **self-correcting** (a clean OPNGMS apply re-learns
+  the right IP), and the pipeline is a no-op until the IP is learned. The new channels are labelled across
+  the device **Config changes** tab, the Overview direct-changes card, and the per-client PDF report
+  (`OPNGMS` / `External API`) in all 12 UI + 12 report languages, and `api_external` counts as a direct/drift
+  channel everywhere `gui`/`system` do. Resolves the "management-IP attribution is a documented follow-up"
+  note from the v0.16.0 config-change-audit milestone. Live-verified end-to-end against the test box
+  (auto-learned `192.168.6.100`; OPNGMS-applied changes reclassified to `opngms`). (#199, #200)
+
 ## [0.16.0] - 2026-06-16
 ### Added
 - **Config-change audit ("who changed the box, and how").** OPNGMS now ingests the OPNsense **audit log**

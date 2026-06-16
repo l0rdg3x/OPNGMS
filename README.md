@@ -52,9 +52,11 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Event ingest** — incremental, deduplicated pull of Suricata IDS/IPS alerts and DNS queries.
 - **Reliability events** — reboots, service crashes/restarts, and disk/FS warnings classified from the
   system log into a per-device reliability timeline + an Overview card + a report section + alerts.
-- **Config-change audit** — who/what/when changed each box's config, from the OPNsense audit log, with a
-  best-effort **drift-cause** attribution: changes are classified by channel (`api` / WebGUI / console)
-  and **direct on-box (non-API) changes** — what OPNGMS never does — are flagged as drift, raising a
+- **Config-change audit** — who/what/when changed each box's config, from the OPNsense audit log, with
+  **drift-cause attribution by channel**. OPNGMS **auto-learns the management source IP** it reaches each
+  box from (correlating the box's API changes with its own apply ledger), so an `api` change is split into
+  **OPNGMS's own** change vs an **external API** client, alongside **WebGUI** and **console** edits.
+  Anything OPNGMS did not make — external API, WebGUI, console — is flagged as **drift** and raises a
   deduped alert. Per-device **Config changes** tab + an Overview direct-changes card + a PDF report
   section. (Distinct from the superadmin Audit viewer, which is OPNGMS's own write-ledger.)
 - **Security / Perimeter** — surfaces the attackers hitting each box: **failed logins** (source IP +
@@ -119,8 +121,10 @@ and localized into **12 languages** (with full right-to-left support).
 > health, the GeoIP attacker-countries view, the perimeter view, templates, reporting, runtime settings, MFA,
 > access groups, the log fleet, RTL, and more. Sample PDF reports live under [`docs/demo-reports/`](docs/demo-reports/).
 
-| Right-to-left layout (Arabic) | Access groups (group-based RBAC) |
+| Config-change audit — channel attribution & drift | Per-device health |
 |---|---|
+| [![Config changes](docs/ui/config-changes.png)](docs/ui/config-changes.png) | [![Device health](docs/ui/device-health.png)](docs/ui/device-health.png) |
+| **Right-to-left layout (Arabic)** | **Access groups (group-based RBAC)** |
 | [![RTL](docs/ui/rtl.png)](docs/ui/rtl.png) | [![Groups](docs/ui/groups.png)](docs/ui/groups.png) |
 
 ## Architecture
@@ -223,7 +227,7 @@ version tag).
 | **Monitoring** — poller, health + network metrics, alerting, dashboard | ✅ Done |
 | **Event ingest** — Suricata IDS + DNS into the `events` hypertable, keyset-paginated query API | ✅ Done |
 | **Reliability events** — reboots / service crashes-restarts / disk-FS warnings classified from the system log (`service` source); device timeline tab + Overview card + report section + deduped alerts | ✅ Done |
-| **Config-change audit** — who/what/when changed each box (`config_audit` source from the audit log), channel-attributed (api / WebGUI / console) with best-effort **drift-cause** flagging of direct on-box changes; device **Config changes** tab + Overview card + report section + deduped drift alerts | ✅ Done |
+| **Config-change audit** — who/what/when changed each box (`config_audit` source from the audit log), channel-attributed with **auto-learned management-IP** attribution (OPNGMS's own change vs external API) plus WebGUI / console, and **drift-cause** flagging of changes OPNGMS did not make; device **Config changes** tab + Overview card + report section + deduped drift alerts | ✅ Done |
 | **Security / Perimeter** — failed logins + firewall blocks per attacker IP (GeoIP country), bounded rollup + retention; Overview cards, a **Perimeter** page, and two PDF report sections (toggled alongside the other report sections) | ✅ Done |
 | **Configurable tunables** — boot-time `.env` knobs (worker concurrency, DB pool, connector timeout) + a runtime-settings registry on the superadmin **System** page (env default + live DB override) | ✅ Done |
 | **Audit log viewer** — every mutating action recorded (actor + IP + target + details); superadmin **Audit** page with filters (actor/tenant/action/date) + **CSV export**; a CI guard fails the build if a mutating route ships without an audit record | ✅ Done |
