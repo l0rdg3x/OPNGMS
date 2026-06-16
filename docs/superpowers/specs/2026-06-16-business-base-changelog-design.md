@@ -109,3 +109,17 @@ would. (Operator step; the publish Action then republishes the denser map on its
 - Editable config for **Business proprietary plugins** (no public MVC models; needs a real Business box).
 - Any change to the API-endpoint `CAPABILITIES` matrix in `profiles.py` — Business shares its CE base's API
   surface, already covered by the `edition="any"` rules.
+
+## Correction (v0.18.1, 2026-06-16) — Business hotfix chains + no floor
+The first cut (v0.18.0) matched only *"based on the OPNsense X.Y.Z **community** version"*. Real Business
+**hotfix** files instead say *"based on the OPNsense X.Y.Z **business** version"* (e.g. `25.4.3 → 25.4.2`,
+`24.4.3 → 24.4.2`) — they chain onto the prior Business release — so they fell out of the map. Fixes:
+- `_BASE_RE` now captures the kind: `…\s+(community|business)`. `parse_business_base` builds a raw
+  `{ver: (referenced_version, kind)}` then **resolves each to a Community base transitively**, following
+  `business → business` links until a `community` anchor (bounded by `_MAX_CHAIN = 32`, which also breaks
+  cycles); an unresolvable chain (referenced version absent) or a cycle yields no entry (never guess).
+- The CLI reader **no longer floors at major ≥ 25** — it reads every release-version Business file (still
+  skipping symlinked majors + non-release filenames) so chains always resolve and the map is **complete**;
+  the Community-catalog floor stays enforced downstream by `resolve_target` (a `<25` base floor-resolves to
+  `None` against the `≥25` manifest, exactly as before). Verified on the real repo: 38 entries, with
+  `25.4.3 → 25.1.12` and `24.4.3 → 24.1.10` now present.

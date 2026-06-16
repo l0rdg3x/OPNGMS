@@ -17,7 +17,6 @@ from tools.opnsense_catalog.menu import discover_menus, merge_menus, parse_menu,
 from tools.opnsense_catalog.model_parser import parse_model
 from tools.opnsense_catalog.publish import (
     _RELEASE_TAG_RE,
-    _version_key,
     build_manifest,
     parse_business_base,
     release_versions,
@@ -107,23 +106,20 @@ def _fetch_core_tags() -> list[str]:  # pragma: no cover — network, ops use on
     return tags
 
 
-_BUSINESS_FLOOR = (25,)  # match the Community catalog floor (--minimum 25); ignore ancient BE series
-
-
 def _read_changelog_business(changelog_dir: Path) -> dict[str, str]:
     """Read an opnsense/changelog checkout's `business/<major>/<subversion>` files into
-    {subversion: text}. Skips symlinked majors (older BE series symlink to community), pre-floor
-    majors, and non-release filenames (e.g. release candidates `*.r1`)."""
+    {subversion: text}. Reads EVERY Business release so business-on-business hotfix chains resolve
+    transitively (see parse_business_base); skips symlinked majors (older BE series symlink to
+    community — no Business 'based on' header) and non-release filenames (e.g. RC `*.r1`). The
+    Community catalog floor is enforced downstream by the resolver, not here."""
     pages: dict[str, str] = {}
     business = changelog_dir / "business"
     for major in sorted(business.iterdir()) if business.is_dir() else []:
         if major.is_symlink() or not major.is_dir():
             continue
         for f in sorted(major.iterdir()):
-            name = f.name
-            if not _RELEASE_TAG_RE.match(name) or _version_key(name) < _BUSINESS_FLOOR:
-                continue
-            pages[name] = f.read_text()
+            if _RELEASE_TAG_RE.match(f.name):
+                pages[f.name] = f.read_text()
     return pages
 
 

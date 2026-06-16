@@ -17,23 +17,48 @@ def build_manifest(entries: dict[str, bytes]) -> dict:
     return {"catalogs": {key: sha256_hex(blob) for key, blob in entries.items()}}
 
 
-# Both the docs.opnsense.org BE pages and the opnsense/changelog `business/` files state:
-# "This business release is based on the OPNsense X.Y.Z community version".
-_BASE_RE = re.compile(r"based on the OPNsense\s+(\d+\.\d+(?:\.\d+)?)\s+community", re.IGNORECASE)
+# Each opnsense/changelog `business/` file's header states what the release is based on — EITHER a
+# Community version ("based on the OPNsense X.Y.Z community version") OR, for a Business hotfix, the
+# PRIOR Business version ("based on the OPNsense X.Y.Z business version"). The kind is captured so a
+# business-on-business chain can be followed transitively to the underlying Community base.
+_BASE_RE = re.compile(
+    r"based on the OPNsense\s+(\d+\.\d+(?:\.\d+)?)\s+(community|business)", re.IGNORECASE
+)
+_MAX_CHAIN = 32  # safety cap when following a business-on-business chain (also breaks cycles)
 
 
 def parse_business_base(pages: dict[str, str]) -> dict:
     """pages maps a Business version -> the text of its release notes (an opnsense/changelog
     `business/<major>/<subversion>` file, one entry per sub-version).
 
-    Extracts the Community base version from each entry; entries without the marker are skipped
-    (never guess). Returns {"map": {business_version: community_base_version}}.
+    Each entry is resolved to its **Community** base version: a `community` header is the base
+    directly; a `business` header (a hotfix chained on the prior Business release) is followed
+    transitively until a Community base is reached. Entries with no marker, an unresolvable chain
+    (a referenced Business version not in `pages`), or a cycle are skipped (never guess). Returns
+    {"map": {business_version: community_base_version}}.
     """
-    mapping: dict[str, str] = {}
-    for be_version, html in pages.items():
-        m = _BASE_RE.search(html or "")
+    # Pass 1: raw {business_version: (referenced_version, "community"|"business")}.
+    raw: dict[str, tuple[str, str]] = {}
+    for be_version, text in pages.items():
+        m = _BASE_RE.search(text or "")
         if m:
-            mapping[be_version] = m.group(1)
+            raw[be_version] = (m.group(1), m.group(2).lower())
+
+    # Pass 2: resolve each to a Community base, following business->business links.
+    def _community_base(version: str) -> str | None:
+        seen: set[str] = set()
+        cur = version
+        for _ in range(_MAX_CHAIN):
+            if cur not in raw or cur in seen:
+                return None  # dead-ends on an unknown version, or a cycle
+            seen.add(cur)
+            ref, kind = raw[cur]
+            if kind == "community":
+                return ref
+            cur = ref
+        return None
+
+    mapping = {v: base for v in raw if (base := _community_base(v)) is not None}
     return {"map": mapping}
 
 
