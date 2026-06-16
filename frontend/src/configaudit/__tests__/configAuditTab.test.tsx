@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 
 import { ConfigAuditCard } from "../ConfigAuditCard";
 import { ConfigAuditTab } from "../ConfigAuditTab";
+import { isDirectChannel, channelLabel } from "../configAuditHooks";
+import { en } from "../../i18n/en";
 import { TenantContext } from "../../tenant/TenantProvider";
 import { server } from "../../test/server";
 import { renderWithProviders } from "../../test/utils";
@@ -135,5 +137,40 @@ describe("ConfigAuditCard", () => {
     );
     renderWithProviders(withTenant(<ConfigAuditCard />));
     expect(await screen.findByText(/No config changes in this window/i)).toBeInTheDocument();
+  });
+});
+
+// ── isDirectChannel + channelLabel for the new opngms/api_external values ─────
+
+describe("isDirectChannel — opngms/api_external channels", () => {
+  it("returns false for opngms (OPNGMS's own change — benign)", () => {
+    expect(isDirectChannel("opngms")).toBe(false);
+  });
+
+  it("returns true for api_external (external API change — drift)", () => {
+    expect(isDirectChannel("api_external")).toBe(true);
+  });
+
+  it("still returns true for existing gui and system drift channels", () => {
+    expect(isDirectChannel("gui")).toBe(true);
+    expect(isDirectChannel("system")).toBe(true);
+  });
+
+  it("still returns false for the plain api channel", () => {
+    expect(isDirectChannel("api")).toBe(false);
+  });
+});
+
+describe("channelLabel — opngms/api_external labels", () => {
+  it('returns "OPNGMS" for the opngms channel', () => {
+    expect(channelLabel("opngms", en.configAudit)).toBe("OPNGMS");
+  });
+
+  it('returns "External API" for the api_external channel', () => {
+    expect(channelLabel("api_external", en.configAudit)).toBe("External API");
+  });
+
+  it("falls back to the raw value for an unknown channel", () => {
+    expect(channelLabel("unknown_future", en.configAudit)).toBe("unknown_future");
   });
 });

@@ -760,6 +760,8 @@ export const en = {
       api: "API",
       gui: "WebGUI",
       system: "Console/script",
+      opngms: "OPNGMS",
+      api_external: "External API",
     },
     loadMore: "Load more",
     empty: "No config changes in this window.",

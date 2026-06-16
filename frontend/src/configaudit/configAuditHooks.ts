@@ -12,10 +12,11 @@ export type EventTopRow = components["schemas"]["EventTopRow"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 50;
 
-/** True for a DIRECT on-box change channel (a drift cause): console/script (`system`) or WebGUI (`gui`).
- * OPNGMS only ever writes via the `api` channel, so gui/system means a change made outside OPNGMS. */
+/** True for a DIRECT/drift change channel — a change made OUTSIDE OPNGMS: console/script (`system`),
+ * WebGUI (`gui`), or an api change from a non-management IP (`api_external`). OPNGMS's own api changes
+ * are reclassified to `opngms` upstream, so anything left here means a change OPNGMS did not make. */
 export function isDirectChannel(action: string): boolean {
-  return action === "gui" || action === "system";
+  return action === "gui" || action === "system" || action === "api_external";
 }
 
 /** Localized label for a change channel, falling back to the raw value for an unmapped channel. */

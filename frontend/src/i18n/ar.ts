@@ -761,6 +761,8 @@ export const ar: Dict = {
       api: "API",
       gui: "واجهة الويب",
       system: "وحدة تحكم/سكربت",
+      opngms: "OPNGMS",
+      api_external: "API خارجي",
     },
     loadMore: "تحميل المزيد",
     empty: "لا توجد تغييرات في الإعدادات في هذه الفترة.",

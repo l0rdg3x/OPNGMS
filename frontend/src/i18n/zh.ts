@@ -759,6 +759,8 @@ export const zh: Dict = {
       api: "API",
       gui: "WebGUI",
       system: "控制台/脚本",
+      opngms: "OPNGMS",
+      api_external: "外部 API",
     },
     loadMore: "加载更多",
     empty: "此时间窗口内无配置变更。",

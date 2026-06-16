@@ -762,6 +762,8 @@ export const de: Dict = {
       api: "API",
       gui: "WebGUI",
       system: "Konsole/Skript",
+      opngms: "OPNGMS",
+      api_external: "Externe API",
     },
     loadMore: "Mehr laden",
     empty: "Keine Konfigurationsänderungen in diesem Zeitraum.",
