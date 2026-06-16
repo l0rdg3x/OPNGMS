@@ -57,10 +57,10 @@ is skipped and a `full` session is minted directly.
   - `DELETE /me/trusted-devices/{id}` → revoke one (scoped to caller; 404 if not theirs).
   - `DELETE /me/trusted-devices` → revoke all for the caller.
   - All mutations under `enforce_csrf` (same as other authenticated mutations).
-- **Auto-revoke** — call `revoke_all(user_id)` from:
-  - `/me/mfa/disable` in `backend/app/api/mfa.py`.
-  - the password-change path (wherever the user updates their own password) — revoke all trusted
-    devices for that user.
+- **Auto-revoke** — call `revoke_all(user_id)` from the two places a user's MFA factors are torn
+  down (the app has no self-service password-change endpoint, so there is nothing else to hook):
+  - `/me/mfa/disable` in `backend/app/api/mfa.py` (user disables their own MFA).
+  - `/users/{user_id}/mfa/reset` in `backend/app/api/mfa.py` (admin resets a user's MFA).
 - **Frontend** `frontend/src/pages/LoginPage.tsx` (checkbox), a new trusted-devices section on the
   security page, the admin toggle in System settings, i18n for all 13 locales.
 
@@ -108,7 +108,7 @@ Migration `0045_trusted_device.py`, `down_revision = "0044"`.
 
 - User lists/revokes via `/me/trusted-devices`. Revoking deletes the row(s); the stale cookie then
   fails the `find_valid` lookup at next login. Audit `auth.trusted_device.revoke`.
-- Disabling MFA or changing password calls `revoke_all(user_id)`.
+- Disabling MFA (self-service) or an admin MFA reset calls `revoke_all(user_id)`.
 - Admin turning the org toggle off gates the login skip immediately (existing rows become inert
   without deletion; turning it back on re-honors unexpired cookies — acceptable and documented).
 - Expired rows are filtered at read time and purged by the existing session sweeper.
@@ -145,7 +145,7 @@ Backend:
 - `remember_device` ignored (no row/cookie) when the toggle is off.
 - Toggle off → `/login` never skips even with a valid cookie; `LoginOut.remember_device.enabled` is
   false.
-- `/me/mfa/disable` and password change purge all trusted devices for the user.
+- `/me/mfa/disable` and the admin MFA reset purge all trusted devices for the user.
 - `GET/DELETE /me/trusted-devices` list/revoke (one + all), 404 on another user's id.
 - Expired rows filtered from the list.
 
@@ -158,7 +158,7 @@ Frontend:
 
 - **PR1 — backend** (this spec + the plan + all backend): model + migration 0045, service, settings
   (toggle + runtime day count), login-skip, completion-set-cookie, `LoginOut.remember_device`,
-  management API, auto-revoke on disable-MFA + password-change, audit, tests. Tag nothing yet.
+  management API, auto-revoke on disable-MFA + admin-MFA-reset, audit, tests. Tag nothing yet.
 - **PR2 — frontend**: login checkbox, trusted-devices security section, admin toggle, i18n ×13,
   vitest. Then refresh README + Wiki, tag **v0.21.0**.
 
