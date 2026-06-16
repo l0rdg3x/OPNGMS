@@ -63,7 +63,7 @@ async def _login(api_client, email="admin@x.io"):
 
 async def test_drift_check_reports_drift(api_client, db_engine, monkeypatch):
     import app.api.config as config_api
-    monkeypatch.setattr(config_api, "OpnsenseClient", _FakeClient)
+    monkeypatch.setattr(config_api, "client_for_device", lambda device: _FakeClient())
     # Applied "enabled=0" but the live box has "enabled=1" -> drift on general.enabled.
     tid, did, cid = await _seed(db_engine, payload={"endpoint_key": "ids_general",
                                                     "payload": {"general.enabled": "0"}})
@@ -85,7 +85,7 @@ class _BadXmlClient(_FakeClient):
 
 async def test_drift_check_malformed_device_xml_is_unreachable_not_500(api_client, db_engine, monkeypatch):
     import app.api.config as config_api
-    monkeypatch.setattr(config_api, "OpnsenseClient", _BadXmlClient)
+    monkeypatch.setattr(config_api, "client_for_device", lambda device: _BadXmlClient())
     tid, did, _ = await _seed(db_engine, payload={"endpoint_key": "ids_general",
                                                   "payload": {"general.enabled": "0"}})
     await _login(api_client)
@@ -96,7 +96,7 @@ async def test_drift_check_malformed_device_xml_is_unreachable_not_500(api_clien
 
 async def test_drift_check_in_sync(api_client, db_engine, monkeypatch):
     import app.api.config as config_api
-    monkeypatch.setattr(config_api, "OpnsenseClient", _FakeClient)
+    monkeypatch.setattr(config_api, "client_for_device", lambda device: _FakeClient())
     tid, did, _ = await _seed(db_engine, payload={"endpoint_key": "ids_general",
                                                   "payload": {"general.enabled": "1"}})
     await _login(api_client)

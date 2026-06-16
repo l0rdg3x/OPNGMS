@@ -13,14 +13,13 @@ import app.services.ids_kind  # noqa: F401  — registers suricata_ruleset kind 
 import app.services.ids_policy_kind  # noqa: F401  — registers ids_policy kind at worker-process startup
 import app.services.monit_kind  # noqa: F401  — registers monit_test kind at startup
 import app.services.setting_kind  # noqa: F401  — registers opnsense_setting kind at worker-process startup
-from app.connectors.opnsense.client import OpnsenseClient
-from app.core import crypto
 from app.core.config import get_settings
 from app.models.device import Device
 from app.services.action_sweeper import decide_orphan
 from app.services.alerting import evaluate_alerts
 from app.services.config_backup import backup_config
 from app.services.config_push import _advisory_key, apply_change
+from app.services.device_client import client_for_device
 from app.services.email.smtp import EmailSendError, send_report_email
 from app.services.ingest import ingest_events
 from app.services.monitoring import collect_and_store
@@ -55,13 +54,7 @@ async def poll_device(ctx: dict, device_id: str) -> str:
         device = await session.get(Device, uuid.UUID(device_id))
         if device is None:
             return "missing"
-        client = OpnsenseClient(
-            device.base_url,
-            crypto.decrypt(device.api_key_enc),
-            crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls,
-            tls_fingerprint=device.tls_fingerprint,
-        )
+        client = client_for_device(device)
         state = await collect_and_store(session, device, client, now=datetime.now(UTC))
         await evaluate_alerts(session, device, state)
         await session.commit()
@@ -86,13 +79,7 @@ async def ingest_device_events(ctx: dict, device_id: str) -> int:
         device = await session.get(Device, uuid.UUID(device_id))
         if device is None:
             return 0
-        client = OpnsenseClient(
-            device.base_url,
-            crypto.decrypt(device.api_key_enc),
-            crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls,
-            tls_fingerprint=device.tls_fingerprint,
-        )
+        client = client_for_device(device)
         now = datetime.now(UTC)
         # ingest_events also raises deduped alerts for new high-severity service events (best-effort,
         # never aborts the cycle); both the events and the alerts commit together below.
@@ -128,13 +115,7 @@ async def backup_device_config(ctx: dict, device_id: str) -> bool:
         device = await session.get(Device, uuid.UUID(device_id))
         if device is None:
             return False
-        client = OpnsenseClient(
-            device.base_url,
-            crypto.decrypt(device.api_key_enc),
-            crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls,
-            tls_fingerprint=device.tls_fingerprint,
-        )
+        client = client_for_device(device)
         created = await backup_config(session, device, client)
         await session.commit()
         return created
@@ -153,13 +134,7 @@ async def apply_config_change(ctx: dict, change_id: str) -> str:
         device = await session.get(Device, change.device_id)
         if device is None:
             return "missing-device"
-        client = OpnsenseClient(
-            device.base_url,
-            crypto.decrypt(device.api_key_enc),
-            crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls,
-            tls_fingerprint=device.tls_fingerprint,
-        )
+        client = client_for_device(device)
         status = await apply_change(
             session, change, client, now=datetime.now(UTC)
         )
@@ -197,13 +172,7 @@ async def apply_profile_changes(ctx: dict, change_ids: list[str]) -> dict:
         device = await session.get(Device, changes[0].device_id)
         if device is None:
             return {"status": "missing-device"}
-        client = OpnsenseClient(
-            device.base_url,
-            crypto.decrypt(device.api_key_enc),
-            crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls,
-            tls_fingerprint=device.tls_fingerprint,
-        )
+        client = client_for_device(device)
         result = await apply_profile_sequence(session, changes, client, now=datetime.now(UTC))
         for c in changes:
             await AuditService(session).record(
@@ -229,13 +198,7 @@ async def run_firmware_action(ctx: dict, action_id: str) -> str:
         device = await session.get(Device, action.device_id)
         if device is None:
             return "missing-device"
-        client = OpnsenseClient(
-            device.base_url,
-            crypto.decrypt(device.api_key_enc),
-            crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls,
-            tls_fingerprint=device.tls_fingerprint,
-        )
+        client = client_for_device(device)
         device_id = action.device_id
         status = await _run(session, action, client, now=datetime.now(UTC))
         await AuditService(session).record(
@@ -316,20 +279,13 @@ async def sweep_orphaned_actions(ctx: dict) -> dict:
 
 async def renew_device_certs(ctx: dict) -> dict:
     """Cron: rotate per-device forwarding certs nearing expiry (owner session, RLS-exempt)."""
-    from app.connectors.opnsense.client import OpnsenseClient
-    from app.core import crypto
     from app.services.cert_renewal import renew_expiring_device_certs
 
     settings = get_settings()
     factory = ctx["session_factory"]
 
-    def client_for(device):
-        return OpnsenseClient(device.base_url, crypto.decrypt(device.api_key_enc),
-                              crypto.decrypt(device.api_secret_enc), verify_tls=device.verify_tls,
-                              tls_fingerprint=device.tls_fingerprint)
-
     async with factory() as session:
-        summary = await renew_expiring_device_certs(session, settings, client_for=client_for)
+        summary = await renew_expiring_device_certs(session, settings, client_for=client_for_device)
         await session.commit()
     return summary
 
