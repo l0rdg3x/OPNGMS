@@ -60,6 +60,26 @@ async def test_put_oauth_then_get_exposes_flags_not_secrets(api_client, db_engin
     assert "oauth_client_secret" not in out and "oauth_refresh_token" not in out
 
 
+async def test_put_rejects_traversal_tenant_and_bad_auth_method(api_client, db_engine):
+    await _seed(db_engine)
+    await _login(api_client, "sa@x.io")
+    base = {"enabled": True, "host": "smtp.office365.com", "port": 587, "security": "starttls",
+            "from_email": "me@x.com", "from_name": "Me", "auth_method": "oauth",
+            "oauth_provider": "microsoft", "oauth_client_id": "cid"}
+    # A path-traversal tenant must not reach the token URL — rejected at the schema boundary.
+    bad_tenant = await api_client.put("/api/admin/smtp", headers=csrf_headers(api_client),
+                                      json={**base, "oauth_tenant_id": "common/../../users"})
+    assert bad_tenant.status_code == 422, bad_tenant.text
+    # A real Azure tenant GUID / "common" passes.
+    ok = await api_client.put("/api/admin/smtp", headers=csrf_headers(api_client),
+                              json={**base, "oauth_tenant_id": "common"})
+    assert ok.status_code == 200, ok.text
+    # An out-of-range auth_method is rejected (not silently treated as password).
+    bad_method = await api_client.put("/api/admin/smtp", headers=csrf_headers(api_client),
+                                      json={**base, "auth_method": "xoauth2"})
+    assert bad_method.status_code == 422, bad_method.text
+
+
 async def test_smtp_test_uses_submitted_config(api_client, db_engine, monkeypatch):
     import app.api.smtp as smtp_api
 
