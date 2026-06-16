@@ -11,7 +11,8 @@ Three measured backend-perf wins, each its own PR:
 
 1. **PR1 — Singleton ARQ pool** (the flagged tech-debt).
 2. **PR2 — Index audit** (measured; additive migration).
-3. **PR3 — Reporting per-device query fan-out** (measured; the heaviest, decided after measuring).
+3. ~~**PR3 — Reporting per-device query fan-out**~~ — **DESCOPED** after measuring (queries are
+   only 4% of report-gen; the bottleneck is CPU rendering, and report gen is async). See PR3 below.
 
 ## Measured findings
 
@@ -97,22 +98,31 @@ asserting the index columns. Additive only — no data change, no query rewrite.
 write cost on the highest-insert table is not justified by infrequent, time-bounded report rollups (the
 existing indexes serve them acceptably).
 
-## PR3 — Reporting per-device fan-out (measured, then decided)
+## PR3 — Reporting per-device fan-out (measured) — DESCOPED
 
-Measure first: instrument a representative multi-device report and count the per-device queries + wall time.
-Then pick the **behavior-preserving** remedy:
+**Measured** an all-sections report for an 8-device tenant (`before/after_cursor_execute` instrumentation):
 
-- **(a) Batch** — rewrite the per-device aggregator methods to fleet-wide `… GROUP BY device_id` queries,
-  splitting results in Python (one round-trip per metric instead of one per device). Biggest win; more
-  invasive (each aggregator method gains a multi-device variant). The output rows must be byte-identical to
-  today's per-device path (verified by a same-report-bytes test).
-- **(b) Bounded concurrency** — run the per-device blocks concurrently with a **separate session per
-  device** (an `AsyncSession` is NOT concurrency-safe, so the current single-session loop cannot just be
-  `gather`-ed) under a semaphore bounded by the DB pool size. Smaller code change; bounded by connections.
+| metric | value |
+|---|---|
+| queries | **171** (~21 / device, all sequential) |
+| **query time** | **52 ms — 4% of wall** |
+| **render / CPU** | **1154 ms — 96% of wall** (per-device line-chart SVGs, choropleth, Jinja) |
+| wall | 1206 ms · html 270 KB |
 
-Recommendation deferred to the measurement: (a) if the query count dominates, (b) if the per-query latency
-dominates and the fleet is small. Either way the rendered report must be identical (a golden-bytes/section
-test guards it). If the measured win is marginal, PR3 may be descoped to a logged follow-up.
+The per-device query fan-out is real (~21 sequential queries × N devices) **but it is NOT the report-gen
+bottleneck — it is only 4% of wall time.** The dominant cost (96%) is the **CPU-bound SVG/chart rendering +
+HTML assembly**. Even on a remote DB (≈2 ms/round-trip → ~340 ms of queries), rendering still dominates.
+
+**Decision: descope the query-fan-out refactor.** Batching (rewrite ~21 aggregator methods to multi-device
+— huge surface) or bounded per-device-session concurrency (RLS-context replication + DB-pool-starvation
+risk) would each carry meaningful regression risk for a **≤4%** win. And report generation is an
+**asynchronous** background job (scheduled / on-demand worker), not a user-blocking request, so the absolute
+latency (~1.2 s for 8 devices, ~3 s for 20) is acceptable. The measure-first step did its job: it stopped a
+large, risky refactor that wouldn't have moved the needle.
+
+**Logged follow-up (only if report latency ever becomes a problem at large fleet scale):** the lever is the
+**rendering**, not the queries — e.g. process-pool parallelism for the per-device SVG rendering, or cheaper
+chart generation. Out of scope here (larger effort, marginal value while report gen is async).
 
 ## Invariants
 
@@ -128,8 +138,8 @@ test guards it). If the measured win is marginal, PR3 may be descoped to a logge
   assertions (capturing override) still pass; full suite green.
 - **PR2:** the migration applies + downgrade-not-needed (forward-only); a test asserting each new index
   exists; queries still return identical rows.
-- **PR3:** a golden test that the report for a multi-device tenant renders identical sections before/after;
-  full suite green.
+- **PR3:** descoped (no code) — the measurement (4% queries / 96% rendering) is recorded in the PR3
+  section above; nothing to test.
 
 ## Out of scope (other sub-projects)
 
