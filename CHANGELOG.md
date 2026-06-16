@@ -12,6 +12,22 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-16
+### Changed
+- **Business→Community catalog mapping now per-sub-version, from `opnsense/changelog`.** A Business box is
+  served the Community catalog of the OPNsense version its Business release is based on (Business = a
+  stabilized snapshot of a specific Community version; the core API and config models are shared). That
+  base-version map (`business-base.json`) was previously scraped from `docs.opnsense.org`, which only has a
+  page **per Business major** — so a `26.4.1` device (truly based on `26.1.9`) floor-resolved to the `26.4`
+  entry (`26.1.6`) and got a slightly less-accurate catalog. The map is now generated from the
+  [`opnsense/changelog`](https://github.com/opnsense/changelog) repo's `business/` tree — **one entry per
+  Business sub-version**, parsed from each file's *"based on the OPNsense X.Y.Z community version"* header —
+  so each Business device resolves to the **most accurate** Community base catalog (e.g. `26.4.1 → 26.1.9`,
+  `25.10.1 → 25.7.8`). The source is version-controlled plaintext rather than scraped HTML. This is the last
+  piece of the version-aware config editor program (sub-project 4); editable schemas for Business
+  **proprietary** plugins remain out of scope (their MVC models are not published publicly). The resolver
+  was unchanged — it already floor-resolves the denser map. Behavior-preserving for Community devices.
+
 ## [0.17.0] - 2026-06-16
 ### Added
 - **Management-IP attribution for config-change audit.** OPNGMS now **auto-learns the source IP it
