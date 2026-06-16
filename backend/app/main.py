@@ -41,6 +41,7 @@ from app.api.templates import router as templates_router
 from app.api.tenants import router as tenants_router
 from app.api.users import router as users_router
 from app.core.config import assert_secure_secrets, get_settings
+from app.core.queue import close_pool
 from app.core.security import SecurityHeadersMiddleware
 
 
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI):
     # Fail closed at startup if any secret is still an .env.example placeholder (weak default creds).
     assert_secure_secrets(get_settings())
     yield
+    await close_pool()                    # release the shared ARQ pool on graceful shutdown
 
 
 app = FastAPI(title="OPNGMS", version="0.1.0", lifespan=lifespan)
