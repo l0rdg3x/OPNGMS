@@ -56,6 +56,47 @@ async def _device(db_engine, tenant_id) -> Device:
     return did
 
 
+async def test_ingest_fetches_sources_concurrently(db_engine, two_tenants):
+    """The four source fetches (ids/dns/service/config_audit) run concurrently — a sequential loop
+    could never have more than one fetch in flight at a time."""
+    import asyncio
+
+    tenant_a, _ = two_tenants
+    did = await _device(db_engine, tenant_a)
+    now = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+
+    class ConcClient:
+        def __init__(self):
+            self.inflight = 0
+            self.max_inflight = 0
+
+        async def _track(self):
+            self.inflight += 1
+            self.max_inflight = max(self.max_inflight, self.inflight)
+            await asyncio.sleep(0.02)
+            self.inflight -= 1
+            return []
+
+        async def get_ids_alerts(self, since=None):
+            return await self._track()
+
+        async def get_dns_events(self, since=None):
+            return await self._track()
+
+        async def get_service_events(self, since=None):
+            return await self._track()
+
+        async def get_config_changes(self, since=None):
+            return await self._track()
+
+    client = ConcClient()
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        device = await s.get(Device, did)
+        await ingest_events(s, device, client, now)
+    assert client.max_inflight == 4          # all four source fetches were in flight at once
+
+
 async def test_ingest_writes_events_and_advances_cursor(db_engine, two_tenants):
     tenant_a, _ = two_tenants
     did = await _device(db_engine, tenant_a)
