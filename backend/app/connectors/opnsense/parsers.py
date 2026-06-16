@@ -329,6 +329,11 @@ _SERVICE_RULES = [
     ("reboot", "boot", "medium", {"kernel"}, re.compile(r"Copyright .*FreeBSD", re.I)),
     ("service", "service_crashed", "high", None,
         re.compile(r"\bexited on signal\b|\bcore dumped\b|\bterminated abnormally\b", re.I)),
+    # OPNsense's rc system logs a service restart to the SYSTEM log via the `kernel` tag as
+    # "Service '<name>' has been restarted." (live-verified 26.1.10). The configd.py form below logs to
+    # the AUDIT log on this box, so it rarely fires here, but is kept for boxes/versions that differ.
+    ("service", "service_restarted", "medium", {"kernel"},
+        re.compile(r"\bService\b.*\bhas been restarted\b", re.I)),
     ("service", "service_restarted", "medium", {"configd.py", "configd"},
         re.compile(r"\brestart(ing|ed)?\b", re.I)),
     ("disk", "filesystem_full", "high", None,

@@ -35,6 +35,26 @@ def test_classifies_disk_full():
     assert out[0]["severity"] == "high"
 
 
+def test_classifies_real_service_restart_from_kernel():
+    # Live-verified on a real OPNsense 26.1.10 box: the rc system logs a service restart to the SYSTEM
+    # log via the `kernel` tag (NOT configd.py, which logs to the audit log) — the prior configd-only
+    # rule never matched real restarts.
+    out = parse_service_events(_data([
+        _row("kernel", "<118>[37] Service `sysctl' has been restarted.", "notice")]))
+    assert len(out) == 1 and out[0]["category"] == "service"
+    assert out[0]["name"] == "service_restarted" and out[0]["severity"] == "medium"
+
+
+def test_boot_start_scripts_and_wan_renewal_are_not_restarts():
+    # Real boot/WAN system-log noise that must NOT be mis-classified as a service restart.
+    rows = [
+        _row("kernel", "<118>[34] >>> Invoking start script 'cron'", "notice"),
+        _row("kernel", "<118>[33] Starting Unbound DNS...done.", "notice"),
+        _row("opnsense", "/usr/local/etc/rc.newwanip: IP renewal starting (new: 1.2.3.4)", "notice"),
+    ]
+    assert parse_service_events(_data(rows)) == []
+
+
 def test_drops_noise():
     out = parse_service_events(_data([_row("dhcp6c", "advertise contains NoAddrsAvail status", "info")]))
     assert out == []
