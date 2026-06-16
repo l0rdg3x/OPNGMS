@@ -18,5 +18,8 @@ def client_for_device(device: Device) -> OpnsenseClient:
         verify_tls=device.verify_tls,
         tls_fingerprint=device.tls_fingerprint,
         edition=device.edition,
-        version=device.firmware_series,
+        # Full detected version (e.g. "26.1.10"), not the YY.M series — this preserves the exact prior
+        # behavior of the one site that already passed a version (the catalog router) and is strictly more
+        # precise; the resolver parses point/hotfix too. None (not-yet-probed) -> "" -> newest.
+        version=device.firmware_version or "",
     )

@@ -13,6 +13,7 @@ def _device(**over):
     d.tls_fingerprint = "AA:BB"
     d.edition = "community"
     d.firmware_series = "26.1"
+    d.firmware_version = "26.1.10"
     for k, v in over.items():
         setattr(d, k, v)
     return d
@@ -30,7 +31,14 @@ def test_builds_client_with_decrypted_creds_and_tls():
 def test_passes_edition_and_version_to_the_resolver():
     c = client_for_device(_device())
     assert c._resolver.edition == "community"
-    assert c._resolver.vtuple == (26, 1, 0, 0)       # firmware_series "26.1" parsed
+    assert c._resolver.vtuple == (26, 1, 10, 0)      # full firmware_version "26.1.10" parsed
+
+
+def test_unprobed_device_without_a_version_falls_back_to_newest():
+    # firmware_version is nullable (not-yet-probed); the factory passes "" -> resolver newest, so the
+    # default profile is used (no crash on None).
+    c = client_for_device(_device(firmware_version=None))
+    assert c._resolver.resolve("dns_events") is not None
 
 
 def test_verify_tls_false_and_no_fingerprint_are_honoured():

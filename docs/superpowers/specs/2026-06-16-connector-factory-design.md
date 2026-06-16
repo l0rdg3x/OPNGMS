@@ -21,9 +21,10 @@ settings, edition/version, and — already inside the client — the configured 
   tls_fingerprint=device.tls_fingerprint)` — in `app/worker.py` (7), `app/api/config.py` (3), and one each
   in `app/api/{monit,settings,firewall_rules,firmware,ids,catalog,log_forwarding}.py`. A few are already
   tiny per-module helpers (`worker.py:327`, `log_forwarding.py:34` return a constructed client).
-- The `Device` model persists `edition` (default "") and `firmware_series` (default "", e.g. "26.1"),
-  detected + stored during onboarding/monitoring (the multi-version resolver). **No construction site
-  passes them**, so `OpnsenseClient`'s `CapabilityResolver("","")` runs with defaults everywhere.
+- The `Device` model persists `edition` (default "") and `firmware_version` (nullable, e.g. "26.1.10"),
+  detected + stored during onboarding/monitoring (the multi-version resolver). **No generic construction
+  site passes them** (only the catalog router already passed `firmware_version`), so `OpnsenseClient`'s
+  `CapabilityResolver("","")` runs with defaults at the other 16 sites.
 - `app/services/onboarding.py::probe_device(base_url, api_key, api_secret, …)` builds a client from **raw**
   args (pre-persistence connect-test, edition still being detected) — a legitimately different entry point.
 
@@ -51,7 +52,7 @@ def client_for_device(device: Device) -> OpnsenseClient:
         verify_tls=device.verify_tls,
         tls_fingerprint=device.tls_fingerprint,
         edition=device.edition,
-        version=device.firmware_series,
+        version=device.firmware_version or "",
     )
 ```
 
@@ -67,7 +68,9 @@ The factory **passes `edition`/`version`** (today's sites do not). For the real 
 the resolver returns the **same** endpoints as the current default — so this is **behavior-identical in
 practice**; for older/Business devices it becomes *more* correct (closing a latent resolver gap). Verified
 by an equivalence test (below). This is the only intended behavioral delta and it is a no-op for the
-managed fleet.
+managed fleet. The factory passes the **full `firmware_version`** (not the YY.M series): this preserves the
+exact prior behavior of the one site that already passed a version (the catalog router) and is strictly
+more precise; `None` (not-yet-probed) -> `""` -> the resolver's newest profile.
 
 ## Invariants (unchanged)
 
@@ -82,7 +85,7 @@ managed fleet.
 
 - **Unit (`tests/test_device_client.py`):** `client_for_device` on a `Device` with encrypted creds returns
   an `OpnsenseClient` whose `base_url`, decrypted auth tuple, `verify_tls`, `tls_fingerprint` match, and
-  whose resolver carries the device's `edition`/`firmware_series`. Uses the real `crypto` (encrypt a fixture
+  whose resolver carries the device's `edition`/`firmware_version`. Uses the real `crypto` (encrypt a fixture
   secret, assert it round-trips through decrypt).
 - **Equivalence:** for a 26.1.x community device, the factory-built client resolves the same endpoint as a
   client built the old inline way for a representative capability (e.g. `dns_events`) — proves the
