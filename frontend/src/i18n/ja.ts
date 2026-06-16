@@ -770,4 +770,17 @@ export const ja: Dict = {
     loadError: "設定変更の読み込みに失敗しました。",
     last24h: "過去24時間",
   },
+  smtp: {
+    authMethod: "認証",
+    authPassword: "パスワード",
+    authOauth: "OAuth2",
+    oauthProvider: "プロバイダー",
+    oauthGoogle: "Google / Gmail",
+    oauthMicrosoft: "Microsoft 365",
+    oauthClientId: "Client ID",
+    oauthClientSecret: "Client secret",
+    oauthRefreshToken: "Refresh token",
+    oauthTenantId: "Tenant ID",
+    oauthSecretSaved: "保存済み — 空欄で維持",
+  },
 };

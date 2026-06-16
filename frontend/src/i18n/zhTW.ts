@@ -768,4 +768,17 @@ export const zhTW: Dict = {
     loadError: "無法載入設定變更。",
     last24h: "過去 24 小時",
   },
+  smtp: {
+    authMethod: "身分驗證",
+    authPassword: "密碼",
+    authOauth: "OAuth2",
+    oauthProvider: "提供者",
+    oauthGoogle: "Google / Gmail",
+    oauthMicrosoft: "Microsoft 365",
+    oauthClientId: "Client ID",
+    oauthClientSecret: "Client secret",
+    oauthRefreshToken: "Refresh token",
+    oauthTenantId: "Tenant ID",
+    oauthSecretSaved: "已儲存 — 留空以保留",
+  },
 };

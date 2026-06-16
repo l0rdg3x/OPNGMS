@@ -771,4 +771,17 @@ export const ru: Dict = {
     loadError: "Не удалось загрузить изменения конфигурации.",
     last24h: "Последние 24 часа",
   },
+  smtp: {
+    authMethod: "Аутентификация",
+    authPassword: "Пароль",
+    authOauth: "OAuth2",
+    oauthProvider: "Провайдер",
+    oauthGoogle: "Google / Gmail",
+    oauthMicrosoft: "Microsoft 365",
+    oauthClientId: "Client ID",
+    oauthClientSecret: "Client secret",
+    oauthRefreshToken: "Refresh token",
+    oauthTenantId: "Tenant ID",
+    oauthSecretSaved: "сохранено — оставьте пустым, чтобы сохранить",
+  },
 };

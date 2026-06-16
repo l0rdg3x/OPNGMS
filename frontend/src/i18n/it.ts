@@ -770,4 +770,17 @@ export const it: Dict = {
     loadError: "Impossibile caricare le modifiche alla configurazione.",
     last24h: "Ultime 24 ore",
   },
+  smtp: {
+    authMethod: "Autenticazione",
+    authPassword: "Password",
+    authOauth: "OAuth2",
+    oauthProvider: "Provider",
+    oauthGoogle: "Google / Gmail",
+    oauthMicrosoft: "Microsoft 365",
+    oauthClientId: "Client ID",
+    oauthClientSecret: "Client secret",
+    oauthRefreshToken: "Refresh token",
+    oauthTenantId: "Tenant ID",
+    oauthSecretSaved: "salvato — lascia vuoto per mantenere",
+  },
 };

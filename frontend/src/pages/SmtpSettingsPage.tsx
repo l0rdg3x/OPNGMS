@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert, Button, Card, Group, NumberInput, PasswordInput, Select, Stack, Switch, Text,
-  TextInput, Title,
+  Alert, Button, Card, Group, NumberInput, PasswordInput, SegmentedControl, Select, Stack, Switch,
+  Text, TextInput, Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
 import { useAuth } from "../auth/useAuth";
+import { useT } from "../i18n";
 import { useSmtpSettings, useTestSmtp, useUpdateSmtpSettings } from "../admin/smtpHooks";
 
 export function SmtpSettingsPage() {
   const { me } = useAuth();
+  const t = useT();
   const query = useSmtpSettings();
   const update = useUpdateSmtpSettings();
   const test = useTestSmtp();
@@ -21,6 +23,8 @@ export function SmtpSettingsPage() {
     initialValues: {
       enabled: false, host: "", port: 587, security: "starttls", username: "",
       from_email: "", from_name: "", password: "",
+      auth_method: "password", oauth_provider: "google", oauth_client_id: "",
+      oauth_client_secret: "", oauth_refresh_token: "", oauth_tenant_id: "",
     },
   });
 
@@ -30,6 +34,11 @@ export function SmtpSettingsPage() {
         enabled: query.data.enabled, host: query.data.host, port: query.data.port,
         security: query.data.security, username: query.data.username ?? "",
         from_email: query.data.from_email, from_name: query.data.from_name, password: "",
+        auth_method: query.data.auth_method ?? "password",
+        oauth_provider: query.data.oauth_provider ?? "google",
+        oauth_client_id: query.data.oauth_client_id ?? "",
+        oauth_client_secret: "", oauth_refresh_token: "",
+        oauth_tenant_id: query.data.oauth_tenant_id ?? "",
       });
       initialized.current = true;
     }
@@ -39,12 +48,32 @@ export function SmtpSettingsPage() {
     return <Alert color="red" data-testid="smtp-forbidden">Superadmin only.</Alert>;
   }
 
+  const isOauth = form.values.auth_method === "oauth";
+  const isMicrosoft = form.values.oauth_provider === "microsoft";
+
   function payload() {
     const v = form.values;
-    return {
+    const base = {
       enabled: v.enabled, host: v.host, port: v.port, security: v.security,
-      username: v.username || null, from_email: v.from_email, from_name: v.from_name,
-      clear_password: false,
+      from_email: v.from_email, from_name: v.from_name,
+      auth_method: v.auth_method, clear_password: false,
+      clear_client_secret: false, clear_refresh_token: false,
+    };
+    if (v.auth_method === "oauth") {
+      return {
+        ...base,
+        username: null,
+        oauth_provider: v.oauth_provider,
+        oauth_client_id: v.oauth_client_id || null,
+        oauth_tenant_id: v.oauth_provider === "microsoft" ? (v.oauth_tenant_id || null) : null,
+        // Write-only secrets: send only when the field is non-empty (blank = keep existing).
+        ...(v.oauth_client_secret ? { oauth_client_secret: v.oauth_client_secret } : {}),
+        ...(v.oauth_refresh_token ? { oauth_refresh_token: v.oauth_refresh_token } : {}),
+      };
+    }
+    return {
+      ...base,
+      username: v.username || null,
       ...(v.password ? { password: v.password } : {}),
     };
   }
@@ -53,6 +82,8 @@ export function SmtpSettingsPage() {
     try {
       await update.mutateAsync(payload());
       form.setFieldValue("password", "");
+      form.setFieldValue("oauth_client_secret", "");
+      form.setFieldValue("oauth_refresh_token", "");
       notifications.show({ message: "SMTP settings saved" });
     } catch {
       notifications.show({ color: "red", message: "Failed to save SMTP settings" });
@@ -80,8 +111,51 @@ export function SmtpSettingsPage() {
             <NumberInput label="Port" {...form.getInputProps("port")} data-testid="smtp-port" />
             <Select label="Security" data={["starttls", "tls", "none"]} {...form.getInputProps("security")} data-testid="smtp-security" />
           </Group>
-          <TextInput label="Username" {...form.getInputProps("username")} data-testid="smtp-username" />
-          <PasswordInput label={query.data?.has_password ? "Password (leave blank to keep)" : "Password"} {...form.getInputProps("password")} data-testid="smtp-password" />
+          <div>
+            <Text size="sm" fw={500} mb={4}>{t.smtp.authMethod}</Text>
+            <SegmentedControl
+              data={[
+                { value: "password", label: t.smtp.authPassword },
+                { value: "oauth", label: t.smtp.authOauth },
+              ]}
+              {...form.getInputProps("auth_method")}
+              data-testid="smtp-auth-method"
+            />
+          </div>
+          {isOauth ? (
+            <>
+              <Select
+                label={t.smtp.oauthProvider}
+                data={[
+                  { value: "google", label: t.smtp.oauthGoogle },
+                  { value: "microsoft", label: t.smtp.oauthMicrosoft },
+                ]}
+                {...form.getInputProps("oauth_provider")}
+                data-testid="smtp-oauth-provider"
+              />
+              <TextInput label={t.smtp.oauthClientId} {...form.getInputProps("oauth_client_id")} data-testid="smtp-oauth-client-id" />
+              <PasswordInput
+                label={t.smtp.oauthClientSecret}
+                placeholder={query.data?.has_client_secret ? t.smtp.oauthSecretSaved : undefined}
+                {...form.getInputProps("oauth_client_secret")}
+                data-testid="smtp-oauth-client-secret"
+              />
+              <PasswordInput
+                label={t.smtp.oauthRefreshToken}
+                placeholder={query.data?.has_refresh_token ? t.smtp.oauthSecretSaved : undefined}
+                {...form.getInputProps("oauth_refresh_token")}
+                data-testid="smtp-oauth-refresh-token"
+              />
+              {isMicrosoft && (
+                <TextInput label={t.smtp.oauthTenantId} {...form.getInputProps("oauth_tenant_id")} data-testid="smtp-oauth-tenant-id" />
+              )}
+            </>
+          ) : (
+            <>
+              <TextInput label="Username" {...form.getInputProps("username")} data-testid="smtp-username" />
+              <PasswordInput label={query.data?.has_password ? "Password (leave blank to keep)" : "Password"} {...form.getInputProps("password")} data-testid="smtp-password" />
+            </>
+          )}
           <TextInput label="From email" {...form.getInputProps("from_email")} data-testid="smtp-from-email" />
           <TextInput label="From name" {...form.getInputProps("from_name")} data-testid="smtp-from-name" />
           <Group>
