@@ -17,14 +17,16 @@ def build_manifest(entries: dict[str, bytes]) -> dict:
     return {"catalogs": {key: sha256_hex(blob) for key, blob in entries.items()}}
 
 
-# OPNsense BE release pages state: "based on the OPNsense X.Y.Z community version".
+# Both the docs.opnsense.org BE pages and the opnsense/changelog `business/` files state:
+# "This business release is based on the OPNsense X.Y.Z community version".
 _BASE_RE = re.compile(r"based on the OPNsense\s+(\d+\.\d+(?:\.\d+)?)\s+community", re.IGNORECASE)
 
 
 def parse_business_base(pages: dict[str, str]) -> dict:
-    """pages maps a Business version -> its BE_<v>.html text.
+    """pages maps a Business version -> the text of its release notes (an opnsense/changelog
+    `business/<major>/<subversion>` file, one entry per sub-version).
 
-    Extracts the Community base version from each page; pages without the marker are skipped
+    Extracts the Community base version from each entry; entries without the marker are skipped
     (never guess). Returns {"map": {business_version: community_base_version}}.
     """
     mapping: dict[str, str] = {}
