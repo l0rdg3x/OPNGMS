@@ -8,8 +8,33 @@ import { AuthContext } from "../../auth/AuthProvider";
 import { server } from "../../test/server";
 import { renderWithProviders } from "../../test/utils";
 
+// Stub the browser WebAuthn plumbing: getAssertion echoes a serialised assertion;
+// webauthnSupported is forced true so the passkey button is usable.
+vi.mock("../../security/webauthnClient", () => ({
+  webauthnSupported: () => true,
+  getAssertion: vi.fn(async () => ({
+    id: "cred-abc",
+    rawId: "cred-abc",
+    type: "public-key",
+    response: { authenticatorData: "AA", clientDataJSON: "BB", signature: "CC", userHandle: null },
+  })),
+}));
+
+// localStorage may be absent in the vitest pool; provide a minimal in-memory stub.
+vi.stubGlobal("localStorage", (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (k: string) => store[k] ?? null,
+    setItem: (k: string, v: string) => { store[k] = v; },
+    removeItem: (k: string) => { delete store[k]; },
+    clear: () => { store = {}; },
+  };
+})());
+
 const LOGIN_URL = "/api/login";
 const LOGIN_MFA_URL = "/api/login/mfa";
+const WA_BEGIN_URL = "/api/login/webauthn/begin";
+const WA_COMPLETE_URL = "/api/login/webauthn/complete";
 
 function withAuth(node: ReactNode, setMe = vi.fn()) {
   return (
@@ -128,5 +153,71 @@ describe("LoginPage — MFA", () => {
     await fillPasswordStep();
 
     await waitFor(() => expect(setMe).toHaveBeenCalledWith(setupUser));
+  });
+
+  it("methods=[totp] only → no passkey button is shown", async () => {
+    server.use(
+      http.post(LOGIN_URL, () =>
+        HttpResponse.json({ status: "mfa_required", methods: ["totp"] }),
+      ),
+    );
+    renderWithProviders(withAuth(<LoginPage />));
+    await fillPasswordStep();
+
+    await screen.findByTestId("mfa-code");
+    expect(screen.queryByTestId("mfa-use-passkey")).not.toBeInTheDocument();
+  });
+
+  it("methods include webauthn → passkey button begins, asserts, completes, logs in", async () => {
+    const setMe = vi.fn();
+    let completeBody: unknown = null;
+    server.use(
+      http.post(LOGIN_URL, () =>
+        HttpResponse.json({ status: "mfa_required", methods: ["totp", "webauthn"] }),
+      ),
+      http.post(WA_BEGIN_URL, () =>
+        HttpResponse.json({
+          challenge: "Y2hhbGxlbmdl",
+          rpId: "example.com",
+          allowCredentials: [{ type: "public-key", id: "Y3JlZA" }],
+        }),
+      ),
+      http.post(WA_COMPLETE_URL, async ({ request }) => {
+        completeBody = await request.json();
+        return HttpResponse.json({ status: "ok", user: fullUser });
+      }),
+    );
+
+    renderWithProviders(withAuth(<LoginPage />, setMe));
+    await fillPasswordStep();
+
+    // Both the TOTP field and the passkey button are present.
+    await screen.findByTestId("mfa-code");
+    await userEvent.click(await screen.findByTestId("mfa-use-passkey"));
+
+    await waitFor(() => expect(setMe).toHaveBeenCalledWith(fullUser));
+    expect((completeBody as { credential?: unknown }).credential).toBeTruthy();
+  });
+
+  it("webauthn-only account → passkey button is the sole second factor", async () => {
+    const setMe = vi.fn();
+    server.use(
+      http.post(LOGIN_URL, () =>
+        HttpResponse.json({ status: "mfa_required", methods: ["webauthn"] }),
+      ),
+      http.post(WA_BEGIN_URL, () =>
+        HttpResponse.json({ challenge: "Y2hhbGxlbmdl", allowCredentials: [] }),
+      ),
+      http.post(WA_COMPLETE_URL, () => HttpResponse.json({ status: "ok", user: fullUser })),
+    );
+
+    renderWithProviders(withAuth(<LoginPage />, setMe));
+    await fillPasswordStep();
+
+    await screen.findByTestId("mfa-use-passkey");
+    expect(screen.queryByTestId("mfa-code")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("mfa-use-passkey"));
+    await waitFor(() => expect(setMe).toHaveBeenCalledWith(fullUser));
   });
 });
