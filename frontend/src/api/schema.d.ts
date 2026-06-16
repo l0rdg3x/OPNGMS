@@ -355,6 +355,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/trusted-device-enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trusted Device Toggle Get */
+        get: operations["trusted_device_toggle_get_api_admin_trusted_device_enabled_get"];
+        /** Trusted Device Toggle Set */
+        put: operations["trusted_device_toggle_set_api_admin_trusted_device_enabled_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/trusted-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Trusted Devices */
+        get: operations["list_trusted_devices_api_me_trusted_devices_get"];
+        put?: never;
+        post?: never;
+        /** Revoke All Trusted Devices */
+        delete: operations["revoke_all_trusted_devices_api_me_trusted_devices_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/trusted-devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Trusted Device */
+        delete: operations["revoke_trusted_device_api_me_trusted_devices__device_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants": {
         parameters: {
             query?: never;
@@ -2049,6 +2102,11 @@ export interface components {
         CodeIn: {
             /** Code */
             code: string;
+            /**
+             * Remember Device
+             * @default false
+             */
+            remember_device: boolean;
         };
         /** ConfigChangeIn */
         ConfigChangeIn: {
@@ -2685,6 +2743,7 @@ export interface components {
             user?: components["schemas"]["MeOut"] | null;
             /** Methods */
             methods?: string[] | null;
+            remember_device?: components["schemas"]["RememberDeviceInfo"] | null;
         };
         /** MeOut */
         MeOut: {
@@ -2779,6 +2838,7 @@ export interface components {
             /** Recovery Codes Remaining */
             recovery_codes_remaining: number;
             webauthn: components["schemas"]["WebAuthnStatus"];
+            trusted_devices: components["schemas"]["TrustedDeviceFeature"];
         };
         /** MyTenantOut */
         MyTenantOut: {
@@ -2954,6 +3014,13 @@ export interface components {
         RecoveryOut: {
             /** Recovery Codes */
             recovery_codes: string[];
+        };
+        /** RememberDeviceInfo */
+        RememberDeviceInfo: {
+            /** Enabled */
+            enabled: boolean;
+            /** Days */
+            days: number;
         };
         /** ReportLanguageOut */
         ReportLanguageOut: {
@@ -3551,6 +3618,48 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** TrustedDeviceFeature */
+        TrustedDeviceFeature: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** TrustedDeviceOut */
+        TrustedDeviceOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** User Agent */
+            user_agent?: string | null;
+            /** Ip */
+            ip?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Last Used At
+             * Format: date-time
+             */
+            last_used_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** TrustedDeviceToggleIn */
+        TrustedDeviceToggleIn: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** TrustedDeviceToggleOut */
+        TrustedDeviceToggleOut: {
+            /** Enabled */
+            enabled: boolean;
+        };
         /** UserCreateIn */
         UserCreateIn: {
             /**
@@ -3652,6 +3761,11 @@ export interface components {
             credential: {
                 [key: string]: unknown;
             };
+            /**
+             * Remember Device
+             * @default false
+             */
+            remember_device: boolean;
         };
         /** WebAuthnRegisterCompleteIn */
         WebAuthnRegisterCompleteIn: {
@@ -4239,6 +4353,126 @@ export interface operations {
             header?: never;
             path: {
                 user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trusted_device_toggle_get_api_admin_trusted_device_enabled_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedDeviceToggleOut"];
+                };
+            };
+        };
+    };
+    trusted_device_toggle_set_api_admin_trusted_device_enabled_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrustedDeviceToggleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedDeviceToggleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_trusted_devices_api_me_trusted_devices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedDeviceOut"][];
+                };
+            };
+        };
+    };
+    revoke_all_trusted_devices_api_me_trusted_devices_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revoke_trusted_device_api_me_trusted_devices__device_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
             };
             cookie?: never;
         };
