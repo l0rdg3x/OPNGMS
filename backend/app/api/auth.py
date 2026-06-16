@@ -1,9 +1,11 @@
+import json
 import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from webauthn.helpers import base64url_to_bytes
 
 from app.core import crypto
 from app.core.config import get_settings
@@ -21,13 +23,17 @@ from app.models.session import Session
 from app.models.user import User
 from app.models.user_mfa import UserMfa
 from app.models.user_recovery_code import UserRecoveryCode
+from app.models.webauthn_credential import WebAuthnCredential
 from app.schemas.auth import LoginIn, LoginOut, MeOut, SessionInfo
-from app.schemas.mfa import CodeIn
+from app.schemas.mfa import CodeIn, WebAuthnLoginCompleteIn
 from app.services import mfa as mfa_svc
+from app.services import webauthn as wa
 from app.services.app_settings import get_mfa_policy
 from app.services.audit import AuditService
 from app.services.auth import AuthService
 from app.services.runtime_settings import get_runtime_config_or_defaults
+from app.services.webauthn import has_webauthn_credentials
+from app.services.webauthn_settings import get_webauthn_config
 
 logger = logging.getLogger(__name__)
 
@@ -111,11 +117,16 @@ async def login(
         await svc.delete_session_by_token(old)
 
     # Decide the session kind: enrolled -> challenge (mfa_pending); policy requires but not
-    # enrolled -> setup-only (mfa_setup); otherwise a normal full session.
+    # enrolled -> setup-only (mfa_setup); otherwise a normal full session. "Enrolled" means a
+    # confirmed TOTP OR at least one registered passkey (either can satisfy the challenge).
     mfa_row = await session.get(UserMfa, user.id)
+    has_totp = bool(mfa_row and mfa_row.enabled)
+    has_passkey = await has_webauthn_credentials(session, user.id)
     policy = await get_mfa_policy(session)
     is_priv = user.is_superadmin  # privileged = superadmin (tenant_admin membership is a later refinement)
-    if mfa_row and mfa_row.enabled:
+    # The methods the user can use to clear an mfa_pending challenge (used only when kind is mfa_pending).
+    methods = [m for m, present in (("totp", has_totp), ("webauthn", has_passkey)) if present]
+    if has_totp or has_passkey:
         kind = "mfa_pending"
     elif policy == "all" or (policy == "privileged" and is_priv):
         kind = "mfa_setup"
@@ -153,7 +164,7 @@ async def login(
     response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
     response.set_cookie(CSRF_COOKIE, sess.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
     if kind == "mfa_pending":
-        return LoginOut(status="mfa_required")
+        return LoginOut(status="mfa_required", methods=methods)
     if kind == "mfa_setup":
         return LoginOut(
             status="mfa_setup_required",
@@ -272,6 +283,150 @@ async def login_mfa(
         actor_user_id=user.id, tenant_id=None,
         action=("mfa.recovery_used" if used_recovery else "mfa.login_success"),
         target_type="session", target_id=str(full.id), ip=client_ip, details={},
+    )
+    await session.commit()
+    max_age = round(runtime["session_ttl_hours"] * 3600)
+    response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
+    response.set_cookie(CSRF_COOKIE, full.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
+    return LoginOut(
+        status="ok",
+        user=MeOut(id=user.id, email=user.email, name=user.name, is_superadmin=user.is_superadmin),
+    )
+
+
+@router.post("/login/webauthn/begin")
+async def login_webauthn_begin(
+    sess: Session = Depends(get_current_session),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Authentication options for the pending user's registered passkeys. Stores the challenge on the
+    mfa_pending session (single-use). 409 if WebAuthn is unconfigured."""
+    if sess.kind != "mfa_pending":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No MFA challenge")
+    cfg = await get_webauthn_config(session)
+    if not cfg.is_configured():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="WebAuthn not configured")
+    creds = (
+        await session.execute(
+            select(WebAuthnCredential).where(WebAuthnCredential.user_id == sess.user_id)
+        )
+    ).scalars().all()
+    opts_json, challenge = wa.authentication_options(
+        rp_id=cfg.rp_id, allow_cred_ids=[c.credential_id for c in creds]
+    )
+    sess.webauthn_challenge = challenge
+    await session.commit()
+    return json.loads(opts_json)
+
+
+@router.post(
+    "/login/webauthn/complete", response_model=LoginOut, dependencies=[Depends(enforce_csrf)]
+)
+async def login_webauthn_complete(
+    body: WebAuthnLoginCompleteIn,
+    request: Request,
+    response: Response,
+    sess: Session = Depends(get_current_session),
+    session: AsyncSession = Depends(get_session),
+) -> LoginOut:
+    if sess.kind != "mfa_pending":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No MFA challenge")
+    if not sess.webauthn_challenge:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No pending WebAuthn challenge"
+        )
+    client_ip = _client_ip(request)
+    key = f"mfa|{sess.user_id}|{client_ip or '?'}"
+    runtime = await get_runtime_config_or_defaults(session)
+    # Fail CLOSED on a limiter fault, mirroring /api/login/mfa.
+    try:
+        allowed, retry = login_limiter.check(
+            key,
+            max_attempts=runtime["login_max_attempts"],
+            window_seconds=runtime["login_lockout_window_seconds"],
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("webauthn rate-limiter check failed; failing closed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Login temporarily unavailable",
+            headers={"Retry-After": "5"},
+        ) from exc
+    if not allowed:
+        raise HTTPException(
+            status_code=429, detail="Too many attempts", headers={"Retry-After": str(retry)}
+        )
+
+    cfg = await get_webauthn_config(session)
+    if not cfg.is_configured():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="WebAuthn not configured")
+    user = await AuthService(session).get_user_for_session(sess)
+    # Resolve the asserted credential by its raw id, scoped to this user. FOR UPDATE serializes the
+    # sign-count check-then-set against a concurrent assertion for the same credential.
+    raw_id = body.credential.get("rawId") or body.credential.get("id")
+    cred = None
+    if user is not None and isinstance(raw_id, str):
+        try:
+            cred_id_bytes = base64url_to_bytes(raw_id)
+        except Exception:  # noqa: BLE001 — a malformed id is just a failed assertion
+            cred_id_bytes = None
+        if cred_id_bytes is not None:
+            cred = (
+                await session.execute(
+                    select(WebAuthnCredential)
+                    .where(
+                        WebAuthnCredential.user_id == user.id,
+                        WebAuthnCredential.credential_id == cred_id_bytes,
+                    )
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+
+    new_count = None
+    if cred is not None:
+        try:
+            new_count = wa.verify_authentication(
+                response=body.credential, challenge=sess.webauthn_challenge,
+                rp_id=cfg.rp_id, origin=cfg.origin,
+                public_key=cred.public_key, sign_count=cred.sign_count,
+            )
+        except wa.WebAuthnError:
+            new_count = None
+
+    if user is None or cred is None or new_count is None:
+        # Single-use: burn the challenge on any failure so it can't be retried.
+        sess.webauthn_challenge = None
+        try:
+            login_limiter.record_failure(key)
+        except Exception:  # noqa: BLE001 — never let a limiter fault turn a 401 into a 500
+            logger.error("webauthn rate-limiter record_failure failed", exc_info=True)
+        await AuditService(session).record(
+            actor_user_id=(user.id if user else None), tenant_id=None, action="mfa.login_failed",
+            target_type="session", target_id=str(sess.id), ip=client_ip, details={"method": "webauthn"},
+        )
+        await session.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid passkey")
+
+    cred.sign_count = new_count
+    cred.last_used_at = datetime.now(UTC)
+    sess.webauthn_challenge = None  # single-use
+
+    # Upgrade: drop the pending session, mint a fresh full one (anti-fixation rotation), set cookies —
+    # exactly as /login/mfa does.
+    raw_old = request.cookies.get(SESSION_COOKIE)
+    if raw_old:
+        await AuthService(session).delete_session_by_token(raw_old)
+    full, raw_token = await AuthService(session).create_session(
+        user, ttl_hours=runtime["session_ttl_hours"], kind="full",
+        ip=client_ip, user_agent=request.headers.get("user-agent"),
+    )
+    try:
+        login_limiter.reset(key)
+    except Exception:  # noqa: BLE001 — never let a limiter fault break a successful login
+        logger.error("webauthn rate-limiter reset failed", exc_info=True)
+    await AuditService(session).record(
+        actor_user_id=user.id, tenant_id=None, action="mfa.login_success",
+        target_type="session", target_id=str(full.id), ip=client_ip, details={"method": "webauthn"},
     )
     await session.commit()
     max_age = round(runtime["session_ttl_hours"] * 3600)

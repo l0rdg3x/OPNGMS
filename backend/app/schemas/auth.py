@@ -30,6 +30,9 @@ class MeOut(BaseModel):
 class LoginOut(BaseModel):
     status: str  # "ok" | "mfa_required" | "mfa_setup_required"
     user: MeOut | None = None
+    # On "mfa_required": which second factors the user can satisfy the challenge with
+    # (e.g. ["totp", "webauthn"]) so the SPA shows the right options. None otherwise.
+    methods: list[str] | None = None
 
 
 class SessionInfo(BaseModel):
