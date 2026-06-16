@@ -73,15 +73,29 @@ async def close_pool() -> None:
 - **Concurrency:** an eager module-level `asyncio.Lock` (double-checked) ensures concurrent first-enqueues
   create exactly one pool (no leak); the lock binds to the loop on first acquire (Python 3.10+).
 
-## PR2 — Index audit (measured)
+## PR2 — Index audit (measured) — RESULT
 
-Run EXPLAIN (ANALYZE) against the hot read paths on a seeded DB — the reporting rollups
-(`reliability_rollup`, `config_audit_rollup`, perimeter `perimeter_top`, `health_summary`,
-`alerts_in_range`, `gateway_quality`), the membership/RBAC resolution, and the device/alert list filters.
-For each sequential scan on a selective filter/sort that runs per report or per request, add the missing
-index in a **forward-only migration**, mirroring the existing `events` keyset index. Additive only — no
-query rewrite. If the audit finds nothing missing, PR2 is a documented no-op (still valuable: it records
-the indexes are adequate). Scope is bounded by what the audit actually finds.
+Audited every hot read path's filter/sort columns against the live index set (`pg_indexes`). The schema is
+**already well-indexed**, so PR2 adds exactly **one** missing index:
+
+- **`events`** — `ix_events_tenant_device_source_time` + the keyset index cover the timeline + per-device
+  rollups. ✅
+- **`metrics`** — `ix_metrics_tenant_device_metric_time` covers `health_summary`/`gateway_quality`. ✅
+- **`perimeter_attacker`** — `ix_perimeter_attacker_rank (tenant_id, kind, last_seen DESC)` covers
+  `perimeter_top`. ✅
+- **RBAC** — `uq_membership_user_tenant` (user-leading), `ix_group_members_user_id`, `group_grants` all
+  cover the resolution. ✅  · **audit_log / generated_reports** — composite indexes already present. ✅
+- **`alerts`** — ❌ **the one gap.** `alerts_in_range` runs `WHERE tenant_id + device_id + opened_at range
+  ORDER BY opened_at DESC` once per device per report, but `alerts` had only single-column
+  `device_id`/`tenant_id` indexes → a full per-device scan + sort. **Add
+  `ix_alerts_tenant_device_opened (tenant_id, device_id, opened_at)`** (mirrors the tenant-device-time
+  pattern on `config_changes`/`config_snapshots`/`firmware_actions`).
+
+Delivered as a **forward-only migration `0041`** + the matching model `Index` (kept in sync) + a test
+asserting the index columns. Additive only — no data change, no query rewrite. **NOT added:** a
+`(tenant_id, source, time)` index on the `events` hypertable for the tenant-wide-by-source rollups — the
+write cost on the highest-insert table is not justified by infrequent, time-bounded report rollups (the
+existing indexes serve them acceptably).
 
 ## PR3 — Reporting per-device fan-out (measured, then decided)
 

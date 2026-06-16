@@ -21,6 +21,11 @@ class Alert(UUIDPKMixin, Base):
             unique=True,
             postgresql_where=text("resolved_at IS NULL"),
         ),
+        # Backs the per-report, per-device `alerts_in_range` query (WHERE tenant_id + device_id +
+        # opened_at range, ORDER BY opened_at DESC) — a btree range-scan instead of scanning all of a
+        # device's history + sorting. Mirrors the (tenant_id, device_id, <time>) pattern used by
+        # config_changes / config_snapshots / firmware_actions.
+        Index("ix_alerts_tenant_device_opened", "tenant_id", "device_id", "opened_at"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
