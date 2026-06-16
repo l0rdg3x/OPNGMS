@@ -9578,6 +9578,81 @@
             "type": "boolean",
             "title": "Clear Password",
             "default": false
+          },
+          "auth_method": {
+            "type": "string",
+            "title": "Auth Method",
+            "default": "password"
+          },
+          "oauth_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Provider"
+          },
+          "oauth_client_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Client Id"
+          },
+          "oauth_client_secret": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Client Secret"
+          },
+          "oauth_refresh_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Refresh Token"
+          },
+          "oauth_tenant_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Tenant Id"
+          },
+          "clear_client_secret": {
+            "type": "boolean",
+            "title": "Clear Client Secret",
+            "default": false
+          },
+          "clear_refresh_token": {
+            "type": "boolean",
+            "title": "Clear Refresh Token",
+            "default": false
           }
         },
         "type": "object",
@@ -9628,6 +9703,51 @@
           "has_password": {
             "type": "boolean",
             "title": "Has Password"
+          },
+          "auth_method": {
+            "type": "string",
+            "title": "Auth Method"
+          },
+          "oauth_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Provider"
+          },
+          "oauth_client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Client Id"
+          },
+          "oauth_tenant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Tenant Id"
+          },
+          "has_client_secret": {
+            "type": "boolean",
+            "title": "Has Client Secret"
+          },
+          "has_refresh_token": {
+            "type": "boolean",
+            "title": "Has Refresh Token"
           }
         },
         "type": "object",
@@ -9639,7 +9759,13 @@
           "username",
           "from_email",
           "from_name",
-          "has_password"
+          "has_password",
+          "auth_method",
+          "oauth_provider",
+          "oauth_client_id",
+          "oauth_tenant_id",
+          "has_client_secret",
+          "has_refresh_token"
         ],
         "title": "SmtpSettingsOut"
       },
@@ -9704,6 +9830,81 @@
           "clear_password": {
             "type": "boolean",
             "title": "Clear Password",
+            "default": false
+          },
+          "auth_method": {
+            "type": "string",
+            "title": "Auth Method",
+            "default": "password"
+          },
+          "oauth_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Provider"
+          },
+          "oauth_client_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Client Id"
+          },
+          "oauth_client_secret": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Client Secret"
+          },
+          "oauth_refresh_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Refresh Token"
+          },
+          "oauth_tenant_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Tenant Id"
+          },
+          "clear_client_secret": {
+            "type": "boolean",
+            "title": "Clear Client Secret",
+            "default": false
+          },
+          "clear_refresh_token": {
+            "type": "boolean",
+            "title": "Clear Refresh Token",
             "default": false
           },
           "to": {

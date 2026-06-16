@@ -771,4 +771,17 @@ export const nl: Dict = {
     loadError: "Laden van configuratiewijzigingen mislukt.",
     last24h: "Laatste 24 uur",
   },
+  smtp: {
+    authMethod: "Authenticatie",
+    authPassword: "Wachtwoord",
+    authOauth: "OAuth2",
+    oauthProvider: "Provider",
+    oauthGoogle: "Google / Gmail",
+    oauthMicrosoft: "Microsoft 365",
+    oauthClientId: "Client ID",
+    oauthClientSecret: "Client secret",
+    oauthRefreshToken: "Refresh token",
+    oauthTenantId: "Tenant ID",
+    oauthSecretSaved: "opgeslagen — laat leeg om te behouden",
+  },
 };

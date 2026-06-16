@@ -97,7 +97,7 @@ def test_rekey_covers_all_encrypted_columns():
         "devices": {"api_key_enc", "api_secret_enc"},
         "config_snapshots": {"content_enc"},
         "user_mfa": {"totp_secret_enc"},
-        "smtp_settings": {"password_enc"},
+        "smtp_settings": {"password_enc", "oauth_client_secret_enc", "oauth_refresh_token_enc"},
         "syslog_ca_key": {"key_enc"},
     }
     assert found == expected, (
@@ -117,6 +117,8 @@ async def test_rekey_reencrypts_mfa_smtp_syslog(factory, restore_env_rekey):
     uid = uuid.uuid4()
     enc_totp = crypto.encrypt("TOTPSECRET")
     enc_pw = crypto.encrypt("smtp-pw")
+    enc_cs = crypto.encrypt("oauth-client-secret")
+    enc_rt = crypto.encrypt("oauth-refresh-token")
     enc_cakey = crypto.encrypt_bytes(b"-----BEGIN KEY-----")
     async with factory() as s:
         await s.execute(
@@ -126,7 +128,9 @@ async def test_rekey_reencrypts_mfa_smtp_syslog(factory, restore_env_rekey):
             text("INSERT INTO user_mfa (user_id,enabled,totp_secret_enc) VALUES (:i,true,:v)"),
             {"i": uid, "v": enc_totp})
         await s.execute(
-            text("INSERT INTO smtp_settings (id,password_enc) VALUES (1,:v)"), {"v": enc_pw})
+            text("INSERT INTO smtp_settings "
+                 "(id,password_enc,oauth_client_secret_enc,oauth_refresh_token_enc) "
+                 "VALUES (1,:v,:cs,:rt)"), {"v": enc_pw, "cs": enc_cs, "rt": enc_rt})
         # The key lives in the owner-only syslog_ca_key table (FK->syslog_ca.id); insert the cert first.
         await s.execute(text("INSERT INTO syslog_ca (id,cert_pem) VALUES (1,'PEM')"))
         await s.execute(
@@ -142,8 +146,12 @@ async def test_rekey_reencrypts_mfa_smtp_syslog(factory, restore_env_rekey):
     config_mod.get_settings.cache_clear()
     async with factory() as s:
         totp = (await s.execute(text("SELECT totp_secret_enc FROM user_mfa WHERE user_id=:i"), {"i": uid})).scalar_one()
-        pw = (await s.execute(text("SELECT password_enc FROM smtp_settings WHERE id=1"))).scalar_one()
+        smtp_row = (await s.execute(text(
+            "SELECT password_enc, oauth_client_secret_enc, oauth_refresh_token_enc "
+            "FROM smtp_settings WHERE id=1"))).one()
         cakey = (await s.execute(text("SELECT key_enc FROM syslog_ca_key WHERE id=1"))).scalar_one()
     assert crypto.decrypt(totp) == "TOTPSECRET"
-    assert crypto.decrypt(pw) == "smtp-pw"
+    assert crypto.decrypt(smtp_row.password_enc) == "smtp-pw"
+    assert crypto.decrypt(smtp_row.oauth_client_secret_enc) == "oauth-client-secret"
+    assert crypto.decrypt(smtp_row.oauth_refresh_token_enc) == "oauth-refresh-token"
     assert crypto.decrypt_bytes(cakey) == b"-----BEGIN KEY-----"

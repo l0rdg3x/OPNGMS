@@ -770,4 +770,17 @@ export const ar: Dict = {
     loadError: "فشل تحميل تغييرات الإعدادات.",
     last24h: "آخر 24 ساعة",
   },
+  smtp: {
+    authMethod: "المصادقة",
+    authPassword: "كلمة المرور",
+    authOauth: "OAuth2",
+    oauthProvider: "المزوّد",
+    oauthGoogle: "Google / Gmail",
+    oauthMicrosoft: "Microsoft 365",
+    oauthClientId: "Client ID",
+    oauthClientSecret: "Client secret",
+    oauthRefreshToken: "Refresh token",
+    oauthTenantId: "Tenant ID",
+    oauthSecretSaved: "محفوظ — اتركه فارغًا للإبقاء",
+  },
 };

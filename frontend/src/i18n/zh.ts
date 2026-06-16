@@ -768,4 +768,17 @@ export const zh: Dict = {
     loadError: "加载配置变更失败。",
     last24h: "过去24小时",
   },
+  smtp: {
+    authMethod: "身份验证",
+    authPassword: "密码",
+    authOauth: "OAuth2",
+    oauthProvider: "提供商",
+    oauthGoogle: "Google / Gmail",
+    oauthMicrosoft: "Microsoft 365",
+    oauthClientId: "Client ID",
+    oauthClientSecret: "Client secret",
+    oauthRefreshToken: "Refresh token",
+    oauthTenantId: "Tenant ID",
+    oauthSecretSaved: "已保存 — 留空以保留",
+  },
 };

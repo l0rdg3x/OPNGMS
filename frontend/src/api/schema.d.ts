@@ -3173,6 +3173,31 @@ export interface components {
              * @default false
              */
             clear_password: boolean;
+            /**
+             * Auth Method
+             * @default password
+             */
+            auth_method: string;
+            /** Oauth Provider */
+            oauth_provider?: string | null;
+            /** Oauth Client Id */
+            oauth_client_id?: string | null;
+            /** Oauth Client Secret */
+            oauth_client_secret?: string | null;
+            /** Oauth Refresh Token */
+            oauth_refresh_token?: string | null;
+            /** Oauth Tenant Id */
+            oauth_tenant_id?: string | null;
+            /**
+             * Clear Client Secret
+             * @default false
+             */
+            clear_client_secret: boolean;
+            /**
+             * Clear Refresh Token
+             * @default false
+             */
+            clear_refresh_token: boolean;
         };
         /** SmtpSettingsOut */
         SmtpSettingsOut: {
@@ -3192,6 +3217,18 @@ export interface components {
             from_name: string;
             /** Has Password */
             has_password: boolean;
+            /** Auth Method */
+            auth_method: string;
+            /** Oauth Provider */
+            oauth_provider: string | null;
+            /** Oauth Client Id */
+            oauth_client_id: string | null;
+            /** Oauth Tenant Id */
+            oauth_tenant_id: string | null;
+            /** Has Client Secret */
+            has_client_secret: boolean;
+            /** Has Refresh Token */
+            has_refresh_token: boolean;
         };
         /** SmtpTestIn */
         SmtpTestIn: {
@@ -3228,6 +3265,31 @@ export interface components {
              * @default false
              */
             clear_password: boolean;
+            /**
+             * Auth Method
+             * @default password
+             */
+            auth_method: string;
+            /** Oauth Provider */
+            oauth_provider?: string | null;
+            /** Oauth Client Id */
+            oauth_client_id?: string | null;
+            /** Oauth Client Secret */
+            oauth_client_secret?: string | null;
+            /** Oauth Refresh Token */
+            oauth_refresh_token?: string | null;
+            /** Oauth Tenant Id */
+            oauth_tenant_id?: string | null;
+            /**
+             * Clear Client Secret
+             * @default false
+             */
+            clear_client_secret: boolean;
+            /**
+             * Clear Refresh Token
+             * @default false
+             */
+            clear_refresh_token: boolean;
             /**
              * To
              * Format: email

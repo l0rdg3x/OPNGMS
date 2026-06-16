@@ -1,6 +1,6 @@
 import uuid
+from unittest.mock import AsyncMock, MagicMock
 
-import aiosmtplib
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -8,6 +8,24 @@ from app import worker
 from app.core.db import set_tenant_context
 from app.models.smtp_settings import SINGLETON_ID, SmtpSettings
 from tests.factories import make_user
+
+
+def _mock_smtp_client(captured: dict):
+    """A mock aiosmtplib.SMTP client recording the sent message; install via monkeypatch on
+    app.services.email.smtp.aiosmtplib.SMTP."""
+    client = MagicMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    client.auth_xoauth2 = AsyncMock()
+    client.login = AsyncMock()
+
+    async def fake_send_message(message):
+        captured["to"] = message["To"]
+        captured["subject"] = message["Subject"]
+        return ({}, "ok")
+
+    client.send_message = AsyncMock(side_effect=fake_send_message)
+    return client
 
 
 async def _seed_silent_tenant(s, *, name="Acme", slug="acme"):
@@ -39,12 +57,8 @@ async def test_detect_silent_tenants_emails_superadmins(db_engine, monkeypatch):
     monkeypatch.setattr("app.services.silent_alerts.fleet_log_stats", fake_stats)
 
     sent: dict = {}
-
-    async def fake_send(message, **kwargs):
-        sent["to"] = message["To"]
-        sent["subject"] = message["Subject"]
-        return ({}, "ok")
-    monkeypatch.setattr(aiosmtplib, "send", fake_send)
+    client = _mock_smtp_client(sent)
+    monkeypatch.setattr("app.services.email.smtp.aiosmtplib.SMTP", lambda **kw: client)
 
     summary = await worker.detect_silent_tenants({"session_factory": factory})
     assert summary["new"] == 1 and summary["emailed"] is True
@@ -66,10 +80,10 @@ async def test_detect_silent_tenants_no_smtp_no_email(db_engine, monkeypatch):
 
     called = {"send": False}
 
-    async def fake_send(message, **kwargs):
+    def _boom(**kw):
         called["send"] = True
-        return ({}, "ok")
-    monkeypatch.setattr(aiosmtplib, "send", fake_send)
+        raise AssertionError("SMTP client must not be constructed when SMTP is disabled")
+    monkeypatch.setattr("app.services.email.smtp.aiosmtplib.SMTP", _boom)
 
     summary = await worker.detect_silent_tenants({"session_factory": factory})
     assert summary["new"] == 1 and summary["emailed"] is False

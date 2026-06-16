@@ -769,6 +769,19 @@ export const en = {
     loadError: "Failed to load config changes.",
     last24h: "Last 24 hours",
   },
+  smtp: {
+    authMethod: "Authentication",
+    authPassword: "Password",
+    authOauth: "OAuth2",
+    oauthProvider: "Provider",
+    oauthGoogle: "Google / Gmail",
+    oauthMicrosoft: "Microsoft 365",
+    oauthClientId: "Client ID",
+    oauthClientSecret: "Client secret",
+    oauthRefreshToken: "Refresh token",
+    oauthTenantId: "Tenant ID",
+    oauthSecretSaved: "saved — leave blank to keep",
+  },
 } as const;
 
 // Widen the string leaves to `string` while preserving the exact key structure, so sibling

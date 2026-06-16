@@ -24,6 +24,12 @@ class SmtpSettings(Base):
     security: Mapped[str] = mapped_column(String, default="starttls", server_default="starttls")
     username: Mapped[str | None] = mapped_column(String, nullable=True)
     password_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    auth_method: Mapped[str] = mapped_column(String, default="password", server_default="password")
+    oauth_provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    oauth_client_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    oauth_client_secret_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    oauth_refresh_token_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    oauth_tenant_id: Mapped[str | None] = mapped_column(String, nullable=True)
     from_email: Mapped[str] = mapped_column(String, default="", server_default="")
     from_name: Mapped[str] = mapped_column(String, default="", server_default="")
     updated_at: Mapped[datetime] = mapped_column(
