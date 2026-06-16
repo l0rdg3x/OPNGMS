@@ -29,10 +29,23 @@ class WebAuthnStatus(BaseModel):
     credentials: int  # how many passkeys the user has registered
 
 
+class TrustedDeviceFeature(BaseModel):
+    enabled: bool  # org-wide remember-this-device toggle
+
+
+class TrustedDeviceToggleIn(BaseModel):
+    enabled: bool
+
+
+class TrustedDeviceToggleOut(BaseModel):
+    enabled: bool
+
+
 class MfaStatusOut(BaseModel):
     enabled: bool
     recovery_codes_remaining: int
     webauthn: WebAuthnStatus
+    trusted_devices: TrustedDeviceFeature
 
 
 class WebAuthnRegisterCompleteIn(BaseModel):
