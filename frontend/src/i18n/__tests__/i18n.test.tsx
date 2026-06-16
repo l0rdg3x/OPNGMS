@@ -1,5 +1,5 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DirectionSync } from "../../components/DirectionSync";
@@ -151,9 +151,10 @@ describe("I18nProvider", () => {
     );
   }
 
-  it("serves the dictionary for its locale prop", () => {
+  it("serves the dictionary for its locale prop", async () => {
     renderProbe("it");
-    expect(screen.getByTestId("ov").textContent).toBe(itDict.nav.overview);
+    // Non-en dictionaries load on demand, so the Italian string arrives asynchronously.
+    await waitFor(() => expect(screen.getByTestId("ov").textContent).toBe(itDict.nav.overview));
     expect(screen.getByTestId("ov").textContent).not.toBe(en.nav.overview);
   });
 
@@ -173,7 +174,8 @@ describe("I18nProvider", () => {
     await userEvent.click(screen.getByText("switch"));
 
     expect(screen.getByTestId("loc").textContent).toBe("fr");
-    expect(screen.getByTestId("ov").textContent).toBe(fr.nav.overview);
+    // The French dictionary loads on demand after the switch.
+    await waitFor(() => expect(screen.getByTestId("ov").textContent).toBe(fr.nav.overview));
     expect(localStorage.getItem("opngms.locale")).toBe("fr");
   });
 });

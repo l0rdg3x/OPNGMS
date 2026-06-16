@@ -8,18 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { ar } from "./ar";
-import { de } from "./de";
 import { en, type Dict } from "./en";
-import { es } from "./es";
-import { fr } from "./fr";
-import { it } from "./it";
-import { ja } from "./ja";
-import { nl } from "./nl";
-import { pt } from "./pt";
-import { ru } from "./ru";
-import { zh } from "./zh";
-import { zhTW } from "./zhTW";
 import {
   DEFAULT_LOCALE,
   detectInitialLocale,
@@ -33,11 +22,24 @@ import {
 export type { Dict } from "./en";
 export type { Locale } from "./locale";
 
-// Every supported locale's dictionary. Each is typed `: Dict`, so `tsc -b` guarantees
-// they all share en's exact key structure.
-const dictionaries: Record<Locale, Dict> = {
-  en, it, es, fr, de, pt, nl, ru, ar, zh, "zh-TW": zhTW, ja,
+// `en` is bundled eagerly (the default locale, the fallback, and the source of the `Dict` type). The
+// other locales — each typed `: Dict`, so `tsc -b` still enforces key parity against en — load on demand
+// via dynamic `import()`, so each becomes its own chunk and stays out of the main bundle. Fetched dicts
+// are cached for the session.
+const loaders: Record<Exclude<Locale, "en">, () => Promise<Dict>> = {
+  it: () => import("./it").then((m) => m.it),
+  es: () => import("./es").then((m) => m.es),
+  fr: () => import("./fr").then((m) => m.fr),
+  de: () => import("./de").then((m) => m.de),
+  pt: () => import("./pt").then((m) => m.pt),
+  nl: () => import("./nl").then((m) => m.nl),
+  ru: () => import("./ru").then((m) => m.ru),
+  ar: () => import("./ar").then((m) => m.ar),
+  zh: () => import("./zh").then((m) => m.zh),
+  "zh-TW": () => import("./zhTW").then((m) => m.zhTW),
+  ja: () => import("./ja").then((m) => m.ja),
 };
+const cache: Partial<Record<Locale, Dict>> = { en };
 
 interface I18nState {
   locale: Locale;
@@ -63,6 +65,12 @@ export function I18nProvider({
   const [locale, setLocaleState] = useState<Locale>(() => localeOverride ?? detectInitialLocale());
   const effective = localeOverride ?? locale;
 
+  // The active dictionary is DERIVED during render from the cache: the cached dict for the active locale,
+  // or `en` while a non-en locale's chunk is still loading. The counter only re-renders once an async
+  // dict has landed in the cache (so we avoid a synchronous setState inside the loader effect).
+  const [, onLoaded] = useState(0);
+  const dict = cache[effective] ?? en;
+
   const setLocale = useCallback((next: Locale) => {
     if (!isLocale(next)) return;
     persistLocale(next);
@@ -74,9 +82,23 @@ export function I18nProvider({
     document.documentElement.lang = effective;
   }, [effective]);
 
+  // Load the active locale's dictionary on demand (cached after the first fetch). `en` is always cached,
+  // so the common case loads nothing; switching to another locale briefly shows `en` until its chunk lands.
+  useEffect(() => {
+    if (cache[effective]) return;
+    let cancelled = false;
+    void loaders[effective as Exclude<Locale, "en">]().then((d) => {
+      cache[effective] = d;
+      if (!cancelled) onLoaded((n) => n + 1);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [effective]);
+
   const value = useMemo<I18nState>(
-    () => ({ locale: effective, t: dictionaries[effective] ?? en, setLocale }),
-    [effective, setLocale],
+    () => ({ locale: effective, t: dict, setLocale }),
+    [effective, dict, setLocale],
   );
   return createElement(I18nContext.Provider, { value }, children);
 }
