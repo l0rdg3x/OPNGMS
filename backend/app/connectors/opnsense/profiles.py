@@ -106,9 +106,13 @@ CAPABILITIES: dict[str, list[ProfileRule]] = {
               {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""}),
         combine=lambda r: parsers.parse_service_events(r[0])))],
     # Config-change audit (who/what/when changed the box config, channel-attributed). Same audit-log
-    # endpoint as `auth_failures`; the parser keeps the "changed configuration" line family.
+    # endpoint as `auth_failures`, but the audit log is dominated by `configd.py` "action allowed" rows
+    # (one per API call) — with an empty searchPhrase the rare config-change lines fall outside the
+    # rowCount window. The box filters server-side, so we search the "changed configuration" phrase that
+    # every config-change line carries (live-verified on 26.1.10: returns the config-change lines across
+    # the whole buffer, not just the most-recent rowCount). The parser still re-checks process+grammar.
     "config_changes": [_default(_spec(
         _POST("diagnostics/log/core/audit",
-              {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""}),
+              {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": "changed configuration"}),
         combine=lambda r: parsers.parse_config_changes(r[0])))],
 }

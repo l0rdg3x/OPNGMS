@@ -12,6 +12,25 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-06-16
+### Added
+- **Config-change audit ("who changed the box, and how").** OPNGMS now ingests the OPNsense **audit log**
+  into a new `config_audit` events source (reusing the per-source cursor, dedup, and retention), surfacing
+  **who/what/when changed a device's config** with a **best-effort drift-cause attribution**: each change
+  is classified by **channel** from the request path — `api` (programmatic: OPNGMS or another API client),
+  `gui` (a human in the WebGUI), or `system` (console / script). A **direct on-box** change (gui/system —
+  OPNGMS only ever writes via the API) is the **drift** signal: it is recorded at higher severity and
+  raises a **deduped alert**. Each device gains a **Config changes** tab (time · area · actor · IP ·
+  channel · change, with a *Direct* badge on drift rows), the Overview gains a fleet **direct-changes
+  (24h)** card, and the per-client PDF gains a **Config changes** section (by-channel breakdown + recent
+  changes, default on, standard toggle model). Second of the two diagnostic-log milestones. (#184, #185,
+  #186)
+
+  > Best-effort by design: the `api` channel can't separate OPNGMS from a human using a modern WebGUI MVC
+  > page (both hit `/api/…`) — the strong drift signals are the gui/console channel and the actor IP.
+  > Management-IP attribution is a documented follow-up. Distinct from the superadmin **Audit viewer**
+  > (v0.10.0), which is OPNGMS's *own* write-ledger; this is the *box's* config log.
+
 ## [0.15.0] - 2026-06-15
 ### Added
 - **Service / reliability events.** OPNGMS now surfaces a device's **reliability** from the OPNsense
