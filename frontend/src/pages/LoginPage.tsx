@@ -1,4 +1,4 @@
-import { Anchor, Box, Button, Center, Paper, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Box, Button, Center, Divider, Paper, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import type { Me } from "../auth/AuthProvider";
 import { useAuth } from "../auth/useAuth";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { useT } from "../i18n";
+import { getAssertion, webauthnSupported } from "../security/webauthnClient";
 
 type LoginOut = components["schemas"]["LoginOut"];
 
@@ -35,8 +36,14 @@ export function LoginPage() {
   // null = password step; "mfa" = second-factor challenge step
   const [step, setStep] = useState<"password" | "mfa">("password");
   const [useRecovery, setUseRecovery] = useState(false);
+  // Which second factors the account offers; drives the TOTP field / passkey button.
+  const [methods, setMethods] = useState<string[]>([]);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   const form = useForm({ initialValues: { email: "", password: "" } });
   const mfaForm = useForm({ initialValues: { code: "" } });
+
+  const hasTotp = methods.length === 0 || methods.includes("totp");
+  const hasWebauthn = methods.includes("webauthn");
 
   useEffect(() => {
     if (me) navigate("/", { replace: true });
@@ -51,6 +58,7 @@ export function LoginPage() {
     }
     const out = data as LoginOut;
     if (out.status === "mfa_required") {
+      setMethods(out.methods ?? []);
       setStep("mfa");
       return;
     }
@@ -70,6 +78,35 @@ export function LoginPage() {
       setMe(out.user as Me);
     } else {
       setError(t.login.mfa.invalidCode);
+    }
+  }
+
+  async function submitPasskey() {
+    setError(null);
+    if (!webauthnSupported()) {
+      setError(t.login.mfa.passkeyNotSupported);
+      return;
+    }
+    setPasskeyBusy(true);
+    try {
+      const begin = await api.POST("/api/login/webauthn/begin");
+      if (begin.error || !begin.data) {
+        setError(t.login.mfa.passkeyError);
+        return;
+      }
+      const credential = await getAssertion(begin.data as Record<string, unknown>);
+      const complete = await api.POST("/api/login/webauthn/complete", { body: { credential } });
+      const out = complete.data as LoginOut | undefined;
+      if (complete.response.ok && out?.status === "ok" && out.user) {
+        setMe(out.user as Me);
+      } else {
+        setError(t.login.mfa.passkeyError);
+      }
+    } catch {
+      // User cancelled the platform prompt, or the authenticator failed.
+      setError(t.login.mfa.passkeyError);
+    } finally {
+      setPasskeyBusy(false);
     }
   }
 
@@ -122,39 +159,58 @@ export function LoginPage() {
               <Text size="sm" c="dimmed" mb="lg">
                 {useRecovery ? t.login.mfa.recoveryHint : t.login.mfa.codeHint}
               </Text>
-              <form onSubmit={mfaForm.onSubmit(submitMfa)}>
+              {hasTotp && (
+                <form onSubmit={mfaForm.onSubmit(submitMfa)}>
+                  <Stack gap="md">
+                    <TextInput
+                      label={useRecovery ? t.login.mfa.recoveryLabel : t.login.mfa.codeLabel}
+                      required
+                      size="md"
+                      autoFocus
+                      data-testid="mfa-code"
+                      inputMode={useRecovery ? "text" : "numeric"}
+                      {...mfaForm.getInputProps("code")}
+                    />
+                    <Button type="submit" fullWidth size="md" mt="xs" data-testid="mfa-verify">
+                      {t.login.mfa.verify}
+                    </Button>
+                    <Anchor
+                      component="button"
+                      type="button"
+                      size="sm"
+                      ta="center"
+                      data-testid="mfa-use-recovery"
+                      onClick={() => {
+                        setUseRecovery((v) => !v);
+                        setError(null);
+                        mfaForm.setFieldValue("code", "");
+                      }}
+                    >
+                      {useRecovery ? t.login.mfa.useCode : t.login.mfa.useRecovery}
+                    </Anchor>
+                  </Stack>
+                </form>
+              )}
+
+              {hasWebauthn && (
                 <Stack gap="md">
-                  <TextInput
-                    label={useRecovery ? t.login.mfa.recoveryLabel : t.login.mfa.codeLabel}
-                    required
+                  {hasTotp && <Divider label={t.login.mfa.or} my="xs" />}
+                  <Button
+                    fullWidth
                     size="md"
-                    autoFocus
-                    data-testid="mfa-code"
-                    inputMode={useRecovery ? "text" : "numeric"}
-                    {...mfaForm.getInputProps("code")}
-                  />
-                  {error && (
-                    <Text role="alert" c="red.5" size="sm">{error}</Text>
-                  )}
-                  <Button type="submit" fullWidth size="md" mt="xs" data-testid="mfa-verify">
-                    {t.login.mfa.verify}
-                  </Button>
-                  <Anchor
-                    component="button"
-                    type="button"
-                    size="sm"
-                    ta="center"
-                    data-testid="mfa-use-recovery"
-                    onClick={() => {
-                      setUseRecovery((v) => !v);
-                      setError(null);
-                      mfaForm.setFieldValue("code", "");
-                    }}
+                    variant={hasTotp ? "default" : "filled"}
+                    loading={passkeyBusy}
+                    onClick={submitPasskey}
+                    data-testid="mfa-use-passkey"
                   >
-                    {useRecovery ? t.login.mfa.useCode : t.login.mfa.useRecovery}
-                  </Anchor>
+                    {t.login.mfa.usePasskey}
+                  </Button>
                 </Stack>
-              </form>
+              )}
+
+              {error && (
+                <Text role="alert" c="red.5" size="sm" mt="md">{error}</Text>
+              )}
             </>
           )}
         </Paper>

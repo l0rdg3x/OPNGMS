@@ -55,6 +55,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/login/webauthn/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login Webauthn Begin
+         * @description Authentication options for the pending user's registered passkeys. Stores the challenge on the
+         *     mfa_pending session (single-use). 409 if WebAuthn is unconfigured.
+         */
+        post: operations["login_webauthn_begin_api_login_webauthn_begin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/login/webauthn/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login Webauthn Complete */
+        post: operations["login_webauthn_complete_api_login_webauthn_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/logout": {
         parameters: {
             query?: never;
@@ -203,6 +241,80 @@ export interface paths {
         /** Mfa Regen */
         post: operations["mfa_regen_api_me_mfa_recovery_regenerate_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/mfa/webauthn/register/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Webauthn Register Begin
+         * @description Mint registration options + persist the per-ceremony challenge on this session. Requires the
+         *     account password (step-up) so a hijacked session can't silently add an attacker passkey — same
+         *     rule as TOTP `/me/mfa/setup`. No durable state change beyond the single-use challenge, so this is
+         *     read-like (allowlisted in audit coverage).
+         */
+        post: operations["webauthn_register_begin_api_me_mfa_webauthn_register_begin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/mfa/webauthn/register/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webauthn Register Complete */
+        post: operations["webauthn_register_complete_api_me_mfa_webauthn_register_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/mfa/webauthn/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Webauthn List */
+        get: operations["webauthn_list_api_me_mfa_webauthn_credentials_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/mfa/webauthn/credentials/{cred_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Webauthn Delete */
+        delete: operations["webauthn_delete_api_me_mfa_webauthn_credentials__cred_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1702,6 +1814,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/webauthn-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Webauthn Config Setting */
+        get: operations["get_webauthn_config_setting_api_admin_webauthn_config_get"];
+        /** Set Webauthn Config Setting */
+        put: operations["set_webauthn_config_setting_api_admin_webauthn_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/audit": {
         parameters: {
             query?: never;
@@ -2553,6 +2683,8 @@ export interface components {
             /** Status */
             status: string;
             user?: components["schemas"]["MeOut"] | null;
+            /** Methods */
+            methods?: string[] | null;
         };
         /** MeOut */
         MeOut: {
@@ -2646,6 +2778,7 @@ export interface components {
             enabled: boolean;
             /** Recovery Codes Remaining */
             recovery_codes_remaining: number;
+            webauthn: components["schemas"]["WebAuthnStatus"];
         };
         /** MyTenantOut */
         MyTenantOut: {
@@ -3176,10 +3309,11 @@ export interface components {
             /**
              * Auth Method
              * @default password
+             * @enum {string}
              */
-            auth_method: string;
+            auth_method: "password" | "oauth";
             /** Oauth Provider */
-            oauth_provider?: string | null;
+            oauth_provider?: ("google" | "microsoft") | null;
             /** Oauth Client Id */
             oauth_client_id?: string | null;
             /** Oauth Client Secret */
@@ -3268,10 +3402,11 @@ export interface components {
             /**
              * Auth Method
              * @default password
+             * @enum {string}
              */
-            auth_method: string;
+            auth_method: "password" | "oauth";
             /** Oauth Provider */
-            oauth_provider?: string | null;
+            oauth_provider?: ("google" | "microsoft") | null;
             /** Oauth Client Id */
             oauth_client_id?: string | null;
             /** Oauth Client Secret */
@@ -3465,6 +3600,80 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** WebAuthnConfigIn */
+        WebAuthnConfigIn: {
+            /**
+             * Rp Id
+             * @default
+             */
+            rp_id: string;
+            /**
+             * Rp Name
+             * @default OPNGMS
+             */
+            rp_name: string;
+            /**
+             * Origin
+             * @default
+             */
+            origin: string;
+        };
+        /** WebAuthnConfigOut */
+        WebAuthnConfigOut: {
+            /** Rp Id */
+            rp_id: string;
+            /** Rp Name */
+            rp_name: string;
+            /** Origin */
+            origin: string;
+            /** Configured */
+            configured: boolean;
+        };
+        /** WebAuthnCredentialOut */
+        WebAuthnCredentialOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Used At */
+            last_used_at?: string | null;
+        };
+        /** WebAuthnLoginCompleteIn */
+        WebAuthnLoginCompleteIn: {
+            /** Credential */
+            credential: {
+                [key: string]: unknown;
+            };
+        };
+        /** WebAuthnRegisterCompleteIn */
+        WebAuthnRegisterCompleteIn: {
+            /** Credential */
+            credential: {
+                [key: string]: unknown;
+            };
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Transports */
+            transports?: string[] | null;
+        };
+        /** WebAuthnStatus */
+        WebAuthnStatus: {
+            /** Configured */
+            configured: boolean;
+            /** Credentials */
+            credentials: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -3550,6 +3759,61 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CodeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_webauthn_begin_api_login_webauthn_begin_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    login_webauthn_complete_api_login_webauthn_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnLoginCompleteIn"];
             };
         };
         responses: {
@@ -3787,6 +4051,123 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RecoveryOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_register_begin_api_me_mfa_webauthn_register_begin_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_register_complete_api_me_mfa_webauthn_register_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnRegisterCompleteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebAuthnCredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_list_api_me_mfa_webauthn_credentials_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebAuthnCredentialOut"][];
+                };
+            };
+        };
+    };
+    webauthn_delete_api_me_mfa_webauthn_credentials__cred_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cred_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -7113,6 +7494,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LivePushOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_webauthn_config_setting_api_admin_webauthn_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebAuthnConfigOut"];
+                };
+            };
+        };
+    };
+    set_webauthn_config_setting_api_admin_webauthn_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnConfigIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebAuthnConfigOut"];
                 };
             };
             /** @description Validation Error */

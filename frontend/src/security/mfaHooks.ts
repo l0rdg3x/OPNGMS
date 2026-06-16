@@ -2,16 +2,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import type { components } from "../api/schema";
 import { en } from "../i18n/en";
+import { createCredential } from "./webauthnClient";
 
 export type MfaStatus = components["schemas"]["MfaStatusOut"];
 export type SetupOut = components["schemas"]["SetupOut"];
 export type RecoveryOut = components["schemas"]["RecoveryOut"];
 export type MfaPolicy = components["schemas"]["MfaPolicyOut"];
 export type UserOut = components["schemas"]["UserOut"];
+export type WebAuthnCredential = components["schemas"]["WebAuthnCredentialOut"];
 
 const mfaStatusKey = () => ["mfa", "status"];
 const mfaPolicyKey = () => ["mfa", "policy"];
+const passkeysKey = () => ["mfa", "passkeys"];
 const usersKey = () => ["users"];
+
+/** Raised by useAddPasskey when the box hasn't been configured for WebAuthn (409). */
+export class PasskeyConfigError extends Error {}
+/** Raised by useRemovePasskey when removing the last second factor (409). */
+export class LastFactorError extends Error {}
 
 /** Current user's MFA status (enabled? recovery codes remaining). */
 export function useMfaStatus() {
@@ -73,6 +81,76 @@ export function useMfaRegenerate() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: mfaStatusKey() }),
+  });
+}
+
+// ── WebAuthn passkeys ────────────────────────────────────────────────────────
+
+/** Registered passkeys for the current user (name, created, last used). */
+export function useWebAuthnCredentials(enabled: boolean) {
+  return useQuery({
+    queryKey: passkeysKey(),
+    enabled,
+    queryFn: async (): Promise<WebAuthnCredential[]> => {
+      const { data, error } = await api.GET("/api/me/mfa/webauthn/credentials");
+      if (error) throw new Error(en.mfa.passkeys.listError);
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Add a passkey: password step-up → register/begin → browser `create()` →
+ * register/complete. Refreshes the passkey list and MFA status on success.
+ */
+export function useAddPasskey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { password: string; name: string }): Promise<WebAuthnCredential> => {
+      const begin = await api.POST("/api/me/mfa/webauthn/register/begin", {
+        body: { password: vars.password },
+      });
+      if (begin.error || !begin.data) {
+        if (begin.response.status === 409) throw new PasskeyConfigError(en.mfa.passkeys.notConfigured);
+        throw new Error(en.mfa.passkeys.addError);
+      }
+      const credential = await createCredential(begin.data as Record<string, unknown>);
+      const transports = (
+        (credential.response as Record<string, unknown> | undefined)?.transports as
+          | string[]
+          | undefined
+      ) ?? null;
+      const complete = await api.POST("/api/me/mfa/webauthn/register/complete", {
+        body: { credential, name: vars.name, transports },
+      });
+      if (complete.error || !complete.data) throw new Error(en.mfa.passkeys.addError);
+      return complete.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: passkeysKey() });
+      qc.invalidateQueries({ queryKey: mfaStatusKey() });
+    },
+  });
+}
+
+/** Remove a passkey by id. Surfaces the last-factor guard (409) distinctly. */
+export function useRemovePasskey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (credId: string): Promise<void> => {
+      const { error, response } = await api.DELETE(
+        "/api/me/mfa/webauthn/credentials/{cred_id}",
+        { params: { path: { cred_id: credId } } },
+      );
+      if (error) {
+        if (response.status === 409) throw new LastFactorError(en.mfa.passkeys.lastFactorError);
+        throw new Error(en.mfa.passkeys.removeError);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: passkeysKey() });
+      qc.invalidateQueries({ queryKey: mfaStatusKey() });
+    },
   });
 }
 
