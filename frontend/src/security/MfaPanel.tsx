@@ -10,6 +10,7 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -20,15 +21,22 @@ import { useT } from "../i18n";
 import { MfaEnrollFlow } from "./MfaEnrollFlow";
 import { RecoveryCodes } from "./RecoveryCodes";
 import {
+  LastFactorError,
+  PasskeyConfigError,
+  useAddPasskey,
   useMfaDisable,
   useMfaPolicy,
   useMfaRegenerate,
   useMfaStatus,
+  useRemovePasskey,
   useResetUserMfa,
   useSetMfaPolicy,
   useUsers,
+  useWebAuthnCredentials,
   type UserOut,
+  type WebAuthnCredential,
 } from "./mfaHooks";
+import { webauthnSupported } from "./webauthnClient";
 
 // ── Manage block shown when MFA is enabled (regenerate + disable) ─────────────
 function MfaManage() {
@@ -120,6 +128,141 @@ function MfaManage() {
         body={t.mfa.disableConfirmBody}
         confirmLabel={t.mfa.disable}
         loading={disable.isPending}
+      />
+    </Stack>
+  );
+}
+
+// ── Passkeys (WebAuthn) — shown only when the org has WebAuthn configured ──────
+function PasskeysSection() {
+  const t = useT();
+  const supported = webauthnSupported();
+  const credsQuery = useWebAuthnCredentials(supported);
+  const add = useAddPasskey();
+  const remove = useRemovePasskey();
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  const [target, setTarget] = useState<WebAuthnCredential | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  async function doAdd() {
+    setAddError(null);
+    try {
+      await add.mutateAsync({ password, name });
+      setPassword("");
+      setName("");
+      notifications.show({ message: t.mfa.passkeys.addedNotice });
+    } catch (err) {
+      if (err instanceof PasskeyConfigError) setAddError(t.mfa.passkeys.notConfigured);
+      else setAddError(t.mfa.passkeys.addError);
+    }
+  }
+
+  async function doRemove() {
+    if (!target) return;
+    setRemoveError(null);
+    try {
+      await remove.mutateAsync(target.id);
+      notifications.show({ message: t.mfa.passkeys.removedNotice });
+    } catch (err) {
+      setRemoveError(
+        err instanceof LastFactorError ? t.mfa.passkeys.lastFactorError : t.mfa.passkeys.removeError,
+      );
+    } finally {
+      setTarget(null);
+    }
+  }
+
+  const creds = credsQuery.data ?? [];
+
+  return (
+    <Stack gap="md" data-testid="mfa-passkeys">
+      <Text fw={600}>{t.mfa.passkeys.title}</Text>
+      <Text size="sm" c="dimmed">{t.mfa.passkeys.intro}</Text>
+
+      {!supported && (
+        <Text role="alert" c="red.5" size="sm" data-testid="mfa-passkey-unsupported">
+          {t.mfa.passkeys.notSupported}
+        </Text>
+      )}
+
+      {removeError && <Text role="alert" c="red.5" size="sm">{removeError}</Text>}
+
+      {creds.length > 0 && (
+        <Table data-testid="mfa-passkeys-table">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>{t.mfa.passkeys.colName}</Table.Th>
+              <Table.Th>{t.mfa.passkeys.colCreated}</Table.Th>
+              <Table.Th />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {creds.map((c) => (
+              <Table.Tr key={c.id} data-testid={`mfa-passkey-row-${c.id}`}>
+                <Table.Td>{c.name || t.mfa.passkeys.unnamed}</Table.Td>
+                <Table.Td>{new Date(c.created_at).toLocaleDateString()}</Table.Td>
+                <Table.Td>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="red"
+                    onClick={() => {
+                      setRemoveError(null);
+                      setTarget(c);
+                    }}
+                    data-testid={`mfa-passkey-remove-${c.id}`}
+                  >
+                    {t.mfa.passkeys.remove}
+                  </Button>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+
+      <Divider />
+
+      <Stack gap="sm">
+        <Text fw={600}>{t.mfa.passkeys.add}</Text>
+        <Text size="sm" c="dimmed">{t.mfa.passwordHint}</Text>
+        <PasswordInput
+          label={t.mfa.passkeys.accountPassword}
+          data-testid="mfa-passkey-password"
+          value={password}
+          onChange={(e) => setPassword(e.currentTarget.value)}
+        />
+        <TextInput
+          label={t.mfa.passkeys.name}
+          placeholder={t.mfa.passkeys.namePlaceholder}
+          data-testid="mfa-passkey-name"
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+        />
+        {addError && <Text role="alert" c="red.5" size="sm">{addError}</Text>}
+        <Group>
+          <Button
+            variant="default"
+            onClick={doAdd}
+            loading={add.isPending}
+            disabled={!supported}
+            data-testid="mfa-passkey-add"
+          >
+            {t.mfa.passkeys.add}
+          </Button>
+        </Group>
+      </Stack>
+
+      <ConfirmModal
+        opened={target !== null}
+        onClose={() => setTarget(null)}
+        onConfirm={doRemove}
+        title={t.mfa.passkeys.removeConfirmTitle}
+        body={t.mfa.passkeys.removeConfirmBody}
+        confirmLabel={t.mfa.passkeys.remove}
+        loading={remove.isPending}
       />
     </Stack>
   );
@@ -282,6 +425,12 @@ export function MfaPanel() {
           </Stack>
         )}
       </Card>
+
+      {statusQuery.data?.webauthn?.configured && (
+        <Card withBorder padding="lg" radius="md">
+          <PasskeysSection />
+        </Card>
+      )}
 
       {me?.is_superadmin && (
         <Card withBorder padding="lg" radius="md">
