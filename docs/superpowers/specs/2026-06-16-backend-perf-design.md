@@ -37,20 +37,15 @@ from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
 
 _pool: ArqRedis | None = None
-_pool_lock: asyncio.Lock | None = None
-
-
-def _lock() -> asyncio.Lock:
-    global _pool_lock
-    if _pool_lock is None:
-        _pool_lock = asyncio.Lock()
-    return _pool_lock
+# Eager lock: since Python 3.10 asyncio.Lock binds to the loop on first acquire (not construction), so a
+# module-level lock is import-safe and avoids the TOCTOU race a lazily-built lock would have.
+_pool_lock = asyncio.Lock()
 
 
 async def _get_pool() -> ArqRedis:
     global _pool
     if _pool is None:
-        async with _lock():
+        async with _pool_lock:
             if _pool is None:                      # double-checked: only one pool is ever created
                 _pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
     return _pool
@@ -75,8 +70,8 @@ async def close_pool() -> None:
   without Redis: they override `get_enqueuer` → `_noop_enqueue`, never touching `_get_pool`).
 - **Loop-binding:** the cached `ArqRedis` binds to the event loop that created it — correct for the single
   uvicorn process loop. The worker is unaffected (it uses `ctx["redis"]`, not this module).
-- **Concurrency:** the double-checked `asyncio.Lock` ensures concurrent first-enqueues create exactly one
-  pool (no leak).
+- **Concurrency:** an eager module-level `asyncio.Lock` (double-checked) ensures concurrent first-enqueues
+  create exactly one pool (no leak); the lock binds to the loop on first acquire (Python 3.10+).
 
 ## PR2 — Index audit (measured)
 

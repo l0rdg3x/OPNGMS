@@ -7,22 +7,17 @@ from arq.connections import ArqRedis, RedisSettings
 from app.core.config import get_settings
 
 _pool: ArqRedis | None = None
-_pool_lock: asyncio.Lock | None = None
-
-
-def _lock() -> asyncio.Lock:
-    # Created lazily so it binds to the running loop, not import time.
-    global _pool_lock
-    if _pool_lock is None:
-        _pool_lock = asyncio.Lock()
-    return _pool_lock
+# Eager module-level lock: since Python 3.10 asyncio.Lock binds to the running loop on first acquire
+# (not at construction), so this is import-safe AND avoids a TOCTOU race a lazily-built lock would have
+# (two first-callers each building their own lock -> two pools). One lock guards every (re)creation.
+_pool_lock = asyncio.Lock()
 
 
 async def _get_pool() -> ArqRedis:
     """The process-wide ARQ pool, created once on first use and reused thereafter."""
     global _pool
     if _pool is None:
-        async with _lock():
+        async with _pool_lock:
             if _pool is None:                            # double-checked: exactly one pool is created
                 _pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
     return _pool

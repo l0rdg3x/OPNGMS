@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -25,6 +26,24 @@ async def test_enqueue_reuses_a_single_pool(monkeypatch):
     assert create.await_count == 1                       # ONE pool for both calls
     assert pool.enqueue_job.await_count == 2
     pool.aclose.assert_not_awaited()                     # NOT closed per call
+
+
+async def test_concurrent_first_enqueues_create_exactly_one_pool(monkeypatch):
+    """Under CONCURRENT first-enqueues the lock must serialize creation to a single pool. `create_pool`
+    yields control after the `_pool is None` check so a broken/missing lock would create several pools."""
+    pool = AsyncMock()
+
+    async def slow_create(*_a, **_k):
+        await asyncio.sleep(0)                            # let the other gathered tasks run
+        return pool
+
+    create = AsyncMock(side_effect=slow_create)
+    monkeypatch.setattr(queue, "create_pool", create)
+
+    await asyncio.gather(*(queue.enqueue("poll_device", f"dev-{i}") for i in range(8)))
+
+    assert create.await_count == 1                       # exactly one pool despite 8 concurrent callers
+    assert pool.enqueue_job.await_count == 8
 
 
 async def test_enqueue_passes_args_and_defer(monkeypatch):
