@@ -11,6 +11,8 @@ class PasswordIn(BaseModel):
 
 class CodeIn(BaseModel):
     code: str = Field(max_length=128)
+    # Opt-in "remember this device": skip the second factor on this device for N days (N from settings).
+    remember_device: bool = False
 
 
 class SetupOut(BaseModel):
@@ -53,6 +55,7 @@ class WebAuthnCredentialOut(BaseModel):
 class WebAuthnLoginCompleteIn(BaseModel):
     # The browser's PublicKeyCredential JSON from navigator.credentials.get().
     credential: dict[str, Any]
+    remember_device: bool = False
 
 
 class MfaPolicyOut(BaseModel):

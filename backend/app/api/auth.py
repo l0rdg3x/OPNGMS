@@ -13,6 +13,7 @@ from app.core.db import get_session
 from app.core.deps import (
     CSRF_COOKIE,
     SESSION_COOKIE,
+    TRUSTED_DEVICE_COOKIE,
     enforce_csrf,
     get_current_session,
     get_current_user,
@@ -28,10 +29,11 @@ from app.schemas.auth import LoginIn, LoginOut, MeOut, SessionInfo
 from app.schemas.mfa import CodeIn, WebAuthnLoginCompleteIn
 from app.services import mfa as mfa_svc
 from app.services import webauthn as wa
-from app.services.app_settings import get_mfa_policy
+from app.services.app_settings import get_mfa_policy, get_trusted_device_enabled
 from app.services.audit import AuditService
 from app.services.auth import AuthService
 from app.services.runtime_settings import get_runtime_config_or_defaults
+from app.services.trusted_device import TrustedDeviceService
 from app.services.webauthn import has_webauthn_credentials
 from app.services.webauthn_settings import get_webauthn_config
 
@@ -49,6 +51,31 @@ def _client_ip(request: Request) -> str | None:
     # than parsing X-Forwarded-For ourselves: doing it in-app would bypass uvicorn's trust boundary
     # and let any client spoof the header. See docker-compose.prod.yml (api command) and nginx.conf.
     return request.client.host if request.client else None
+
+
+async def _maybe_remember_device(
+    *, remember: bool, session: AsyncSession, response: Response, request: Request,
+    user_id, client_ip: str | None,
+) -> None:
+    """If the user opted in and the org toggle is on, mint a trusted-device row + set its cookie so a
+    future login from this device can skip the second factor. No-op otherwise."""
+    if not remember:
+        return
+    settings = get_settings()
+    if not await get_trusted_device_enabled(session, env_default=settings.trusted_device_enabled):
+        return
+    days = (await get_runtime_config_or_defaults(session))["trusted_device_days"]
+    _, raw = await TrustedDeviceService(session).create_for_user(
+        user_id, days=days, user_agent=request.headers.get("user-agent"), ip=client_ip,
+    )
+    await AuditService(session).record(
+        actor_user_id=user_id, tenant_id=None, action="auth.trusted_device.create",
+        target_type="user", target_id=str(user_id), ip=client_ip, details={},
+    )
+    response.set_cookie(
+        TRUSTED_DEVICE_COOKIE, raw, httponly=True, secure=True, samesite="lax",
+        max_age=days * 86400,
+    )
 
 
 @router.post("/login", response_model=LoginOut)
@@ -284,6 +311,10 @@ async def login_mfa(
         action=("mfa.recovery_used" if used_recovery else "mfa.login_success"),
         target_type="session", target_id=str(full.id), ip=client_ip, details={},
     )
+    await _maybe_remember_device(
+        remember=body.remember_device, session=session, response=response, request=request,
+        user_id=user.id, client_ip=client_ip,
+    )
     await session.commit()
     max_age = round(runtime["session_ttl_hours"] * 3600)
     response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
@@ -427,6 +458,10 @@ async def login_webauthn_complete(
     await AuditService(session).record(
         actor_user_id=user.id, tenant_id=None, action="mfa.login_success",
         target_type="session", target_id=str(full.id), ip=client_ip, details={"method": "webauthn"},
+    )
+    await _maybe_remember_device(
+        remember=body.remember_device, session=session, response=response, request=request,
+        user_id=user.id, client_ip=client_ip,
     )
     await session.commit()
     max_age = round(runtime["session_ttl_hours"] * 3600)
