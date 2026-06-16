@@ -98,6 +98,8 @@ async def ingest_events(session: AsyncSession, device: Device, client, now: date
             continue  # an unavailable source does not block the others
         if isinstance(raw, BaseException):
             raise raw  # an unexpected (non-connector) error is not swallowed
+        if source == "config_audit":
+            await _attribute_mgmt_ip(session, device, raw)
         total += await _store_source(session, device, source, raw, sinces[source], new_rows.get(source))
     for source, rows in new_rows.items():
         if not rows:

@@ -97,3 +97,36 @@ async def test_ingest_config_audit_resilient_to_source_error(db_engine, two_tena
         n = await ingest_events(s, device, FakeClient(fail=True), now)   # source raises -> skipped
         await s.commit()
     assert n == 0
+
+
+async def test_ingest_config_audit_attributes_and_alerts_external(db_engine, two_tenants):
+    """An api change from a non-management IP becomes api_external (drift) and raises an alert; the device
+    must already have a learned mgmt_source_ip."""
+    import uuid as _uuid
+    from datetime import datetime as _dt, timezone as _tz
+    from sqlalchemy import text as _t
+    from sqlalchemy.ext.asyncio import async_sessionmaker as _f
+    tenant_a, _ = two_tenants
+    did = await _device(db_engine, tenant_a)
+    now = _dt(2026, 6, 16, 12, 0, tzinfo=_tz.utc)
+    factory = _f(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(_t("UPDATE devices SET mgmt_source_ip='10.0.0.1' WHERE id=:d"), {"d": did})
+        await s.commit()
+    cfg = {
+        "time": now, "category": "firewall", "src_ip": "203.0.113.9", "name": "root",
+        "severity": "info", "action": "api", "event_key": "ext1",
+        "attributes": {"channel": "api", "change_ref": "/api/firewall/filter/addRule"},
+    }
+    async with factory() as s:
+        device = await s.get(Device, did)
+        await ingest_events(s, device, FakeClient(config=[cfg]), now)
+        await s.commit()
+    async with factory() as s:
+        action = (await s.execute(_t(
+            "SELECT action FROM events WHERE source='config_audit' AND device_id=:d"),
+            {"d": did})).scalar_one()
+        alerts = (await s.execute(_t(
+            "SELECT count(*) FROM alerts WHERE type='config_audit' AND device_id=:d"),
+            {"d": did})).scalar_one()
+    assert action == "api_external" and alerts == 1
