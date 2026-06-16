@@ -517,8 +517,12 @@ async def cleanup_expired_sessions(ctx: dict) -> str:
         from app.services.auth import AuthService  # local import avoids a cycle at module load
 
         n = await AuthService(session).purge_expired(datetime.now(UTC))
+
+        from app.services.trusted_device import TrustedDeviceService  # local import avoids a cycle
+
+        td = await TrustedDeviceService(session).purge_expired(datetime.now(UTC))
         await session.commit()
-    return f"purged {n} expired sessions"
+    return f"purged {n} expired sessions, {td} expired trusted devices"
 
 
 async def purge_perimeter_attackers(ctx: dict) -> str:

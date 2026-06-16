@@ -13,6 +13,7 @@ from app.core.db import get_session
 from app.core.deps import (
     CSRF_COOKIE,
     SESSION_COOKIE,
+    TRUSTED_DEVICE_COOKIE,
     enforce_csrf,
     get_current_session,
     get_current_user,
@@ -24,14 +25,15 @@ from app.models.user import User
 from app.models.user_mfa import UserMfa
 from app.models.user_recovery_code import UserRecoveryCode
 from app.models.webauthn_credential import WebAuthnCredential
-from app.schemas.auth import LoginIn, LoginOut, MeOut, SessionInfo
+from app.schemas.auth import LoginIn, LoginOut, MeOut, RememberDeviceInfo, SessionInfo
 from app.schemas.mfa import CodeIn, WebAuthnLoginCompleteIn
 from app.services import mfa as mfa_svc
 from app.services import webauthn as wa
-from app.services.app_settings import get_mfa_policy
+from app.services.app_settings import get_mfa_policy, get_trusted_device_enabled
 from app.services.audit import AuditService
 from app.services.auth import AuthService
 from app.services.runtime_settings import get_runtime_config_or_defaults
+from app.services.trusted_device import TrustedDeviceService
 from app.services.webauthn import has_webauthn_credentials
 from app.services.webauthn_settings import get_webauthn_config
 
@@ -49,6 +51,31 @@ def _client_ip(request: Request) -> str | None:
     # than parsing X-Forwarded-For ourselves: doing it in-app would bypass uvicorn's trust boundary
     # and let any client spoof the header. See docker-compose.prod.yml (api command) and nginx.conf.
     return request.client.host if request.client else None
+
+
+async def _maybe_remember_device(
+    *, remember: bool, session: AsyncSession, response: Response, request: Request,
+    user_id, client_ip: str | None,
+) -> None:
+    """If the user opted in and the org toggle is on, mint a trusted-device row + set its cookie so a
+    future login from this device can skip the second factor. No-op otherwise."""
+    if not remember:
+        return
+    settings = get_settings()
+    if not await get_trusted_device_enabled(session, env_default=settings.trusted_device_enabled):
+        return
+    days = (await get_runtime_config_or_defaults(session))["trusted_device_days"]
+    _, raw = await TrustedDeviceService(session).create_for_user(
+        user_id, days=days, user_agent=request.headers.get("user-agent"), ip=client_ip,
+    )
+    await AuditService(session).record(
+        actor_user_id=user_id, tenant_id=None, action="auth.trusted_device.create",
+        target_type="user", target_id=str(user_id), ip=client_ip, details={},
+    )
+    response.set_cookie(
+        TRUSTED_DEVICE_COOKIE, raw, httponly=True, secure=True, samesite="lax",
+        max_age=days * 86400,
+    )
 
 
 @router.post("/login", response_model=LoginOut)
@@ -126,7 +153,40 @@ async def login(
     is_priv = user.is_superadmin  # privileged = superadmin (tenant_admin membership is a later refinement)
     # The methods the user can use to clear an mfa_pending challenge (used only when kind is mfa_pending).
     methods = [m for m, present in (("totp", has_totp), ("webauthn", has_passkey)) if present]
-    if has_totp or has_passkey:
+
+    enrolled = has_totp or has_passkey
+    td_enabled = await get_trusted_device_enabled(session, env_default=settings.trusted_device_enabled)
+    td_days = runtime["trusted_device_days"]
+    # Trusted-device skip: password already verified above; if this enrolled user presents a valid
+    # trusted-device cookie and the org allows it, mint a full session directly (skip the 2nd factor).
+    if enrolled and td_enabled:
+        raw_td = request.cookies.get(TRUSTED_DEVICE_COOKIE)
+        td_svc = TrustedDeviceService(session)
+        td_row = await td_svc.find_valid(user.id, raw_td) if raw_td else None
+        if td_row is not None:
+            await td_svc.touch(td_row)
+            full, raw_token = await svc.create_session(
+                user, ttl_hours=runtime["session_ttl_hours"], kind="full",
+                ip=client_ip, user_agent=request.headers.get("user-agent"),
+            )
+            try:
+                login_limiter.reset(key)
+            except Exception:  # noqa: BLE001 — never let a limiter fault break a successful login
+                logger.error("login rate-limiter reset failed", exc_info=True)
+            await AuditService(session).record(
+                actor_user_id=user.id, tenant_id=None, action="auth.login.trusted_device",
+                target_type="session", target_id=str(full.id), ip=client_ip, details={},
+            )
+            await session.commit()
+            max_age = round(runtime["session_ttl_hours"] * 3600)
+            response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
+            response.set_cookie(CSRF_COOKIE, full.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
+            return LoginOut(
+                status="ok",
+                user=MeOut(id=user.id, email=user.email, name=user.name, is_superadmin=user.is_superadmin),
+            )
+
+    if enrolled:
         kind = "mfa_pending"
     elif policy == "all" or (policy == "privileged" and is_priv):
         kind = "mfa_setup"
@@ -164,7 +224,10 @@ async def login(
     response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
     response.set_cookie(CSRF_COOKIE, sess.csrf_token, httponly=False, secure=True, samesite="lax", max_age=max_age)
     if kind == "mfa_pending":
-        return LoginOut(status="mfa_required", methods=methods)
+        return LoginOut(
+            status="mfa_required", methods=methods,
+            remember_device=RememberDeviceInfo(enabled=td_enabled, days=td_days),
+        )
     if kind == "mfa_setup":
         return LoginOut(
             status="mfa_setup_required",
@@ -283,6 +346,10 @@ async def login_mfa(
         actor_user_id=user.id, tenant_id=None,
         action=("mfa.recovery_used" if used_recovery else "mfa.login_success"),
         target_type="session", target_id=str(full.id), ip=client_ip, details={},
+    )
+    await _maybe_remember_device(
+        remember=body.remember_device, session=session, response=response, request=request,
+        user_id=user.id, client_ip=client_ip,
     )
     await session.commit()
     max_age = round(runtime["session_ttl_hours"] * 3600)
@@ -428,6 +495,10 @@ async def login_webauthn_complete(
         actor_user_id=user.id, tenant_id=None, action="mfa.login_success",
         target_type="session", target_id=str(full.id), ip=client_ip, details={"method": "webauthn"},
     )
+    await _maybe_remember_device(
+        remember=body.remember_device, session=session, response=response, request=request,
+        user_id=user.id, client_ip=client_ip,
+    )
     await session.commit()
     max_age = round(runtime["session_ttl_hours"] * 3600)
     response.set_cookie(SESSION_COOKIE, raw_token, httponly=True, secure=True, samesite="lax", max_age=max_age)
@@ -458,6 +529,9 @@ async def logout(
         await session.commit()
     response.delete_cookie(SESSION_COOKIE)
     response.delete_cookie(CSRF_COOKIE)
+    # Intentionally NOT clearing TRUSTED_DEVICE_COOKIE: a trusted device is meant to survive a normal
+    # logout so the next login from this browser can skip the second factor. Use /logout-all (the
+    # kill-switch) or DELETE /me/trusted-devices to revoke trust.
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
 
@@ -472,6 +546,7 @@ async def logout_all(
     # Accept any valid session kind (incl. mfa_pending/mfa_setup) so a mid-MFA user can revoke
     # all of their sessions.
     await AuthService(session).delete_all_sessions_for_user(sess.user_id)
+    await TrustedDeviceService(session).revoke_all(sess.user_id)
     await AuditService(session).record(
         actor_user_id=sess.user_id, tenant_id=None, action="auth.logout_all",
         target_type="user", target_id=str(sess.user_id),
@@ -480,6 +555,7 @@ async def logout_all(
     await session.commit()
     response.delete_cookie(SESSION_COOKIE)
     response.delete_cookie(CSRF_COOKIE)
+    response.delete_cookie(TRUSTED_DEVICE_COOKIE)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
 

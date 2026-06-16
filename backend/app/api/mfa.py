@@ -31,6 +31,7 @@ from app.services import mfa as mfa_svc
 from app.services import webauthn as wa
 from app.services.app_settings import MFA_MODES, get_mfa_policy, set_mfa_policy
 from app.services.audit import AuditService
+from app.services.trusted_device import TrustedDeviceService
 from app.services.webauthn_settings import get_webauthn_config
 
 router = APIRouter(prefix="/api", tags=["mfa"])
@@ -179,6 +180,9 @@ async def mfa_disable(
     row = await _mfa_row(session, user.id)
     if row is not None:
         await session.delete(row)
+    # Revoke unconditionally (outside the row guard): tearing down MFA must drop every trusted device
+    # so a previously-trusted cookie can't skip the second factor after the user re-enrolls.
+    await TrustedDeviceService(session).revoke_all(user.id)
     await AuditService(session).record(
         actor_user_id=user.id, tenant_id=None, action="mfa.disable",
         target_type="user", target_id=str(user.id), ip=None, details={},
@@ -398,6 +402,9 @@ async def mfa_admin_reset(
     row = await session.get(UserMfa, user_id)
     if row is not None:
         await session.delete(row)
+    # Revoke unconditionally (outside the row guard): an admin reset forces fresh enrollment, so any
+    # trusted device the user still holds must be dropped or it would bypass that mandate.
+    await TrustedDeviceService(session).revoke_all(user_id)
     await AuditService(session).record(
         actor_user_id=actor.id, tenant_id=None, action="mfa.admin_reset",
         target_type="user", target_id=str(user_id), ip=None, details={},

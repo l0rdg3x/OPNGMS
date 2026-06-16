@@ -42,6 +42,29 @@ async def set_live_push(session: AsyncSession, enabled: bool) -> None:
         row.value = {"enabled": bool(enabled)}
 
 
+_TRUSTED_DEVICE_KEY = "trusted_device_enabled"
+
+
+async def get_trusted_device_enabled(session: AsyncSession, *, env_default: bool) -> bool:
+    """Org-wide on/off for remember-this-device: the DB override row if present, else the env default."""
+    row = (
+        await session.execute(select(AppSetting).where(AppSetting.key == _TRUSTED_DEVICE_KEY))
+    ).scalar_one_or_none()
+    if row is None:
+        return env_default
+    return bool((row.value or {}).get("enabled", env_default))
+
+
+async def set_trusted_device_enabled(session: AsyncSession, enabled: bool) -> None:
+    row = (
+        await session.execute(select(AppSetting).where(AppSetting.key == _TRUSTED_DEVICE_KEY))
+    ).scalar_one_or_none()
+    if row is None:
+        session.add(AppSetting(key=_TRUSTED_DEVICE_KEY, value={"enabled": bool(enabled)}))
+    else:
+        row.value = {"enabled": bool(enabled)}
+
+
 # WebAuthn relying-party config (string settings; env default + a single DB override row). The numeric
 # runtime_settings registry is int/float/bool-only, so these strings follow the get_live_push pattern.
 _WEBAUTHN_KEY = "webauthn_config"

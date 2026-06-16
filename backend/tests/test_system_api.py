@@ -36,11 +36,12 @@ async def test_superadmin_get_runtime_settings(api_client, db_engine):
     r = await api_client.get("/api/admin/settings")
     assert r.status_code == 200
     settings = {s["key"]: s for s in r.json()["settings"]}
-    # all fourteen ACTIVE runtime-safe settings are exposed (consumer wired): the original ten + the
-    # four retention defaults. events/metrics retention became active in PR2 (purge cron now wired);
-    # log_lake retention is the SP-2 4th store (purge_log_lake cron wired).
-    assert len(settings) == 14
+    # all fifteen ACTIVE runtime-safe settings are exposed (consumer wired): the original ten + the
+    # four retention defaults + trusted_device_days (the remember-this-device lifetime). events/metrics
+    # retention became active in PR2 (purge cron now wired); log_lake retention is the SP-2 4th store.
+    assert len(settings) == 15
     assert "session_ttl_hours" in settings and "login_max_attempts" in settings
+    assert settings["trusted_device_days"]["value"] == 30 == settings["trusted_device_days"]["default"]
     assert settings["perimeter_retention_days"]["value"] == 30 == settings["perimeter_retention_days"]["default"]
     assert settings["events_retention_days"]["value"] == 90 == settings["events_retention_days"]["default"]
     assert settings["metrics_retention_days"]["value"] == 30 == settings["metrics_retention_days"]["default"]

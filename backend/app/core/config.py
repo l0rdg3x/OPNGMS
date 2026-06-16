@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     session_ttl_hours: int = 12
     session_idle_minutes: int = 120  # sliding/idle timeout, alongside the absolute session_ttl_hours
     mfa_pending_ttl_minutes: int = 5  # short-lived mfa_pending challenge window (password ok, awaiting TOTP)
+    trusted_device_enabled: bool = True  # org default for "remember this device" (admin can override)
+    trusted_device_days: int = 30  # how long a trusted device skips the second factor (1..365)
     admin_database_url: str | None = None  # owner, for the worker (bypasses RLS)
     redis_url: str = "redis://localhost:6379"
     # Boot-time deploy tuning (requires restart). See .env.example "Boot-time tuning".
