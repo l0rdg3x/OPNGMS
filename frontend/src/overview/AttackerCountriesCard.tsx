@@ -1,7 +1,13 @@
+import { lazy, Suspense } from "react";
 import { Alert, Card, Group, Loader, Progress, Stack, Text } from "@mantine/core";
 import { useLocale, useT } from "../i18n";
-import { AttackerCountriesMap } from "./AttackerCountriesMap";
 import { useAttackerCountries } from "./attackerCountriesHooks";
+
+// The world choropleth pulls in react-simple-maps + the topojson geometry (~the bulk of this card's
+// weight). Lazy-load it so the Overview route chunk stays small and the map streams in on demand.
+const AttackerCountriesMap = lazy(() =>
+  import("./AttackerCountriesMap").then((m) => ({ default: m.AttackerCountriesMap })),
+);
 
 /**
  * Resolve an attacker-country code to a viewer-localized display label.
@@ -43,7 +49,9 @@ export function AttackerCountriesCard() {
             <Text size="xs" c="dimmed">
               {tc.mapTitle}
             </Text>
-            <AttackerCountriesMap data={data} />
+            <Suspense fallback={<Loader size="sm" />}>
+              <AttackerCountriesMap data={data} />
+            </Suspense>
           </>
         )}
         {data &&

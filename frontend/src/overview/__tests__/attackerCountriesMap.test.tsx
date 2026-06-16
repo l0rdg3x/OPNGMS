@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
@@ -54,9 +54,10 @@ describe("AttackerCountriesMap", () => {
       ),
     );
     const { container } = renderWithProviders(withTenant(<AttackerCountriesCard />));
-    // The map (svg) appears once the fetch resolves, and the list still shows the country.
+    // The list shows the country once the fetch resolves.
     expect(await screen.findByText(/Russia/)).toBeInTheDocument();
-    expect(container.querySelector("svg")).toBeInTheDocument();
+    // The map (svg) is lazy-loaded behind Suspense, so it appears once its chunk resolves.
+    await waitFor(() => expect(container.querySelector("svg")).toBeInTheDocument());
     // The map section heading ("Attack origins") is present.
     expect(screen.getByText(/Attack origins/i)).toBeInTheDocument();
   });

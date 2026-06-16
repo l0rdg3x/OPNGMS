@@ -1,10 +1,13 @@
-import { useState } from "react";
-import { Group, SegmentedControl, SimpleGrid, Stack, Title } from "@mantine/core";
+import { lazy, Suspense, useState } from "react";
+import { Group, Loader, SegmentedControl, SimpleGrid, Stack, Title } from "@mantine/core";
 import { useT } from "../i18n";
 import { humanBytes } from "../utils/bytes";
-import { MetricChart } from "./MetricChart";
 import { useDeviceMetrics, useMetricLabels } from "./hooks";
 import type { MetricPoint, Range } from "./types";
+
+// MetricChart wraps @mantine/charts (recharts) — the bulk of the device page's JS. Lazy-load it so the
+// page chunk stays small and recharts streams in on demand; the grid renders behind one Suspense.
+const MetricChart = lazy(() => import("./MetricChart").then((m) => ({ default: m.MetricChart })));
 
 function ChartFor({
   deviceId,
@@ -54,6 +57,7 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
           ]}
         />
       </Group>
+      <Suspense fallback={<Loader size="sm" />}>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <ChartFor deviceId={deviceId} metric="cpu.pct" title={t.deviceHealth.cpu} unit="%" range={range} />
         <ChartFor deviceId={deviceId} metric="mem.pct" title={t.deviceHealth.memory} unit="%" range={range} />
@@ -92,6 +96,7 @@ export function DeviceHealthSection({ deviceId }: { deviceId: string }) {
         />
         <ChartFor deviceId={deviceId} metric="vpn.up" title={t.deviceHealth.vpnUp} labelMap={labelMap} range={range} />
       </SimpleGrid>
+      </Suspense>
     </Stack>
   );
 }
