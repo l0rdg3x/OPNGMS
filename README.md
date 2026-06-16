@@ -168,7 +168,7 @@ Full component diagram, data flows, and the multi-tenancy model:
 | Backend | Python 3.14, FastAPI, SQLAlchemy 2.0 async + asyncpg, Alembic, Pydantic v2 |
 | Storage | TimescaleDB (PostgreSQL 16 + extension), hypertables for metrics & events, Row-Level Security; **OpenSearch** (Apache-2.0) for the optional log lake |
 | Worker | ARQ + Redis |
-| Email | aiosmtplib (STARTTLS / implicit TLS / plain), Fernet-encrypted SMTP credentials |
+| Email | aiosmtplib (STARTTLS / implicit TLS / plain), password **or OAuth2 / XOAUTH2** (Gmail + Microsoft 365), Fernet-encrypted SMTP credentials |
 | Security | argon2 (passwords), Fernet (device & SMTP secrets), TOTP MFA (pyotp), Postgres RLS, SSRF guard, TLS pinning, defusedxml |
 | Reporting | WeasyPrint (HTML/CSS → PDF) + Jinja2 (autoescape) + hand-built SVG charts |
 | Frontend | Vite, React 19, TypeScript, Mantine v9, TanStack Query, React Router, openapi-fetch |
@@ -233,7 +233,7 @@ version tag).
 | **Audit log viewer** — every mutating action recorded (actor + IP + target + details); superadmin **Audit** page with filters (actor/tenant/action/date) + **CSV export**; a CI guard fails the build if a mutating route ships without an audit record | ✅ Done |
 | **Per-tenant data retention** — global default **+ per-tenant override** for every dashboard/report store (perimeter rollup, IDS/DNS events, device metrics, OpenSearch **log lake** via per-tenant daily indices); tenant-aware purge jobs replace the fixed TimescaleDB/ISM policies; a **report ↔ retention** guard blocks over-long reports and warns on lowering | ✅ Done |
 | **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 12-language localization | ✅ Done |
-| **Report email delivery** — per-tenant **and per-device** schedules; one superadmin SMTP relay (test-send); white-label sender; "send now"; hourly cron + send-retry | ✅ Done |
+| **Report email delivery** — per-tenant **and per-device** schedules; one superadmin SMTP relay (password **or OAuth2 / XOAUTH2** for Gmail + Microsoft 365, test-send); white-label sender; "send now"; hourly cron + send-retry | ✅ Done |
 | **Config management** — encrypted backup, drift detection, targeted revert, firewall-aware UI, default-OFF live push | ✅ Done |
 | **OPNsense connector** — telemetry verified on real 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step upgrade + plugin install/remove (now or scheduled), WebGUI deep-link | ✅ Done |

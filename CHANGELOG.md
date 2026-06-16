@@ -12,6 +12,21 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-06-16
+### Added
+- **OAuth2 (XOAUTH2) authentication for the SMTP relay — Gmail + Microsoft 365.** Google Workspace and
+  Microsoft 365 are disabling basic-auth SMTP, so the report-email relay can now authenticate with
+  **OAuth2** instead of a password. In **System → SMTP**, pick *OAuth2*, choose the provider (Google /
+  Microsoft 365), and provide the `client_id` / `client_secret` / `refresh_token` (plus the Azure `tenant`
+  for Microsoft); OPNGMS exchanges the refresh token for a short-lived access token at send time and
+  authenticates with **SASL XOAUTH2** (via aiosmtplib's native support). Password auth is unchanged. The
+  OAuth `client_secret` + `refresh_token` are **Fernet-encrypted** (`MASTER_KEY`) like every other secret —
+  never returned by the API (only `has_…` flags) and never logged; the access token lives only in memory
+  for the send. The Send-test button exercises the OAuth path too, and the MASTER_KEY rekey tooling covers
+  the new encrypted columns. This is the manual-entry core; an in-app **"Connect"** button (OAuth
+  authorization-code callback) is a planned follow-up for deployments with a public callback URL. Hardened
+  against the CodeQL extended suite (the Microsoft tenant is sink-guarded against partial-SSRF). (#205)
+
 ## [0.18.1] - 2026-06-16
 ### Fixed
 - **Business→Community map dropped Business hotfix releases.** v0.18.0's `business-base.json` generator
