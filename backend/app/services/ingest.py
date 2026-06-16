@@ -25,7 +25,14 @@ _MGMT_CORR_WINDOW = timedelta(minutes=3)
 
 async def _learn_mgmt_ip(session: AsyncSession, device: Device, api_events: list[dict]) -> str | None:
     """OPNGMS's source IP if an api-event correlates (within the window) with an OPNGMS-applied change on
-    this device, and the correlated events agree on a single IP; else None (no/ambiguous correlation)."""
+    this device, and the correlated events agree on a single IP; else None (no/ambiguous correlation).
+
+    Learning is best-effort and SELF-CORRECTING by design: the correlated event is almost always OPNGMS's
+    own change (it dominates the management plane and its change is logged at apply time). A lone external
+    api-event coincidentally within the window — rare; needs the cursor to split it from OPNGMS's own event
+    — could be mislearned, but the next clean OPNGMS apply re-learns the right IP and overwrites it. We
+    deliberately do NOT gate overwrites on 'the known IP was seen this batch': that would block a legitimate
+    egress-IP change (the new IP never appears alongside the old one)."""
     times = [e["time"] for e in api_events]
     lo, hi = min(times) - _MGMT_CORR_WINDOW, max(times) + _MGMT_CORR_WINDOW
     applied = (await session.execute(

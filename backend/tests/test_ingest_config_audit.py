@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -55,7 +55,7 @@ async def _device(db_engine, tenant_id) -> uuid.UUID:
 async def test_ingest_config_audit_writes_events_and_advances_cursor(db_engine, two_tenants):
     tenant_a, _ = two_tenants
     did = await _device(db_engine, tenant_a)
-    now = datetime(2026, 6, 15, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 6, 15, 12, 0, tzinfo=UTC)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         device = await s.get(Device, did)
@@ -74,7 +74,7 @@ async def test_ingest_config_audit_writes_events_and_advances_cursor(db_engine, 
 async def test_ingest_config_audit_drift_raises_alert(db_engine, two_tenants):
     tenant_a, _ = two_tenants
     did = await _device(db_engine, tenant_a)
-    now = datetime(2026, 6, 15, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 6, 15, 12, 0, tzinfo=UTC)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         device = await s.get(Device, did)
@@ -90,7 +90,7 @@ async def test_ingest_config_audit_drift_raises_alert(db_engine, two_tenants):
 async def test_ingest_config_audit_resilient_to_source_error(db_engine, two_tenants):
     tenant_a, _ = two_tenants
     did = await _device(db_engine, tenant_a)
-    now = datetime(2026, 6, 15, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 6, 15, 12, 0, tzinfo=UTC)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         device = await s.get(Device, did)
@@ -102,16 +102,12 @@ async def test_ingest_config_audit_resilient_to_source_error(db_engine, two_tena
 async def test_ingest_config_audit_attributes_and_alerts_external(db_engine, two_tenants):
     """An api change from a non-management IP becomes api_external (drift) and raises an alert; the device
     must already have a learned mgmt_source_ip."""
-    import uuid as _uuid
-    from datetime import datetime as _dt, timezone as _tz
-    from sqlalchemy import text as _t
-    from sqlalchemy.ext.asyncio import async_sessionmaker as _f
     tenant_a, _ = two_tenants
     did = await _device(db_engine, tenant_a)
-    now = _dt(2026, 6, 16, 12, 0, tzinfo=_tz.utc)
-    factory = _f(db_engine, expire_on_commit=False)
+    now = datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
-        await s.execute(_t("UPDATE devices SET mgmt_source_ip='10.0.0.1' WHERE id=:d"), {"d": did})
+        await s.execute(text("UPDATE devices SET mgmt_source_ip='10.0.0.1' WHERE id=:d"), {"d": did})
         await s.commit()
     cfg = {
         "time": now, "category": "firewall", "src_ip": "203.0.113.9", "name": "root",
@@ -123,10 +119,10 @@ async def test_ingest_config_audit_attributes_and_alerts_external(db_engine, two
         await ingest_events(s, device, FakeClient(config=[cfg]), now)
         await s.commit()
     async with factory() as s:
-        action = (await s.execute(_t(
+        action = (await s.execute(text(
             "SELECT action FROM events WHERE source='config_audit' AND device_id=:d"),
             {"d": did})).scalar_one()
-        alerts = (await s.execute(_t(
+        alerts = (await s.execute(text(
             "SELECT count(*) FROM alerts WHERE type='config_audit' AND device_id=:d"),
             {"d": did})).scalar_one()
     assert action == "api_external" and alerts == 1
