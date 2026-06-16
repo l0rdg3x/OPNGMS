@@ -44,7 +44,7 @@ async def test_rotate_operator_ok(api_client, db_engine, monkeypatch):
 
     async def fake(session, *, tenant_id, device_id, client, receiver_host, receiver_port):
         return _row(did, cert_serial="rotated")
-    monkeypatch.setattr("app.api.log_forwarding._client", lambda device: object())
+    monkeypatch.setattr("app.api.log_forwarding.client_for_device", lambda device: object())
     monkeypatch.setattr("app.api.log_forwarding.rotate_device_cert", fake)
     await _login(api_client, "op@x.io")
     r = await api_client.post(f"/api/tenants/{tid}/devices/{did}/log-forwarding/rotate",
@@ -73,7 +73,7 @@ async def test_rotate_409_when_not_forwarding(api_client, db_engine, monkeypatch
 
     async def fake(session, *, tenant_id, device_id, client, receiver_host, receiver_port):
         raise ValueError("device is not currently forwarding")
-    monkeypatch.setattr("app.api.log_forwarding._client", lambda device: object())
+    monkeypatch.setattr("app.api.log_forwarding.client_for_device", lambda device: object())
     monkeypatch.setattr("app.api.log_forwarding.rotate_device_cert", fake)
     await _login(api_client, "op@x.io")
     r = await api_client.post(f"/api/tenants/{tid}/devices/{did}/log-forwarding/rotate",
@@ -87,7 +87,7 @@ async def test_revoke_operator_ok(api_client, db_engine, monkeypatch):
     async def fake(session, *, tenant_id, device_id, client, reason):
         assert reason == "key leak"
         return _row(did, enabled=False, revoked_at=datetime(2026, 6, 1, tzinfo=UTC))
-    monkeypatch.setattr("app.api.log_forwarding._client", lambda device: object())
+    monkeypatch.setattr("app.api.log_forwarding.client_for_device", lambda device: object())
     monkeypatch.setattr("app.api.log_forwarding.revoke_device", fake)
     await _login(api_client, "op@x.io")
     r = await api_client.post(f"/api/tenants/{tid}/devices/{did}/log-forwarding/revoke",

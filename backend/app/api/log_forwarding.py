@@ -4,7 +4,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors.opnsense.client import OpnsenseClient, OpnsenseError
+from app.connectors.opnsense.client import OpnsenseError
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
@@ -28,10 +28,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding",
                    tags=["log-forwarding"])
-
-
-def _client(device: Device) -> OpnsenseClient:
-    return client_for_device(device)
 
 
 def _out(row, *, device_id: uuid.UUID) -> LogForwardingOut:
@@ -74,7 +70,7 @@ async def enable_log_forwarding(
     s = get_settings()
     try:
         row = await provision_device(session, tenant_id=tenant_id, device_id=device_id,
-                                     client=_client(device), receiver_host=s.syslog_receiver_host,
+                                     client=client_for_device(device), receiver_host=s.syslog_receiver_host,
                                      receiver_port=s.syslog_tls_port)
     except SyslogCaNotInitializedError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
@@ -97,7 +93,7 @@ async def disable_log_forwarding(
 ) -> LogForwardingOut:
     device = await _device(session, tenant_id, device_id)
     try:
-        await deprovision_device(session, device_id=device_id, client=_client(device))
+        await deprovision_device(session, device_id=device_id, client=client_for_device(device))
     except OpnsenseError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=type(exc).__name__) from exc
     await AuditService(session).record(
@@ -119,7 +115,7 @@ async def rotate_log_forwarding(
     s = get_settings()
     try:
         row = await rotate_device_cert(session, tenant_id=tenant_id, device_id=device_id,
-                                       client=_client(device), receiver_host=s.syslog_receiver_host,
+                                       client=client_for_device(device), receiver_host=s.syslog_receiver_host,
                                        receiver_port=s.syslog_tls_port)
     except SyslogCaNotInitializedError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
@@ -146,7 +142,7 @@ async def revoke_log_forwarding(
     device = await _device(session, tenant_id, device_id)
     try:
         row = await revoke_device(session, tenant_id=tenant_id, device_id=device_id,
-                                  client=_client(device), reason=body.reason)
+                                  client=client_for_device(device), reason=body.reason)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except OpnsenseError as exc:

@@ -42,7 +42,7 @@ async def _login(api_client, email):
 
 async def test_enable_then_status(api_client, db_engine, monkeypatch):
     import app.api.log_forwarding as mod
-    monkeypatch.setattr(mod, "_client", lambda device: FakeClient())
+    monkeypatch.setattr(mod, "client_for_device", lambda device: FakeClient())
     tid, did = await _seed(db_engine)
     await _login(api_client, "admin@x.io")
     r = await api_client.post(f"/api/tenants/{tid}/devices/{did}/log-forwarding/enable", headers=csrf_headers(api_client))
@@ -74,7 +74,7 @@ def _override_enqueuer(monkeypatch):
 
 async def test_revoke_enqueues_crl_refresh(api_client, db_engine, monkeypatch):
     import app.api.log_forwarding as mod
-    monkeypatch.setattr(mod, "_client", lambda device: FakeClient())
+    monkeypatch.setattr(mod, "client_for_device", lambda device: FakeClient())
     tid, did = await _seed(db_engine)
     await _login(api_client, "admin@x.io")
     # Enable first so the device is forwarding (revoke requires an active row).
@@ -90,7 +90,7 @@ async def test_revoke_enqueues_crl_refresh(api_client, db_engine, monkeypatch):
 
 async def test_revoke_not_forwarding_does_not_enqueue(api_client, db_engine, monkeypatch):
     import app.api.log_forwarding as mod
-    monkeypatch.setattr(mod, "_client", lambda device: FakeClient())
+    monkeypatch.setattr(mod, "client_for_device", lambda device: FakeClient())
     tid, did = await _seed(db_engine)  # device never enabled -> revoke 409s
     await _login(api_client, "admin@x.io")
     calls = _override_enqueuer(monkeypatch)

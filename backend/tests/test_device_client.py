@@ -35,10 +35,10 @@ def test_passes_edition_and_version_to_the_resolver():
 
 
 def test_unprobed_device_without_a_version_falls_back_to_newest():
-    # firmware_version is nullable (not-yet-probed); the factory passes "" -> resolver newest, so the
-    # default profile is used (no crash on None).
+    # firmware_version is nullable (not-yet-probed); the factory passes "" -> parse_version("") ->
+    # (0,0,0,0) -> the resolver's _NEWEST, so the default profile is used (no crash on None).
     c = client_for_device(_device(firmware_version=None))
-    assert c._resolver.resolve("dns_events") is not None
+    assert c._resolver.vtuple == (9999, 99, 99, 99)         # _NEWEST
 
 
 def test_verify_tls_false_and_no_fingerprint_are_honoured():
