@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -205,8 +207,9 @@ async def set_webauthn_config_setting(
 ) -> WebAuthnConfigOut:
     rp_id = body.rp_id.strip()
     origin = body.origin.strip()
-    # rp_id is a registrable domain: no scheme/path/port. origin (when set) must be an https URL.
-    if rp_id and ("/" in rp_id or ":" in rp_id):
+    # rp_id is a registrable domain (RFC-1123 hostname labels) — a positive allowlist so a malformed
+    # value can't be persisted (no scheme/path/port/whitespace). origin (when set) must be https.
+    if rp_id and not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9\-.]*[A-Za-z0-9])?", rp_id):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="rp_id must be a bare domain (no scheme, port, or path)",

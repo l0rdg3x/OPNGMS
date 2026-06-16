@@ -294,7 +294,7 @@ async def login_mfa(
     )
 
 
-@router.post("/login/webauthn/begin")
+@router.post("/login/webauthn/begin", dependencies=[Depends(enforce_csrf)])
 async def login_webauthn_begin(
     sess: Session = Depends(get_current_session),
     session: AsyncSession = Depends(get_session),

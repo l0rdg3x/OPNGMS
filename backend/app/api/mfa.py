@@ -219,12 +219,16 @@ async def mfa_regen(
 
 @router.post("/me/mfa/webauthn/register/begin", dependencies=[Depends(enforce_csrf)])
 async def webauthn_register_begin(
+    body: PasswordIn,
     ctx=Depends(get_enrollment_ctx),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Mint registration options + persist the per-ceremony challenge on this session. No durable
-    state change beyond the single-use challenge, so this is read-like (allowlisted in audit coverage)."""
+    """Mint registration options + persist the per-ceremony challenge on this session. Requires the
+    account password (step-up) so a hijacked session can't silently add an attacker passkey — same
+    rule as TOTP `/me/mfa/setup`. No durable state change beyond the single-use challenge, so this is
+    read-like (allowlisted in audit coverage)."""
     user, sess = ctx
+    _require_password(user, body.password)
     cfg = await get_webauthn_config(session)
     if not cfg.is_configured():
         raise HTTPException(

@@ -46,9 +46,20 @@ async def test_register_begin_409_when_unconfigured(api_client, db_engine):
     await _seed_user(db_engine)
     await _login(api_client)
     h = csrf_headers(api_client)
-    r = await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h)
+    r = await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h, json={"password": "pw12345-secure"})
     assert r.status_code == 409, r.text
     assert "not configured" in r.json()["detail"].lower()
+
+
+async def test_register_begin_requires_password_step_up(api_client, db_engine):
+    await _seed_user(db_engine)
+    await _configure_rp(db_engine)
+    await _login(api_client)
+    h = csrf_headers(api_client)
+    # Wrong password is refused before any challenge is minted (step-up, like TOTP /me/mfa/setup).
+    r = await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h,
+                              json={"password": "wrong-password"})
+    assert r.status_code in (401, 403, 422), r.text
 
 
 async def test_register_begin_returns_options_and_persists_challenge(api_client, db_engine):
@@ -56,7 +67,7 @@ async def test_register_begin_returns_options_and_persists_challenge(api_client,
     await _configure_rp(db_engine)
     await _login(api_client)
     h = csrf_headers(api_client)
-    r = await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h)
+    r = await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h, json={"password": "pw12345-secure"})
     assert r.status_code == 200, r.text
     body = r.json()
     assert "challenge" in body and body["rp"]["id"] == "opngms.test"
@@ -74,7 +85,7 @@ async def test_register_complete_creates_credential(api_client, db_engine, monke
     await _configure_rp(db_engine)
     await _login(api_client)
     h = csrf_headers(api_client)
-    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h)
+    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h, json={"password": "pw12345-secure"})
     monkeypatch.setattr(mfa_api.wa, "verify_registration", lambda **k: _StubVerifiedReg())
     r = await api_client.post(
         "/api/me/mfa/webauthn/register/complete",
@@ -100,7 +111,7 @@ async def test_register_complete_flips_setup_session_to_full(api_client, db_engi
         "/api/login", json={"email": "setup@x.io", "password": "pw12345-secure"})
     assert r.json()["status"] == "mfa_setup_required"
     h = csrf_headers(api_client)
-    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h)
+    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h, json={"password": "pw12345-secure"})
     monkeypatch.setattr(mfa_api.wa, "verify_registration", lambda **k: _StubVerifiedReg())
     rc = await api_client.post(
         "/api/me/mfa/webauthn/register/complete",
@@ -116,7 +127,7 @@ async def test_list_credentials_hides_key_material(api_client, db_engine, monkey
     await _configure_rp(db_engine)
     await _login(api_client)
     h = csrf_headers(api_client)
-    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h)
+    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h, json={"password": "pw12345-secure"})
     monkeypatch.setattr(mfa_api.wa, "verify_registration", lambda **k: _StubVerifiedReg())
     await api_client.post(
         "/api/me/mfa/webauthn/register/complete",
@@ -133,7 +144,7 @@ async def test_delete_credential(api_client, db_engine, monkeypatch):
     await _configure_rp(db_engine)
     await _login(api_client)
     h = csrf_headers(api_client)
-    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h)
+    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h, json={"password": "pw12345-secure"})
     monkeypatch.setattr(mfa_api.wa, "verify_registration", lambda **k: _StubVerifiedReg())
     created = (await api_client.post(
         "/api/me/mfa/webauthn/register/complete",
@@ -168,7 +179,7 @@ async def test_delete_last_factor_guard_blocks_when_policy_requires(
     await api_client.post(
         "/api/login", json={"email": "guard@x.io", "password": "pw12345-secure"})
     h = csrf_headers(api_client)
-    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h)
+    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h, json={"password": "pw12345-secure"})
     monkeypatch.setattr(mfa_api.wa, "verify_registration", lambda **k: _StubVerifiedReg())
     created = (await api_client.post(
         "/api/me/mfa/webauthn/register/complete",
@@ -187,7 +198,7 @@ async def test_status_block_exposes_configured_and_count(api_client, db_engine, 
     st0 = await api_client.get("/api/me/mfa")
     assert st0.status_code == 200, st0.text
     assert st0.json()["webauthn"] == {"configured": True, "credentials": 0}
-    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h)
+    await api_client.post("/api/me/mfa/webauthn/register/begin", headers=h, json={"password": "pw12345-secure"})
     monkeypatch.setattr(mfa_api.wa, "verify_registration", lambda **k: _StubVerifiedReg())
     await api_client.post(
         "/api/me/mfa/webauthn/register/complete",
