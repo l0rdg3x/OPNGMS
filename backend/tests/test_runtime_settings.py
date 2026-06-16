@@ -31,6 +31,7 @@ def test_registry_covers_the_runtime_settings():
         "login_lockout_window_seconds",
         "session_ttl_hours",
         "session_idle_minutes",
+        "trusted_device_days",
         "perimeter_retention_days",
         "events_retention_days",
         "metrics_retention_days",
