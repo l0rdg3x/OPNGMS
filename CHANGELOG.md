@@ -12,6 +12,18 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-06-16
+### Fixed
+- **Business→Community map dropped Business hotfix releases.** v0.18.0's `business-base.json` generator
+  only matched a *"based on the OPNsense X.Y.Z **community** version"* header, but a Business **hotfix**
+  (e.g. `25.4.3`, `24.4.3`) is instead *"based on the OPNsense X.Y.Z **business** version"* — it chains onto
+  the prior Business release. Those entries silently fell out of the map. The generator now captures the
+  `community`/`business` kind and **follows a business→business chain transitively** to the underlying
+  Community base (`25.4.3 → 25.4.2 → 25.1.12`), skipping only genuinely unresolvable chains or cycles. It
+  also no longer floors the map at major ≥ 25 (the Community-catalog floor is enforced downstream by the
+  resolver), so the published map is **complete** — every documented Business release (38 entries from the
+  current `opnsense/changelog`) resolves to its Community base instead of just the 8 direct-Community ones.
+
 ## [0.18.0] - 2026-06-16
 ### Changed
 - **Business→Community catalog mapping now per-sub-version, from `opnsense/changelog`.** A Business box is

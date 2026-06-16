@@ -66,8 +66,17 @@ def test_business_base_writes_map_from_changelog_dir(tmp_path):
     rc = main(["business-base", "--changelog-dir", str(_CHANGELOG), "--out", str(out)])
     assert rc == 0
     data = json.loads(out.read_text())
-    # Per-sub-version keys; the RC (no header) and the below-floor 20.1 are dropped.
-    assert data["map"] == {"26.4": "26.1.6", "26.4.1": "26.1.9", "25.10": "25.7.5"}
+    # Per-sub-version keys for every Business release; the RC (no header) is dropped, and the
+    # business hotfix 25.4.3 ("based on … 25.4.2 business") resolves transitively to 25.4.2's
+    # Community base (25.1.12). Older versions are kept (the Community floor is applied downstream).
+    assert data["map"] == {
+        "20.1": "20.1.1",
+        "25.4.2": "25.1.12",
+        "25.4.3": "25.1.12",
+        "25.10": "25.7.5",
+        "26.4": "26.1.6",
+        "26.4.1": "26.1.9",
+    }
     assert "generated_at" in data
 
 
