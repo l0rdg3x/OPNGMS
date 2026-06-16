@@ -4,8 +4,7 @@ from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors.opnsense.client import OpnsenseClient, OpnsenseError
-from app.core import crypto
+from app.connectors.opnsense.client import OpnsenseError
 from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
 from app.core.rbac import Action
@@ -23,6 +22,7 @@ from app.services.catalog_live import (
     flatten_values,
 )
 from app.services.config_push import create_change
+from app.services.device_client import client_for_device
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["catalog"])
 
@@ -162,10 +162,7 @@ async def read_catalog_model(
     if base["read_only"]:
         return base
     try:
-        client = OpnsenseClient(
-            device.base_url, crypto.decrypt(device.api_key_enc), crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls, tls_fingerprint=device.tls_fingerprint,
-            edition=device.edition, version=device.firmware_version or "")
+        client = client_for_device(device)
         raw = await client.get_setting(model["endpoints"]["get"])
     except (OpnsenseError, InvalidToken, ValueError, KeyError):
         return base  # unreachable / unreadable -> schema only, editing disabled

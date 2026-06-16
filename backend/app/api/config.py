@@ -8,7 +8,7 @@ from defusedxml.common import DefusedXmlException
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors.opnsense.client import OpnsenseClient, OpnsenseError
+from app.connectors.opnsense.client import OpnsenseError
 from app.core import crypto
 from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
@@ -38,6 +38,7 @@ from app.services.config_drift import compute_drift, gather_live_state, unsuppor
 from app.services.config_model import build_tree
 from app.services.config_push import create_change, preview_change
 from app.services.config_revert import NoInverseError, RevertError, has_inverse, revert_change
+from app.services.device_client import client_for_device
 from app.services.metric_labels import device_friendly_labels
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["config"])
@@ -110,13 +111,7 @@ async def config_drift_check(
     checked_at = datetime.now(UTC)
     unsupported = unsupported_kinds(changes)
     try:
-        client = OpnsenseClient(
-            device.base_url,
-            crypto.decrypt(device.api_key_enc),
-            crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls,
-            tls_fingerprint=device.tls_fingerprint,
-        )
+        client = client_for_device(device)
         live = await gather_live_state(client, changes)
         # compute_drift parses the device-served config.xml; a corrupt/partial backup
         # (ParseError) or an entity-attack payload (DefusedXmlException) degrades to
@@ -206,13 +201,7 @@ async def config_map_endpoint(
 
     # 1) Try live: same connector factory as drift-check / capabilities (SSRF guard + TLS pinning).
     try:
-        client = OpnsenseClient(
-            device.base_url,
-            crypto.decrypt(device.api_key_enc),
-            crypto.decrypt(device.api_secret_enc),
-            verify_tls=device.verify_tls,
-            tls_fingerprint=device.tls_fingerprint,
-        )
+        client = client_for_device(device)
         xml = await client.get_config_backup()
         tree = build_tree(xml)  # conservative secret redaction applied here
         return {"source": "live", "reachable": True,
@@ -254,13 +243,7 @@ async def config_capabilities(
     device = await session.get(Device, device_id)
     if device is not None and device.tenant_id == tenant_id:  # never build a client for another tenant's device
         try:
-            client = OpnsenseClient(
-                device.base_url,
-                crypto.decrypt(device.api_key_enc),
-                crypto.decrypt(device.api_secret_enc),
-                verify_tls=device.verify_tls,
-                tls_fingerprint=device.tls_fingerprint,
-            )
+            client = client_for_device(device)
             plugin_info = await client.get_plugin_info()
         except (OpnsenseError, InvalidToken):
             plugin_info = {"plugins": []}

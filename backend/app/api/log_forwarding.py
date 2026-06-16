@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.opnsense.client import OpnsenseClient, OpnsenseError
-from app.core import crypto
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
@@ -15,6 +14,7 @@ from app.models.device import Device
 from app.repositories.device_log_forwarding import DeviceLogForwardingRepository
 from app.schemas.log_forwarding import LogForwardingOut, RevokeIn
 from app.services.audit import AuditService
+from app.services.device_client import client_for_device
 from app.services.log_forwarding import (
     SyslogCaNotInitializedError,
     deprovision_device,
@@ -31,9 +31,7 @@ router = APIRouter(prefix="/api/tenants/{tenant_id}/devices/{device_id}/log-forw
 
 
 def _client(device: Device) -> OpnsenseClient:
-    return OpnsenseClient(device.base_url, crypto.decrypt(device.api_key_enc),
-                          crypto.decrypt(device.api_secret_enc), verify_tls=device.verify_tls,
-                          tls_fingerprint=device.tls_fingerprint)
+    return client_for_device(device)
 
 
 def _out(row, *, device_id: uuid.UUID) -> LogForwardingOut:

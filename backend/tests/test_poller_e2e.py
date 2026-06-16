@@ -108,9 +108,9 @@ async def test_collect_and_store_error_path_unverified_no_metrics(db_engine):
 
 async def test_poll_device_wiring(db_engine, monkeypatch):
     _, did = await _make_device(db_engine)
-    # monkeypatch decrypt (the test device's secrets are '' = not decryptable) and the client
-    monkeypatch.setattr("app.worker.crypto.decrypt", lambda b: "x")
-    monkeypatch.setattr("app.worker.OpnsenseClient", lambda *a, **k: FakeClient())
+    # The client is now built by client_for_device (decrypts the device's creds + applies TLS/edition);
+    # the test device's secrets are '' (not decryptable), so replace the factory wholesale with a FakeClient.
+    monkeypatch.setattr("app.worker.client_for_device", lambda device: FakeClient())
     from app.worker import poll_device
 
     factory = async_sessionmaker(db_engine, expire_on_commit=False)

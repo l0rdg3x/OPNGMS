@@ -4,8 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors.opnsense.client import OpnsenseClient, OpnsenseError
-from app.core import crypto
+from app.connectors.opnsense.client import OpnsenseError
 from app.core.db import get_session
 from app.core.deps import TenantContext, enforce_csrf, require_tenant
 from app.core.queue import get_enqueuer
@@ -14,6 +13,7 @@ from app.models.device import Device
 from app.models.firmware_action import FirmwareAction
 from app.schemas.firmware import FirmwareActionIn, FirmwareActionOut, FirmwareCheckOut
 from app.services.audit import AuditService
+from app.services.device_client import client_for_device
 from app.services.firmware_action import major_offered, to_int
 
 router = APIRouter(prefix="/api/tenants/{tenant_id}", tags=["firmware"])
@@ -34,13 +34,7 @@ async def firmware_check(
     session: AsyncSession = Depends(get_session),
 ) -> FirmwareCheckOut:
     device = await _device_or_404(session, tenant_id, device_id)
-    client = OpnsenseClient(
-        device.base_url,
-        crypto.decrypt(device.api_key_enc),
-        crypto.decrypt(device.api_secret_enc),
-        verify_tls=device.verify_tls,
-        tls_fingerprint=device.tls_fingerprint,
-    )
+    client = client_for_device(device)
     try:
         await client.firmware_check()
         st = await client.firmware_status_raw()
