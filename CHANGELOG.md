@@ -12,6 +12,21 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-06-16
+### Added
+- **WebAuthn / passkeys as a second login factor.** Alongside TOTP, users can now register **passkeys** —
+  platform authenticators (Face/Touch ID, Windows Hello) or roaming **security keys** (YubiKey) — and
+  satisfy the login MFA challenge with a passkey **or** a TOTP code. Register one or more passkeys under
+  **Two-factor auth** (an account-password step-up is required, like TOTP enrolment); each is named and
+  individually removable, and the last remaining factor can't be removed while the MFA policy requires it.
+  Verification follows the WebAuthn ceremonies (challenge + RP ID + origin checked server-side; **sign
+  count must strictly increase** to detect a cloned authenticator); the per-ceremony challenge is
+  server-generated, single-use, and bound to the session. WebAuthn is **public-key** — only the public key
+  + sign count are stored (no secret material). Because passkeys bind to a domain, set the relying-party
+  config first (**System → WebAuthn**: `rp_id` / `origin`, also via `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN`);
+  registration is disabled until it is configured. Backend + frontend (#207, #208), adversarial
+  security-review + CodeQL clean. (`remember-this-device` is a planned follow-up.)
+
 ## [0.19.0] - 2026-06-16
 ### Added
 - **OAuth2 (XOAUTH2) authentication for the SMTP relay — Gmail + Microsoft 365.** Google Workspace and
