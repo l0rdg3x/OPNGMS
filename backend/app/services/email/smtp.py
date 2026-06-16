@@ -21,8 +21,9 @@ class SmtpSendConfig:
     security: str  # "starttls" | "tls" | "none"
     username: str | None
     password: str | None
-    from_email: str
-    from_name: str
+    access_token: str | None = None
+    from_email: str = ""
+    from_name: str = ""
 
 
 def _strip(value: str) -> str:
@@ -71,17 +72,17 @@ async def send_email(
     message = _build_message(
         cfg, subject=subject, recipients=recipients, body_text=body_text, attachment=attachment
     )
-    kwargs: dict = {
-        "hostname": cfg.host,
-        "port": cfg.port,
-        "start_tls": cfg.security == "starttls",
-        "use_tls": cfg.security == "tls",
-    }
-    if cfg.username:
-        kwargs["username"] = cfg.username
-        kwargs["password"] = cfg.password or ""
+    client = aiosmtplib.SMTP(
+        hostname=cfg.host, port=cfg.port,
+        start_tls=cfg.security == "starttls", use_tls=cfg.security == "tls",
+    )
     try:
-        await aiosmtplib.send(message, **kwargs)
+        async with client:
+            if cfg.access_token:
+                await client.auth_xoauth2(cfg.username or cfg.from_email, cfg.access_token)
+            elif cfg.username:
+                await client.login(cfg.username, cfg.password or "")
+            await client.send_message(message)
     except (aiosmtplib.SMTPException, OSError) as exc:
         raise EmailSendError(_safe_smtp_error(exc)) from exc
 
