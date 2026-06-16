@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -37,10 +38,16 @@ async def collect_and_store(
     try:
         ident = await client.get_device_identity()
         client.set_identity(ident.edition, ident.version)
-        info = await client.get_system_info()
-        interfaces = await client.get_interfaces()
-        gateways = await client.get_gateways()
-        vpn = await client.get_vpn_status()
+        # identity must resolve first (it configures the version-aware resolver); the four telemetry
+        # reads are independent, so fetch them concurrently — each connector call uses its own httpx
+        # client, so this is safe and cuts the per-poll wall time from 5 sequential HTTP round-trips to 2.
+        # Any OpnsenseError still propagates out of gather -> the same unverified outcome as before.
+        info, interfaces, gateways, vpn = await asyncio.gather(
+            client.get_system_info(),
+            client.get_interfaces(),
+            client.get_gateways(),
+            client.get_vpn_status(),
+        )
     except OpnsenseError:
         device.status = "unverified"
         return PollState(reachable=False)

@@ -79,6 +79,46 @@ async def test_collect_and_store_writes_metrics_and_updates_status(db_engine):
         assert device.last_seen is not None
 
 
+async def test_collect_and_store_fetches_telemetry_concurrently(db_engine):
+    """The four independent telemetry reads (system/interfaces/gateways/vpn) run concurrently after
+    identity — a sequential implementation could never have more than one in flight at a time."""
+    import asyncio
+
+    _, device_id = await _make_device(db_engine)
+
+    class ConcClient(FakeClient):
+        def __init__(self):
+            self.inflight = 0
+            self.max_inflight = 0
+
+        async def _track(self, value):
+            self.inflight += 1
+            self.max_inflight = max(self.max_inflight, self.inflight)
+            await asyncio.sleep(0.02)          # hold so genuinely-concurrent calls overlap
+            self.inflight -= 1
+            return value
+
+        async def get_system_info(self):
+            return await self._track(await FakeClient.get_system_info(self))
+
+        async def get_interfaces(self):
+            return await self._track(await FakeClient.get_interfaces(self))
+
+        async def get_gateways(self):
+            return await self._track(await FakeClient.get_gateways(self))
+
+        async def get_vpn_status(self):
+            return await self._track(await FakeClient.get_vpn_status(self))
+
+    client = ConcClient()
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        device = await s.get(Device, device_id)
+        state = await collect_and_store(s, device, client, now=datetime.now(timezone.utc))
+    assert client.max_inflight == 4            # all four reads were in flight at once (gathered)
+    assert state.reachable is True             # behaviour preserved
+
+
 async def test_device_installed_plugins_defaults_to_empty_list(db_engine):
     tenant_id, device_id = await _make_device(db_engine)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
