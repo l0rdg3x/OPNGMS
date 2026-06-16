@@ -27,12 +27,19 @@ class MeOut(BaseModel):
     mfa_setup_required: bool = False
 
 
+class RememberDeviceInfo(BaseModel):
+    enabled: bool  # whether the org allows "remember this device"
+    days: int  # how long a trusted device skips the second factor
+
+
 class LoginOut(BaseModel):
     status: str  # "ok" | "mfa_required" | "mfa_setup_required"
     user: MeOut | None = None
     # On "mfa_required": which second factors the user can satisfy the challenge with
     # (e.g. ["totp", "webauthn"]) so the SPA shows the right options. None otherwise.
     methods: list[str] | None = None
+    # On "mfa_required": whether to offer the "remember this device" checkbox and for how many days.
+    remember_device: RememberDeviceInfo | None = None
 
 
 class SessionInfo(BaseModel):
