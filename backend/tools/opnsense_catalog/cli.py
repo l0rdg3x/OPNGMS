@@ -16,11 +16,12 @@ from tools.opnsense_catalog.form_parser import parse_forms
 from tools.opnsense_catalog.menu import discover_menus, merge_menus, parse_menu, resolve_model_ids
 from tools.opnsense_catalog.model_parser import parse_model
 from tools.opnsense_catalog.publish import (
+    _RELEASE_TAG_RE,
+    _version_key,
     build_manifest,
     parse_business_base,
     release_versions,
 )
-from tools.opnsense_catalog.publish import _RELEASE_TAG_RE, _version_key
 
 
 def _generate(edition: str, version: str, source: Path) -> dict:
