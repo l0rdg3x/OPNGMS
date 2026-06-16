@@ -29,6 +29,7 @@ from app.models.syslog_ca_key import SyslogCaKey  # noqa: F401
 from app.models.template_override import TemplateOverride  # noqa: F401
 from app.models.tenant import Tenant
 from app.models.tenant_retention import TenantRetention  # noqa: F401
+from app.models.trusted_device import TrustedDevice  # noqa: F401
 from app.models.user import User
 from app.models.user_mfa import UserMfa  # noqa: F401
 from app.models.user_recovery_code import UserRecoveryCode  # noqa: F401
@@ -73,4 +74,5 @@ __all__ = [
     "SyslogCaKey",
     "PerimeterAttacker",
     "TenantRetention",
+    "TrustedDevice",
 ]
