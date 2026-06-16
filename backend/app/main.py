@@ -39,6 +39,7 @@ from app.api.smtp import router as smtp_router
 from app.api.system import router as system_router
 from app.api.templates import router as templates_router
 from app.api.tenants import router as tenants_router
+from app.api.trusted_devices import router as trusted_devices_router
 from app.api.users import router as users_router
 from app.core.config import assert_secure_secrets, get_settings
 from app.core.queue import close_pool
@@ -69,6 +70,7 @@ if _origins:
 app.include_router(setup_router)
 app.include_router(auth_router)
 app.include_router(mfa_router)
+app.include_router(trusted_devices_router)
 app.include_router(tenants_router)
 app.include_router(users_router)
 app.include_router(groups_router)

@@ -529,6 +529,9 @@ async def logout(
         await session.commit()
     response.delete_cookie(SESSION_COOKIE)
     response.delete_cookie(CSRF_COOKIE)
+    # Intentionally NOT clearing TRUSTED_DEVICE_COOKIE: a trusted device is meant to survive a normal
+    # logout so the next login from this browser can skip the second factor. Use /logout-all (the
+    # kill-switch) or DELETE /me/trusted-devices to revoke trust.
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
 
@@ -543,6 +546,7 @@ async def logout_all(
     # Accept any valid session kind (incl. mfa_pending/mfa_setup) so a mid-MFA user can revoke
     # all of their sessions.
     await AuthService(session).delete_all_sessions_for_user(sess.user_id)
+    await TrustedDeviceService(session).revoke_all(sess.user_id)
     await AuditService(session).record(
         actor_user_id=sess.user_id, tenant_id=None, action="auth.logout_all",
         target_type="user", target_id=str(sess.user_id),
@@ -551,6 +555,7 @@ async def logout_all(
     await session.commit()
     response.delete_cookie(SESSION_COOKIE)
     response.delete_cookie(CSRF_COOKIE)
+    response.delete_cookie(TRUSTED_DEVICE_COOKIE)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
 

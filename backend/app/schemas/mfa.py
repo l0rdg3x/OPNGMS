@@ -64,3 +64,14 @@ class MfaPolicyOut(BaseModel):
 
 class MfaPolicyIn(BaseModel):
     mode: str
+
+
+class TrustedDeviceOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    user_agent: str | None = None
+    ip: str | None = None
+    created_at: datetime
+    last_used_at: datetime
+    expires_at: datetime
