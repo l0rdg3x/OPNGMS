@@ -22,13 +22,13 @@ from app.schemas.system import (
 from app.services.app_settings import get_live_push, set_live_push, set_webauthn_settings
 from app.services.audit import AuditService
 from app.services.report_retention import REPORT_BOUNDING_STORES, schedule_retention_warnings
-from app.services.webauthn_settings import get_webauthn_config
 from app.services.runtime_settings import (
     active_settings,
     get_runtime_config,
     runtime_defaults,
     update_runtime_config,
 )
+from app.services.webauthn_settings import get_webauthn_config
 
 router = APIRouter(prefix="/api/admin", tags=["system"])
 
