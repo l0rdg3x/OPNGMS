@@ -29,6 +29,10 @@ class Device(UUIDPKMixin, TimestampMixin, Base):
     firmware_version: Mapped[str | None] = mapped_column(default=None)
     edition: Mapped[str] = mapped_column(default="", server_default="")
     firmware_series: Mapped[str] = mapped_column(default="", server_default="")
+    # The source IP the box sees OPNGMS connecting from, auto-learned from the config-audit log
+    # correlated with OPNGMS's own applied-change ledger. None until learned; drives api-change
+    # attribution (opngms vs api_external drift). See app/services/ingest.py::_attribute_mgmt_ip.
+    mgmt_source_ip: Mapped[str | None] = mapped_column(default=None)
     # Plugins the box reports (installed AND available-to-install), each {name, installed, version,
     # locked}; refreshed every poll, read by the Plugins UI to badge install state. [] until first poll.
     installed_plugins: Mapped[list] = mapped_column(
