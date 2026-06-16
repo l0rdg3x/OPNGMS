@@ -1,7 +1,8 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,51 @@ SOURCES = ["ids", "dns", "service", "config_audit"]
 # Sources whose newly-inserted rows feed ingest-time alerting. The raiser for each is dispatched
 # explicitly in ingest_events (a module-level name lookup that tests can still monkeypatch).
 _ALERTING_SOURCES = ("service", "config_audit")
+
+_MGMT_CORR_WINDOW = timedelta(minutes=3)
+
+
+async def _learn_mgmt_ip(session: AsyncSession, device: Device, api_events: list[dict]) -> str | None:
+    """OPNGMS's source IP if an api-event correlates (within the window) with an OPNGMS-applied change on
+    this device, and the correlated events agree on a single IP; else None (no/ambiguous correlation)."""
+    times = [e["time"] for e in api_events]
+    lo, hi = min(times) - _MGMT_CORR_WINDOW, max(times) + _MGMT_CORR_WINDOW
+    applied = (await session.execute(
+        text("SELECT applied_at FROM config_changes WHERE device_id = :d AND status = 'applied' "
+             "AND applied_at BETWEEN :lo AND :hi"),
+        {"d": device.id, "lo": lo, "hi": hi})).scalars().all()
+    if not applied:
+        return None
+    w = _MGMT_CORR_WINDOW.total_seconds()
+    ips = {e["src_ip"] for e in api_events
+           if any(abs((e["time"] - a).total_seconds()) <= w for a in applied)}
+    return next(iter(ips)) if len(ips) == 1 else None
+
+
+async def _attribute_mgmt_ip(session: AsyncSession, device: Device, events: list[dict]) -> None:
+    """Auto-learn OPNGMS's management IP and reclassify api-channel config-audit changes by actor IP:
+    OPNGMS's IP -> 'opngms' (expected), any other IP -> 'api_external' (drift, severity medium -> alerts).
+    Mutates `events` in place; a no-op until the IP is learned. Runs before the events are stored."""
+    api_events = [e for e in events if e.get("action") == "api" and e.get("src_ip")]
+    if not api_events:
+        return
+    learned = await _learn_mgmt_ip(session, device, api_events)
+    if learned and device.mgmt_source_ip != learned:
+        device.mgmt_source_ip = learned
+    mgmt = device.mgmt_source_ip
+    if not mgmt:
+        return
+    for e in api_events:
+        attrs = dict(e.get("attributes", {}))
+        if e["src_ip"] == mgmt:
+            e["action"] = "opngms"
+            attrs["origin"] = "opngms"
+        else:
+            e["action"] = "api_external"
+            e["severity"] = "medium"
+            attrs["origin"] = "api_external"
+            attrs["drift"] = True
+        e["attributes"] = attrs
 
 
 async def ingest_events(session: AsyncSession, device: Device, client, now: datetime) -> int:
