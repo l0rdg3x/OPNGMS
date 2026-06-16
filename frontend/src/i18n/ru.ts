@@ -762,6 +762,8 @@ export const ru: Dict = {
       api: "API",
       gui: "Веб-интерфейс",
       system: "Консоль/скрипт",
+      opngms: "OPNGMS",
+      api_external: "Внешний API",
     },
     loadMore: "Загрузить ещё",
     empty: "Нет изменений конфигурации за этот период.",

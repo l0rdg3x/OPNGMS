@@ -15,8 +15,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.db import make_engine, set_tenant_context
 from app.core.db_roles import APP_ROLE, APP_ROLE_PASSWORD
-from app.services.reporting.aggregation import ReportAggregator
-from app.services.reporting.context import build_context
+from app.services.reporting.aggregation import ReportAggregator, _CONFIG_DRIFT_CHANNELS
+from app.services.reporting.context import _config_channel_label, build_context
+from app.services.reporting.i18n import report_text
 from app.services.reporting.sections import (
     BUILTIN_DEFAULTS,
     SECTION_KEYS,
@@ -281,3 +282,39 @@ async def test_config_changes_block_none_when_no_events(db_engine):
             frm=FRM, to=TO, sections_enabled=enabled, locale="en",
         )
     assert ctx.config_changes is None
+
+
+# ── unit tests: opngms/api_external channel labels + drift classification ─────
+
+def test_config_drift_channels_includes_api_external():
+    """api_external must be counted as a direct/drift channel, just like gui and system."""
+    assert "api_external" in _CONFIG_DRIFT_CHANNELS
+
+
+def test_config_drift_channels_excludes_opngms():
+    """opngms (OPNGMS's own change — benign) must NOT be in the drift channels."""
+    assert "opngms" not in _CONFIG_DRIFT_CHANNELS
+
+
+def test_config_channel_label_opngms_en():
+    """_config_channel_label must return the localized 'OPNGMS' string for the opngms channel."""
+    t = report_text("en")
+    assert _config_channel_label("opngms", t) == "OPNGMS"
+
+
+def test_config_channel_label_api_external_en():
+    """_config_channel_label must return 'External API' for api_external in the English locale."""
+    t = report_text("en")
+    assert _config_channel_label("api_external", t) == "External API"
+
+
+def test_config_channel_label_api_external_it():
+    """_config_channel_label must return the Italian translation for api_external."""
+    t = report_text("it")
+    assert _config_channel_label("api_external", t) == "API esterna"
+
+
+def test_config_channel_label_unknown_falls_back():
+    """An unrecognized channel must fall back to the localized 'Unknown' label."""
+    t = report_text("en")
+    assert _config_channel_label("future_channel", t) == "Unknown"
