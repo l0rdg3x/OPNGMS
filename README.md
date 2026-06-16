@@ -83,8 +83,9 @@ Tenant isolation is **structural**, not advisory: a shared schema with `tenant_i
 - **Version-aware config editor** (flagship) — edit **every API-modifiable OPNsense setting** from an
   **OPNsense-like editor** matched to each device's firmware version, driven by a versioned, SHA-256-
   verified **catalog**; live-value forms, scalars + grids, pushed through the safe config pipeline.
-- **Two-factor auth** — optional/enforceable **TOTP** login with recovery codes, an enforcement policy,
-  and superadmin / break-glass recovery.
+- **Two-factor auth** — optional/enforceable **TOTP** login + **WebAuthn passkeys** (security keys /
+  Face·Touch ID / Windows Hello) as a second factor, with recovery codes, an enforcement policy, and
+  superadmin / break-glass recovery.
 - **Log lake** (optional) — managed firewalls ship syslog over **mTLS** into **OpenSearch**;
   enable/rotate/revoke forwarding per device — a revoked device cert is **hard-rejected at the receiver**
   (a CA-signed CRL the syslog-ng receiver enforces, so a stolen device key can't keep shipping logs after
@@ -169,7 +170,7 @@ Full component diagram, data flows, and the multi-tenancy model:
 | Storage | TimescaleDB (PostgreSQL 16 + extension), hypertables for metrics & events, Row-Level Security; **OpenSearch** (Apache-2.0) for the optional log lake |
 | Worker | ARQ + Redis |
 | Email | aiosmtplib (STARTTLS / implicit TLS / plain), password **or OAuth2 / XOAUTH2** (Gmail + Microsoft 365), Fernet-encrypted SMTP credentials |
-| Security | argon2 (passwords), Fernet (device & SMTP secrets), TOTP MFA (pyotp), Postgres RLS, SSRF guard, TLS pinning, defusedxml |
+| Security | argon2 (passwords), Fernet (device & SMTP secrets), TOTP + **WebAuthn** MFA (pyotp, py_webauthn), Postgres RLS, SSRF guard, TLS pinning, defusedxml |
 | Reporting | WeasyPrint (HTML/CSS → PDF) + Jinja2 (autoescape) + hand-built SVG charts |
 | Frontend | Vite, React 19, TypeScript, Mantine v9, TanStack Query, React Router, openapi-fetch |
 | Testing | pytest + pytest-asyncio + respx (backend); Vitest + Testing Library + MSW (frontend) |
@@ -239,7 +240,7 @@ version tag).
 | **Device actions** — firmware update / multi-step upgrade + plugin install/remove (now or scheduled), WebGUI deep-link | ✅ Done |
 | **Configuration templates** — MSP **library** + per-tenant overrides + typed apply + **profiles**; six kinds (alias, generic setting, IDS rulesets, **IDS policies**, firewall rules, Monit tests) | ✅ Done |
 | **Version-aware config editor** (flagship) — catalog **generator** + **distribution** (6-hourly publish, SHA-256-verified, DB-cached) + generic apply + **OPNsense-like editor** (menu tree + search, live-value forms, scalars + grids), **cross-version diff badges**, and a read-only live **`config.xml` map** cross-referenced to the catalog. Business boxes resolve to their exact Community base catalog via a **per-sub-version** map mined from the `opnsense/changelog` repo (sub-project 4); editable schemas for Business **proprietary** plugins stay out of scope (no public models) | ✅ Done |
-| **Login MFA (TOTP)** — second factor + recovery codes, enforcement policy (off/all/privileged), two-step login, break-glass CLI | ✅ Done |
+| **Login MFA** — **TOTP** + **WebAuthn passkeys** (security keys / platform authenticators) as a second factor, recovery codes, enforcement policy (off/all/privileged), two-step login, break-glass CLI | ✅ Done |
 | **Localization** — **12-language** UI (en/it/es/fr/de/pt/nl/ru/ar/zh/zh-TW/ja) incl. full **RTL** (Arabic) | ✅ Done |
 | **Deployment** — multi-arch **GHCR** images (semver-tagged), TLS overlays (proxy / cert / Caddy / Traefik), one-shot auto-migrate, configurable timezone | ✅ Done |
 | **Hardening** — web headers, TLS pinning, session lifecycle, `MASTER_KEY` rotation, CI security suite, protected `main` | ✅ Done |
