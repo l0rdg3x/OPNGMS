@@ -40,3 +40,15 @@ async def test_error_response_raises_oauth_token_error():
 async def test_unknown_provider_raises():
     with pytest.raises(OAuthTokenError):
         await fetch_access_token("yahoo", "cid", "secret", "refresh")
+
+
+@respx.mock
+async def test_rejects_unsafe_tenant_at_the_sink():
+    # A path-traversal tenant must be refused before it can ride the request URL (py/partial-ssrf sink),
+    # independent of the schema-layer validation.
+    route = respx.post(url__regex=r".*microsoftonline.*").mock(
+        return_value=httpx.Response(200, json={"access_token": "x"}))
+    with pytest.raises(OAuthTokenError):
+        await fetch_access_token("microsoft", "cid", "secret", "refresh",
+                                 tenant_id="common/../../users")
+    assert not route.called  # never reached the network
