@@ -48,6 +48,8 @@ export const fr: Dict = {
       usePasskey: "Utiliser une passkey / clé de sécurité",
       passkeyError: "Échec de la connexion par passkey. Veuillez réessayer.",
       passkeyNotSupported: "Ce navigateur ne prend pas en charge les passkeys.",
+      rememberDevice: "Faire confiance à cet appareil pendant {days} jours",
+      rememberDeviceHelp: "Vous ne serez pas invité à saisir un second facteur la prochaine fois que vous vous connecterez depuis cet appareil.",
     },
   },
   tenant: {

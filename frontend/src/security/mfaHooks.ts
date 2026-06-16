@@ -49,7 +49,7 @@ export function useMfaConfirm() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (code: string): Promise<RecoveryOut> => {
-      const { data, error } = await api.POST("/api/me/mfa/confirm", { body: { code } });
+      const { data, error } = await api.POST("/api/me/mfa/confirm", { body: { code, remember_device: false } });
       if (error || !data) throw new Error(en.mfa.confirmError);
       return data;
     },

@@ -48,6 +48,8 @@ export const zhTW: Dict = {
       usePasskey: "使用通行金鑰 / 安全金鑰",
       passkeyError: "通行金鑰登入失敗，請重試。",
       passkeyNotSupported: "此瀏覽器不支援通行金鑰。",
+      rememberDevice: "信任此裝置 {days} 天",
+      rememberDeviceHelp: "下次從此裝置登入時，將不再要求輸入第二驗證因素。",
     },
   },
   tenant: {

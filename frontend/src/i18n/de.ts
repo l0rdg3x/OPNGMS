@@ -48,6 +48,8 @@ export const de: Dict = {
       usePasskey: "Passkey / Sicherheitsschlüssel verwenden",
       passkeyError: "Anmeldung per Passkey fehlgeschlagen. Bitte erneut versuchen.",
       passkeyNotSupported: "Dieser Browser unterstützt keine Passkeys.",
+      rememberDevice: "Diesem Gerät für {days} Tage vertrauen",
+      rememberDeviceHelp: "Beim nächsten Anmelden von diesem Gerät wird kein zweiter Faktor abgefragt.",
     },
   },
   tenant: {

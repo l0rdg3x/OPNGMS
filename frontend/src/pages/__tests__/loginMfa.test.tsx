@@ -93,7 +93,7 @@ describe("LoginPage — MFA", () => {
     await userEvent.click(screen.getByTestId("mfa-verify"));
 
     await waitFor(() => expect(setMe).toHaveBeenCalledWith(fullUser));
-    expect(mfaBody).toEqual({ code: "123456" });
+    expect(mfaBody).toEqual({ code: "123456", remember_device: false });
   });
 
   it("mfa_required → recovery-code toggle posts the recovery code", async () => {
@@ -119,7 +119,7 @@ describe("LoginPage — MFA", () => {
     await userEvent.click(screen.getByTestId("mfa-verify"));
 
     await waitFor(() => expect(setMe).toHaveBeenCalledWith(fullUser));
-    expect(mfaBody).toEqual({ code: "ABCDE-FGHIJ" });
+    expect(mfaBody).toEqual({ code: "ABCDE-FGHIJ", remember_device: false });
   });
 
   it("mfa_required → wrong code shows an inline error and does not call setMe", async () => {
@@ -197,6 +197,53 @@ describe("LoginPage — MFA", () => {
 
     await waitFor(() => expect(setMe).toHaveBeenCalledWith(fullUser));
     expect((completeBody as { credential?: unknown }).credential).toBeTruthy();
+  });
+
+  it("remember_device enabled → checkbox shown with days; checked value sent in body", async () => {
+    const setMe = vi.fn();
+    let mfaBody: unknown = null;
+    server.use(
+      http.post(LOGIN_URL, () =>
+        HttpResponse.json({ status: "mfa_required", remember_device: { enabled: true, days: 30 } }),
+      ),
+      http.post(LOGIN_MFA_URL, async ({ request }) => {
+        mfaBody = await request.json();
+        return HttpResponse.json({ status: "ok", user: fullUser });
+      }),
+    );
+
+    renderWithProviders(withAuth(<LoginPage />, setMe));
+    await fillPasswordStep();
+
+    // Checkbox must be visible and its label must contain the days number
+    const checkbox = await screen.findByTestId("mfa-remember-device");
+    expect(checkbox).toBeInTheDocument();
+    // The surrounding container text contains "30"
+    expect(document.body.textContent).toContain("30");
+
+    // Click the checkbox to trust this device
+    await userEvent.click(checkbox);
+
+    // Now submit the TOTP code
+    const codeInput = await screen.findByTestId("mfa-code");
+    await userEvent.type(codeInput, "123456");
+    await userEvent.click(screen.getByTestId("mfa-verify"));
+
+    await waitFor(() => expect(setMe).toHaveBeenCalledWith(fullUser));
+    expect(mfaBody).toEqual({ code: "123456", remember_device: true });
+  });
+
+  it("remember_device absent → checkbox not rendered", async () => {
+    server.use(
+      http.post(LOGIN_URL, () => HttpResponse.json({ status: "mfa_required" })),
+      http.post(LOGIN_MFA_URL, () => HttpResponse.json({ status: "ok", user: fullUser })),
+    );
+
+    renderWithProviders(withAuth(<LoginPage />));
+    await fillPasswordStep();
+
+    await screen.findByTestId("mfa-code");
+    expect(screen.queryByTestId("mfa-remember-device")).toBeNull();
   });
 
   it("webauthn-only account → passkey button is the sole second factor", async () => {

@@ -48,6 +48,8 @@ export const ja: Dict = {
       usePasskey: "パスキー / セキュリティキーを使う",
       passkeyError: "パスキーでのサインインに失敗しました。もう一度お試しください。",
       passkeyNotSupported: "このブラウザはパスキーに対応していません。",
+      rememberDevice: "このデバイスを {days} 日間信頼する",
+      rememberDeviceHelp: "次回このデバイスからサインインするときは、第2要素の入力を求められません。",
     },
   },
   tenant: {

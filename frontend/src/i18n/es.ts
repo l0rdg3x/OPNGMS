@@ -48,6 +48,8 @@ export const es: Dict = {
       usePasskey: "Usar una passkey / llave de seguridad",
       passkeyError: "Error al iniciar sesión con passkey. Inténtalo de nuevo.",
       passkeyNotSupported: "Este navegador no admite passkeys.",
+      rememberDevice: "Confiar en este dispositivo durante {days} días",
+      rememberDeviceHelp: "No se te pedirá un segundo factor la próxima vez que inicies sesión desde este dispositivo.",
     },
   },
   tenant: {

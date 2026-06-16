@@ -48,6 +48,8 @@ export const ar: Dict = {
       usePasskey: "استخدام مفتاح مرور / مفتاح أمان",
       passkeyError: "فشل تسجيل الدخول بمفتاح المرور. حاول مرة أخرى.",
       passkeyNotSupported: "هذا المتصفح لا يدعم مفاتيح المرور.",
+      rememberDevice: "الوثوق بهذا الجهاز لمدة {days} يومًا",
+      rememberDeviceHelp: "لن يُطلب منك عامل ثانٍ في المرة القادمة التي تسجّل فيها الدخول من هذا الجهاز.",
     },
   },
   tenant: {

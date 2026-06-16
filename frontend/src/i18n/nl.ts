@@ -48,6 +48,8 @@ export const nl: Dict = {
       usePasskey: "Gebruik een passkey / beveiligingssleutel",
       passkeyError: "Aanmelden met passkey is mislukt. Probeer het opnieuw.",
       passkeyNotSupported: "Deze browser ondersteunt geen passkeys.",
+      rememberDevice: "Dit apparaat {days} dagen vertrouwen",
+      rememberDeviceHelp: "De volgende keer dat u zich aanmeldt vanaf dit apparaat, wordt u niet gevraagd om een tweede factor.",
     },
   },
   tenant: {

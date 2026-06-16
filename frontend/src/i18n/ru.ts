@@ -48,6 +48,8 @@ export const ru: Dict = {
       usePasskey: "Использовать passkey / ключ безопасности",
       passkeyError: "Не удалось войти с помощью passkey. Попробуйте снова.",
       passkeyNotSupported: "Этот браузер не поддерживает passkey.",
+      rememberDevice: "Доверять этому устройству {days} дней",
+      rememberDeviceHelp: "При следующем входе с этого устройства второй фактор не будет запрошен.",
     },
   },
   tenant: {

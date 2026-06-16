@@ -48,6 +48,8 @@ export const zh: Dict = {
       usePasskey: "使用通行密钥 / 安全密钥",
       passkeyError: "通行密钥登录失败，请重试。",
       passkeyNotSupported: "此浏览器不支持通行密钥。",
+      rememberDevice: "信任此设备 {days} 天",
+      rememberDeviceHelp: "下次从此设备登录时，将不再要求输入第二因素。",
     },
   },
   tenant: {

@@ -47,6 +47,8 @@ export const en = {
       usePasskey: "Use a passkey / security key",
       passkeyError: "Passkey sign-in failed. Please try again.",
       passkeyNotSupported: "This browser does not support passkeys.",
+      rememberDevice: "Trust this device for {days} days",
+      rememberDeviceHelp: "You won't be asked for a second factor next time you sign in from this device.",
     },
   },
   tenant: {
