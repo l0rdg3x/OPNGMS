@@ -76,8 +76,11 @@ jobs:
             --edition community --versions "$VERSIONS" --fetch $FORCE --with-plugins \
             --prior-manifest "$GITHUB_WORKSPACE/prior/manifest.json" \
             --out-dir "$GITHUB_WORKSPACE/out"
+          rm -rf /tmp/opnsense-changelog
+          git clone --depth 1 https://github.com/opnsense/changelog /tmp/opnsense-changelog
           python -m tools.opnsense_catalog.cli business-base \
-            --fetch --out "$GITHUB_WORKSPACE/out/business-base.json"
+            --changelog-dir /tmp/opnsense-changelog \
+            --out "$GITHUB_WORKSPACE/out/business-base.json"
           echo "Assets to upload:"; ls -la "$GITHUB_WORKSPACE/out"
 
       - name: Upload assets to the `catalogs` release
