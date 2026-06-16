@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 
@@ -25,16 +26,33 @@ async def ingest_events(session: AsyncSession, device: Device, client, now: date
     Resilient: an error in one source neither blocks the others nor raises. Idempotent:
     cursor per (device, source) + ON CONFLICT DO NOTHING insert on the dedup PK.
 
+    The per-source HTTP fetches are independent, so they run CONCURRENTLY (one round-trip per source at
+    once instead of N in series); the database writes stay sequential on the shared, not-concurrency-safe
+    session. `return_exceptions=True` keeps the per-source resilience: a source whose fetch errors is
+    skipped, the others proceed.
+
     Side effect: NEW alert-bearing events (a high-severity service event, a direct/drift config change)
     raise a deduped Alert. Best-effort — an alert failure is logged and never aborts the ingest.
     """
+    # Phase 1: read every source's cursor (fast local reads) to get its `since` watermark.
+    sinces: dict[str, datetime | None] = {}
+    for source in SOURCES:
+        cursor = await session.get(IngestCursor, (device.id, source))
+        sinces[source] = cursor.last_time if cursor else None
+    # Phase 2: fetch all sources concurrently (independent HTTP; each call uses its own httpx client).
+    raws = await asyncio.gather(
+        *(_fetch(client, source, sinces[source]) for source in SOURCES),
+        return_exceptions=True,
+    )
+    # Phase 3: persist each source sequentially on the shared session (in SOURCES order, deterministic).
     total = 0
     new_rows: dict[str, list[dict]] = {src: [] for src in _ALERTING_SOURCES}
-    for source in SOURCES:
-        try:
-            total += await _ingest_source(session, device, client, source, new_rows.get(source))
-        except OpnsenseError:
+    for source, raw in zip(SOURCES, raws, strict=True):
+        if isinstance(raw, OpnsenseError):
             continue  # an unavailable source does not block the others
+        if isinstance(raw, BaseException):
+            raise raw  # an unexpected (non-connector) error is not swallowed
+        total += await _store_source(session, device, source, raw, sinces[source], new_rows.get(source))
     for source, rows in new_rows.items():
         if not rows:
             continue
@@ -48,12 +66,11 @@ async def ingest_events(session: AsyncSession, device: Device, client, now: date
     return total
 
 
-async def _ingest_source(
-    session: AsyncSession, device: Device, client, source: str, collect: list | None = None
+async def _store_source(
+    session: AsyncSession, device: Device, source: str, raw: list, since: datetime | None,
+    collect: list | None = None,
 ) -> int:
-    cursor = await session.get(IngestCursor, (device.id, source))
-    since = cursor.last_time if cursor else None
-    raw = await _fetch(client, source, since)
+    """Persist one source's already-fetched raw events: normalize, dedup-insert, advance the cursor."""
     rows = [_normalize(device, source, r) for r in raw]
     if since is not None:
         rows = [r for r in rows if r["time"] > since]  # best-effort client-side
