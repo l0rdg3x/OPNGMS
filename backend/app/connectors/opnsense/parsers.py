@@ -280,13 +280,17 @@ def parse_firewall_blocks(data) -> list[dict]:
     return out
 
 
-# Failed-login lines on OPNsense's audit log (process_name="audit") name the attempted user + the
-# remote IP. Matches the known failure families ("authentication failed", "could not authenticate",
-# "wrong password", "login failed", "denied") followed by `user '<name>' ... from[:] <ip>`. Fail-safe:
-# an unrecognized line is skipped (NEVER crashes ingest). Verify/extend against a really-attacked box.
+# Failed-login lines on OPNsense's audit log (process_name="audit") that carry a SOURCE IP — the
+# attacker signal the perimeter view needs. Live-verified format (26.1.10): a WebGUI auth failure logs
+# `/index.php: Web GUI authentication error for '<user>' from <ip>` (the only audit auth-failure line with
+# an IP; the "user X failed authentication"/"could not authenticate" stack lines carry no IP, so they're
+# correctly skipped). The actor name is quoted after `for`/`user`. A failure phrase must precede it, so a
+# "Successful login for user '<u>' from <ip>" line never matches. Fail-safe: an unrecognized line is
+# skipped (NEVER crashes ingest).
 _AUTH_FAIL = re.compile(
-    r"(?:authentication failed|could not authenticate|wrong (?:password|username)|login failed|denied)"
-    r".*?user '(?P<user>[^']+)'.*?from[: ]+(?P<ip>\d{1,3}(?:\.\d{1,3}){3})",
+    r"(?:authentication (?:error|failed)|could not authenticate|wrong (?:password|username)"
+    r"|login failed|denied)"
+    r".*?(?:for|user) '(?P<user>[^']+)'.*?from[: ]\s*(?P<ip>\d{1,3}(?:\.\d{1,3}){3})",
     re.IGNORECASE,
 )
 

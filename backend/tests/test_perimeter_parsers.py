@@ -54,6 +54,26 @@ def test_parse_auth_failures_handles_from_colon_variant():
     assert len(out) == 1 and out[0]["src_ip"] == "198.51.100.4" and out[0]["name"] == "bob"
 
 
+def test_parse_auth_failures_real_opnsense_webgui_format():
+    # Live-verified OPNsense 26.1.10 audit lines. Only the WebGUI auth-error line carries a source IP
+    # (the attacker signal); the internal auth-stack failure lines have no IP and are skipped; a
+    # successful login is never a failure.
+    rows = {"rows": [
+        {"timestamp": "2026-06-16T10:00:00", "process_name": "audit",
+         "line": "/index.php: Web GUI authentication error for 'root' from 192.168.6.100"},
+        {"timestamp": "2026-06-16T10:00:01", "process_name": "audit",
+         "line": "user root failed authentication for WebGui on OPNsense\\Auth\\Services\\WebGui"},
+        {"timestamp": "2026-06-16T10:00:02", "process_name": "audit",
+         "line": "user root could not authenticate for WebGui. [using OPNsense\\Auth\\Services\\WebGui]"},
+        {"timestamp": "2026-06-16T10:00:03", "process_name": "audit",
+         "line": "user root authenticated successfully for WebGui [using ...]"},  # success
+    ]}
+    out = parse_auth_failures(rows)
+    assert len(out) == 1                                  # only the IP-bearing WebGUI error
+    assert out[0]["src_ip"] == "192.168.6.100"
+    assert out[0]["name"] == "root"
+
+
 def test_parse_auth_failures_skips_unrecognized_lines():
     rows = {"rows": [
         {"timestamp": "2026-06-14T10:00:00", "process_name": "audit", "line": " random noise line"},

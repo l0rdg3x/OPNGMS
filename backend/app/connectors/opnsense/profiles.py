@@ -95,9 +95,11 @@ CAPABILITIES: dict[str, list[ProfileRule]] = {
     "firewall_blocks": [_default(_spec(
         _GET("diagnostics/firewall/log"),
         combine=lambda r: parsers.parse_firewall_blocks(r[0])))],
+    # Server-side search for "authentication" so the IP-bearing WebGUI auth-failure lines aren't buried
+    # under the audit log's configd.py "action allowed" noise (same fix as config_changes; live-verified).
     "auth_failures": [_default(_spec(
         _POST("diagnostics/log/core/audit",
-              {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": ""}),
+              {"current": 1, "rowCount": MAX_QUERY_ROWS, "searchPhrase": "authentication"}),
         combine=lambda r: parsers.parse_auth_failures(r[0])))],
     # Reliability signals (reboot / service crash-restart / disk-FS) classified out of the system log.
     # Same POST/paged shape as the audit log; the classifier stores only recognized lines.
