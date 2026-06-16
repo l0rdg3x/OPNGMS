@@ -1,8 +1,9 @@
 """Re-encrypt ALL stored secrets under the primary MASTER_KEY (key rotation).
 
 Covers every Fernet-encrypted column: device API key/secret, config-snapshot blobs, MFA TOTP secrets,
-the SMTP relay password, and the internal syslog CA private key. (A guard test enumerates the model's
-`*_enc` columns and fails if a new one is added without being re-keyed here — see test_rekey.)
+the SMTP relay password + the SMTP OAuth client_secret/refresh_token, and the internal syslog CA
+private key. (A guard test enumerates the model's `*_enc` columns and fails if a new one is added
+without being re-keyed here — see test_rekey.)
 
 Run AFTER setting the new key as MASTER_KEY and moving the previous key into MASTER_KEY_OLD_KEYS, as the
 DB owner (RLS-exempt):
@@ -49,16 +50,28 @@ async def rekey_all(factory) -> int:
                 {"i": r.user_id, "v": crypto.rotate(r.totp_secret_enc)},
             )
             rotated += 1
-        # SMTP relay password (nullable — skip rows with no password set)
-        smtp = (await session.execute(
-            text("SELECT id, password_enc FROM smtp_settings WHERE password_enc IS NOT NULL")
-        )).all()
+        # SMTP relay secrets (all nullable): the password plus the OAuth client_secret + refresh_token.
+        # Re-key each non-null column independently so a row using one auth method doesn't disturb the
+        # other's (null) columns.
+        smtp = (await session.execute(text(
+            "SELECT id, password_enc, oauth_client_secret_enc, oauth_refresh_token_enc "
+            "FROM smtp_settings"
+        ))).all()
         for r in smtp:
-            await session.execute(
-                text("UPDATE smtp_settings SET password_enc=:v WHERE id=:i"),
-                {"i": r.id, "v": crypto.rotate(r.password_enc)},
-            )
-            rotated += 1
+            sets, params = [], {"i": r.id}
+            if r.password_enc is not None:
+                sets.append("password_enc=:p")
+                params["p"] = crypto.rotate(r.password_enc)
+            if r.oauth_client_secret_enc is not None:
+                sets.append("oauth_client_secret_enc=:cs")
+                params["cs"] = crypto.rotate(r.oauth_client_secret_enc)
+            if r.oauth_refresh_token_enc is not None:
+                sets.append("oauth_refresh_token_enc=:rt")
+                params["rt"] = crypto.rotate(r.oauth_refresh_token_enc)
+            if sets:
+                await session.execute(
+                    text(f"UPDATE smtp_settings SET {', '.join(sets)} WHERE id=:i"), params)
+                rotated += 1
         # Internal syslog CA private key (owner-only table syslog_ca_key; rekey runs as owner)
         cas = (await session.execute(text("SELECT id, key_enc FROM syslog_ca_key"))).all()
         for r in cas:
