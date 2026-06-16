@@ -128,6 +128,71 @@
         }
       }
     },
+    "/api/login/webauthn/begin": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login Webauthn Begin",
+        "description": "Authentication options for the pending user's registered passkeys. Stores the challenge on the\nmfa_pending session (single-use). 409 if WebAuthn is unconfigured.",
+        "operationId": "login_webauthn_begin_api_login_webauthn_begin_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Login Webauthn Begin Api Login Webauthn Begin Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/login/webauthn/complete": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login Webauthn Complete",
+        "operationId": "login_webauthn_complete_api_login_webauthn_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebAuthnLoginCompleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/logout": {
       "post": {
         "tags": [
@@ -366,6 +431,152 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/mfa/webauthn/register/begin": {
+      "post": {
+        "tags": [
+          "mfa"
+        ],
+        "summary": "Webauthn Register Begin",
+        "description": "Mint registration options + persist the per-ceremony challenge on this session. Requires the\naccount password (step-up) so a hijacked session can't silently add an attacker passkey \u2014 same\nrule as TOTP `/me/mfa/setup`. No durable state change beyond the single-use challenge, so this is\nread-like (allowlisted in audit coverage).",
+        "operationId": "webauthn_register_begin_api_me_mfa_webauthn_register_begin_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Webauthn Register Begin Api Me Mfa Webauthn Register Begin Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/mfa/webauthn/register/complete": {
+      "post": {
+        "tags": [
+          "mfa"
+        ],
+        "summary": "Webauthn Register Complete",
+        "operationId": "webauthn_register_complete_api_me_mfa_webauthn_register_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebAuthnRegisterCompleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebAuthnCredentialOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/mfa/webauthn/credentials": {
+      "get": {
+        "tags": [
+          "mfa"
+        ],
+        "summary": "Webauthn List",
+        "operationId": "webauthn_list_api_me_mfa_webauthn_credentials_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WebAuthnCredentialOut"
+                  },
+                  "type": "array",
+                  "title": "Response Webauthn List Api Me Mfa Webauthn Credentials Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/mfa/webauthn/credentials/{cred_id}": {
+      "delete": {
+        "tags": [
+          "mfa"
+        ],
+        "summary": "Webauthn Delete",
+        "operationId": "webauthn_delete_api_me_mfa_webauthn_credentials__cred_id__delete",
+        "parameters": [
+          {
+            "name": "cred_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cred Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -5872,6 +6083,66 @@
         }
       }
     },
+    "/api/admin/webauthn-config": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Webauthn Config Setting",
+        "operationId": "get_webauthn_config_setting_api_admin_webauthn_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebAuthnConfigOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Set Webauthn Config Setting",
+        "operationId": "set_webauthn_config_setting_api_admin_webauthn_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebAuthnConfigIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebAuthnConfigOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/audit": {
       "get": {
         "tags": [
@@ -8220,6 +8491,20 @@
                 "type": "null"
               }
             ]
+          },
+          "methods": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Methods"
           }
         },
         "type": "object",
@@ -8406,12 +8691,16 @@
           "recovery_codes_remaining": {
             "type": "integer",
             "title": "Recovery Codes Remaining"
+          },
+          "webauthn": {
+            "$ref": "#/components/schemas/WebAuthnStatus"
           }
         },
         "type": "object",
         "required": [
           "enabled",
-          "recovery_codes_remaining"
+          "recovery_codes_remaining",
+          "webauthn"
         ],
         "title": "MfaStatusOut"
       },
@@ -9581,6 +9870,10 @@
           },
           "auth_method": {
             "type": "string",
+            "enum": [
+              "password",
+              "oauth"
+            ],
             "title": "Auth Method",
             "default": "password"
           },
@@ -9588,7 +9881,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 32
+                "enum": [
+                  "google",
+                  "microsoft"
+                ]
               },
               {
                 "type": "null"
@@ -9834,6 +10130,10 @@
           },
           "auth_method": {
             "type": "string",
+            "enum": [
+              "password",
+              "oauth"
+            ],
             "title": "Auth Method",
             "default": "password"
           },
@@ -9841,7 +10141,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 32
+                "enum": [
+                  "google",
+                  "microsoft"
+                ]
               },
               {
                 "type": "null"
@@ -10300,6 +10603,158 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WebAuthnConfigIn": {
+        "properties": {
+          "rp_id": {
+            "type": "string",
+            "title": "Rp Id",
+            "default": ""
+          },
+          "rp_name": {
+            "type": "string",
+            "title": "Rp Name",
+            "default": "OPNGMS"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "WebAuthnConfigIn"
+      },
+      "WebAuthnConfigOut": {
+        "properties": {
+          "rp_id": {
+            "type": "string",
+            "title": "Rp Id"
+          },
+          "rp_name": {
+            "type": "string",
+            "title": "Rp Name"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rp_id",
+          "rp_name",
+          "origin",
+          "configured"
+        ],
+        "title": "WebAuthnConfigOut"
+      },
+      "WebAuthnCredentialOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ],
+        "title": "WebAuthnCredentialOut"
+      },
+      "WebAuthnLoginCompleteIn": {
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Credential"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "WebAuthnLoginCompleteIn"
+      },
+      "WebAuthnRegisterCompleteIn": {
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Credential"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Name",
+            "default": ""
+          },
+          "transports": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transports"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "WebAuthnRegisterCompleteIn"
+      },
+      "WebAuthnStatus": {
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          },
+          "credentials": {
+            "type": "integer",
+            "title": "Credentials"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured",
+          "credentials"
+        ],
+        "title": "WebAuthnStatus"
       }
     }
   }

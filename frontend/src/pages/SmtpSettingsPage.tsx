@@ -56,14 +56,16 @@ export function SmtpSettingsPage() {
     const base = {
       enabled: v.enabled, host: v.host, port: v.port, security: v.security,
       from_email: v.from_email, from_name: v.from_name,
-      auth_method: v.auth_method, clear_password: false,
+      // The SegmentedControl constrains this to exactly these two values.
+      auth_method: v.auth_method as "password" | "oauth", clear_password: false,
       clear_client_secret: false, clear_refresh_token: false,
     };
     if (v.auth_method === "oauth") {
       return {
         ...base,
         username: null,
-        oauth_provider: v.oauth_provider,
+        // The provider Select constrains this to exactly these two values.
+        oauth_provider: v.oauth_provider as "google" | "microsoft",
         oauth_client_id: v.oauth_client_id || null,
         oauth_tenant_id: v.oauth_provider === "microsoft" ? (v.oauth_tenant_id || null) : null,
         // Write-only secrets: send only when the field is non-empty (blank = keep existing).
