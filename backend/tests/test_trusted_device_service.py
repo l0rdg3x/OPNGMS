@@ -50,12 +50,13 @@ async def test_find_valid_rejects_expired(db_engine):
         assert await svc.find_valid(uid, raw) is None
 
 
-async def test_find_valid_rejects_unknown_and_garbage(db_engine):
+async def test_find_valid_rejects_unknown_garbage_and_empty(db_engine):
     uid = await _user(db_engine)
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
     async with factory() as s:
         svc = TrustedDeviceService(s)
         assert await svc.find_valid(uid, "not-a-real-token") is None
+        assert await svc.find_valid(uid, "") is None  # empty token rejected before any DB lookup
 
 
 async def test_touch_updates_last_used(db_engine):

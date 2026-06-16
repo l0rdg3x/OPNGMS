@@ -49,9 +49,15 @@ class TrustedDeviceService:
         if not raw_token:
             return None
         now = datetime.now(UTC)
+        # Scope the lookup to (token_hash AND user_id) at the SQL layer — defense in depth so a
+        # trusted cookie can never resolve to another user's row even on a (astronomically unlikely)
+        # hash collision. The post-fetch expiry + user_id re-check below keeps it fail-closed.
         row = (
             await self.session.execute(
-                select(TrustedDevice).where(TrustedDevice.token_hash == _hash_token(raw_token))
+                select(TrustedDevice).where(
+                    TrustedDevice.token_hash == _hash_token(raw_token),
+                    TrustedDevice.user_id == user_id,
+                )
             )
         ).scalar_one_or_none()
         if row is None or row.user_id != user_id or row.expires_at <= now:
@@ -59,6 +65,7 @@ class TrustedDeviceService:
         return row
 
     async def touch(self, row: TrustedDevice) -> None:
+        """Bump last_used_at to now (called when a trusted device skips the second factor)."""
         row.last_used_at = datetime.now(UTC)
 
     async def list_for_user(self, user_id: uuid.UUID) -> list[TrustedDevice]:
@@ -83,12 +90,14 @@ class TrustedDeviceService:
         return (result.rowcount or 0) > 0
 
     async def revoke_all(self, user_id: uuid.UUID) -> int:
+        """Delete every trusted device for a user (used on disable-MFA / admin MFA reset)."""
         result = await self.session.execute(
             delete(TrustedDevice).where(TrustedDevice.user_id == user_id)
         )
         return result.rowcount or 0
 
     async def purge_expired(self, now: datetime) -> int:
+        """Delete all rows past their expiry (the session sweeper calls this)."""
         result = await self.session.execute(
             delete(TrustedDevice).where(TrustedDevice.expires_at <= now)
         )
