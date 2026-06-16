@@ -385,6 +385,7 @@ async def send_report_email_job(ctx: dict, report_id: str, schedule_id: str, att
     from app.models.tenant import Tenant
     from app.repositories.report_settings import ReportSettingsRepository
     from app.services.audit import AuditService
+    from app.services.email.oauth import OAuthTokenError
     from app.services.smtp_settings import SmtpSettingsService
 
     factory = ctx["session_factory"]
@@ -427,7 +428,10 @@ async def send_report_email_job(ctx: dict, report_id: str, schedule_id: str, att
         smtp = await svc.get()
         if smtp is None or not smtp.enabled:
             return await _retry_or_give_up(session, sched, "smtp not configured")
-        cfg = svc.to_send_config(smtp)
+        try:
+            cfg = await svc.resolve_send_config(smtp)
+        except OAuthTokenError as exc:
+            return await _retry_or_give_up(session, sched, str(exc))
         settings = await ReportSettingsRepository(session, sched.tenant_id).get_or_default()
         if settings.from_email:
             cfg.from_email = settings.from_email
@@ -457,6 +461,7 @@ async def detect_silent_tenants(ctx: dict) -> dict:
     """Cron: detect tenants gone silent (enabled forwarding, no recent logs), persist the alert
     state, and email the MSP superadmins ONCE per silent episode. Owner session (RLS-exempt)."""
     from app.models.user import User
+    from app.services.email.oauth import OAuthTokenError
     from app.services.email.smtp import EmailSendError, send_email
     from app.services.silent_alerts import detect_and_alert
     from app.services.smtp_settings import SmtpSettingsService
@@ -478,7 +483,11 @@ async def detect_silent_tenants(ctx: dict) -> dict:
                 recipients = [row[0] for row in (await session.execute(
                     select(User.email).where(User.is_superadmin.is_(True), User.status == "active")
                 )).all()]
-                cfg = svc.to_send_config(smtp) if recipients else None
+                if recipients:
+                    try:
+                        cfg = await svc.resolve_send_config(smtp)
+                    except OAuthTokenError:
+                        cfg = recipients = None
         await session.commit()
 
     emailed = False
