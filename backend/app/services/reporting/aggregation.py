@@ -135,10 +135,11 @@ class ReliabilityRollup:
     total: int
 
 
-# Direct (drift) channels — a config change made ON the box outside the management API. These are the
-# `severity='medium'` rows; the `api` channel is `severity='info'`. Kept aligned with the parser's
-# `_classify_channel` drift rule (`channel in ("gui", "system")`).
-_CONFIG_DRIFT_CHANNELS = ("gui", "system")
+# Direct (drift) channels — a config change OPNGMS did not make: on-box via WebGUI (`gui`) or
+# console/script (`system`, from the parser's `_classify_channel`), or an api change from a
+# non-management IP (`api_external`, from ingest's `_attribute_mgmt_ip`). All are `severity='medium'`;
+# an OPNGMS-made api change is `opngms`/`severity='info'`.
+_CONFIG_DRIFT_CHANNELS = ("gui", "system", "api_external")
 
 
 @dataclass

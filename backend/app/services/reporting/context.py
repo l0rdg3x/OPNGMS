@@ -406,6 +406,8 @@ def _config_channel_label(channel: str, t) -> str:
         "api": t.config_channel_api,
         "gui": t.config_channel_gui,
         "system": t.config_channel_system,
+        "opngms": t.config_channel_opngms,
+        "api_external": t.config_channel_api_external,
     }.get(channel, t.config_channel_unknown)
 
 

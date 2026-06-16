@@ -140,6 +140,8 @@ STRINGS: dict[str, str] = {
     "config_channel_api": "API",
     "config_channel_gui": "网页界面",
     "config_channel_system": "系统 / 控制台",
+    "config_channel_opngms": "OPNGMS",
+    "config_channel_api_external": "外部 API",
     "config_channel_unknown": "未知",
     "col_actor": "操作者",
     "col_area": "区域",
