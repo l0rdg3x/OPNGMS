@@ -58,15 +58,16 @@ def test_generate_all_emits_catalogs_and_manifest(tmp_path):
     assert "generated_at" in manifest
 
 
-_BIZ = Path(__file__).parent / "fixtures/opnsense_catalog/business"
+_CHANGELOG = Path(__file__).parent / "fixtures/opnsense_catalog/changelog"
 
 
-def test_business_base_writes_map_from_html_dir(tmp_path):
+def test_business_base_writes_map_from_changelog_dir(tmp_path):
     out = tmp_path / "business-base.json"
-    rc = main(["business-base", "--html-dir", str(_BIZ), "--out", str(out)])
+    rc = main(["business-base", "--changelog-dir", str(_CHANGELOG), "--out", str(out)])
     assert rc == 0
     data = json.loads(out.read_text())
-    assert data["map"] == {"26.4": "26.1.6", "25.10": "25.7.9"}
+    # Per-sub-version keys; the RC (no header) and the below-floor 20.1 are dropped.
+    assert data["map"] == {"26.4": "26.1.6", "26.4.1": "26.1.9", "25.10": "25.7.5"}
     assert "generated_at" in data
 
 

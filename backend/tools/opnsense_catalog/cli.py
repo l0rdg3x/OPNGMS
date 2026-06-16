@@ -15,7 +15,12 @@ from tools.opnsense_catalog.fetch import fetch_source
 from tools.opnsense_catalog.form_parser import parse_forms
 from tools.opnsense_catalog.menu import discover_menus, merge_menus, parse_menu, resolve_model_ids
 from tools.opnsense_catalog.model_parser import parse_model
-from tools.opnsense_catalog.publish import build_manifest, parse_business_base, release_versions
+from tools.opnsense_catalog.publish import (
+    build_manifest,
+    parse_business_base,
+    release_versions,
+)
+from tools.opnsense_catalog.publish import _RELEASE_TAG_RE, _version_key
 
 
 def _generate(edition: str, version: str, source: Path) -> dict:
@@ -101,22 +106,35 @@ def _fetch_core_tags() -> list[str]:  # pragma: no cover — network, ops use on
     return tags
 
 
-def _fetch_business_pages() -> dict[str, str]:  # pragma: no cover — network, ops use only
-    """Scrape the BE release index + each BE_<v>.html. Returns {business_version: html}."""
-    import re
+_BUSINESS_FLOOR = (25,)  # match the Community catalog floor (--minimum 25); ignore ancient BE series
 
-    import httpx
 
-    index = httpx.get("https://docs.opnsense.org/releases.html", timeout=30.0,
-                      follow_redirects=True).text
-    versions = sorted(set(re.findall(r"BE_(\d+\.\d+)\.html", index)))
+def _read_changelog_business(changelog_dir: Path) -> dict[str, str]:
+    """Read an opnsense/changelog checkout's `business/<major>/<subversion>` files into
+    {subversion: text}. Skips symlinked majors (older BE series symlink to community), pre-floor
+    majors, and non-release filenames (e.g. release candidates `*.r1`)."""
     pages: dict[str, str] = {}
-    for v in versions:
-        r = httpx.get(f"https://docs.opnsense.org/releases/BE_{v}.html",
-                      timeout=30.0, follow_redirects=True)
-        if r.status_code == 200:
-            pages[v] = r.text
+    business = changelog_dir / "business"
+    for major in sorted(business.iterdir()) if business.is_dir() else []:
+        if major.is_symlink() or not major.is_dir():
+            continue
+        for f in sorted(major.iterdir()):
+            name = f.name
+            if not _RELEASE_TAG_RE.match(name) or _version_key(name) < _BUSINESS_FLOOR:
+                continue
+            pages[name] = f.read_text()
     return pages
+
+
+def _clone_changelog(dest: Path) -> Path:  # pragma: no cover — network, ops use only
+    """Shallow-clone opnsense/changelog into dest; return the checkout path."""
+    import subprocess
+
+    subprocess.run(
+        ["git", "clone", "--depth", "1", "https://github.com/opnsense/changelog", str(dest)],
+        check=True,
+    )
+    return dest
 
 
 def main(argv: list[str]) -> int:
@@ -146,8 +164,8 @@ def main(argv: list[str]) -> int:
     ga.add_argument("--plugins-source-root",
                     help="dir with one extracted plugins tree per version: <root>/<version>/ (no --fetch)")
     bb = sub.add_parser("business-base")
-    bb.add_argument("--html-dir", help="dir of vendored BE_<version>.html files")
-    bb.add_argument("--fetch", action="store_true", help="scrape docs.opnsense.org instead")
+    bb.add_argument("--changelog-dir", help="path to an opnsense/changelog checkout")
+    bb.add_argument("--fetch", action="store_true", help="git clone opnsense/changelog first")
     bb.add_argument("--out", required=True)
     lv = sub.add_parser("list-versions")
     lv.add_argument("--minimum", help="drop versions below this (e.g. 26.1)")
@@ -224,13 +242,12 @@ def main(argv: list[str]) -> int:
         print(",".join(versions) if args.format == "csv" else "\n".join(versions))
         return 0
     if args.cmd == "business-base":
-        if args.fetch:
-            pages = _fetch_business_pages()
+        if args.fetch:  # pragma: no cover — network, ops use only
+            with tempfile.TemporaryDirectory() as tmp:
+                pages = _read_changelog_business(_clone_changelog(Path(tmp)))
+                data = parse_business_base(pages)
         else:
-            pages = {}
-            for p in sorted(Path(args.html_dir).glob("BE_*.html")):
-                pages[p.stem.removeprefix("BE_")] = p.read_text()
-        data = parse_business_base(pages)
+            data = parse_business_base(_read_changelog_business(Path(args.changelog_dir)))
         data["generated_at"] = datetime.now(UTC).isoformat()
         Path(args.out).write_text(json.dumps(data, indent=2) + "\n")
         print(json.dumps({"wrote": args.out, "count": len(data["map"])}))
