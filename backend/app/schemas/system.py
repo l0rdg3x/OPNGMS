@@ -45,3 +45,16 @@ class RuntimeSettingsOut(BaseModel):
 
 class RuntimeSettingsPatch(BaseModel):
     values: dict[str, bool | int | float]
+
+
+class WebAuthnConfigOut(BaseModel):
+    rp_id: str
+    rp_name: str
+    origin: str
+    configured: bool  # rp_id + origin both set -> passkey registration is offered
+
+
+class WebAuthnConfigIn(BaseModel):
+    rp_id: str = ""
+    rp_name: str = "OPNGMS"
+    origin: str = ""

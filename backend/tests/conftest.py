@@ -99,6 +99,15 @@ async def db_engine():
 
 
 @pytest.fixture
+async def db_session(db_engine):
+    """A single AsyncSession over the test DB (owner role) for service/unit tests that talk to the DB
+    directly without going through the ASGI app."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        yield s
+
+
+@pytest.fixture
 async def two_tenants(db_engine):
     """Insert two tenants + one device each, returning (tenant_a_id, tenant_b_id)."""
     factory = async_sessionmaker(db_engine, expire_on_commit=False)
