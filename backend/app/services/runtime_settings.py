@@ -51,6 +51,7 @@ RUNTIME_SETTINGS: list[RuntimeSetting] = [
     RuntimeSetting("login_lockout_window_seconds", int, lambda s: s.login_lockout_window_seconds, 1, 86_400, "security_login"),
     RuntimeSetting("session_ttl_hours", int, lambda s: s.session_ttl_hours, 1, 8760, "security_session"),
     RuntimeSetting("session_idle_minutes", int, lambda s: s.session_idle_minutes, 1, 525_600, "security_session"),
+    RuntimeSetting("trusted_device_days", int, lambda s: s.trusted_device_days, 1, 365, "security_session"),
     RuntimeSetting("perimeter_retention_days", int, lambda s: s.perimeter_retention_days, 1, 3650, "retention"),
     # events/metrics consumers (the purge_timeseries_retention cron) are wired in PR2 — now active.
     RuntimeSetting("events_retention_days", int, lambda s: s.events_retention_days, 1, 3650, "retention"),

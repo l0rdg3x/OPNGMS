@@ -15,6 +15,7 @@ from app.services.auth import AuthService
 
 SESSION_COOKIE = "opngms_session"
 CSRF_COOKIE = "opngms_csrf"  # readable (non-httponly) cookie carrying the per-session CSRF token
+TRUSTED_DEVICE_COOKIE = "opngms_trusted_device"  # HttpOnly cookie carrying the raw trusted-device token
 CSRF_HEADER = "X-OPNGMS-CSRF"
 
 
