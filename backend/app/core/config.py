@@ -73,6 +73,12 @@ class Settings(BaseSettings):
         "https://github.com/l0rdg3x/OPNGMS/releases/download/geoip"
     )
     geoip_auto_fetch: bool = True  # fetch + cache the geoip mmdb on cache-miss (off => cache-only)
+    # WebAuthn (passkey second factor). Registration is disabled until rp_id + origin are set; these
+    # are the env defaults, overridable at runtime from the System page. WebAuthn binds credentials to
+    # a registrable domain (rp_id) and verifies the origin, so both must match the deployment's HTTPS URL.
+    webauthn_rp_id: str = ""          # e.g. "opngms.example.com" (registrable domain, NO scheme/port)
+    webauthn_rp_name: str = "OPNGMS"  # human-readable relying-party name shown by the authenticator
+    webauthn_origin: str = ""         # e.g. "https://opngms.example.com" (the page origin)
 
 
 @lru_cache

@@ -13,6 +13,10 @@ EXEMPT = {
     ("POST", "/api/tenants/{tenant_id}/devices/{device_id}/templates/{template_id}/preview"),
     ("POST", "/api/tenants/{tenant_id}/devices/{device_id}/profiles/{profile_id}/preview"),
     # ("POST", "/api/me/mfa/setup"),  # not exempt: persists a pending TOTP secret -> mfa.setup_start
+    # WebAuthn "begin" routes only mint a single-use challenge bound to the session row (no durable
+    # credential / state change); the matching "complete" routes audit the actual mutation.
+    ("POST", "/api/me/mfa/webauthn/register/begin"),
+    ("POST", "/api/login/webauthn/begin"),
 }
 # Routes that audit inside a service they call, not inline — explicit so it's a reviewed choice.
 AUDITED_INDIRECT: set[tuple[str, str]] = set()

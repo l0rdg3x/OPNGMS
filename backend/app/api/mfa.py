@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import UTC, datetime
 
@@ -13,6 +14,7 @@ from app.core.security import verify_password
 from app.models.user import User
 from app.models.user_mfa import UserMfa
 from app.models.user_recovery_code import UserRecoveryCode
+from app.models.webauthn_credential import WebAuthnCredential
 from app.schemas.mfa import (
     CodeIn,
     MfaPolicyIn,
@@ -21,12 +23,35 @@ from app.schemas.mfa import (
     PasswordIn,
     RecoveryOut,
     SetupOut,
+    WebAuthnCredentialOut,
+    WebAuthnRegisterCompleteIn,
+    WebAuthnStatus,
 )
 from app.services import mfa as mfa_svc
+from app.services import webauthn as wa
 from app.services.app_settings import MFA_MODES, get_mfa_policy, set_mfa_policy
 from app.services.audit import AuditService
+from app.services.webauthn_settings import get_webauthn_config
 
 router = APIRouter(prefix="/api", tags=["mfa"])
+
+
+def _policy_requires_mfa(policy: str, user: User) -> bool:
+    """Whether the org MFA policy mandates a second factor for this user (mirrors auth.py's login
+    decision: `all` requires everyone; `privileged` requires superadmins)."""
+    return policy == "all" or (policy == "privileged" and user.is_superadmin)
+
+
+async def _user_credentials(session: AsyncSession, user_id) -> list[WebAuthnCredential]:
+    return list(
+        (
+            await session.execute(
+                select(WebAuthnCredential)
+                .where(WebAuthnCredential.user_id == user_id)
+                .order_by(WebAuthnCredential.created_at)
+            )
+        ).scalars().all()
+    )
 
 
 def _require_password(user: User, password: str) -> None:
@@ -54,7 +79,19 @@ async def mfa_status(
             )
         )
     ).scalar() or 0
-    return MfaStatusOut(enabled=bool(row and row.enabled), recovery_codes_remaining=int(remaining))
+    cfg = await get_webauthn_config(session)
+    cred_count = (
+        await session.execute(
+            select(func.count())
+            .select_from(WebAuthnCredential)
+            .where(WebAuthnCredential.user_id == user.id)
+        )
+    ).scalar() or 0
+    return MfaStatusOut(
+        enabled=bool(row and row.enabled),
+        recovery_codes_remaining=int(remaining),
+        webauthn=WebAuthnStatus(configured=cfg.is_configured(), credentials=int(cred_count)),
+    )
 
 
 @router.post("/me/mfa/setup", response_model=SetupOut, dependencies=[Depends(enforce_csrf)])
@@ -175,6 +212,145 @@ async def mfa_regen(
     )
     await session.commit()
     return RecoveryOut(recovery_codes=codes)
+
+
+# --- WebAuthn passkeys (second factor alongside TOTP) ---
+
+
+@router.post("/me/mfa/webauthn/register/begin", dependencies=[Depends(enforce_csrf)])
+async def webauthn_register_begin(
+    body: PasswordIn,
+    ctx=Depends(get_enrollment_ctx),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Mint registration options + persist the per-ceremony challenge on this session. Requires the
+    account password (step-up) so a hijacked session can't silently add an attacker passkey — same
+    rule as TOTP `/me/mfa/setup`. No durable state change beyond the single-use challenge, so this is
+    read-like (allowlisted in audit coverage)."""
+    user, sess = ctx
+    _require_password(user, body.password)
+    cfg = await get_webauthn_config(session)
+    if not cfg.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="WebAuthn not configured"
+        )
+    existing = await _user_credentials(session, user.id)
+    opts_json, challenge = wa.registration_options(
+        user_id=user.id.bytes,
+        user_name=user.email,
+        rp_id=cfg.rp_id,
+        rp_name=cfg.rp_name,
+        existing_cred_ids=[c.credential_id for c in existing],
+    )
+    sess.webauthn_challenge = challenge
+    await session.commit()
+    # The options JSON is a string; return it parsed so the SPA gets a JSON object.
+    return json.loads(opts_json)
+
+
+@router.post("/me/mfa/webauthn/register/complete", dependencies=[Depends(enforce_csrf)])
+async def webauthn_register_complete(
+    body: WebAuthnRegisterCompleteIn,
+    ctx=Depends(get_enrollment_ctx),
+    session: AsyncSession = Depends(get_session),
+) -> WebAuthnCredentialOut:
+    user, sess = ctx
+    if not sess.webauthn_challenge:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No pending WebAuthn challenge"
+        )
+    cfg = await get_webauthn_config(session)
+    if not cfg.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="WebAuthn not configured"
+        )
+    try:
+        v = wa.verify_registration(
+            response=body.credential, challenge=sess.webauthn_challenge,
+            rp_id=cfg.rp_id, origin=cfg.origin,
+        )
+    except wa.WebAuthnError as exc:
+        # Single-use: clear the challenge even on failure so it can't be retried.
+        sess.webauthn_challenge = None
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="WebAuthn verification failed"
+        ) from exc
+    cred = WebAuthnCredential(
+        user_id=user.id,
+        credential_id=v.credential_id,
+        public_key=v.credential_public_key,
+        sign_count=v.sign_count,
+        transports=body.transports,
+        name=(body.name or "passkey"),
+        aaguid=str(v.aaguid) if v.aaguid else None,
+    )
+    session.add(cred)
+    sess.webauthn_challenge = None  # single-use
+    # Registering the first passkey satisfies enrollment, mirroring /me/mfa/confirm.
+    if sess.kind == "mfa_setup":
+        sess.kind = "full"
+    await AuditService(session).record(
+        actor_user_id=user.id, tenant_id=None, action="mfa.webauthn.add",
+        target_type="user", target_id=str(user.id), ip=None, details={},
+    )
+    await session.flush()
+    out = WebAuthnCredentialOut.model_validate(cred)
+    await session.commit()
+    return out
+
+
+@router.get("/me/mfa/webauthn/credentials", response_model=list[WebAuthnCredentialOut])
+async def webauthn_list(
+    ctx=Depends(get_enrollment_ctx),
+    session: AsyncSession = Depends(get_session),
+) -> list[WebAuthnCredentialOut]:
+    user, _ = ctx
+    creds = await _user_credentials(session, user.id)
+    # Never serialize credential_id / public_key bytes.
+    return [WebAuthnCredentialOut.model_validate(c) for c in creds]
+
+
+@router.delete(
+    "/me/mfa/webauthn/credentials/{cred_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def webauthn_delete(
+    cred_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    cred = await session.get(WebAuthnCredential, cred_id)
+    if cred is None or cred.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    # Last-factor guard: refuse to remove the only remaining factor while the policy still requires
+    # MFA for this user (mirrors how the TOTP-disable path keeps a policy-mandated user enrolled).
+    policy = await get_mfa_policy(session)
+    if _policy_requires_mfa(policy, user):
+        mfa = await _mfa_row(session, user.id)
+        has_totp = bool(mfa and mfa.enabled)
+        other_passkeys = (
+            await session.execute(
+                select(func.count())
+                .select_from(WebAuthnCredential)
+                .where(
+                    WebAuthnCredential.user_id == user.id,
+                    WebAuthnCredential.id != cred_id,
+                )
+            )
+        ).scalar() or 0
+        if not has_totp and other_passkeys == 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot remove the last MFA factor while MFA is required",
+            )
+    await session.delete(cred)
+    await AuditService(session).record(
+        actor_user_id=user.id, tenant_id=None, action="mfa.webauthn.remove",
+        target_type="user", target_id=str(user.id), ip=None, details={"credential": str(cred_id)},
+    )
+    await session.commit()
 
 
 # --- Superadmin: global MFA policy + admin reset of another user's MFA ---

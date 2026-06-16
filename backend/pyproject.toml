@@ -28,6 +28,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "maxminddb>=2.6",
     "babel>=2.14",
+    "webauthn>=2.0",
 ]
 
 [project.optional-dependencies]

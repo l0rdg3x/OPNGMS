@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +18,10 @@ from app.schemas.system import (
     RuntimeSettingOut,
     RuntimeSettingsOut,
     RuntimeSettingsPatch,
+    WebAuthnConfigIn,
+    WebAuthnConfigOut,
 )
-from app.services.app_settings import get_live_push, set_live_push
+from app.services.app_settings import get_live_push, set_live_push, set_webauthn_settings
 from app.services.audit import AuditService
 from app.services.report_retention import REPORT_BOUNDING_STORES, schedule_retention_warnings
 from app.services.runtime_settings import (
@@ -26,6 +30,7 @@ from app.services.runtime_settings import (
     runtime_defaults,
     update_runtime_config,
 )
+from app.services.webauthn_settings import get_webauthn_config
 
 router = APIRouter(prefix="/api/admin", tags=["system"])
 
@@ -178,3 +183,55 @@ async def set_live_push_setting(
     )
     await session.commit()
     return LivePushOut(enabled=body.enabled)
+
+
+@router.get("/webauthn-config", response_model=WebAuthnConfigOut)
+async def get_webauthn_config_setting(
+    user: User = Depends(require_org(Action.SYSTEM_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> WebAuthnConfigOut:
+    cfg = await get_webauthn_config(session)
+    return WebAuthnConfigOut(
+        rp_id=cfg.rp_id, rp_name=cfg.rp_name, origin=cfg.origin, configured=cfg.is_configured()
+    )
+
+
+@router.put(
+    "/webauthn-config", response_model=WebAuthnConfigOut, dependencies=[Depends(enforce_csrf)]
+)
+async def set_webauthn_config_setting(
+    body: WebAuthnConfigIn,
+    request: Request,
+    user: User = Depends(require_org(Action.SYSTEM_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> WebAuthnConfigOut:
+    rp_id = body.rp_id.strip()
+    origin = body.origin.strip()
+    # rp_id is a registrable domain (RFC-1123 hostname labels) — a positive allowlist so a malformed
+    # value can't be persisted (no scheme/path/port/whitespace). origin (when set) must be https.
+    if rp_id and not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9\-.]*[A-Za-z0-9])?", rp_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="rp_id must be a bare domain (no scheme, port, or path)",
+        )
+    if origin and not origin.startswith("https://"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="origin must be an https:// URL",
+        )
+    await set_webauthn_settings(
+        session, rp_id=rp_id, rp_name=body.rp_name.strip() or "OPNGMS", origin=origin
+    )
+    await AuditService(session).record(
+        actor_user_id=user.id,
+        tenant_id=None,
+        action="system.webauthn_config",
+        ip=request.client.host if request.client else None,
+        # rp_id/origin are public RP identifiers (the deployment's domain), not secrets.
+        details={"rp_id": rp_id, "origin": origin},
+    )
+    await session.commit()
+    cfg = await get_webauthn_config(session)
+    return WebAuthnConfigOut(
+        rp_id=cfg.rp_id, rp_name=cfg.rp_name, origin=cfg.origin, configured=cfg.is_configured()
+    )

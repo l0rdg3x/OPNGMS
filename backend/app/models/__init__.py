@@ -32,6 +32,7 @@ from app.models.tenant_retention import TenantRetention  # noqa: F401
 from app.models.user import User
 from app.models.user_mfa import UserMfa  # noqa: F401
 from app.models.user_recovery_code import UserRecoveryCode  # noqa: F401
+from app.models.webauthn_credential import WebAuthnCredential  # noqa: F401
 
 __all__ = [
     "Base",
@@ -64,6 +65,7 @@ __all__ = [
     "User",
     "UserMfa",
     "UserRecoveryCode",
+    "WebAuthnCredential",
     "DeviceLogForwarding",
     "RevokedSyslogCert",
     "SilentTenantAlert",

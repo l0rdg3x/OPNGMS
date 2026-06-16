@@ -22,6 +22,9 @@ class Session(UUIDPKMixin, Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     # Per-session CSRF secret, echoed by the SPA in the X-OPNGMS-CSRF header.
     csrf_token: Mapped[str] = mapped_column(String(64))
+    # Per-ceremony WebAuthn challenge (base64url), bound to this session row and single-use
+    # (cleared on completion). Naturally expires with the session. Never logged.
+    webauthn_challenge: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
