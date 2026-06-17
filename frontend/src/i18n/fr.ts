@@ -680,6 +680,7 @@ export const fr: Dict = {
         login_lockout_window_seconds: { label: "Fenêtre de verrouillage (s)", help: "Fenêtre glissante pour le décompte des connexions échouées." },
         session_ttl_hours: { label: "Durée de session (heures)", help: "Durée de vie absolue de la session." },
         session_idle_minutes: { label: "Délai d'inactivité (minutes)", help: "Temps d'inactivité avant l'expiration d'une session." },
+        trusted_device_days: { label: "Durée de vie d'un appareil de confiance (jours)", help: "Durée pendant laquelle un appareil de confiance peut ignorer le second facteur avant de devoir être re-vérifié." },
       },
     },
   },

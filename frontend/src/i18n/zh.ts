@@ -678,6 +678,7 @@ export const zh: Dict = {
         login_lockout_window_seconds: { label: "锁定窗口（秒）", help: "失败登录计数的滑动窗口。" },
         session_ttl_hours: { label: "会话有效期（小时）", help: "会话的绝对有效期。" },
         session_idle_minutes: { label: "空闲超时（分钟）", help: "会话过期前的空闲时间。" },
+        trusted_device_days: { label: "可信设备有效期（天）", help: "可信设备可跳过第二因素的时长，超时后需重新验证。" },
       },
     },
   },

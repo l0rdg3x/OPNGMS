@@ -680,6 +680,7 @@ export const es: Dict = {
         login_lockout_window_seconds: { label: "Ventana de bloqueo (s)", help: "Ventana deslizante para el recuento de inicios de sesión fallidos." },
         session_ttl_hours: { label: "Duración de la sesión (horas)", help: "Duración absoluta de la sesión." },
         session_idle_minutes: { label: "Tiempo de inactividad (minutos)", help: "Tiempo de inactividad antes de que expire una sesión." },
+        trusted_device_days: { label: "Duración del dispositivo de confianza (días)", help: "Cuánto tiempo puede un dispositivo de confianza omitir el segundo factor antes de tener que volver a ser verificado." },
       },
     },
   },

@@ -680,6 +680,7 @@ export const nl: Dict = {
         login_lockout_window_seconds: { label: "Blokkeervenster (s)", help: "Schuivend venster voor de telling van mislukte aanmeldingen." },
         session_ttl_hours: { label: "Sessieduur (uren)", help: "Absolute sessieduur." },
         session_idle_minutes: { label: "Time-out bij inactiviteit (minuten)", help: "Inactieve tijd voordat een sessie verloopt." },
+        trusted_device_days: { label: "Levensduur vertrouwd apparaat (dagen)", help: "Hoe lang een vertrouwd apparaat de tweede factor kan overslaan voordat het opnieuw vertrouwd moet worden." },
       },
     },
   },

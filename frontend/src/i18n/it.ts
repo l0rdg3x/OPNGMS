@@ -679,6 +679,7 @@ export const it: Dict = {
         login_lockout_window_seconds: { label: "Finestra di blocco (s)", help: "Finestra mobile per il conteggio degli accessi falliti." },
         session_ttl_hours: { label: "Durata sessione (ore)", help: "Durata assoluta della sessione." },
         session_idle_minutes: { label: "Timeout di inattività (minuti)", help: "Tempo di inattività prima della scadenza di una sessione." },
+        trusted_device_days: { label: "Durata dispositivo attendibile (giorni)", help: "Per quanto tempo un dispositivo attendibile può saltare il secondo fattore prima di dover essere ri-verificato." },
       },
     },
   },

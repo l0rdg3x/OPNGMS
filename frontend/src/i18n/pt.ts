@@ -680,6 +680,7 @@ export const pt: Dict = {
         login_lockout_window_seconds: { label: "Janela de bloqueio (s)", help: "Janela deslizante para a contagem de inícios de sessão falhados." },
         session_ttl_hours: { label: "Duração da sessão (horas)", help: "Duração absoluta da sessão." },
         session_idle_minutes: { label: "Tempo limite de inatividade (minutos)", help: "Tempo de inatividade antes de uma sessão expirar." },
+        trusted_device_days: { label: "Tempo de vida do dispositivo confiável (dias)", help: "Por quanto tempo um dispositivo confiável pode ignorar o segundo fator antes de precisar ser re-verificado." },
       },
     },
   },

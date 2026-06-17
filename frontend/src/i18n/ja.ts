@@ -679,6 +679,7 @@ export const ja: Dict = {
         login_lockout_window_seconds: { label: "ロックアウト期間（秒）", help: "失敗したログイン回数のスライディングウィンドウ。" },
         session_ttl_hours: { label: "セッション有効期間（時間）", help: "セッションの絶対的な有効期間。" },
         session_idle_minutes: { label: "アイドルタイムアウト（分）", help: "セッションが期限切れになるまでのアイドル時間。" },
+        trusted_device_days: { label: "信頼済みデバイスの有効期間（日）", help: "信頼済みデバイスが第2因証をスキップできる期間。期間終了後は再確認が必要です。" },
       },
     },
   },

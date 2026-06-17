@@ -678,6 +678,7 @@ export const zhTW: Dict = {
         login_lockout_window_seconds: { label: "鎖定時間窗（秒）", help: "登入失敗次數的滑動時間窗。" },
         session_ttl_hours: { label: "工作階段存留時間（小時）", help: "工作階段的絕對存留時間。" },
         session_idle_minutes: { label: "閒置逾時（分鐘）", help: "工作階段過期前的閒置時間。" },
+        trusted_device_days: { label: "受信任裝置有效期（天）", help: "受信任裝置可略過第二因素的時長，逾時後需重新驗證。" },
       },
     },
   },

@@ -679,6 +679,7 @@ export const en = {
         login_lockout_window_seconds: { label: "Lockout window (s)", help: "Sliding window for the failed-login count." },
         session_ttl_hours: { label: "Session lifetime (hours)", help: "Absolute session lifetime." },
         session_idle_minutes: { label: "Idle timeout (minutes)", help: "Idle time before a session expires." },
+        trusted_device_days: { label: "Trusted device lifetime (days)", help: "How long a trusted device may skip the second factor before it must be re-trusted." },
       },
     },
   },

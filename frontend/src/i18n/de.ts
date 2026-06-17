@@ -680,6 +680,7 @@ export const de: Dict = {
         login_lockout_window_seconds: { label: "Sperrfenster (s)", help: "Gleitendes Fenster für die Zählung fehlgeschlagener Anmeldungen." },
         session_ttl_hours: { label: "Sitzungsdauer (Stunden)", help: "Absolute Sitzungsdauer." },
         session_idle_minutes: { label: "Leerlauf-Timeout (Minuten)", help: "Leerlaufzeit, bevor eine Sitzung abläuft." },
+        trusted_device_days: { label: "Vertrauenswürdige Gerätelebensdauer (Tage)", help: "Wie lange ein vertrauenswürdiges Gerät den zweiten Faktor überspringen kann, bevor es erneut bestätigt werden muss." },
       },
     },
   },
