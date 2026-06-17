@@ -12,6 +12,23 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-06-17
+### Added
+- **SMTP OAuth "Connect" button (experimental).** The OAuth2 SMTP relay (Gmail / Microsoft 365) gains a
+  **"Connect with Google / Microsoft 365"** button under **Admin → SMTP delivery** that runs the
+  authorization-code flow and stores the obtained refresh token automatically — instead of pasting it by
+  hand. The operator still registers the OAuth app and enters the client id + secret; the button only
+  removes the manual refresh-token paste. The browser flow uses a **signed, expiring `state`** (HMAC over
+  the initiating superadmin + provider, 10-min TTL) as its CSRF defence, and the redirect URI + landing
+  URL are built only from the new **`PUBLIC_BASE_URL`** setting (https-only; no open-redirect). The
+  refresh token is Fernet-encrypted at rest like every other secret; the flow is superadmin-gated and
+  audited (`smtp.oauth.connected`).
+  - **⚠️ Experimental — untested against a live provider.** The browser consent + real Google/Microsoft
+    redirect could not be verified in CI (no public callback URL / registered OAuth app); the code is
+    unit-tested with mocked HTTP. The UI labels the button **"Experimental — untested"**, and **pasting a
+    refresh token manually remains the supported path**. The Connect button requires `PUBLIC_BASE_URL`
+    set and the redirect URI registered in your OAuth app.
+
 ## [0.21.0] - 2026-06-17
 ### Added
 - **Remember-this-device (trusted devices).** After clearing a second factor (TOTP or WebAuthn), users
