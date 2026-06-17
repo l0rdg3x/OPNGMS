@@ -833,5 +833,13 @@ export const ar: Dict = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "محفوظ — اتركه فارغًا للإبقاء",
+    oauthConnect: "ربط الحساب",
+    oauthConnectGoogle: "الربط مع Google",
+    oauthConnectMicrosoft: "الربط مع Microsoft 365",
+    oauthExperimental: "تجريبي — غير مختبر",
+    oauthExperimentalNote: "لم يتم التحقق من تسجيل الدخول عبر المتصفح لـ OAuth مع مزود حقيقي. يتطلب تعيين PUBLIC_BASE_URL وتسجيل عنوان URI لإعادة التوجيه في تطبيق OAuth الخاص بك. لا يزال لصق رمز التحديث أعلاه هو الطريق المدعوم.",
+    oauthConnectNeedsCreds: "احفظ معرّف العميل والسر أولاً، ثم اربط.",
+    oauthConnected: "تم ربط الحساب.",
+    oauthConnectFailed: "تعذّر ربط الحساب.",
   },
 };

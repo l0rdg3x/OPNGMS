@@ -834,5 +834,13 @@ export const ru: Dict = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "сохранено — оставьте пустым, чтобы сохранить",
+    oauthConnect: "Подключить аккаунт",
+    oauthConnectGoogle: "Подключить через Google",
+    oauthConnectMicrosoft: "Подключить через Microsoft 365",
+    oauthExperimental: "Экспериментально — не протестировано",
+    oauthExperimentalNote: "Вход через браузер для OAuth не был проверен с реальным провайдером. Необходимо установить PUBLIC_BASE_URL и зарегистрировать URI перенаправления в вашем приложении OAuth. Вставка токена обновления выше остаётся поддерживаемым способом.",
+    oauthConnectNeedsCreds: "Сначала сохраните идентификатор клиента и секрет, затем подключитесь.",
+    oauthConnected: "Аккаунт подключён.",
+    oauthConnectFailed: "Не удалось подключить аккаунт.",
   },
 };

@@ -831,5 +831,13 @@ export const zhTW: Dict = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "已儲存 — 留空以保留",
+    oauthConnect: "連結帳戶",
+    oauthConnectGoogle: "使用 Google 連結",
+    oauthConnectMicrosoft: "使用 Microsoft 365 連結",
+    oauthExperimental: "實驗性 — 未經測試",
+    oauthExperimentalNote: "OAuth 的瀏覽器登入尚未針對真實提供者進行驗證。需要設定 PUBLIC_BASE_URL 並在您的 OAuth 應用程式中註冊重新導向 URI。在上方貼上重新整理權杖仍是受支援的方法。",
+    oauthConnectNeedsCreds: "請先儲存用戶端 ID 和密鑰，然後連結。",
+    oauthConnected: "帳戶已連結。",
+    oauthConnectFailed: "無法連結帳戶。",
   },
 };

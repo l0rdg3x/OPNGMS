@@ -831,5 +831,13 @@ export const zh: Dict = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "已保存 — 留空以保留",
+    oauthConnect: "连接账户",
+    oauthConnectGoogle: "使用 Google 连接",
+    oauthConnectMicrosoft: "使用 Microsoft 365 连接",
+    oauthExperimental: "实验性 — 未经测试",
+    oauthExperimentalNote: "OAuth 的浏览器登录尚未针对真实提供商进行验证。需要设置 PUBLIC_BASE_URL 并在您的 OAuth 应用中注册重定向 URI。在上方粘贴刷新令牌仍是受支持的方法。",
+    oauthConnectNeedsCreds: "请先保存客户端 ID 和密钥，然后连接。",
+    oauthConnected: "账户已连接。",
+    oauthConnectFailed: "无法连接账户。",
   },
 };

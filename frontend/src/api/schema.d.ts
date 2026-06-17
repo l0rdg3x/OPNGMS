@@ -1651,6 +1651,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/smtp/oauth/{provider}/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oauth Authorize
+         * @description EXPERIMENTAL/UNTESTED browser OAuth flow. Build the consent URL for the saved client id.
+         */
+        get: operations["oauth_authorize_api_admin_smtp_oauth__provider__authorize_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/smtp/oauth/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oauth Callback
+         * @description EXPERIMENTAL/UNTESTED. The provider's browser redirect lands here (superadmin session via the
+         *     SameSite=Lax cookie). The signed `state` is the CSRF defence — it binds the initiating superadmin +
+         *     provider and expires in 10 min; combined with the provider-single-use `code`, a replayed state alone
+         *     cannot do anything. Any failure redirects with ?oauth=error (never surfaces token material).
+         */
+        get: operations["oauth_callback_api_admin_smtp_oauth__provider__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding": {
         parameters: {
             query?: never;
@@ -7307,6 +7350,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SmtpTestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    oauth_authorize_api_admin_smtp_oauth__provider__authorize_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    oauth_callback_api_admin_smtp_oauth__provider__callback_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

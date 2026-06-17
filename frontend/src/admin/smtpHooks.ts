@@ -40,3 +40,19 @@ export function useTestSmtp() {
     },
   });
 }
+
+export function useSmtpOAuthConnect() {
+  return useMutation({
+    mutationFn: async (provider: "google" | "microsoft"): Promise<string> => {
+      const { data, error } = await api.GET("/api/admin/smtp/oauth/{provider}/authorize", {
+        params: { path: { provider } },
+      });
+      if (error || !data) throw new Error("Failed to start OAuth");
+      // The generated response type is an open record; validate the field at runtime so a backend
+      // shape change can't silently navigate to `undefined`.
+      const url = (data as Record<string, unknown>).authorize_url;
+      if (typeof url !== "string" || !url) throw new Error("Failed to start OAuth");
+      return url;
+    },
+  });
+}
