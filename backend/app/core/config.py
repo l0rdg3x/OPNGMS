@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     firmware_poll_interval_seconds: float = 5.0  # delay between upgradestatus polls, seconds (>0)
     poll_interval_seconds: int = 60
     cors_allow_origins: str = ""  # comma-separated; empty = CORS disabled (same-origin)
+    public_base_url: str = ""  # external base URL (e.g. https://opngms.example.com) for OAuth redirect URIs
     login_max_attempts: int = 5
     login_lockout_window_seconds: int = 900
     # Per-tenant-overridable data retention (worker purge reads the effective value). See app/services/retention.py.
@@ -124,4 +125,11 @@ def assert_secure_secrets(settings: Settings) -> None:
     if insecure:
         raise RuntimeError(
             "Refusing to start: " + ", ".join(insecure) + " must use https:// (release-asset fetch)."
+        )
+    # PUBLIC_BASE_URL is optional (empty => the OAuth Connect flow is unavailable), but when set it forms
+    # the OAuth redirect_uri that carries the authorization code — it must be https:// so the code can't
+    # transit in cleartext.
+    if settings.public_base_url and not settings.public_base_url.startswith("https://"):
+        raise RuntimeError(
+            "Refusing to start: PUBLIC_BASE_URL must use https:// (it forms the OAuth redirect URI)."
         )

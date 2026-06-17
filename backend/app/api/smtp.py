@@ -1,13 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import crypto
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.deps import enforce_csrf, require_org
 from app.core.rbac import Action
 from app.models.user import User
 from app.schemas.smtp import SECURITIES, SmtpSettingsIn, SmtpSettingsOut, SmtpTestIn, SmtpTestOut
 from app.services.audit import AuditService
+from app.services.email.oauth import (
+    OAuthTokenError,
+    build_authorize_url,
+    exchange_code,
+    sign_state,
+    verify_state,
+)
 from app.services.email.smtp import EmailSendError, SmtpSendConfig, send_report_email
 from app.services.smtp_settings import SmtpSettingsService
 
@@ -115,3 +124,73 @@ async def test_smtp(
     except EmailSendError as exc:
         return SmtpTestOut(ok=False, detail=str(exc))
     return SmtpTestOut(ok=True, detail="sent")
+
+
+_PROVIDERS = {"google", "microsoft"}
+
+
+@router.get("/oauth/{provider}/authorize")
+async def oauth_authorize(
+    provider: str,
+    user: User = Depends(require_org(Action.USER_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """EXPERIMENTAL/UNTESTED browser OAuth flow. Build the consent URL for the saved client id."""
+    if provider not in _PROVIDERS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="unknown provider")
+    base = get_settings().public_base_url.rstrip("/")
+    if not base:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PUBLIC_BASE_URL not configured")
+    row = await SmtpSettingsService(session).get()
+    if row is None or not row.oauth_client_id or row.oauth_client_secret_enc is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="save the client id and secret first")
+    redirect_uri = f"{base}/api/admin/smtp/oauth/{provider}/callback"
+    state = sign_state(user.id, provider)
+    try:
+        url = build_authorize_url(provider, row.oauth_client_id, redirect_uri, state, row.oauth_tenant_id)
+    except OAuthTokenError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return {"authorize_url": url}
+
+
+@router.get("/oauth/{provider}/callback")
+async def oauth_callback(
+    provider: str,
+    request: Request,
+    user: User = Depends(require_org(Action.USER_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> RedirectResponse:
+    """EXPERIMENTAL/UNTESTED. The provider's browser redirect lands here (superadmin session via the
+    SameSite=Lax cookie). The signed `state` is the CSRF defence — it binds the initiating superadmin +
+    provider and expires in 10 min; combined with the provider-single-use `code`, a replayed state alone
+    cannot do anything. Any failure redirects with ?oauth=error (never surfaces token material)."""
+    if provider not in _PROVIDERS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="unknown provider")
+    base = get_settings().public_base_url.rstrip("/")
+    if not base:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="PUBLIC_BASE_URL not configured")
+    landing_ok = f"{base}/admin/smtp?oauth=success"
+    landing_err = f"{base}/admin/smtp?oauth=error"
+    code = request.query_params.get("code")
+    state = request.query_params.get("state") or ""
+    if not code or not verify_state(state, user.id, provider):
+        return RedirectResponse(landing_err, status_code=status.HTTP_302_FOUND)
+    svc = SmtpSettingsService(session)
+    row = await svc.get()
+    if row is None or not row.oauth_client_id or row.oauth_client_secret_enc is None:
+        return RedirectResponse(landing_err, status_code=status.HTTP_302_FOUND)
+    redirect_uri = f"{base}/api/admin/smtp/oauth/{provider}/callback"
+    try:
+        result = await exchange_code(
+            provider, row.oauth_client_id, crypto.decrypt(row.oauth_client_secret_enc),
+            code, redirect_uri, row.oauth_tenant_id)
+    except OAuthTokenError:
+        return RedirectResponse(landing_err, status_code=status.HTTP_302_FOUND)
+    await svc.store_oauth_refresh_token(provider, result["refresh_token"])
+    await AuditService(session).record(
+        actor_user_id=user.id, tenant_id=None, action="smtp.oauth.connected",
+        target_type="smtp_settings", target_id="1", ip=None, details={"provider": provider},
+    )
+    await session.commit()
+    return RedirectResponse(landing_ok, status_code=status.HTTP_302_FOUND)
