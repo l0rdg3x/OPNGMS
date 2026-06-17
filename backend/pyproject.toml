@@ -36,7 +36,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
     "respx>=0.21",
-    "ruff>=0.15",
+    "ruff>=0.15.17",
     "mmdb-writer>=0.2.7",  # test-only: generate the tiny GeoIP fixture mmdb (tests/fixtures)
 ]
 
