@@ -834,5 +834,13 @@ export const nl: Dict = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "opgeslagen — laat leeg om te behouden",
+    oauthConnect: "Account verbinden",
+    oauthConnectGoogle: "Verbinden met Google",
+    oauthConnectMicrosoft: "Verbinden met Microsoft 365",
+    oauthExperimental: "Experimenteel — niet getest",
+    oauthExperimentalNote: "Browseraanmelding voor OAuth is niet geverifieerd met een echte provider. PUBLIC_BASE_URL moet ingesteld zijn en de omleidings-URI moet geregistreerd zijn in uw OAuth-app. Een vernieuwingstoken hierboven plakken blijft de ondersteunde methode.",
+    oauthConnectNeedsCreds: "Sla eerst de client-ID en het geheim op en maak dan verbinding.",
+    oauthConnected: "Account verbonden.",
+    oauthConnectFailed: "Kon het account niet verbinden.",
   },
 };

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert, Button, Card, Group, NumberInput, PasswordInput, SegmentedControl, Select, Stack, Switch,
-  Text, TextInput, Title,
+  Alert, Badge, Button, Card, Group, NumberInput, PasswordInput, SegmentedControl, Select, Stack,
+  Switch, Text, TextInput, Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 
 import { useAuth } from "../auth/useAuth";
 import { useT } from "../i18n";
-import { useSmtpSettings, useTestSmtp, useUpdateSmtpSettings } from "../admin/smtpHooks";
+import { useSmtpOAuthConnect, useSmtpSettings, useTestSmtp, useUpdateSmtpSettings } from "../admin/smtpHooks";
 
 export function SmtpSettingsPage() {
   const { me } = useAuth();
@@ -16,6 +16,7 @@ export function SmtpSettingsPage() {
   const query = useSmtpSettings();
   const update = useUpdateSmtpSettings();
   const test = useTestSmtp();
+  const connect = useSmtpOAuthConnect();
   const initialized = useRef(false);
   const [testTo, setTestTo] = useState("");
 
@@ -43,6 +44,22 @@ export function SmtpSettingsPage() {
       initialized.current = true;
     }
   }, [query.data]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauth = params.get("oauth");
+    if (oauth === "success" || oauth === "error") {
+      notifications.show(
+        oauth === "success"
+          ? { color: "green", message: t.smtp.oauthConnected }
+          : { color: "red", message: t.smtp.oauthConnectFailed },
+      );
+      if (oauth === "success") query.refetch();
+      params.delete("oauth");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!me?.is_superadmin) {
     return <Alert color="red" data-testid="smtp-forbidden">Superadmin only.</Alert>;
@@ -150,6 +167,31 @@ export function SmtpSettingsPage() {
               />
               {isMicrosoft && (
                 <TextInput label={t.smtp.oauthTenantId} {...form.getInputProps("oauth_tenant_id")} data-testid="smtp-oauth-tenant-id" />
+              )}
+              {query.data?.has_client_secret && query.data?.oauth_client_id ? (
+                <Stack gap={4}>
+                  <Group gap="xs">
+                    <Button
+                      variant="light"
+                      loading={connect.isPending}
+                      data-testid="smtp-oauth-connect"
+                      onClick={async () => {
+                        try {
+                          const url = await connect.mutateAsync(form.values.oauth_provider as "google" | "microsoft");
+                          window.location.href = url;
+                        } catch {
+                          notifications.show({ color: "red", message: t.smtp.oauthConnectFailed });
+                        }
+                      }}
+                    >
+                      {isMicrosoft ? t.smtp.oauthConnectMicrosoft : t.smtp.oauthConnectGoogle}
+                    </Button>
+                    <Badge color="yellow" variant="light">{t.smtp.oauthExperimental}</Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed">{t.smtp.oauthExperimentalNote}</Text>
+                </Stack>
+              ) : (
+                <Text size="xs" c="dimmed">{t.smtp.oauthConnectNeedsCreds}</Text>
               )}
             </>
           ) : (

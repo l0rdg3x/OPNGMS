@@ -54,6 +54,19 @@ class SmtpSettingsService:
         await self.session.flush()
         return row
 
+    async def store_oauth_refresh_token(self, provider: str, refresh_token: str) -> SmtpSettings:
+        """Persist a refresh token obtained via the OAuth Connect flow onto the existing singleton
+        (client id+secret must already be saved). Sets auth_method=oauth + the provider."""
+        row = await self.get()
+        if row is None:
+            row = SmtpSettings(id=SINGLETON_ID)
+            self.session.add(row)
+        row.auth_method = "oauth"
+        row.oauth_provider = provider
+        row.oauth_refresh_token_enc = crypto.encrypt(refresh_token)
+        await self.session.flush()
+        return row
+
     async def resolve_send_config(self, row: SmtpSettings) -> SmtpSendConfig:
         if row.auth_method == "oauth":
             token = await fetch_access_token(

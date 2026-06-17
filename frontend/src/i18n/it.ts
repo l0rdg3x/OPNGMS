@@ -833,5 +833,13 @@ export const it: Dict = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "salvato — lascia vuoto per mantenere",
+    oauthConnect: "Collega account",
+    oauthConnectGoogle: "Connetti con Google",
+    oauthConnectMicrosoft: "Connetti con Microsoft 365",
+    oauthExperimental: "Sperimentale — non testato",
+    oauthExperimentalNote: "L'accesso browser per OAuth non è stato verificato con un provider reale. È necessario impostare PUBLIC_BASE_URL e registrare l'URI di reindirizzamento nell'app OAuth. Incollare un token di aggiornamento nel campo precedente rimane il percorso supportato.",
+    oauthConnectNeedsCreds: "Salva prima l'ID client e il segreto, poi connetti.",
+    oauthConnected: "Account collegato.",
+    oauthConnectFailed: "Impossibile collegare l'account.",
   },
 };

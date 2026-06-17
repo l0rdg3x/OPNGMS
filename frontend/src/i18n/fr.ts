@@ -834,5 +834,13 @@ export const fr: Dict = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "enregistré — laisser vide pour conserver",
+    oauthConnect: "Connecter le compte",
+    oauthConnectGoogle: "Connecter avec Google",
+    oauthConnectMicrosoft: "Connecter avec Microsoft 365",
+    oauthExperimental: "Expérimental — non testé",
+    oauthExperimentalNote: "La connexion par navigateur pour OAuth n'a pas été vérifiée avec un fournisseur réel. PUBLIC_BASE_URL doit être défini et l'URI de redirection enregistré dans votre application OAuth. Coller un jeton d'actualisation ci-dessus reste la méthode prise en charge.",
+    oauthConnectNeedsCreds: "Enregistrez d'abord l'ID client et le secret, puis connectez.",
+    oauthConnected: "Compte connecté.",
+    oauthConnectFailed: "Impossible de connecter le compte.",
   },
 };

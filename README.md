@@ -235,7 +235,7 @@ version tag).
 | **Audit log viewer** — every mutating action recorded (actor + IP + target + details); superadmin **Audit** page with filters (actor/tenant/action/date) + **CSV export**; a CI guard fails the build if a mutating route ships without an audit record | ✅ Done |
 | **Per-tenant data retention** — global default **+ per-tenant override** for every dashboard/report store (perimeter rollup, IDS/DNS events, device metrics, OpenSearch **log lake** via per-tenant daily indices); tenant-aware purge jobs replace the fixed TimescaleDB/ISM policies; a **report ↔ retention** guard blocks over-long reports and warns on lowering | ✅ Done |
 | **PDF reporting** — white-label per-tenant reports, scheduled + on-demand, 12-language localization | ✅ Done |
-| **Report email delivery** — per-tenant **and per-device** schedules; one superadmin SMTP relay (password **or OAuth2 / XOAUTH2** for Gmail + Microsoft 365, test-send); white-label sender; "send now"; hourly cron + send-retry | ✅ Done |
+| **Report email delivery** — per-tenant **and per-device** schedules; one superadmin SMTP relay (password **or OAuth2 / XOAUTH2** for Gmail + Microsoft 365 — paste a refresh token, or an *experimental, untested* "Connect" button via `PUBLIC_BASE_URL`, test-send); white-label sender; "send now"; hourly cron + send-retry | ✅ Done |
 | **Config management** — encrypted backup, drift detection, targeted revert, firewall-aware UI, default-OFF live push | ✅ Done |
 | **OPNsense connector** — telemetry verified on real 26.1.9; **(edition, version)-aware** endpoint matrix (Community / Business) | ✅ Done |
 | **Device actions** — firmware update / multi-step upgrade + plugin install/remove (now or scheduled), WebGUI deep-link | ✅ Done |

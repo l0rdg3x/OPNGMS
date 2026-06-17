@@ -5593,6 +5593,92 @@
         }
       }
     },
+    "/api/admin/smtp/oauth/{provider}/authorize": {
+      "get": {
+        "tags": [
+          "smtp"
+        ],
+        "summary": "Oauth Authorize",
+        "description": "EXPERIMENTAL/UNTESTED browser OAuth flow. Build the consent URL for the saved client id.",
+        "operationId": "oauth_authorize_api_admin_smtp_oauth__provider__authorize_get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Oauth Authorize Api Admin Smtp Oauth  Provider  Authorize Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/smtp/oauth/{provider}/callback": {
+      "get": {
+        "tags": [
+          "smtp"
+        ],
+        "summary": "Oauth Callback",
+        "description": "EXPERIMENTAL/UNTESTED. The provider's browser redirect lands here (superadmin session via the\nSameSite=Lax cookie). The signed `state` is the CSRF defence \u2014 it binds the initiating superadmin +\nprovider and expires in 10 min; combined with the provider-single-use `code`, a replayed state alone\ncannot do anything. Any failure redirects with ?oauth=error (never surfaces token material).",
+        "operationId": "oauth_callback_api_admin_smtp_oauth__provider__callback_get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/{tenant_id}/devices/{device_id}/log-forwarding": {
       "get": {
         "tags": [

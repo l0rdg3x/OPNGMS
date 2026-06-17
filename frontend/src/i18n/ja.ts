@@ -833,5 +833,13 @@ export const ja: Dict = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "保存済み — 空欄で維持",
+    oauthConnect: "アカウントを接続",
+    oauthConnectGoogle: "Google で接続",
+    oauthConnectMicrosoft: "Microsoft 365 で接続",
+    oauthExperimental: "実験的 — 未テスト",
+    oauthExperimentalNote: "OAuth のブラウザサインインは実際のプロバイダーで確認されていません。PUBLIC_BASE_URL を設定し、リダイレクト URI を OAuth アプリに登録する必要があります。上のリフレッシュトークンを貼り付ける方法が引き続きサポートされた方法です。",
+    oauthConnectNeedsCreds: "まずクライアント ID とシークレットを保存してから接続してください。",
+    oauthConnected: "アカウントが接続されました。",
+    oauthConnectFailed: "アカウントを接続できませんでした。",
   },
 };

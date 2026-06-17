@@ -833,6 +833,14 @@ export const en = {
     oauthRefreshToken: "Refresh token",
     oauthTenantId: "Tenant ID",
     oauthSecretSaved: "saved — leave blank to keep",
+    oauthConnect: "Connect account",
+    oauthConnectGoogle: "Connect with Google",
+    oauthConnectMicrosoft: "Connect with Microsoft 365",
+    oauthExperimental: "Experimental — untested",
+    oauthExperimentalNote: "Browser sign-in for OAuth has not been verified against a live provider. It needs PUBLIC_BASE_URL set and the redirect URI registered in your OAuth app. Pasting a refresh token above remains the supported path.",
+    oauthConnectNeedsCreds: "Save the client ID and secret first, then connect.",
+    oauthConnected: "Account connected.",
+    oauthConnectFailed: "Could not connect the account.",
   },
 } as const;
 
