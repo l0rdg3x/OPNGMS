@@ -36,6 +36,7 @@ import {
   type UserOut,
   type WebAuthnCredential,
 } from "./mfaHooks";
+import { TrustedDevicesSection } from "./TrustedDevicesSection";
 import { webauthnSupported } from "./webauthnClient";
 
 // ── Manage block shown when MFA is enabled (regenerate + disable) ─────────────
@@ -429,6 +430,12 @@ export function MfaPanel() {
       {statusQuery.data?.webauthn?.configured && (
         <Card withBorder padding="lg" radius="md">
           <PasskeysSection />
+        </Card>
+      )}
+
+      {statusQuery.data?.trusted_devices?.enabled && (
+        <Card withBorder padding="lg" radius="md">
+          <TrustedDevicesSection />
         </Card>
       )}
 

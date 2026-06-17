@@ -337,3 +337,77 @@ describe("MfaPanel — passkeys (WebAuthn)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/last second factor/i);
   });
 });
+
+const TRUSTED_DEVICES_URL = "/api/me/trusted-devices";
+
+describe("MfaPanel — trusted devices", () => {
+  it("shows trusted devices section when enabled", async () => {
+    let listCalls = 0;
+    server.use(
+      http.get(STATUS_URL, () =>
+        HttpResponse.json({
+          enabled: true,
+          recovery_codes_remaining: 3,
+          trusted_devices: { enabled: true },
+        }),
+      ),
+      http.get(TRUSTED_DEVICES_URL, () => {
+        listCalls += 1;
+        // empty after the invalidation re-fetch that follows revoke
+        return HttpResponse.json(
+          listCalls > 1
+            ? []
+            : [
+                {
+                  id: "d1",
+                  user_agent: "Chrome on Linux",
+                  ip: "1.2.3.4",
+                  created_at: "2026-01-01T00:00:00Z",
+                  last_used_at: "2026-01-10T12:00:00Z",
+                  expires_at: "2026-02-01T00:00:00Z",
+                },
+              ],
+        );
+      }),
+      http.delete(`${TRUSTED_DEVICES_URL}/d1`, () => new HttpResponse(null, { status: 204 })),
+    );
+
+    renderWithProviders(withAuth(<MfaPanel />));
+
+    // Section title is visible
+    expect(await screen.findByText("Trusted devices")).toBeInTheDocument();
+
+    // Device row contains user agent and IP
+    expect(await screen.findByText("Chrome on Linux")).toBeInTheDocument();
+    expect(await screen.findByText("1.2.3.4")).toBeInTheDocument();
+
+    // Click revoke button for d1
+    await userEvent.click(screen.getByTestId("trusted-device-revoke-d1"));
+
+    // Confirm in the modal
+    await userEvent.click(await screen.findByTestId("confirm-ok"));
+
+    // After revoke the empty state appears
+    expect(await screen.findByText("No trusted devices.")).toBeInTheDocument();
+  });
+
+  it("hides trusted devices section when disabled", async () => {
+    server.use(
+      http.get(STATUS_URL, () =>
+        HttpResponse.json({
+          enabled: true,
+          recovery_codes_remaining: 3,
+          trusted_devices: { enabled: false },
+        }),
+      ),
+    );
+
+    renderWithProviders(withAuth(<MfaPanel />));
+
+    // Wait for MFA status to load (badge appears)
+    await screen.findByTestId("mfa-status-badge");
+
+    // Trusted devices section title must NOT be in the DOM
+    expect(screen.queryByText("Trusted devices")).not.toBeInTheDocument();
+  });
+});
