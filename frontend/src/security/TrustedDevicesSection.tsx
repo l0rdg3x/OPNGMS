@@ -15,6 +15,7 @@ export function TrustedDevicesSection() {
   const revoke = useRevokeTrustedDevice();
   const revokeAll = useRevokeAllTrustedDevices();
   const [target, setTarget] = useState<TrustedDevice | null>(null);
+  const [revokeAllOpen, setRevokeAllOpen] = useState(false);
   const [revokeError, setRevokeError] = useState<string | null>(null);
 
   async function doRevoke() {
@@ -35,6 +36,8 @@ export function TrustedDevicesSection() {
       await revokeAll.mutateAsync();
     } catch {
       setRevokeError(t.mfa.trustedDevices.revokeError);
+    } finally {
+      setRevokeAllOpen(false);
     }
   }
 
@@ -99,9 +102,9 @@ export function TrustedDevicesSection() {
             size="xs"
             variant="light"
             color="red"
-            onClick={doRevokeAll}
+            onClick={() => setRevokeAllOpen(true)}
             loading={revokeAll.isPending}
-            data-testid="trusted-devices-revoke-all"
+            data-testid="trusted-device-revoke-all"
           >
             {t.mfa.trustedDevices.revokeAll}
           </Button>
@@ -116,6 +119,16 @@ export function TrustedDevicesSection() {
         body={t.mfa.trustedDevices.confirmBody}
         confirmLabel={t.mfa.trustedDevices.revoke}
         loading={revoke.isPending}
+      />
+
+      <ConfirmModal
+        opened={revokeAllOpen}
+        onClose={() => setRevokeAllOpen(false)}
+        onConfirm={doRevokeAll}
+        title={t.mfa.trustedDevices.revokeAllConfirmTitle}
+        body={t.mfa.trustedDevices.revokeAllConfirmBody}
+        confirmLabel={t.mfa.trustedDevices.revokeAll}
+        loading={revokeAll.isPending}
       />
     </Stack>
   );

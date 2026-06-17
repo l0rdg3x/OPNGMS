@@ -547,6 +547,10 @@ export const en = {
       notConfigured: "Passkeys are not configured for your organization.",
       notSupported: "This browser does not support passkeys.",
     },
+    trustedDeviceToggle: {
+      label: "Remember-this-device",
+      help: "Let users skip the second factor on devices they choose to trust.",
+    },
     trustedDevices: {
       title: "Trusted devices",
       intro: "Devices you've trusted can sign in without a second factor until they expire. Revoke any you no longer recognize.",
@@ -558,6 +562,8 @@ export const en = {
       revokeAll: "Revoke all",
       confirmTitle: "Revoke this device?",
       confirmBody: "This device will need a second factor again at the next sign-in.",
+      revokeAllConfirmTitle: "Revoke all trusted devices?",
+      revokeAllConfirmBody: "Every trusted device will need a second factor again at the next sign-in.",
       empty: "No trusted devices.",
       loadError: "Failed to load trusted devices.",
       revokeError: "Could not revoke the device.",

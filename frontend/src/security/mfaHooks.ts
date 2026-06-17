@@ -192,6 +192,30 @@ export function useUsers() {
   });
 }
 
+/** Org-wide trusted-device feature flag (superadmin). */
+export function useTrustedDeviceToggle() {
+  return useQuery({
+    queryKey: ["trusted-device-toggle"],
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await api.GET("/api/admin/trusted-device-enabled");
+      if (error || !data) throw new Error("Failed to load setting");
+      return data.enabled;
+    },
+  });
+}
+
+export function useSetTrustedDeviceToggle() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean): Promise<boolean> => {
+      const { data, error } = await api.PUT("/api/admin/trusted-device-enabled", { body: { enabled } });
+      if (error || !data) throw new Error("Failed to update setting");
+      return data.enabled;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["trusted-device-toggle"] }),
+  });
+}
+
 /** Admin-reset a user's MFA (superadmin). */
 export function useResetUserMfa() {
   const qc = useQueryClient();

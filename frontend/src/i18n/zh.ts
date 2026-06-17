@@ -546,6 +546,10 @@ export const zh: Dict = {
       notConfigured: "您的组织尚未配置通行密钥。",
       notSupported: "此浏览器不支持通行密钥。",
     },
+    trustedDeviceToggle: {
+      label: "记住此设备",
+      help: "允许用户在其选择信任的设备上跳过第二因素。",
+    },
     trustedDevices: {
       title: "受信任的设备",
       intro: "受信任的设备可以在到期前无需第二因素登录。撤销您不认识的设备。",
@@ -557,6 +561,8 @@ export const zh: Dict = {
       revokeAll: "全部撤销",
       confirmTitle: "撤销此设备？",
       confirmBody: "此设备下次登录时将需要第二因素。",
+      revokeAllConfirmTitle: "撤销所有受信任的设备？",
+      revokeAllConfirmBody: "所有受信任的设备在下次登录时都将需要第二因素。",
       empty: "没有受信任的设备。",
       loadError: "无法加载受信任的设备。",
       revokeError: "无法撤销该设备。",

@@ -547,6 +547,10 @@ export const it: Dict = {
       notConfigured: "Le passkey non sono configurate per la tua organizzazione.",
       notSupported: "Questo browser non supporta le passkey.",
     },
+    trustedDeviceToggle: {
+      label: "Ricorda questo dispositivo",
+      help: "Consenti agli utenti di saltare il secondo fattore sui dispositivi che scelgono di considerare attendibili.",
+    },
     trustedDevices: {
       title: "Dispositivi attendibili",
       intro: "I dispositivi che hai contrassegnato come attendibili possono accedere senza un secondo fattore fino alla scadenza. Revoca quelli che non riconosci.",
@@ -558,6 +562,8 @@ export const it: Dict = {
       revokeAll: "Revoca tutti",
       confirmTitle: "Revocare questo dispositivo?",
       confirmBody: "Questo dispositivo dovrà eseguire un secondo fattore al prossimo accesso.",
+      revokeAllConfirmTitle: "Revocare tutti i dispositivi attendibili?",
+      revokeAllConfirmBody: "Tutti i dispositivi attendibili dovranno eseguire un secondo fattore al prossimo accesso.",
       empty: "Nessun dispositivo attendibile.",
       loadError: "Impossibile caricare i dispositivi attendibili.",
       revokeError: "Impossibile revocare il dispositivo.",

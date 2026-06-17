@@ -548,6 +548,10 @@ export const de: Dict = {
       notConfigured: "Passkeys sind für Ihre Organisation nicht konfiguriert.",
       notSupported: "Dieser Browser unterstützt keine Passkeys.",
     },
+    trustedDeviceToggle: {
+      label: "Dieses Gerät merken",
+      help: "Ermöglicht Benutzern, den zweiten Faktor auf Geräten zu überspringen, denen sie vertrauen.",
+    },
     trustedDevices: {
       title: "Vertrauenswürdige Geräte",
       intro: "Vertrauenswürdige Geräte können sich bis zum Ablauf ohne zweiten Faktor anmelden. Widerrufen Sie Geräte, die Sie nicht erkennen.",
@@ -559,6 +563,8 @@ export const de: Dict = {
       revokeAll: "Alle widerrufen",
       confirmTitle: "Dieses Gerät widerrufen?",
       confirmBody: "Dieses Gerät benötigt beim nächsten Anmelden wieder einen zweiten Faktor.",
+      revokeAllConfirmTitle: "Alle vertrauenswürdigen Geräte widerrufen?",
+      revokeAllConfirmBody: "Alle vertrauenswürdigen Geräte benötigen beim nächsten Anmelden wieder einen zweiten Faktor.",
       empty: "Keine vertrauenswürdigen Geräte.",
       loadError: "Vertrauenswürdige Geräte konnten nicht geladen werden.",
       revokeError: "Das Gerät konnte nicht widerrufen werden.",

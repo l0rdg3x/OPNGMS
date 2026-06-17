@@ -548,6 +548,10 @@ export const pt: Dict = {
       notConfigured: "As passkeys não estão configuradas para a sua organização.",
       notSupported: "Este navegador não suporta passkeys.",
     },
+    trustedDeviceToggle: {
+      label: "Lembrar este dispositivo",
+      help: "Permite que os utilizadores ignorem o segundo fator nos dispositivos em que escolhem confiar.",
+    },
     trustedDevices: {
       title: "Dispositivos confiáveis",
       intro: "Os dispositivos confiáveis podem fazer login sem um segundo fator até expirarem. Revogue os que você não reconhecer.",
@@ -559,6 +563,8 @@ export const pt: Dict = {
       revokeAll: "Revogar todos",
       confirmTitle: "Revogar este dispositivo?",
       confirmBody: "Este dispositivo precisará de um segundo fator no próximo login.",
+      revokeAllConfirmTitle: "Revogar todos os dispositivos confiáveis?",
+      revokeAllConfirmBody: "Todos os dispositivos confiáveis precisarão de um segundo fator no próximo login.",
       empty: "Nenhum dispositivo confiável.",
       loadError: "Falha ao carregar os dispositivos confiáveis.",
       revokeError: "Não foi possível revogar o dispositivo.",

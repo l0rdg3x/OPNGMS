@@ -548,6 +548,10 @@ export const es: Dict = {
       notConfigured: "Las passkeys no están configuradas para tu organización.",
       notSupported: "Este navegador no admite passkeys.",
     },
+    trustedDeviceToggle: {
+      label: "Recordar este dispositivo",
+      help: "Permite a los usuarios omitir el segundo factor en los dispositivos que elijan de confianza.",
+    },
     trustedDevices: {
       title: "Dispositivos de confianza",
       intro: "Los dispositivos de confianza pueden iniciar sesión sin un segundo factor hasta que expiren. Revoca los que ya no reconozcas.",
@@ -559,6 +563,8 @@ export const es: Dict = {
       revokeAll: "Revocar todos",
       confirmTitle: "¿Revocar este dispositivo?",
       confirmBody: "Este dispositivo necesitará un segundo factor en el próximo inicio de sesión.",
+      revokeAllConfirmTitle: "¿Revocar todos los dispositivos de confianza?",
+      revokeAllConfirmBody: "Todos los dispositivos de confianza necesitarán un segundo factor en el próximo inicio de sesión.",
       empty: "Sin dispositivos de confianza.",
       loadError: "No se pudieron cargar los dispositivos de confianza.",
       revokeError: "No se pudo revocar el dispositivo.",

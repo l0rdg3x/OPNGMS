@@ -548,6 +548,10 @@ export const fr: Dict = {
       notConfigured: "Les passkeys ne sont pas configurées pour votre organisation.",
       notSupported: "Ce navigateur ne prend pas en charge les passkeys.",
     },
+    trustedDeviceToggle: {
+      label: "Mémoriser cet appareil",
+      help: "Permet aux utilisateurs de sauter le second facteur sur les appareils qu'ils choisissent de faire confiance.",
+    },
     trustedDevices: {
       title: "Appareils de confiance",
       intro: "Les appareils de confiance peuvent se connecter sans second facteur jusqu'à leur expiration. Révoquez ceux que vous ne reconnaissez pas.",
@@ -559,6 +563,8 @@ export const fr: Dict = {
       revokeAll: "Tout révoquer",
       confirmTitle: "Révoquer cet appareil ?",
       confirmBody: "Cet appareil devra utiliser un second facteur lors de la prochaine connexion.",
+      revokeAllConfirmTitle: "Révoquer tous les appareils de confiance ?",
+      revokeAllConfirmBody: "Tous les appareils de confiance devront utiliser un second facteur lors de la prochaine connexion.",
       empty: "Aucun appareil de confiance.",
       loadError: "Impossible de charger les appareils de confiance.",
       revokeError: "Impossible de révoquer l'appareil.",

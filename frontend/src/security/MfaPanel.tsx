@@ -8,6 +8,7 @@ import {
   PasswordInput,
   SegmentedControl,
   Stack,
+  Switch,
   Table,
   Text,
   TextInput,
@@ -31,6 +32,8 @@ import {
   useRemovePasskey,
   useResetUserMfa,
   useSetMfaPolicy,
+  useSetTrustedDeviceToggle,
+  useTrustedDeviceToggle,
   useUsers,
   useWebAuthnCredentials,
   type UserOut,
@@ -269,6 +272,24 @@ function PasskeysSection() {
   );
 }
 
+// ── Superadmin: trusted-device org toggle ────────────────────────────────────
+function TrustedDeviceToggleControl() {
+  const t = useT();
+  const toggleQuery = useTrustedDeviceToggle();
+  const setToggle = useSetTrustedDeviceToggle();
+
+  return (
+    <Switch
+      data-testid="trusted-device-toggle"
+      label={t.mfa.trustedDeviceToggle.label}
+      description={t.mfa.trustedDeviceToggle.help}
+      checked={toggleQuery.data ?? false}
+      disabled={toggleQuery.isLoading || setToggle.isPending}
+      onChange={(e) => setToggle.mutate(e.currentTarget.checked)}
+    />
+  );
+}
+
 // ── Superadmin: org policy + per-user reset ──────────────────────────────────
 function MfaPolicyControl() {
   const t = useT();
@@ -443,6 +464,8 @@ export function MfaPanel() {
         <Card withBorder padding="lg" radius="md">
           <Stack gap="lg">
             <MfaPolicyControl />
+            <Divider />
+            <TrustedDeviceToggleControl />
             <Divider />
             <MfaUsersTable />
           </Stack>

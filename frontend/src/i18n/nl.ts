@@ -548,6 +548,10 @@ export const nl: Dict = {
       notConfigured: "Passkeys zijn niet geconfigureerd voor je organisatie.",
       notSupported: "Deze browser ondersteunt geen passkeys.",
     },
+    trustedDeviceToggle: {
+      label: "Dit apparaat onthouden",
+      help: "Laat gebruikers de tweede factor overslaan op apparaten die ze kiezen te vertrouwen.",
+    },
     trustedDevices: {
       title: "Vertrouwde apparaten",
       intro: "Vertrouwde apparaten kunnen inloggen zonder tweede factor totdat ze verlopen. Trek de apparaten in die je niet herkent.",
@@ -559,6 +563,8 @@ export const nl: Dict = {
       revokeAll: "Alles intrekken",
       confirmTitle: "Dit apparaat intrekken?",
       confirmBody: "Dit apparaat heeft bij de volgende aanmelding opnieuw een tweede factor nodig.",
+      revokeAllConfirmTitle: "Alle vertrouwde apparaten intrekken?",
+      revokeAllConfirmBody: "Alle vertrouwde apparaten hebben bij de volgende aanmelding opnieuw een tweede factor nodig.",
       empty: "Geen vertrouwde apparaten.",
       loadError: "Kan vertrouwde apparaten niet laden.",
       revokeError: "Kan het apparaat niet intrekken.",

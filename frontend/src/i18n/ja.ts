@@ -547,6 +547,10 @@ export const ja: Dict = {
       notConfigured: "お使いの組織ではパスキーが構成されていません。",
       notSupported: "このブラウザはパスキーに対応していません。",
     },
+    trustedDeviceToggle: {
+      label: "このデバイスを記憶する",
+      help: "ユーザーが信頼を選んだデバイスで第2因子をスキップできるようにします。",
+    },
     trustedDevices: {
       title: "信頼済みデバイス",
       intro: "信頼済みデバイスは有効期限が切れるまで第2因子なしでサインインできます。心当たりのないデバイスは無効化してください。",
@@ -558,6 +562,8 @@ export const ja: Dict = {
       revokeAll: "すべて無効化",
       confirmTitle: "このデバイスを無効化しますか？",
       confirmBody: "このデバイスは次回サインイン時に再び第2因子が必要になります。",
+      revokeAllConfirmTitle: "すべての信頼済みデバイスを無効化しますか？",
+      revokeAllConfirmBody: "すべての信頼済みデバイスは次回サインイン時に再び第2因子が必要になります。",
       empty: "信頼済みデバイスはありません。",
       loadError: "信頼済みデバイスを読み込めませんでした。",
       revokeError: "デバイスを無効化できませんでした。",
