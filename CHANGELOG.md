@@ -12,6 +12,26 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-06-17
+### Added
+- **Remember-this-device (trusted devices).** After clearing a second factor (TOTP or WebAuthn), users
+  can tick **"Trust this device for N days"** at the login MFA step; subsequent logins from that device
+  still require the **password** but **skip the second factor** until the trust expires. Trust is
+  server-side and revocable: a new `trusted_device` table stores only an `HMAC-SHA256(SESSION_SECRET)`
+  hash of a token that lives in an `HttpOnly`+`Secure`+`SameSite=Lax` cookie (a DB dump yields no usable
+  tokens; rotating `SESSION_SECRET` invalidates every trusted device).
+  - **Manage** your trusted devices under **Two-factor auth** — list (device, IP, last used, expires),
+    revoke one, or revoke all (with confirmation).
+  - **Auto-revoke:** disabling your own MFA, an admin MFA reset, or **log out everywhere** drops all of a
+    user's trusted devices (a plain logout intentionally keeps the trust so the feature survives it).
+  - **Org controls (superadmin):** a **Remember-this-device** on/off toggle (env default
+    `TRUSTED_DEVICE_ENABLED=true`) and a runtime-tunable **trusted device lifetime** (`trusted_device_days`,
+    default 30, range 1–365) under **System → Runtime settings**.
+  - **Safety rails:** the password is always required; trust is bound to one user (a cookie for user A can
+    never skip MFA for user B); a trusted cookie can never bypass **mandatory** MFA enrollment; expired or
+    revoked cookies fail closed; a sweeper purges expired rows. Every action is audited
+    (`auth.login.trusted_device`, `auth.trusted_device.create` / `revoke` / `revoke_all` / `policy_change`).
+
 ## [0.20.0] - 2026-06-16
 ### Added
 - **WebAuthn / passkeys as a second login factor.** Alongside TOTP, users can now register **passkeys** —

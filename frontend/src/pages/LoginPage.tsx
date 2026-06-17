@@ -1,4 +1,4 @@
-import { Anchor, Box, Button, Center, Divider, Paper, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Box, Button, Center, Checkbox, Divider, Paper, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -39,6 +39,8 @@ export function LoginPage() {
   // Which second factors the account offers; drives the TOTP field / passkey button.
   const [methods, setMethods] = useState<string[]>([]);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [remember, setRemember] = useState<{ enabled: boolean; days: number } | null>(null);
   const form = useForm({ initialValues: { email: "", password: "" } });
   const mfaForm = useForm({ initialValues: { code: "" } });
 
@@ -59,6 +61,7 @@ export function LoginPage() {
     const out = data as LoginOut;
     if (out.status === "mfa_required") {
       setMethods(out.methods ?? []);
+      setRemember(out.remember_device ?? null);
       setStep("mfa");
       return;
     }
@@ -68,7 +71,7 @@ export function LoginPage() {
 
   async function submitMfa(values: { code: string }) {
     setError(null);
-    const { data, response } = await api.POST("/api/login/mfa", { body: { code: values.code } });
+    const { data, response } = await api.POST("/api/login/mfa", { body: { code: values.code, remember_device: remember?.enabled ? rememberDevice : false } });
     if (!response.ok || !data) {
       setError(t.login.mfa.invalidCode);
       return;
@@ -95,7 +98,7 @@ export function LoginPage() {
         return;
       }
       const credential = await getAssertion(begin.data as Record<string, unknown>);
-      const complete = await api.POST("/api/login/webauthn/complete", { body: { credential } });
+      const complete = await api.POST("/api/login/webauthn/complete", { body: { credential, remember_device: remember?.enabled ? rememberDevice : false } });
       const out = complete.data as LoginOut | undefined;
       if (complete.response.ok && out?.status === "ok" && out.user) {
         setMe(out.user as Me);
@@ -206,6 +209,17 @@ export function LoginPage() {
                     {t.login.mfa.usePasskey}
                   </Button>
                 </Stack>
+              )}
+
+              {remember?.enabled && (
+                <Checkbox
+                  mt="sm"
+                  data-testid="mfa-remember-device"
+                  label={t.login.mfa.rememberDevice.replace("{days}", String(remember.days))}
+                  description={t.login.mfa.rememberDeviceHelp}
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.currentTarget.checked)}
+                />
               )}
 
               {error && (

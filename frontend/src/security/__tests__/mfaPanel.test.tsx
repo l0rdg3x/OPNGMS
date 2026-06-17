@@ -193,6 +193,7 @@ describe("MfaPanel — superadmin section", () => {
         policyBody = await request.json();
         return HttpResponse.json({ mode: (policyBody as { mode: string }).mode });
       }),
+      http.get(TRUSTED_DEVICE_TOGGLE_URL, () => HttpResponse.json({ enabled: false })),
       http.get(USERS_URL, () =>
         HttpResponse.json([
           { id: "u1", email: "u@x.io", name: "User", is_superadmin: true, status: "active" },
@@ -218,6 +219,35 @@ describe("MfaPanel — superadmin section", () => {
     await userEvent.click(await screen.findByTestId("confirm-ok"));
 
     await waitFor(() => expect(resetCalled).toHaveBeenCalled());
+  });
+
+  it("superadmin sees the trusted-device toggle (enabled) and can turn it off", async () => {
+    let putBody: unknown = null;
+    server.use(
+      http.get(STATUS_URL, () =>
+        HttpResponse.json({ enabled: false, recovery_codes_remaining: 0 }),
+      ),
+      http.get(POLICY_URL, () => HttpResponse.json({ mode: "off" })),
+      http.put(POLICY_URL, async ({ request }) => HttpResponse.json({ mode: (await request.json() as { mode: string }).mode })),
+      http.get(USERS_URL, () => HttpResponse.json([])),
+      http.get(TRUSTED_DEVICE_TOGGLE_URL, () => HttpResponse.json({ enabled: true })),
+      http.put(TRUSTED_DEVICE_TOGGLE_URL, async ({ request }) => {
+        putBody = await request.json();
+        return HttpResponse.json({ enabled: (putBody as { enabled: boolean }).enabled });
+      }),
+    );
+
+    renderWithProviders(withAuth(<MfaPanel />, true));
+
+    // Switch should be checked (enabled=true) — wait for the query to settle
+    const toggle = await screen.findByTestId("trusted-device-toggle");
+    await waitFor(() => expect(toggle).toBeChecked());
+    await waitFor(() => expect(toggle).not.toBeDisabled());
+
+    // Click it to turn off
+    await userEvent.click(toggle);
+
+    await waitFor(() => expect(putBody).toEqual({ enabled: false }));
   });
 });
 
@@ -335,5 +365,125 @@ describe("MfaPanel — passkeys (WebAuthn)", () => {
     await userEvent.click(await screen.findByTestId("confirm-ok"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/last second factor/i);
+  });
+});
+
+const TRUSTED_DEVICE_TOGGLE_URL = "/api/admin/trusted-device-enabled";
+const TRUSTED_DEVICES_URL = "/api/me/trusted-devices";
+
+describe("MfaPanel — trusted devices", () => {
+  it("shows trusted devices section when enabled", async () => {
+    let listCalls = 0;
+    server.use(
+      http.get(STATUS_URL, () =>
+        HttpResponse.json({
+          enabled: true,
+          recovery_codes_remaining: 3,
+          trusted_devices: { enabled: true },
+        }),
+      ),
+      http.get(TRUSTED_DEVICES_URL, () => {
+        listCalls += 1;
+        // empty after the invalidation re-fetch that follows revoke
+        return HttpResponse.json(
+          listCalls > 1
+            ? []
+            : [
+                {
+                  id: "d1",
+                  user_agent: "Chrome on Linux",
+                  ip: "1.2.3.4",
+                  created_at: "2026-01-01T00:00:00Z",
+                  last_used_at: "2026-01-10T12:00:00Z",
+                  expires_at: "2026-02-01T00:00:00Z",
+                },
+              ],
+        );
+      }),
+      http.delete(`${TRUSTED_DEVICES_URL}/d1`, () => new HttpResponse(null, { status: 204 })),
+    );
+
+    renderWithProviders(withAuth(<MfaPanel />));
+
+    // Section title is visible
+    expect(await screen.findByText("Trusted devices")).toBeInTheDocument();
+
+    // Device row contains user agent and IP
+    expect(await screen.findByText("Chrome on Linux")).toBeInTheDocument();
+    expect(await screen.findByText("1.2.3.4")).toBeInTheDocument();
+
+    // Click revoke button for d1
+    await userEvent.click(screen.getByTestId("trusted-device-revoke-d1"));
+
+    // Confirm in the modal
+    await userEvent.click(await screen.findByTestId("confirm-ok"));
+
+    // After revoke the empty state appears
+    expect(await screen.findByText("No trusted devices.")).toBeInTheDocument();
+  });
+
+  it("revoke-all requires confirmation before calling DELETE (all)", async () => {
+    const revokeAllCalled = vi.fn();
+    server.use(
+      http.get(STATUS_URL, () =>
+        HttpResponse.json({
+          enabled: true,
+          recovery_codes_remaining: 3,
+          trusted_devices: { enabled: true },
+        }),
+      ),
+      http.get(TRUSTED_DEVICES_URL, () =>
+        HttpResponse.json([
+          {
+            id: "d2",
+            user_agent: "Firefox on Mac",
+            ip: "5.6.7.8",
+            created_at: "2026-01-01T00:00:00Z",
+            last_used_at: "2026-01-10T12:00:00Z",
+            expires_at: "2026-02-01T00:00:00Z",
+          },
+        ]),
+      ),
+      http.delete(TRUSTED_DEVICES_URL, () => {
+        revokeAllCalled();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderWithProviders(withAuth(<MfaPanel />));
+
+    // Wait for the device to appear
+    await screen.findByText("Firefox on Mac");
+
+    // Click "Revoke all" — should NOT fire immediately
+    await userEvent.click(screen.getByTestId("trusted-device-revoke-all"));
+
+    // The DELETE must NOT have been called yet
+    expect(revokeAllCalled).not.toHaveBeenCalled();
+
+    // Confirm in the modal
+    await userEvent.click(await screen.findByTestId("confirm-ok"));
+
+    await waitFor(() => expect(revokeAllCalled).toHaveBeenCalled());
+  });
+
+  it("hides trusted devices section when disabled", async () => {
+    server.use(
+      http.get(STATUS_URL, () =>
+        HttpResponse.json({
+          enabled: true,
+          recovery_codes_remaining: 3,
+          trusted_devices: { enabled: false },
+        }),
+      ),
+    );
+
+    renderWithProviders(withAuth(<MfaPanel />));
+
+    // Wait for MFA status to load (badge appears)
+    await screen.findByTestId("mfa-status-badge");
+
+    // Trusted devices section title must NOT be in the DOM
+    expect(screen.queryByText("Trusted devices")).not.toBeInTheDocument();
   });
 });

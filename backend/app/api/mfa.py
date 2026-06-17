@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import crypto
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.deps import enforce_csrf, get_current_user, get_enrollment_ctx, require_org
 from app.core.rbac import Action
@@ -23,13 +24,22 @@ from app.schemas.mfa import (
     PasswordIn,
     RecoveryOut,
     SetupOut,
+    TrustedDeviceFeature,
+    TrustedDeviceToggleIn,
+    TrustedDeviceToggleOut,
     WebAuthnCredentialOut,
     WebAuthnRegisterCompleteIn,
     WebAuthnStatus,
 )
 from app.services import mfa as mfa_svc
 from app.services import webauthn as wa
-from app.services.app_settings import MFA_MODES, get_mfa_policy, set_mfa_policy
+from app.services.app_settings import (
+    MFA_MODES,
+    get_mfa_policy,
+    get_trusted_device_enabled,
+    set_mfa_policy,
+    set_trusted_device_enabled,
+)
 from app.services.audit import AuditService
 from app.services.trusted_device import TrustedDeviceService
 from app.services.webauthn_settings import get_webauthn_config
@@ -88,10 +98,14 @@ async def mfa_status(
             .where(WebAuthnCredential.user_id == user.id)
         )
     ).scalar() or 0
+    td_enabled = await get_trusted_device_enabled(
+        session, env_default=get_settings().trusted_device_enabled
+    )
     return MfaStatusOut(
         enabled=bool(row and row.enabled),
         recovery_codes_remaining=int(remaining),
         webauthn=WebAuthnStatus(configured=cfg.is_configured(), credentials=int(cred_count)),
+        trusted_devices=TrustedDeviceFeature(enabled=td_enabled),
     )
 
 
@@ -410,3 +424,37 @@ async def mfa_admin_reset(
         target_type="user", target_id=str(user_id), ip=None, details={},
     )
     await session.commit()
+
+
+# --- Superadmin: trusted-device feature toggle ---
+
+
+@router.get("/admin/trusted-device-enabled", response_model=TrustedDeviceToggleOut)
+async def trusted_device_toggle_get(
+    user: User = Depends(require_org(Action.USER_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> TrustedDeviceToggleOut:
+    enabled = await get_trusted_device_enabled(
+        session, env_default=get_settings().trusted_device_enabled
+    )
+    return TrustedDeviceToggleOut(enabled=enabled)
+
+
+@router.put(
+    "/admin/trusted-device-enabled",
+    response_model=TrustedDeviceToggleOut,
+    dependencies=[Depends(enforce_csrf)],
+)
+async def trusted_device_toggle_set(
+    body: TrustedDeviceToggleIn,
+    user: User = Depends(require_org(Action.USER_MANAGE)),
+    session: AsyncSession = Depends(get_session),
+) -> TrustedDeviceToggleOut:
+    await set_trusted_device_enabled(session, body.enabled)
+    await AuditService(session).record(
+        actor_user_id=user.id, tenant_id=None, action="auth.trusted_device.policy_change",
+        target_type="app_settings", target_id="trusted_device_enabled", ip=None,
+        details={"enabled": body.enabled},
+    )
+    await session.commit()
+    return TrustedDeviceToggleOut(enabled=body.enabled)

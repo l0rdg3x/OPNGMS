@@ -687,6 +687,139 @@
         }
       }
     },
+    "/api/admin/trusted-device-enabled": {
+      "get": {
+        "tags": [
+          "mfa"
+        ],
+        "summary": "Trusted Device Toggle Get",
+        "operationId": "trusted_device_toggle_get_api_admin_trusted_device_enabled_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustedDeviceToggleOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "mfa"
+        ],
+        "summary": "Trusted Device Toggle Set",
+        "operationId": "trusted_device_toggle_set_api_admin_trusted_device_enabled_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustedDeviceToggleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustedDeviceToggleOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/trusted-devices": {
+      "get": {
+        "tags": [
+          "trusted-devices"
+        ],
+        "summary": "List Trusted Devices",
+        "operationId": "list_trusted_devices_api_me_trusted_devices_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrustedDeviceOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Trusted Devices Api Me Trusted Devices Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "trusted-devices"
+        ],
+        "summary": "Revoke All Trusted Devices",
+        "operationId": "revoke_all_trusted_devices_api_me_trusted_devices_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/me/trusted-devices/{device_id}": {
+      "delete": {
+        "tags": [
+          "trusted-devices"
+        ],
+        "summary": "Revoke Trusted Device",
+        "operationId": "revoke_trusted_device_api_me_trusted_devices__device_id__delete",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants": {
       "get": {
         "tags": [
@@ -6866,6 +6999,11 @@
             "type": "string",
             "maxLength": 128,
             "title": "Code"
+          },
+          "remember_device": {
+            "type": "boolean",
+            "title": "Remember Device",
+            "default": false
           }
         },
         "type": "object",
@@ -8505,6 +8643,16 @@
               }
             ],
             "title": "Methods"
+          },
+          "remember_device": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RememberDeviceInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -8694,13 +8842,17 @@
           },
           "webauthn": {
             "$ref": "#/components/schemas/WebAuthnStatus"
+          },
+          "trusted_devices": {
+            "$ref": "#/components/schemas/TrustedDeviceFeature"
           }
         },
         "type": "object",
         "required": [
           "enabled",
           "recovery_codes_remaining",
-          "webauthn"
+          "webauthn",
+          "trusted_devices"
         ],
         "title": "MfaStatusOut"
       },
@@ -9053,6 +9205,24 @@
           "recovery_codes"
         ],
         "title": "RecoveryOut"
+      },
+      "RememberDeviceInfo": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "days"
+        ],
+        "title": "RememberDeviceInfo"
       },
       "ReportLanguageOut": {
         "properties": {
@@ -10498,6 +10668,99 @@
         ],
         "title": "TestResultOut"
       },
+      "TrustedDeviceFeature": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "TrustedDeviceFeature"
+      },
+      "TrustedDeviceOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Used At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "last_used_at",
+          "expires_at"
+        ],
+        "title": "TrustedDeviceOut"
+      },
+      "TrustedDeviceToggleIn": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "TrustedDeviceToggleIn"
+      },
+      "TrustedDeviceToggleOut": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "TrustedDeviceToggleOut"
+      },
       "UserCreateIn": {
         "properties": {
           "email": {
@@ -10696,6 +10959,11 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Credential"
+          },
+          "remember_device": {
+            "type": "boolean",
+            "title": "Remember Device",
+            "default": false
           }
         },
         "type": "object",
