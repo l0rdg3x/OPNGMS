@@ -27,7 +27,7 @@ dependencies = [
     "weasyprint>=62",
     "python-multipart>=0.0.9",
     "maxminddb>=2.6",
-    "babel>=2.14",
+    "babel>=2.18.0",
     "webauthn>=2.0",
 ]
 
