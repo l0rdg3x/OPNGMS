@@ -12,6 +12,24 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-06-19
+### Security
+- **Dependency security updates.** Two dependencies bumped for published CVE fixes:
+  - **Jinja2 → 3.1.6** (GHSA-cpwx-vrp4-4pq7 — the `|attr` filter no longer bypasses the sandbox's
+    attribute-lookup checks).
+  - **undici → 7.28.0** (frontend dev/transitive) — closes 7 advisories, including two High-severity
+    ones: a WebSocket DoS via unbounded message fragments (CVE-2026-12151) and a SOCKS5 ProxyAgent TLS
+    certificate-validation bypass (CVE-2026-9697).
+
+### Changed
+- **Routine dependency bumps** (no behaviour change; all CI-verified, and the major bumps API-checked
+  against our usage):
+  - Backend: **aiosmtplib 4 → 5.1.1** (API-compatible; XOAUTH2 is now first-class upstream), **Babel →
+    2.18**, and dev tooling **pytest → 9.1** / **ruff → 0.15.17**.
+  - CI image build: **docker/build-push-action 6 → 7**, **metadata-action 5 → 6**, **setup-buildx-action
+    3 → 4**, **setup-qemu-action 3 → 4** (Node 24 action runtimes; the inputs we pass are unchanged).
+  - Frontend: the grouped `frontend-minor` bump (11 minor/patch updates).
+
 ## [0.22.0] - 2026-06-17
 ### Added
 - **SMTP OAuth "Connect" button (experimental).** The OAuth2 SMTP relay (Gmail / Microsoft 365) gains a
