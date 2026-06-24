@@ -39,7 +39,7 @@ jobs:
       MINIMUM: ${{ github.event.inputs.minimum || '25' }}
       FORCE_ALL: ${{ github.event.inputs.force_all || 'false' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:

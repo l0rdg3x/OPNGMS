@@ -38,7 +38,7 @@ jobs:
             context: frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # QEMU lets the amd64 runner cross-build the arm64 image (multi-arch manifest).
       - name: Set up QEMU
