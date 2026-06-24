@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # fetch tags so gh can read the annotated tag's message (fallback)
 

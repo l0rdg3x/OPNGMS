@@ -28,7 +28,7 @@ jobs:
             context: frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build image
         run: docker build -t "opngms-${{ matrix.name }}:scan" "${{ matrix.context }}"
