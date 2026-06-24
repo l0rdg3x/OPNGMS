@@ -12,6 +12,20 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-06-24
+### Changed
+- **Routine dependency maintenance** (no behaviour change; all CI-verified, and the two major bumps
+  API-checked against our usage). No new CVE fixes this round — the security scans (CodeQL, gitleaks,
+  Trivy, and the `pip-audit` + `npm audit` dependency audit) are clean.
+  - Backend: **FastAPI → 0.138** (minor; the httpx / starlette upper-bound caps are still satisfied),
+    **maxminddb 2 → 3.1.1** (major — the production GeoIP reader path `Reader(BytesIO, mode=MODE_FD)` +
+    `.get()` was verified against 3.1.1, on top of the existing real-mmdb reader tests), and dev tooling
+    **respx → 0.23.1**, **pyotp → 2.10**, **ruff → 0.15.19**.
+  - CI: **actions/checkout 6 → 7** (the v7 fork-PR hardening only affects `pull_request_target` /
+    `workflow_run`, neither of which this repo's workflows use).
+  - Frontend: the grouped `frontend-minor` bump (12 minor/patch updates — Mantine 9.3.2 → 9.4.0,
+    Recharts 3.8 → 3.9, Vite 8.0 → 8.1, plus TanStack Query, typescript-eslint, and friends).
+
 ## [0.22.1] - 2026-06-19
 ### Security
 - **Dependency security updates.** Two dependencies bumped for published CVE fixes:
