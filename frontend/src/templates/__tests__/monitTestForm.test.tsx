@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { server } from "../../test/server";
 import { I18nProvider } from "../../i18n";
 import { TenantContext } from "../../tenant/TenantProvider";

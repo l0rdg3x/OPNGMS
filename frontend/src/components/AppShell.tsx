@@ -1,7 +1,7 @@
 import { AppShell as MantineAppShell, Box, Button, Group, Loader, NavLink, Stack, Text } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, type ReactNode } from "react";
-import { Navigate, NavLink as RouterNavLink, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, NavLink as RouterNavLink, Route, Routes, useNavigate } from "react-router";
 import { api } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { usePermissions } from "../auth/usePermissions";

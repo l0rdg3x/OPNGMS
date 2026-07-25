@@ -1,5 +1,5 @@
 import { Alert, Badge, Loader, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { useT } from "../i18n";
 import { useAlerts, useTenantHealth } from "../monitoring/hooks";
 import { HealthSummaryCards, type FleetHealth } from "../monitoring/HealthSummaryCards";

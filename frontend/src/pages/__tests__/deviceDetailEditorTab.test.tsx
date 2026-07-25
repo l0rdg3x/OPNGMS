@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router";
 import { server } from "../../test/server";
 import { TenantContext } from "../../tenant/TenantProvider";
 import { renderWithProviders } from "../../test/utils";

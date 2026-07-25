@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate } from "react-router";
 import { MfaSetupGate } from "../security/MfaSetupGate";
 import { useAuth } from "./useAuth";
 
