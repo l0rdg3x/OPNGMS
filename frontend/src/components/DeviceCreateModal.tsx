@@ -23,7 +23,9 @@ export function DeviceCreateModal({ tenantId, opened, onClose }: Props) {
   const mutation = useMutation({
     mutationFn: async (values: typeof form.values) => {
       const { tls_fingerprint, ...rest } = values;
-      const fingerprint = tls_fingerprint.trim();
+      // The connector only consults a pin while verification is off, so a fingerprint left over from
+      // toggling the switch must not be stored: it would read back as pinned while lying dormant.
+      const fingerprint = rest.verify_tls ? "" : tls_fingerprint.trim();
       const body = fingerprint ? { ...rest, tls_fingerprint: fingerprint } : rest;
       const { data, error } = await api.POST("/api/tenants/{tenant_id}/devices", {
         params: { path: { tenant_id: tenantId } },

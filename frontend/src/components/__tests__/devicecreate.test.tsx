@@ -68,6 +68,20 @@ describe("DeviceCreateModal", () => {
     expect(getPosted()?.tls_fingerprint).toBe("AA:BB:CC");
   });
 
+  it("omits a typed fingerprint when verification is switched back on", async () => {
+    const onClose = vi.fn();
+    const getPosted = mockCreate();
+    renderWithProviders(<DeviceCreateModal tenantId="t1" opened onClose={onClose} />);
+    await fillRequiredFields();
+    await userEvent.click(screen.getByLabelText(/verify tls/i));
+    await userEvent.type(screen.getByTestId("tls-fingerprint"), "AA:BB:CC");
+    await userEvent.click(screen.getByLabelText(/verify tls/i));
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(getPosted()?.verify_tls).toBe(true);
+    expect(getPosted()).not.toHaveProperty("tls_fingerprint");
+  });
+
   it("omits tls_fingerprint from the request body when left empty", async () => {
     const onClose = vi.fn();
     const getPosted = mockCreate();
