@@ -307,6 +307,12 @@ export const de: Dict = {
     apiKey: "API-Schlüssel",
     apiSecret: "API-Secret",
     verifyTls: "TLS überprüfen",
+    tlsWarning:
+      "Ohne TLS-Prüfung authentifiziert nichts das Zertifikat des Geräts – Anmeldedaten können " +
+      "abgefangen werden. Pinnen Sie unten den SHA-256-Fingerabdruck des Zertifikats, um den " +
+      "Schutz wiederherzustellen.",
+    tlsFingerprintLabel: "SHA-256-Fingerabdruck des Zertifikats (optional)",
+    tlsFingerprintPlaceholder: "00:42:E2:C4:07:61:06:0D:56:A4:75:2F:FC:32:2B:4E:B3:CE:FF:31:8A:88:F3:22:2B:C1:B1:0D:46:0B:04:2C",
     save: "Speichern",
     created: "Gerät erstellt",
     createFailed: "Erstellen fehlgeschlagen",

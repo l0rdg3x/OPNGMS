@@ -307,6 +307,12 @@ export const nl: Dict = {
     apiKey: "API-sleutel",
     apiSecret: "API-geheim",
     verifyTls: "TLS verifiëren",
+    tlsWarning:
+      "Als TLS-verificatie is uitgeschakeld, authenticeert niets het certificaat van het " +
+      "apparaat — inloggegevens kunnen worden onderschept. Pin hieronder de SHA-256-" +
+      "vingerafdruk van het certificaat om de bescherming te herstellen.",
+    tlsFingerprintLabel: "SHA-256-vingerafdruk van certificaat (optioneel)",
+    tlsFingerprintPlaceholder: "00:42:E2:C4:07:61:06:0D:56:A4:75:2F:FC:32:2B:4E:B3:CE:FF:31:8A:88:F3:22:2B:C1:B1:0D:46:0B:04:2C",
     save: "Opslaan",
     created: "Apparaat aangemaakt",
     createFailed: "Aanmaken mislukt",

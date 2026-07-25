@@ -307,6 +307,12 @@ export const pt: Dict = {
     apiKey: "Chave de API",
     apiSecret: "Segredo de API",
     verifyTls: "Verificar TLS",
+    tlsWarning:
+      "Com a verificação TLS desativada, nada autentica o certificado do dispositivo — as " +
+      "credenciais podem ser intercetadas. Fixe a impressão digital SHA-256 do certificado " +
+      "abaixo para restaurar a proteção.",
+    tlsFingerprintLabel: "Impressão digital SHA-256 do certificado (opcional)",
+    tlsFingerprintPlaceholder: "00:42:E2:C4:07:61:06:0D:56:A4:75:2F:FC:32:2B:4E:B3:CE:FF:31:8A:88:F3:22:2B:C1:B1:0D:46:0B:04:2C",
     save: "Guardar",
     created: "Dispositivo criado",
     createFailed: "Falha ao criar",
