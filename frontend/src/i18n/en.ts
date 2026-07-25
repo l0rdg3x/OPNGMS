@@ -305,6 +305,11 @@ export const en = {
     apiKey: "API key",
     apiSecret: "API secret",
     verifyTls: "Verify TLS",
+    tlsWarning:
+      "With TLS verification off, nothing authenticates the device's certificate — credentials " +
+      "can be intercepted. Pin the certificate's SHA-256 fingerprint below to restore protection.",
+    tlsFingerprintLabel: "Certificate SHA-256 fingerprint (optional)",
+    tlsFingerprintPlaceholder: "00:42:E2:C4:07:61:06:0D:56:A4:75:2F:FC:32:2B:4E:B3:CE:FF:31:8A:88:F3:22:2B:C1:B1:0D:46:0B:04:2C",
     save: "Save",
     created: "Device created",
     createFailed: "Create failed",

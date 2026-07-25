@@ -1,5 +1,5 @@
 import { Alert, Anchor, Card, Group, Loader, Stack, Text } from "@mantine/core";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import { useLocale, useT } from "../i18n";
 import { countryLabel } from "./countryLabel";

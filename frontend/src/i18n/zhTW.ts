@@ -305,6 +305,11 @@ export const zhTW: Dict = {
     apiKey: "API 金鑰",
     apiSecret: "API 密鑰",
     verifyTls: "驗證 TLS",
+    tlsWarning:
+      "關閉 TLS 驗證後，將沒有任何機制驗證裝置的憑證——驗證資料可能遭攔截。請在下方釘選憑證的 " +
+      "SHA-256 指紋以恢復保護。",
+    tlsFingerprintLabel: "憑證 SHA-256 指紋（選填）",
+    tlsFingerprintPlaceholder: "00:42:E2:C4:07:61:06:0D:56:A4:75:2F:FC:32:2B:4E:B3:CE:FF:31:8A:88:F3:22:2B:C1:B1:0D:46:0B:04:2C",
     save: "儲存",
     created: "裝置已建立",
     createFailed: "建立失敗",

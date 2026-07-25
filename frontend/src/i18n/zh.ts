@@ -305,6 +305,11 @@ export const zh: Dict = {
     apiKey: "API 密钥",
     apiSecret: "API 密钥口令",
     verifyTls: "验证 TLS",
+    tlsWarning:
+      "关闭 TLS 验证后，将没有任何机制对设备的证书进行身份验证——凭据可能被截获。请在下方固定证" +
+      "书的 SHA-256 指纹以恢复保护。",
+    tlsFingerprintLabel: "证书 SHA-256 指纹（可选）",
+    tlsFingerprintPlaceholder: "00:42:E2:C4:07:61:06:0D:56:A4:75:2F:FC:32:2B:4E:B3:CE:FF:31:8A:88:F3:22:2B:C1:B1:0D:46:0B:04:2C",
     save: "保存",
     created: "设备已创建",
     createFailed: "创建失败",

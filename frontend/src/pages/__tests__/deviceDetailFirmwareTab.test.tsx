@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router";
 import { server } from "../../test/server";
 import { TenantContext } from "../../tenant/TenantProvider";
 import { renderWithProviders } from "../../test/utils";

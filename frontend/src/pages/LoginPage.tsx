@@ -1,7 +1,7 @@
 import { Anchor, Box, Button, Center, Checkbox, Divider, Paper, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { api } from "../api/client";
 import type { components } from "../api/schema";
 import type { Me } from "../auth/AuthProvider";

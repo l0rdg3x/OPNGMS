@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Badge, Group, Loader, SegmentedControl, Stack, Table, Text, Title } from "@mantine/core";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { useT } from "../i18n";
 import { useAlerts } from "../monitoring/hooks";
 

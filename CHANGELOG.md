@@ -12,6 +12,60 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.22.3] - 2026-07-25
+### Security
+- **Four open dependency advisories closed — one of which had already broken the CI security gate.**
+  A full `npm audit` (rather than only the single alert Dependabot had raised) surfaced four HIGH
+  findings in the frontend:
+  - **react-router → 8.3.0** (GHSA-qwww-vcr4-c8h2), a **production** dependency. The CSRF bypass lives
+    only in React Router's *unstable RSC code paths*, which this SPA does not use — but 8.3.0 is the
+    only patched version, and the advisory was already failing `npm audit --omit=dev`, the command
+    behind the "Dependency audit" CI job. Because `ci.yml` is pull-request-only, `main` never went red;
+    the next PR would have. In v8 the `react-router-dom` package no longer exists, so the 22 files that
+    imported from it now import from `react-router` — that is the entire change. `useMatches`, the one
+    breaking change v8 brings to a declarative SPA, is not used here.
+  - **brace-expansion → 5.0.8** (GHSA-3jxr-9vmj-r5cp exponential-time expansion, and the
+    unbounded-expansion OOM advisory) and **js-yaml → 4.3.0** (GHSA-52cp-r559-cp3m, quadratic CPU on
+    merge-key chains). Development-scope, lockfile only. A second, nested copy of brace-expansion
+    reached its 2.x maintenance ceiling at **2.1.2**: that closes the expansion DoS, but the OOM
+    advisory has no fix on the 2.x line, so it stays flagged in a full `npm audit`. It sits under the
+    offline `gen:api` codegen tool, never ships in an image, and does not affect the production-only
+    audit gate.
+- **The device form now surfaces the TLS trust decision instead of burying it.** Triaging a CodeQL
+  finding on the connector (`py/request-without-cert-validation`) confirmed the flagged behaviour is
+  deliberate — `Verify TLS` is a per-device operator setting, on by default, that exists because
+  OPNsense appliances ship self-signed certificates — but it also exposed a real gap: the API accepted
+  a pinned `tls_fingerprint` as the compensating control and **no part of the UI ever offered it**.
+  An operator who switched verification off got no warning and no way to pin. Switching it off now
+  reveals a warning stating plainly that nothing authenticates the device's certificate and that
+  credentials can be intercepted, next to the fingerprint field that restores protection. The
+  fingerprint is sent only when verification is actually off and a value was entered, so neither an
+  empty field nor a dormant leftover is ever stored as if pinning were active. Translated across all
+  13 UI languages.
+  - Still open, and stated honestly: an **already-onboarded** device cannot have its TLS settings
+    changed from the console — the API supports it, no UI exposes it. Re-add the device to change its
+    pinning.
+
+### Changed
+- **Routine dependency maintenance** (no behaviour change; all CI-verified, and both major bumps are
+  covered by tests that exercise the real API rather than a mock — the report renderer builds an actual
+  PDF through WeasyPrint's `URLFetcher`, and the Fernet/x509 paths run end to end):
+  - Backend: **cryptography 42 → 49** and **WeasyPrint 62 → 69** (majors), **Alembic 1.13 → 1.18.5**,
+    **FastAPI 0.138 → 0.139**, **aiosmtplib 5.1.1 → 5.1.2**.
+  - CI: the grouped `actions-minor` bump — docker `build-push-action` 7.2 → 7.3, `metadata-action`
+    6.1 → 6.2, `setup-buildx-action` 4.1 → 4.2, `setup-qemu-action` 4.1 → 4.2, and a `login-action`
+    digest refresh.
+  - Frontend: the grouped `frontend-minor` bump (18 updates — Mantine 9.4.0 → 9.4.2, React 19.2.6 →
+    19.2.8, Recharts 3.9 → 3.10, Vite 8.1.0 → 8.1.5, ESLint 10.5 → 10.7, plus msw, TanStack Query and
+    typescript-eslint).
+
+### Fixed
+- **Documentation drift in the Wiki.** Its security page asserted that the repository has no CodeQL
+  workflow. CodeQL is in fact active through GitHub's **default setup** — the `security-and-quality`
+  suite over Python, JavaScript/TypeScript and Actions — which is precisely why no `codeql.yml` exists
+  to be found. The scan table now lists it, and the Transport-security section documents outbound TLS
+  to managed firewalls, which it had never covered.
+
 ## [0.22.2] - 2026-06-24
 ### Changed
 - **Routine dependency maintenance** (no behaviour change; all CI-verified, and the two major bumps
