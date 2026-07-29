@@ -12,6 +12,29 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.22.5] - 2026-07-30
+### Security
+- **The backend image no longer ships `pip`.** Trivy reported two HIGH findings against the image, and
+  both came from pip's own **vendored** dependencies — `msgpack 1.1.2` (GHSA-6v7p-g79w-8964, SEGV/DoS
+  when an `Unpacker` is reused after an error) and `setuptools 70.3.0` (CVE-2025-47273, path traversal
+  in `PackageIndex`) — declared in `pip/_vendor/vendor.txt`. Neither is installed standalone, and
+  **neither is reachable**: the container only ever runs `uvicorn`, `arq` or `alembic`, never pip.
+  Upgrading pip cannot clear them either — no release, 26.2 or `main`, vendors patched versions. So the
+  Dockerfile now uninstalls pip once the application is installed, which removes the vulnerable code
+  from the image and drops a package manager from a production container on general principle.
+  `python -m ensurepip` restores pip inside a running container if it is ever wanted for debugging; the
+  bundled wheel stays and Trivy does not look inside it.
+  - Verified by rebuilding the real image and rescanning it with the exact CI invocation
+    (`trivy:0.65.0 image --severity HIGH,CRITICAL --ignore-unfixed`): **2 findings → 0**. `app.main`
+    still imports, and `uvicorn`, `alembic` and `arq` all still start.
+- **Correction to the 0.22.4 notes, which claim "zero open alerts".** That was verified true before the
+  release branch was pushed — and it stopped being true nine minutes before the merge, when the release
+  PR's own Trivy scan created the two alerts above. Two lessons, recorded rather than glossed: the
+  `Trivy (backend)` / `Trivy (frontend)` checks are green **by design** (`--exit-code 0`), so they are a
+  baseline that publishes findings to the Security tab, not a gate that blocks on them; and an alert
+  count read before a branch is pushed says nothing about the tree that gets tagged. Re-read it after the
+  final push, not before.
+
 ## [0.22.4] - 2026-07-29
 ### Changed
 - **Dependency maintenance — ten merged pull requests, no behaviour change.** Every one landed with the

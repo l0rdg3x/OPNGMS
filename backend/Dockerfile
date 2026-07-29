@@ -36,6 +36,16 @@ COPY migrations ./migrations
 COPY alembic.ini ./
 RUN pip install --no-cache-dir .
 
+# Drop pip once the app is installed. Nothing at runtime needs it — the image only ever runs uvicorn,
+# arq or alembic — and pip is the sole source of two HIGH findings Trivy reports against this image:
+# its *vendored* copies of msgpack 1.1.2 (GHSA-6v7p-g79w-8964) and setuptools 70.3.0 (CVE-2025-47273),
+# declared in pip/_vendor/vendor.txt. Neither is reachable, because nothing here executes pip; and no
+# pip release — 26.2 or main — vendors patched versions, so upgrading pip cannot clear them. Removing
+# the package manager from a production image is worth doing on its own merits anyway. `python -m
+# ensurepip` restores pip inside a running container if it is ever needed for debugging (the bundled
+# wheel stays, and Trivy does not look inside it).
+RUN python -m pip uninstall -y pip
+
 # Run as a non-root user (defense-in-depth).
 RUN useradd --create-home --uid 10001 opngms && chown -R opngms:opngms /app
 USER opngms
