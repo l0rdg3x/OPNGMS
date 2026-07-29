@@ -1,9 +1,12 @@
 name: CI
 
-# PR-only: the tests/lint/audit suite runs on pull requests. Branch protection requires PRs to be
-# up-to-date with main before merge (+ squash merge), so the PR run already validates the exact tree
-# that lands on main — a second push-to-main run would be redundant. Security scans (Trivy, gitleaks)
-# deliberately KEEP their push:[main] trigger to maintain the default-branch baseline.
+# PR-only: the tests/lint/audit suite runs on pull requests, so main is validated one merge ahead
+# rather than after the fact. A pull_request run tests head merged into the base tip AT THE TIME THE
+# RUN HAPPENS, and the ruleset does not require a rebase before merging
+# (strict_required_status_checks_policy is off), so a green check can be stale: it validated main as it
+# was then, not the tree that lands. Re-run the suite locally on merged main after a batch of merges.
+# Security scans (Trivy, gitleaks) deliberately KEEP their push:[main] trigger, and
+# scheduled-audit.yml re-runs the dependency audit weekly, so the default branch keeps a baseline.
 on:
   pull_request:
     branches: [main]

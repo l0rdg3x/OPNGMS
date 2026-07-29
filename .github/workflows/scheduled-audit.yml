@@ -24,7 +24,9 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          # Must match ci.yml: several direct frontend deps (react-router, jsdom, jest-dom) declare
+          # engines.node >=22, so npm ci on Node 20 resolves the lockfile under an unsupported engine.
+          node-version: "24"
 
       - name: Install audit tooling + backend deps
         run: pip install -e backend[dev] pip-audit
