@@ -12,6 +12,98 @@ annotated tag when a version is cut.
 
 ## [Unreleased]
 
+## [0.22.4] - 2026-07-29
+### Changed
+- **Dependency maintenance — ten merged pull requests, no behaviour change.** Every one landed with the
+  full CI suite green:
+  - CI: **actions/setup-python 6 → 7**, **actions/setup-node 6 → 7**, and **docker/login-action
+    4.4.0 → 4.6.0** (the `actions-minor` group). Pull requests put both majors through their paces via
+    `ci.yml`, but they also sit outside it — `setup-python` in `publish-catalogs.yml` and
+    `scheduled-audit.yml`, `setup-node` in `scheduled-audit.yml` — and no pull request runs those. The
+    refreshed `login-action` digest is used by `trivy.yml`, already green on `main`, and by
+    `publish-images.yml`, where this release is its first run.
+  - Backend: the declared floors now match what CI had already been resolving — **pydantic-settings
+    ≥ 2.14.2**, **httpx ≥ 0.28.1**, **webauthn ≥ 3.0.0**, and **ruff ≥ 0.16.0** (dev). These four are
+    floors with no ceiling, so pip takes the newest release the rest of the graph allows on every CI
+    run; the bumps close the gap between the declaration and the versions the suite had been passing
+    against all along. (Where a ceiling *does* exist, the newest release is not what gets installed —
+    see the redis entry below.)
+  - Frontend: the `frontend-minor` group — **Mantine 9.4.2 → 9.5.0** across all six packages,
+    **recharts 3.10.0 → 3.10.1**, **eslint 10.7.0 → 10.8.0**, **globals 17.7.0 → 17.8.0** — plus the
+    test-only **jsdom 29.1.1 → 30.0.1** and **@testing-library/jest-dom 6.9.1 → 7.0.0**.
+
+### Fixed
+- **Two dependency ceilings are now declared rather than rediscovered.** Both were proposed as updates,
+  both fail, and neither failure is caused by this codebase:
+  - **redis stays on 5.x.** `arq` — the task queue the worker runs on — pins `redis[hiredis]>=4.2.0,<6`,
+    and 0.28.0 is its latest release, so raising the floor to `>=8.0.1` made the dependency set
+    unsolvable (`ResolutionImpossible`); the failed install took three CI jobs with it (backend tests,
+    dependency audit, and the backend Trivy scan, which builds the image). `backend/pyproject.toml` now
+    declares `redis>=5.0,<6` with arq named as the source, so the limit is visible where the dependency
+    is written instead of being rediscovered from a red build. It duplicates arq's constraint, so the
+    comment says to *drop* it rather than raise it once arq widens — otherwise the line we added to
+    explain a blocked upgrade becomes the thing blocking one.
+    - **Worth stating plainly: this parks the queue's Redis client on an unmaintained line.** redis-py
+      5.3.1 (2025-07-25) is the last 5.x release and the branch has had no commits since. Nothing
+      affects it today — pip-audit is clean and no advisory covers 5.x — but a future redis-py CVE would
+      have no in-place fix; the way out would be arq widening its range, or being replaced. That is the
+      accepted risk, not an absence of one.
+  - **TypeScript stays below 6.1**, which the existing `~6.0.2` pin already enforces. On TypeScript
+    7.0.2 `tsc -b`, `vite build` and all 298 frontend tests pass — `npm run lint` is what aborts: no
+    published `typescript-eslint` declares support for TypeScript ≥ 6.1 (8.65.0 and even its canaries
+    declare `>=4.8.4 <6.1.0`; upstream tracking issue typescript-eslint/typescript-eslint#10940). No
+    Dependabot ignore rule was added for it — a silenced update is worse than a visible one — so the
+    next proposal gets re-evaluated rather than skipped.
+
+  Both are recorded in `AGENTS.md` so the next contributor reads the reason before spending a CI run
+  on it.
+- **A contribution rule the repository states but does not enforce.** `AGENTS.md`, the Wiki and the
+  header comment in `ci.yml` all asserted that a pull request must be up to date with `main` before it
+  can merge — and `ci.yml` used that assertion to justify being pull-request-only, on the grounds that
+  the PR run therefore validates the exact tree that lands. The ruleset has
+  `strict_required_status_checks_policy` **off**: no rebase is required, so a `pull_request` run — which
+  tests the head merged into the base tip *at the time it runs* — leaves a check that can be stale by
+  the time the merge happens. **Eight of this release's ten updates merged while behind `main`** (#247
+  went first, #254 was rebased by Dependabot). All three texts now describe that, and prescribe the
+  remedy: after merging a batch, re-run the suite locally on merged `main` before tagging.
+  - The same look at the ruleset turned up a second gap worth writing down. On a Dependabot pull request
+    the three **required** `Analyze (…)` contexts never run — CodeQL default setup skips them — so
+    required checks are never satisfied and the merges go through the **admin bypass**
+    (`RepositoryRole` admin, `bypass_mode: always`). Turning the strict policy on would therefore not,
+    by itself, have blocked these merges. Both are repository settings rather than code, and both are
+    left as open decisions.
+- **The weekly dependency audit was running on Node 20.** `scheduled-audit.yml` — the only job that
+  re-checks `main` between pull requests — set up Node 20 while CI uses 24. This release made that worse
+  rather than better: jsdom 30 and `@testing-library/jest-dom` 7 both declare `engines.node >= 22`, as
+  react-router 8 already did, so `npm ci` in the weekly baseline was resolving the lockfile under an
+  engine none of them support. Now pinned to 24, matching CI and the documented Node 24+ requirement.
+- **The CodeQL query suite was named wrong in 0.22.3.** That release's notes and the Wiki's security page
+  both said `security-and-quality`. GitHub's default setup does not offer that suite — it offers
+  *default* or *extended*, and this repository is on **extended**, which resolves to the
+  `security-extended` built-in suite (confirmed in the config API and in every analysis's SARIF
+  `codeqlConfigSummary`). The difference is not cosmetic: `security-and-quality` would additionally run
+  the whole quality query set — maintainability and reliability, in GitHub's own wording — which is not
+  running here. The Wiki is corrected; the 0.22.3 entry is left as written, with the correction recorded
+  here instead of edited into history.
+
+### Security
+- **No new advisories, and the one carried-over residual is now actually patched.** CodeQL default
+  setup's **extended** suite (`security-extended`, over Python, JavaScript/TypeScript and Actions)
+  reports **zero open alerts** — though "open" is the operative word: seven alert records remain on file
+  as *dismissed*, and four of those findings are still produced by the current scan of `main`. One is
+  `py/request-without-cert-validation`, dismissed as **won't fix** — the accepted-risk decision recorded
+  in 0.22.3. `npm audit --omit=dev` and `pip-audit` are both clean.
+- **brace-expansion 2.1.2 → 2.1.3** in the lockfile. 0.22.3 recorded this nested copy — reached by
+  `openapi-typescript` → `@redocly/openapi-core` 1.x → `minimatch` 5.x — as having no fix on the 2.x
+  line. That is no longer true: upstream backported the guard (`EXPANSION_MAX_LENGTH`) to **2.1.3** on
+  2026-07-28, and it satisfies minimatch's declared `^2.0.1`, so a lockfile refresh takes it without
+  touching the codegen tool. The unbounded-expansion crash (CVE-2026-14257) is therefore gone from the
+  tree. A *full* `npm audit` still flags it, because the advisory's vulnerable range is the flat
+  `<= 5.0.7` and has not been narrowed the way its sibling GHSA-3jxr-9vmj-r5cp was — so the noise
+  outlives the defect. Everything about the placement is unchanged: dev-scope, offline `npm run gen:api`
+  only, `npm ci` installs it in the frontend build stage but the shipped nginx image copies `dist/`
+  alone, and the production-only audit gate never saw it.
+
 ## [0.22.3] - 2026-07-25
 ### Security
 - **Four open dependency advisories closed — one of which had already broken the CI security gate.**
