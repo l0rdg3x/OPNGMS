@@ -20,7 +20,10 @@ dependencies = [
     "cryptography>=49.0.0",
     "httpx>=0.28.1",
     "arq>=0.28.0",
-    "redis>=5.0",
+    # Ceiling imposed by arq, which pins redis<6 — stated here so it is visible rather than being
+    # rediscovered from a failed install. It duplicates arq's constraint, so drop it (do not raise it)
+    # the day arq widens its range, or this line becomes the thing that blocks the upgrade.
+    "redis>=5.0,<6",
     "defusedxml>=0.7.1",
     "pyotp>=2.10.0",
     "jinja2>=3.1.6",

@@ -100,7 +100,11 @@ npm run dev                                # Vite on :5173, proxies /api → :80
 `main` is **protected** — no direct pushes. Every change is a PR:
 1. Branch off `main` (`feat/…`, `fix/…`, `docs/…`, `chore/…`).
 2. Make the change; run the full build/test/lint locally (table above).
-3. Open a PR. It must be **up to date with `main`** and pass **all required checks**, then **squash-merge**.
+3. Open a PR, let the checks pass, then **squash-merge**. Two things the ruleset does *not* give you:
+   it doesn't force a rebase first, so a green check may be **stale** — the run validated `main` as it
+   was at run time, not the tree that lands — and on Dependabot PRs the three required CodeQL
+   `Analyze (…)` contexts never run at all, so those merges go through the admin bypass rather than a
+   satisfied gate. After merging a batch, re-run the suite locally on merged `main`.
 4. For non-trivial features, follow the spec → plan flow used across the repo (`docs/superpowers/`):
    brainstorm a short design, write a plan, implement task-by-task with review.
 
@@ -124,6 +128,12 @@ npm run dev                                # Vite on :5173, proxies /api → :80
   `.gitleaks.toml` because the entropy heuristic false-positives on translated labels; real secrets are
   still scanned everywhere else (suppression is by match-string, not path, for the rest).
 - **`--legacy-peer-deps`** is required for `npm ci`/`install` (a peer-dep range conflict).
+- **Two dependency ceilings are set by tooling, not by choice.** `redis` stays on 5.x because `arq`
+  pins `redis<6`, and `typescript` stays below **6.1** (the `~6.0.2` pin) because no published
+  `typescript-eslint` declares support for TypeScript ≥ 6.1 (upstream issue
+  typescript-eslint/typescript-eslint#10940) — on TS 7 the build and the whole test suite pass but
+  `npm run lint` aborts. Bumping either produces a red CI, not a working upgrade; both lift once the
+  upstream tool moves.
 - **Alembic** reads `ALEMBIC_DATABASE_URL`. Migrations are forward-only in practice — rollback is
   restore-from-backup, not a down-migration.
 
