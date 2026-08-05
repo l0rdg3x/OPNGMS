@@ -1,7 +1,7 @@
 # OPNGMS frontend image — build the SPA, then serve it (+ reverse-proxy /api) with nginx.
 
 # Stage 1: build the static SPA. Node 24 is the current Active LTS (Node 20 is end-of-life).
-FROM node:24-slim AS build
+FROM node:25-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
